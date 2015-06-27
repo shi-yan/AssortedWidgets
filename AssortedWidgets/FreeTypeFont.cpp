@@ -1,6 +1,5 @@
-#include <windows.h>
-#include <gl/gl.h>
-#include <gl/glu.h>
+#include <GL/gl.h>
+#include <GL/glu.h>
 #include "FreeTypeFont.h"
 
 namespace AssortedWidgets
@@ -27,7 +26,7 @@ namespace AssortedWidgets
 			{
 				unsigned char c=text[i];
 				result.width+=width[static_cast<int>(c)];
-				result.height=max(result.height,height[static_cast<int>(c)]);
+                result.height=std::max(result.height,height[static_cast<int>(c)]);
 			}
 			return result;
 		};

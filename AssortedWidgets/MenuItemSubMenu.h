@@ -2,6 +2,7 @@
 #include "MenuItem.h"
 #include "MenuList.h"
 #include "MouseEvent.h"
+#include <string>
 
 namespace AssortedWidgets
 {
@@ -92,7 +93,8 @@ namespace AssortedWidgets
 				Theme::ThemeEngine::getSingleton().getTheme().paintMenuItemSubMenu(this);
 				if(expand && !menuList.getItemList().empty())
 				{
-					Util::Graphics::getSingleton().pushPosition(Util::Position(position));
+                    Util::Position p(position);
+                    Util::Graphics::getSingleton().pushPosition(p);
 					menuList.paint();
 					Util::Graphics::getSingleton().popPosition();
 				}

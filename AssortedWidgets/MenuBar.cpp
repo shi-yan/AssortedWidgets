@@ -1,4 +1,4 @@
-#include "Menubar.h"
+#include "MenuBar.h"
 #include "Menu.h"
 #include "ThemeEngine.h"
 

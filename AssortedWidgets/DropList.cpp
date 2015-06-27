@@ -44,7 +44,8 @@ namespace AssortedWidgets
 		void DropList::paint()
 		{
 			Theme::ThemeEngine::getSingleton().getTheme().paintDropList(this);
-			Util::Graphics::getSingleton().pushPosition(Util::Position(position));
+            Util::Position p(position);
+            Util::Graphics::getSingleton().pushPosition(p);
 			button.paint();
 			Util::Graphics::getSingleton().popPosition();
 

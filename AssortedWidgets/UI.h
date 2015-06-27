@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Menubar.h"
+#include "MenuBar.h"
 #include "FontEngine.h"
 #include "DefaultTheme.h"
 #include "Menu.h"

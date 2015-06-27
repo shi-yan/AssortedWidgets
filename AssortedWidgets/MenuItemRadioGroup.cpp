@@ -126,7 +126,7 @@ namespace AssortedWidgets
 			for(iter=itemList.begin();iter<itemList.end();++iter)
 			{
 				Util::Size itemSize=(*iter)->getPreferedSize();
-                size.width=max(size.width,itemSize.width);
+                size.width=std::max(size.width,itemSize.width);
 				size.height+=itemSize.height+spacer;
 				(*iter)->position.x=tempX;
 				(*iter)->position.y=tempY;
@@ -142,7 +142,8 @@ namespace AssortedWidgets
 
 		void MenuItemRadioGroup::paint()
 		{
-			Util::Graphics::getSingleton().pushPosition(Util::Position(position));
+            Util::Position p(position);
+            Util::Graphics::getSingleton().pushPosition(p);
 			std::vector<MenuItemRadioButton *>::iterator iter;
 			for(iter=itemList.begin();iter<itemList.end();++iter)
 			{

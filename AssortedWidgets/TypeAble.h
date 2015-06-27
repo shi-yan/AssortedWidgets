@@ -2,6 +2,7 @@
 #include "ContainerElement.h"
 #include "KeyEvent.h"
 #include <ctype.h>
+#include <string>
 
 namespace AssortedWidgets
 {

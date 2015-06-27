@@ -231,7 +231,8 @@ namespace AssortedWidgets
 		void ScrollBar::paint()
 		{
 			Theme::ThemeEngine::getSingleton().getTheme().paintScrollBar(this);
-			Util::Graphics::getSingleton().pushPosition(Util::Position(position));
+            Util::Position p(position);
+            Util::Graphics::getSingleton().pushPosition(p);
 			min->paint();
 			max->paint();
 			slider->paint();

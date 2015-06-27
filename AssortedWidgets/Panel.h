@@ -47,7 +47,8 @@ namespace AssortedWidgets
 			};
 			void paint()
 			{
-				Util::Graphics::getSingleton().pushPosition(Util::Position(position));
+                Util::Position p(position);
+                Util::Graphics::getSingleton().pushPosition(p);
 				paintChild();
 				Util::Graphics::getSingleton().popPosition();
 			};

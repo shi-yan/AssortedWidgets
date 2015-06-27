@@ -237,7 +237,8 @@ namespace AssortedWidgets
 		void ScrollPanel::paint()
 		{
 			Theme::ThemeEngine::getSingleton().getTheme().paintScrollPanel(this);
-			Util::Graphics::getSingleton().pushPosition(Util::Position(position));
+            Util::Position p(position);
+            Util::Graphics::getSingleton().pushPosition(p);
 
 			if(horizontalBarShow)
 			{

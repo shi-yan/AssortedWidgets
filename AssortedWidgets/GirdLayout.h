@@ -1,5 +1,6 @@
 #pragma once
 #include "Layout.h"
+#include <vector>
 
 namespace AssortedWidgets
 {
@@ -41,10 +42,10 @@ namespace AssortedWidgets
 			GirdLayout(unsigned int _rowCount,unsigned int _columnCount):Layout(),rowCount(_rowCount),columnCount(_columnCount)
 			{
 				alignment=new struct Alignment*[rowCount];
-				for(size_t i=0;i<rowCount;++i)
+                for(unsigned int i=0;i<rowCount;++i)
 				{
 						alignment[i]=new struct Alignment[columnCount];
-						for(size_t e=0;e<columnCount;++e)
+                        for(unsigned int e=0;e<columnCount;++e)
 						{
 							alignment[i][e].HAlignment=HLeft;
 							alignment[i][e].VAlignment=VTop;

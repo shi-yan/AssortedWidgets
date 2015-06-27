@@ -18,7 +18,7 @@ namespace AssortedWidgets
 		class SelectionManager
 		{
 		private:
-			std::vector<std::vector<std::vector<Widgets::Component*>>> girdTable;
+            std::vector<std::vector<std::vector<Widgets::Component*> > > girdTable;
 			unsigned int girdSize;
 			unsigned int horizonalCount;
 			unsigned int verticalCount;
@@ -39,7 +39,7 @@ namespace AssortedWidgets
 				girdTable.reserve(horizonalCount);
 				for(size_t i=0;i<horizonalCount;++i)
 				{
-					girdTable.push_back(std::vector<std::vector<Widgets::Component*>>());
+                    girdTable.push_back(std::vector<std::vector<Widgets::Component*> >());
 					girdTable[i].reserve(verticalCount);
 					for(size_t e=0;e<verticalCount;++e)
 					{

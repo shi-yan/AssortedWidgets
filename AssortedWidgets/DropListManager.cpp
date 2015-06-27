@@ -72,7 +72,8 @@ namespace AssortedWidgets
 		void  DropListManager::paint()
 		{
 			Theme::ThemeEngine::getSingleton().getTheme().paintDropDown(position,size);
-			Util::Graphics::getSingleton().pushPosition(Util::Position(position));
+            Util::Position p(position);
+            Util::Graphics::getSingleton().pushPosition(p);
 			std::vector<Widgets::DropListItem*> &itemList=currentDropped->getItemList();
 			std::vector<Widgets::DropListItem*>::iterator iter;
 			for(iter=itemList.begin();iter<itemList.end();++iter)

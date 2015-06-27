@@ -1,7 +1,7 @@
 #include "DefaultTheme.h"
-#include "SDL.h"
-#include "SDL_opengl.h"
-#include "SDL_Image.h"
+#include "SDL2/SDL.h"
+#include "SDL2/SDL_opengl.h"
+#include "SDL2/SDL_image.h"
 #include "FontEngine.h"
 #include "Menu.h"
 #include "MenuBar.h"
@@ -62,7 +62,8 @@ namespace AssortedWidgets
 
 		void DefaultTheme::setup()
 		{
-			SDL_Surface *img=IMG_Load("aw.png");
+            SDL_RWops *io = SDL_RWFromFile("aw.png", "r+b");
+            SDL_Surface *img=IMG_LoadPNG_RW(io);
 		    SDL_LockSurface(img);   
 			glEnable(GL_TEXTURE_2D);
 			glGenTextures(1,&textureID);

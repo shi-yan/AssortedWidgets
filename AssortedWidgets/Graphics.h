@@ -1,8 +1,7 @@
 #pragma once
 
-#include <windows.h>
-#include <gl/gl.h>
-#include <gl/glu.h>
+#include <GL/gl.h>
+#include <GL/glu.h>
 #include <stack>
 #include "Position.h"
 
@@ -22,7 +21,7 @@ namespace AssortedWidgets
 				static Graphics obj;
 				return obj;
 			};
-			void pushPosition(Position &newPosition)
+            void pushPosition(Position &newPosition)
 			{
 				if(positionStack.empty())
 				{

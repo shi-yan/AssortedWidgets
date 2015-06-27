@@ -1,6 +1,7 @@
 #pragma once
 #include "MenuItem.h"
 #include "MenuItemRadioGroup.h"
+#include <string>
 
 namespace AssortedWidgets
 {

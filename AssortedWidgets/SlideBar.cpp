@@ -128,7 +128,8 @@ namespace AssortedWidgets
 		void SlideBar::paint()
 		{
 			Theme::ThemeEngine::getSingleton().getTheme().paintSlideBar(this);
-			Util::Graphics::getSingleton().pushPosition(Util::Position(position));
+            Util::Position p(position);
+            Util::Graphics::getSingleton().pushPosition(p);
 			slider->paint();
 			Util::Graphics::getSingleton().popPosition();
 		}
