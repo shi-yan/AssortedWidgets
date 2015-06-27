@@ -1,7 +1,7 @@
 # AssortedWidgets
 An OpenGL GUI library
 
-![Assorted Widgets](screenshot.png)
+![Assorted Widgets](screenshot.png =250x)
 
 Assorted Widgets is an OpenGL GUI Library I wrote in 2007 while still in colledge. At the time, I cared very much about the look of my software, a 3D modeler. I spent quite sometime to investigate different GUI options. I have tried MFC, wxWidget, GDK, Qt and many others. What I wanted is a themeable UI system, but many of the options favor os native look and feel. Qt, of course, is the best choice which supports customized look and feel, but it only had GPL license at the time. After knowing Blender3D implements its own UI with opengl, I started to do the same.
 
