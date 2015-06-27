@@ -13,16 +13,16 @@ namespace AssortedWidgets
 		{
 			if(!componentList.empty())
 			{
-				int tempX=origin.x+left;
-				int tempY=origin.y+top;
+                int tempX=origin.x+m_left;
+                int tempY=origin.y+m_top;
 				unsigned nextY=0;
-				unsigned int width=area.width-left;
-				unsigned int height=area.height-top-bottom;
+                unsigned int width=area.width-m_left;
+                unsigned int height=area.height-m_top-m_bottom;
 
 				Util::Size preferedSize=componentList[0]->getPreferedSize();
 				componentList[0]->position.x=tempX;
 				componentList[0]->position.y=tempY;
-				tempX+=preferedSize.width+spacer;
+                tempX+=preferedSize.width+m_spacer;
 				nextY=std::max<unsigned int>(nextY,preferedSize.height);
 				
 				for(size_t i=1;i<componentList.size();++i)
@@ -30,28 +30,28 @@ namespace AssortedWidgets
 					preferedSize=componentList[i]->getPreferedSize();
 					if((tempX+preferedSize.width)>width)
 					{
-						tempX=origin.x+left;
-						tempY+=nextY+spacer;
+                        tempX=origin.x+m_left;
+                        tempY+=nextY+m_spacer;
 						nextY=0;
 						componentList[i]->position.x=tempX;
 						componentList[i]->position.y=tempY;
-						tempX+=preferedSize.width+spacer;
+                        tempX+=preferedSize.width+m_spacer;
 						nextY=std::max<unsigned int>(nextY,preferedSize.height);
 					}
 					else
 					{
 						componentList[i]->position.x=tempX;
 						componentList[i]->position.y=tempY;
-						tempX+=preferedSize.width+spacer;
+                        tempX+=preferedSize.width+m_spacer;
 						nextY=std::max<unsigned int>(nextY,preferedSize.height);
 					}
 				}
 			}
 		};
 
-		Util::Size FlowLayout::getPreferedSize()
+        Util::Size FlowLayout::getPreferedSize() const
 		{
-			return Util::Size(10+left+right,10+top+bottom);
-		};
+            return Util::Size(10+m_left+m_right,10+m_top+m_bottom);
+        }
 	}
 }

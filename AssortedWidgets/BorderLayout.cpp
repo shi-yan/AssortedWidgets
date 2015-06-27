@@ -76,20 +76,20 @@ namespace AssortedWidgets
 				}
 			}
 
-			unsigned int width=area.width-left-right;
-			unsigned int height=area.height-top-bottom;
+            unsigned int width = area.width - m_left - m_right;
+            unsigned int height = area.height - m_top - m_bottom;
 
-			int tempX=origin.x+left;
-			int tempY=origin.y+top;
+            int tempX = origin.x + m_left;
+            int tempY = origin.y + m_top;
 
 			//计算所有5个区域的高度
-			unsigned int westHeight(getPreferedHeight(west,westFormat));
-			unsigned int centerHeight(getPreferedHeight(center,centerFormat));
-			unsigned int eastHeight(getPreferedHeight(east,eastFormat));
-			unsigned int northHeight(getPreferedHeight(north,northFormat));
-			unsigned int southHeight(getPreferedHeight(south,southFormat));
+            unsigned int westHeight(getPreferedHeight(west,m_westFormat));
+            unsigned int centerHeight(getPreferedHeight(center,m_centerFormat));
+            unsigned int eastHeight(getPreferedHeight(east,m_eastFormat));
+            unsigned int northHeight(getPreferedHeight(north,m_northFormat));
+            unsigned int southHeight(getPreferedHeight(south,m_southFormat));
 
-			unsigned int heightAvailable(area.height-top-bottom-spacer-spacer);
+            unsigned int heightAvailable(area.height-m_top-m_bottom-m_spacer-m_spacer);
 			heightAvailable=std::max<unsigned int>(heightAvailable,std::max<unsigned int>(std::max<unsigned int>(westHeight,eastHeight),centerHeight)+northHeight+southHeight);
 			int strechAreaCount(1);
 			if(northVStyle==Widgets::Element::Stretch)
@@ -123,16 +123,16 @@ namespace AssortedWidgets
 			westHeight=centerHeight=eastHeight=std::max<unsigned int>(std::max<unsigned int>(westHeight,eastHeight),std::max<unsigned int>(centerHeight,averageHeight));
 
 			//计算所有5个区域的宽度
-			unsigned int northWidth(getPreferedWidth(north,northFormat));
-			unsigned int southWidth(getPreferedWidth(south,southFormat));
-			unsigned int eastWidth(getPreferedWidth(east,eastFormat));
-			unsigned int westWidth(getPreferedWidth(west,westFormat));
-			unsigned int centerWidth(getPreferedWidth(center,centerFormat));
+            unsigned int northWidth(getPreferedWidth(north,m_northFormat));
+            unsigned int southWidth(getPreferedWidth(south,m_southFormat));
+            unsigned int eastWidth(getPreferedWidth(east,m_eastFormat));
+            unsigned int westWidth(getPreferedWidth(west,m_westFormat));
+            unsigned int centerWidth(getPreferedWidth(center,m_centerFormat));
 
-			unsigned int widthAvailable(area.width-left-right);
-			widthAvailable=std::max<unsigned int>(widthAvailable,std::max<unsigned int>(westWidth+eastWidth+centerWidth+spacer+spacer,std::max<unsigned int>(northWidth,southWidth)));
+            unsigned int widthAvailable(area.width-m_left-m_right);
+            widthAvailable=std::max<unsigned int>(widthAvailable,std::max<unsigned int>(westWidth+eastWidth+centerWidth+m_spacer+m_spacer,std::max<unsigned int>(northWidth,southWidth)));
 			northWidth=southWidth=widthAvailable;
-			widthAvailable-=spacer+spacer;
+            widthAvailable-=m_spacer+m_spacer;
 
 			strechAreaCount=1;
 			if(westHStyle==Widgets::Element::Stretch)
@@ -164,35 +164,35 @@ namespace AssortedWidgets
 			}
 			centerWidth=std::max<unsigned int>(averageWidth,centerWidth);
 
-			Util::Position northPosition(origin.x+left,origin.y+top);
+            Util::Position northPosition(origin.x+m_left,origin.y+m_top);
 			Util::Size northArea(northWidth,northHeight);
 
-			orderComponents(north,northHAlignment,northVAlignment,northFormat,northPosition,northArea);
+            orderComponents(north,m_northHAlignment,m_northVAlignment,m_northFormat,northPosition,northArea);
 
-			Util::Position southPosition(origin.x+left,origin.y+top+spacer+centerHeight+spacer+northHeight);
+            Util::Position southPosition(origin.x+m_left,origin.y+m_top+m_spacer+centerHeight+m_spacer+northHeight);
 			Util::Size southArea(southWidth,southHeight);
-			orderComponents(south,southHAlignment,southVAlignment,southFormat,southPosition,southArea);
+            orderComponents(south,m_southHAlignment,m_southVAlignment,m_southFormat,southPosition,southArea);
 
-			Util::Position westPosition(origin.x+left,origin.y+top+northHeight+spacer);
+            Util::Position westPosition(origin.x+m_left,origin.y+m_top+northHeight+m_spacer);
 			Util::Size westArea(westWidth,westHeight);
-			orderComponents(west,westHAlignment,westVAlignment,westFormat,westPosition,westArea);
+            orderComponents(west,m_westHAlignment,m_westVAlignment,m_westFormat,westPosition,westArea);
 
 
 
-			Util::Position eastPosition(origin.x+left+westWidth+spacer+centerWidth+spacer,origin.y+top+northHeight+spacer);
+            Util::Position eastPosition(origin.x+m_left+westWidth+m_spacer+centerWidth+m_spacer,origin.y+m_top+northHeight+m_spacer);
 			Util::Size eastArea(eastWidth,eastHeight);
 
-			testNorthX=static_cast<float>(eastPosition.x);
-			testNorthY=static_cast<float>(eastPosition.y);
-			testNorthWidth=static_cast<float>(eastArea.width);
-			testNorthHeight=static_cast<float>(eastArea.height);
+            m_testNorthX=static_cast<float>(eastPosition.x);
+            m_testNorthY=static_cast<float>(eastPosition.y);
+            m_testNorthWidth=static_cast<float>(eastArea.width);
+            m_testNorthHeight=static_cast<float>(eastArea.height);
 
-			orderComponents(east,eastHAlignment,eastVAlignment,eastFormat,eastPosition,eastArea);
+            orderComponents(east,m_eastHAlignment,m_eastVAlignment,m_eastFormat,eastPosition,eastArea);
 
-			Util::Position centerPosition(origin.x+left+spacer+westWidth,origin.y+spacer+northHeight+top);
+            Util::Position centerPosition(origin.x+m_left+m_spacer+westWidth,origin.y+m_spacer+northHeight+m_top);
 			Util::Size centerArea(centerWidth,centerHeight);
 
-			orderComponents(center,centerHAlignment,centerVAlignment,centerFormat,centerPosition,centerArea);
+            orderComponents(center,m_centerHAlignment,m_centerVAlignment,m_centerFormat,centerPosition,centerArea);
 		}
 
 		void BorderLayout::orderComponents(std::vector<Widgets::Element*> &list,int HAlignment,int VAlignment,int format,Util::Position &origin,Util::Size &area)
@@ -221,7 +221,7 @@ namespace AssortedWidgets
 								}
 							}
 
-							unsigned int widthAvailable(area.width-spacer*(list.size()-1)-widthTakenUp);
+                            unsigned int widthAvailable(area.width-m_spacer*(list.size()-1)-widthTakenUp);
 							unsigned int averageWidth(0);
 							if(strechSegment)
 							{
@@ -236,13 +236,13 @@ namespace AssortedWidgets
 								{
 									(*iter)->position.x=tempX;
 									(*iter)->size.width=perfectSize.width;
-									tempX+=spacer+perfectSize.width;
+                                    tempX+=m_spacer+perfectSize.width;
 								}
 								else if((*iter)->getHorizontalStyle()==Widgets::Element::Stretch)
 								{
 									(*iter)->position.x=tempX;
 									(*iter)->size.width=averageWidth;
-									tempX+=spacer+averageWidth;
+                                    tempX+=m_spacer+averageWidth;
 								}
 							}
 							break;
@@ -265,7 +265,7 @@ namespace AssortedWidgets
 								}
 							}
 
-							unsigned int widthAvailable(area.width-spacer*(list.size()-1)-widthTakenUp);
+                            unsigned int widthAvailable(area.width-m_spacer*(list.size()-1)-widthTakenUp);
 							unsigned int averageWidth(0);
 							if(strechSegment)
 							{
@@ -283,14 +283,14 @@ namespace AssortedWidgets
 									tempX-=perfectSize.width;
 									iter->position.x=tempX;
 									iter->size.width=perfectSize.width;
-									tempX-=spacer;
+                                    tempX-=m_spacer;
 								}
 								else if(iter->getHorizontalStyle()==Widgets::Element::Stretch)
 								{
 									tempX-=averageWidth;
 									iter->position.x=tempX;
 									iter->size.width=averageWidth;
-									tempX-=spacer;
+                                    tempX-=m_spacer;
 								}
 							}
 							break;
@@ -317,7 +317,7 @@ namespace AssortedWidgets
 
 							if(isStretch)
 							{
-								unsigned int widthAvailable(area.width-spacer*(list.size()-1)-widthTakenUp);
+                                unsigned int widthAvailable(area.width-m_spacer*(list.size()-1)-widthTakenUp);
 								unsigned int averageWidth=widthAvailable/strechSegment;
 								int tempX=origin.x;
 				
@@ -328,26 +328,26 @@ namespace AssortedWidgets
 									{
 										(*iter)->position.x=tempX;
 										(*iter)->size.width=perfectSize.width;
-										tempX+=spacer+perfectSize.width;
+                                        tempX+=m_spacer+perfectSize.width;
 									}
 									else if((*iter)->getHorizontalStyle()==Widgets::Element::Stretch)
 									{
 										(*iter)->position.x=tempX;
 										(*iter)->size.width=averageWidth;
-										tempX+=spacer+averageWidth;
+                                        tempX+=m_spacer+averageWidth;
 									}
 								}
 							}
 							else
 							{
-								widthTakenUp+=spacer*(list.size()-1);
+                                widthTakenUp+=m_spacer*(list.size()-1);
 								int tempX=static_cast<int>(origin.x+area.width*0.5f-widthTakenUp*0.5f);
 								for(iter=list.begin();iter<list.end();++iter)
 								{
 									Util::Size perfectSize=(*iter)->getPreferedSize();
 									(*iter)->position.x=tempX;
 									(*iter)->size.width=perfectSize.width;
-									tempX+=spacer+perfectSize.width;
+                                    tempX+=m_spacer+perfectSize.width;
 								}
 							}
 							break;
@@ -443,9 +443,9 @@ namespace AssortedWidgets
 					for(iter=list.begin();iter<list.end();++iter)
 					{
 						Util::Size perfectSize=(*iter)->getPreferedSize();
-						resultWidth+=spacer+perfectSize.width;
+                        resultWidth+=m_spacer+perfectSize.width;
 					}
-					resultWidth-=spacer;
+                    resultWidth-=m_spacer;
 				}
 				else if(format==vertical)
 				{
@@ -481,15 +481,15 @@ namespace AssortedWidgets
 					for(iter=list.begin();iter<list.end();++iter)
 					{
 						Util::Size perfectSize=(*iter)->getPreferedSize();
-						resultHeight+=spacer+perfectSize.height;
+                        resultHeight+=m_spacer+perfectSize.height;
 					}
-					resultHeight-=spacer;
+                    resultHeight-=m_spacer;
 				}
 			}
 			return resultHeight;
 		}
 
-		Util::Size BorderLayout::getPreferedSize()
+        Util::Size BorderLayout::getPreferedSize() const
 		{
 			return Util::Size();
 		}

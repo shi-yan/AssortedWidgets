@@ -20,12 +20,12 @@ namespace AssortedWidgets
 			Util::Size size;
 			Util::Position position;
 		public:
-bool isHover;
+            bool isHover;
 			void shrinkBack();
 			Widgets::DropList* getDropped()
 			{
 				return currentDropped;
-			};
+            }
 
 			bool isIn(int mx,int my)
 			{

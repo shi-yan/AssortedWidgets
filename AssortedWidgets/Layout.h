@@ -16,75 +16,76 @@ namespace AssortedWidgets
 		class Layout
 		{
 		protected:
-			unsigned int top;
-			unsigned int bottom;
-			unsigned int left;
-			unsigned int right;
-			unsigned int spacer;
+            unsigned int m_top;
+            unsigned int m_bottom;
+            unsigned int m_left;
+            unsigned int m_right;
+            unsigned int m_spacer;
+
+        public:
+            Layout(unsigned int spacer = 2, unsigned int top = 0, unsigned int bottom = 0, unsigned int left = 0, unsigned int right = 0)
+                :m_top(top),
+                  m_bottom(bottom),
+                  m_left(left),
+                  m_right(right),
+                  m_spacer(spacer)
+            {}
+
+            void setTop(unsigned int top)
+			{
+                m_top = top;
+            }
+
+            void setBottom(unsigned int bottom)
+			{
+                m_bottom = bottom;
+            }
+
+            void setLeft(unsigned int left)
+			{
+                m_left = left;
+            }
+
+            void setRight(unsigned int right)
+			{
+                m_right = right;
+            }
+
+            void setSpacer(unsigned int spacer)
+			{
+                m_spacer = spacer;
+            }
+
+            unsigned int getTop() const
+			{
+                return m_top;
+            }
+
+            unsigned int getBottom() const
+			{
+                return m_bottom;
+            }
+
+            unsigned int getLeft() const
+			{
+                return m_left;
+            }
+
+            unsigned int getRight() const
+			{
+                return m_right;
+            }
+
+            unsigned int getSpacer() const
+			{
+                return m_spacer;
+            }
+
+            virtual void updateLayout(std::vector<Widgets::Element *> &componentList, Util::Position &origin, Util::Size &area) = 0;
+            virtual Util::Size getPreferedSize() const = 0;
+            virtual void testPaint() {}
 		public:
-			Layout(void):top(0),bottom(0),left(0),right(0),spacer(2)
-			{};
-			Layout(unsigned int _spacer):top(0),bottom(0),left(0),right(0),spacer(_spacer)
-			{};
-			Layout(unsigned int _top,unsigned int _bottom,unsigned int _left,unsigned int _right,unsigned int _spacer):top(_top),bottom(_bottom),left(_left),right(_right),spacer(_spacer)
-			{};
-
-			void setTop(unsigned int _top)
-			{
-				top=_top;
-			};
-
-			void setBottom(unsigned int _bottom)
-			{
-				bottom=_bottom;
-			};
-
-			void setLeft(unsigned int _left)
-			{
-				left=_left;
-			};
-
-			void setRight(unsigned int _right)
-			{
-				right=_right;
-			};
-
-			void setSpacer(unsigned int _spacer)
-			{
-				spacer=_spacer;
-			};
-
-			unsigned int getTop()
-			{
-				return top;
-			};
-
-			unsigned int getBottom()
-			{
-				return bottom;
-			};
-
-			unsigned int getLeft()
-			{
-				return left;
-			};
-
-			unsigned int getRight()
-			{
-				return right;
-			};
-
-			unsigned int getSpacer()
-			{
-				return spacer;
-			};
-
-			virtual void updateLayout(std::vector<Widgets::Element *> &componentList,Util::Position &origin,Util::Size &area) = 0;
-			virtual Util::Size getPreferedSize()=0;
-			virtual void testPaint(){};
-		public:
-			~Layout(void)
-			{};
+            ~Layout(void) {}
 		};
 	}
 }

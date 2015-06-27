@@ -8,13 +8,13 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		class Panel:public Element,public Container
+        class Panel: public Element, public Container
 		{
 		private:
-			unsigned int top;
-			unsigned int bottom;
-			unsigned int left;
-			unsigned int right;
+            unsigned int m_top;
+            unsigned int m_bottom;
+            unsigned int m_left;
+            unsigned int m_right;
 
 			Util::Position contentPosition;
 			Util::Size contentSize;
@@ -25,9 +25,9 @@ namespace AssortedWidgets
 			Util::Size getPreferedSize()
 			{
 				return Util::Size(10,10);
-			};
+            }
 
-						void mousePressed(const Event::MouseEvent &e);
+            void mousePressed(const Event::MouseEvent &e);
 			
 			void mouseReleased(const Event::MouseEvent &e);
 			void mouseEntered(const Event::MouseEvent &e);
@@ -44,14 +44,14 @@ namespace AssortedWidgets
 					Theme::ThemeEngine::getSingleton().getTheme().scissorEnd();
 				}
 				
-			};
+            }
 			void paint()
 			{
                 Util::Position p(position);
                 Util::Graphics::getSingleton().pushPosition(p);
 				paintChild();
 				Util::Graphics::getSingleton().popPosition();
-			};
+            }
 		public:
 			~Panel(void);
 		};

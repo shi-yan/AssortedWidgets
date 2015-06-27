@@ -12,7 +12,7 @@ namespace AssortedWidgets
 	{
 		class MenuBar;
 
-		class Menu:public Component
+        class Menu: public Component
 		{
 		public:
 			enum Status
@@ -24,7 +24,7 @@ namespace AssortedWidgets
 		private:
 			bool expand;
 			std::string text;
-			int status;
+            enum Status status;
 			MenuList menuList;
 			MenuBar *menuBar;
 
@@ -32,7 +32,8 @@ namespace AssortedWidgets
 			bool isExpand()
 			{
 				return expand;
-			};
+            }
+
 			void mousePressed(const Event::MouseEvent &e);
 
 			void mouseEntered(const Event::MouseEvent &e);
@@ -49,7 +50,7 @@ namespace AssortedWidgets
 			void setMenuBar(MenuBar *_menuBar)
 			{
 				menuBar=_menuBar;
-			};
+            }
 
 			void shrink()
 			{
@@ -57,25 +58,26 @@ namespace AssortedWidgets
 				status=normal;
 			}
 
-			std::string getText() const
+            const std::string& getText() const
 			{
 				return text;
-			};
+            }
 
-			int getStatus()const
+            enum Status getStatus() const
 			{
 				return status;
-			};
+            }
 
 			void addItem(MenuItem *item)
 			{
 				menuList.addItem(item);
-			};
+            }
 
 			Util::Size getPreferedSize()
 			{
 				return Theme::ThemeEngine::getSingleton().getTheme().getMenuPreferedSize(this);
-			};
+            }
+
 			void paint(void)
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintMenu(this);
@@ -86,7 +88,8 @@ namespace AssortedWidgets
 					menuList.paint();
 					Util::Graphics::getSingleton().popPosition();
 				}
-			};
+            }
+
 			Menu(std::string &_text);
 			Menu(char *_text);
 		public:

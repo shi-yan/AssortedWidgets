@@ -4,115 +4,115 @@ namespace AssortedWidgets
 {
 	namespace Test
 	{
-		AllInOneDialog::AllInOneDialog(void):Dialog("All In One:",450,450,450,280)
+        AllInOneDialog::AllInOneDialog(void)
+            :Dialog("All In One:", 450, 450, 450, 280)
 		{
-			girdLayout=new Layout::GirdLayout(4,4);
-			girdLayout->setRight(16);
-			girdLayout->setLeft(16);
-			girdLayout->setTop(8);
-			girdLayout->setBottom(8);
-			girdLayout->setSpacer(4);
+            m_girdLayout=new Layout::GirdLayout(4,4);
+            m_girdLayout->setRight(16);
+            m_girdLayout->setLeft(16);
+            m_girdLayout->setTop(8);
+            m_girdLayout->setBottom(8);
+            m_girdLayout->setSpacer(4);
 
-			label=new Widgets::Label("Widget Gallery");
-			add(label);
+            m_label=new Widgets::Label("Widget Gallery");
+            add(m_label);
 
-			closeButton=new Widgets::Button("Close");
-			add(closeButton);
+            m_closeButton=new Widgets::Button("Close");
+            add(m_closeButton);
 
-			textField=new Widgets::TextField(100,"Text Input");
-			add(textField);
+            m_textField=new Widgets::TextField(100,"Text Input");
+            add(m_textField);
 
-			labelInScroll=new Widgets::Label("I am a Label in a Scroll Panel.");
-			labelInScroll->size.width=500;
-			labelInScroll->size.height=500;
-			labelInScroll->setDrawBackground(true);
-			scrollPanel=new Widgets::ScrollPanel();
-			scrollPanel->setContent(labelInScroll);
-			add(scrollPanel);
+            m_labelInScroll=new Widgets::Label("I am a Label in a Scroll Panel.");
+            m_labelInScroll->size.width=500;
+            m_labelInScroll->size.height=500;
+            m_labelInScroll->setDrawBackground(true);
+            m_scrollPanel=new Widgets::ScrollPanel();
+            m_scrollPanel->setContent(m_labelInScroll);
+            add(m_scrollPanel);
 
-			check=new Widgets::CheckButton("Check Me");
-			add(check);
+            m_check=new Widgets::CheckButton("Check Me");
+            add(m_check);
 
-			radioGroup=new Widgets::RadioGroup();
-			radio1=new Widgets::RadioButton("Radio 1",radioGroup);
-			radio2=new Widgets::RadioButton("Radio 2",radioGroup);
-			add(radio1);
-			add(radio2);
+            m_radioGroup=new Widgets::RadioGroup();
+            m_radio1=new Widgets::RadioButton("Radio 1",m_radioGroup);
+            m_radio2=new Widgets::RadioButton("Radio 2",m_radioGroup);
+            add(m_radio1);
+            add(m_radio2);
 
-			sliderH=new Widgets::SlideBar();
-			add(sliderH);
+            m_sliderH=new Widgets::SlideBar();
+            add(m_sliderH);
 
-			sliderV=new Widgets::SlideBar(Widgets::SlideBar::Vertical);
-			add(sliderV);
+            m_sliderV=new Widgets::SlideBar(Widgets::SlideBar::Vertical);
+            add(m_sliderV);
 
-			progressH=new Widgets::ProgressBar();
-			progressH->setValue(60.0f);
-			add(progressH);
+            m_progressH=new Widgets::ProgressBar();
+            m_progressH->setValue(60.0f);
+            add(m_progressH);
 
-			progressV=new Widgets::ProgressBar(Widgets::ProgressBar::Vertical);
-			progressV->setValue(50.0f);
-			add(progressV);
+            m_progressV=new Widgets::ProgressBar(Widgets::ProgressBar::Vertical);
+            m_progressV->setValue(50.0f);
+            add(m_progressV);
 
-			option1=new Widgets::DropListItem("Option 1");
-			option2=new Widgets::DropListItem("Option 2");
-			option3=new Widgets::DropListItem("Option 3");
+            m_option1=new Widgets::DropListItem("Option 1");
+            m_option2=new Widgets::DropListItem("Option 2");
+            m_option3=new Widgets::DropListItem("Option 3");
 
-			option4=new Widgets::DropListItem("Google");
-			option5=new Widgets::DropListItem("Yahoo!");
-			option6=new Widgets::DropListItem("Microsoft");
+            m_option4=new Widgets::DropListItem("Google");
+            m_option5=new Widgets::DropListItem("Yahoo!");
+            m_option6=new Widgets::DropListItem("Microsoft");
 
-			dropList1=new Widgets::DropList();
-			dropList1->add(option1);
-			dropList1->add(option2);
-			dropList1->add(option3);
-			add(dropList1);
+            m_dropList1=new Widgets::DropList();
+            m_dropList1->add(m_option1);
+            m_dropList1->add(m_option2);
+            m_dropList1->add(m_option3);
+            add(m_dropList1);
 
-			dropList2=new Widgets::DropList();
-			dropList2->add(option4);
-			dropList2->add(option5);
-			dropList2->add(option6);
-			add(dropList2);
+            m_dropList2=new Widgets::DropList();
+            m_dropList2->add(m_option4);
+            m_dropList2->add(m_option5);
+            m_dropList2->add(m_option6);
+            add(m_dropList2);
 
-			setLayout(girdLayout);
+            setLayout(m_girdLayout);
 			pack();
-								MouseDelegate onClose;
+            MouseDelegate onClose;
 			onClose.bind(this,&AllInOneDialog::onClose);
-			closeButton->mouseReleasedHandlerList.push_back(onClose);
-
+            m_closeButton->mouseReleasedHandlerList.push_back(onClose);
 		}
 
-						void AllInOneDialog::onClose(const Event::MouseEvent &e)
+        void AllInOneDialog::onClose(const Event::MouseEvent &e)
 		{
 			Close();
 		}
 
 		AllInOneDialog::~AllInOneDialog(void)
 		{
-			delete label;
-			delete closeButton;
-			delete textField;
-			delete scrollPanel;
-			delete labelInScroll;
-			delete check;
-			delete radio1;
-			delete radio2;
-			delete sliderH;
-			delete sliderV;
-			delete progressH;
-			delete progressV;
-			delete dropList1;
-			delete dropList2;
+            delete m_label;
+            delete m_closeButton;
+            delete m_textField;
+            delete m_scrollPanel;
+            delete m_labelInScroll;
+            delete m_check;
+            delete m_radio1;
+            delete m_radio2;
+            delete m_sliderH;
+            delete m_sliderV;
+            delete m_progressH;
+            delete m_progressV;
+            delete m_dropList1;
+            delete m_dropList2;
 
-			delete radioGroup;
-			delete option1;
-			delete option2;
-			delete option3;
+            delete m_radioGroup;
+            delete m_option1;
+            delete m_option2;
+            delete m_option3;
 
-			delete option4;
-			delete option5;
-			delete option6;
+            delete m_option4;
+            delete m_option5;
+            delete m_option6;
 
-			delete girdLayout;
+            delete m_girdLayout;
 		}
 	}
 }

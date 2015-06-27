@@ -12,25 +12,24 @@ namespace AssortedWidgets
 		class TypeActiveManager
 		{
 		private:
-			Widgets::TypeAble *currentActive;
-		private:
-			TypeActiveManager(void):currentActive(0)
-			{};
+            Widgets::TypeAble *m_currentActive;
+            TypeActiveManager(void)
+                :m_currentActive(0)
+            {}
+            ~TypeActiveManager(void);
 		public:
 			void setActive(Widgets::TypeAble *_currentActive);
 			void onCharTyped(char character,int modifier);
 			bool isActive()
 			{
-				return currentActive!=0;
-			};
+                return m_currentActive!=0;
+            }
 			void disactive();
 			static TypeActiveManager& getSingleton()
 			{
 				static TypeActiveManager obj;
 				return obj;
 			}
-		private:
-			~TypeActiveManager(void);
 		};
 	}
 }

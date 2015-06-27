@@ -15,7 +15,7 @@ namespace AssortedWidgets
 			FlowLayout(unsigned int top,unsigned int bottom,unsigned int left,unsigned int right,unsigned int spacer):Layout(top,bottom,left,right,spacer)
 			{}
 			void updateLayout(std::vector<Widgets::Element *> &componentList,Util::Position &origin,Util::Size &area);
-			Util::Size getPreferedSize();
+            Util::Size getPreferedSize() const;
 
 		public:
 			~FlowLayout(void);

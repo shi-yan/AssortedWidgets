@@ -1,6 +1,6 @@
 #pragma once
-#include "ContainerElement.h"
 #include <string>
+#include "ContainerElement.h"
 #include "ThemeEngine.h"
 #include "MouseEvent.h"
 
@@ -8,7 +8,7 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		class AbstractButton:public Element
+        class AbstractButton: public Element
 		{
 		public:
 			enum Status
@@ -17,41 +17,41 @@ namespace AssortedWidgets
 				hover,
 				pressed
 			};
+
 		private:
-			unsigned int top;
-			unsigned int bottom;
-			unsigned int right;
-			unsigned int left;
-			int status;
+            unsigned int m_top;
+            unsigned int m_bottom;
+            unsigned int m_right;
+            unsigned int m_left;
+            enum Status m_status;
+
 		public:
-			AbstractButton(void);
-			AbstractButton(unsigned int _top,unsigned int _bottom,unsigned int _left,unsigned int _right);
-			AbstractButton(unsigned int _top,unsigned int _bottom,unsigned int _left,unsigned int _right,int _status);
+            AbstractButton(unsigned int top = 4, unsigned int bottom = 4, unsigned int left = 8, unsigned int right = 8, enum Status status = normal);
 			
-			unsigned int getTop()
+            unsigned int getTop() const
 			{
-				return top;
-			};
+                return m_top;
+            }
 
-			unsigned int getBottom()
+            unsigned int getBottom() const
 			{
-				return bottom;
-			};
+                return m_bottom;
+            }
 
-			unsigned int getRight()
+            unsigned int getRight() const
 			{
-				return right;
-			};
+                return m_right;
+            }
 
-			unsigned int getLeft()
+            unsigned int getLeft() const
 			{
-				return left;
-			};
+                return m_left;
+            }
 
-			int getStatus()
+            enum Status getStatus() const
 			{
-				return status;
-			};
+                return m_status;
+            }
 
 			void mousePressed(const Event::MouseEvent &e);
 			void mouseEntered(const Event::MouseEvent &e);
@@ -60,6 +60,6 @@ namespace AssortedWidgets
 
 		public:
 			~AbstractButton(void);
-		};
+        };
 	}
 }

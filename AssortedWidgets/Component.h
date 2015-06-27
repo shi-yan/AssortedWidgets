@@ -23,33 +23,37 @@ namespace AssortedWidgets
 		private:
 			int layoutProperty;
 		public:
-			Component(void):isEnable(true),isVisible(true),isHover(false),layoutProperty(0)
-			{};
+            Component(void)
+                :isEnable(true),
+                  isVisible(true),
+                  isHover(false),
+                  layoutProperty(0)
+            {}
 
 			virtual void paint()
-			{};
+            {}
 
 			void setLayoutProperty(int _layoutProperty)
 			{
 				layoutProperty=_layoutProperty;
-			};
+            }
 
-			int getLayoutProperty()
+            int getLayoutProperty() const
 			{
 				return layoutProperty;	
-			};
+            }
 
 			void setLocation(int x,int y)
 			{
 				position.x=x;
 				position.y=y;
-			};
+            }
 
 			void setSize(unsigned int width,unsigned int height)
 			{
 				size.width=width;
 				size.height=height;
-			};
+            }
 
 			void processMouseClick(const Event::MouseEvent &e)
 			{
@@ -58,7 +62,7 @@ namespace AssortedWidgets
 				{
 					(*iter)(e);
 				}
-			};
+            }
 
 			void processMousePressed(const Event::MouseEvent &e)
 			{
@@ -67,7 +71,7 @@ namespace AssortedWidgets
 				{
 					(*iter)(e);
 				}
-			};
+            }
 
 			void processMouseReleased(const Event::MouseEvent &e)
 			{
@@ -76,7 +80,7 @@ namespace AssortedWidgets
 				{
 					(*iter)(e);
 				}
-			};
+            }
 
 			void processMouseEntered(const Event::MouseEvent &e)
 			{
@@ -85,7 +89,7 @@ namespace AssortedWidgets
 				{
 					(*iter)(e);
 				}
-			};
+            }
 
 			void processMouseExited(const Event::MouseEvent& e)
 			{
@@ -94,7 +98,7 @@ namespace AssortedWidgets
 				{
 					(*iter)(e);
 				}
-			};
+            }
 
 			void processMouseMoved(const Event::MouseEvent& e)
 			{
@@ -103,10 +107,11 @@ namespace AssortedWidgets
 				{
 					(*iter)(e);
 				}
-			};
+            }
 
-			virtual Util::Size getPreferedSize() =0;
-			virtual void pack(){};
+            //not const for now
+            virtual Util::Size getPreferedSize() = 0;
+            virtual void pack(){}
 		public:
 			typedef fastdelegate::FastDelegate1<const Event::MouseEvent &> MouseDelegate;
 			std::vector<MouseDelegate> mouseClickHandlerList;
@@ -125,7 +130,7 @@ namespace AssortedWidgets
 				mouseEnteredHandlerList.clear();
 				mouseExitedHandlerList.clear();
 				mouseMovedHandlerList.clear();
-			};
+            }
 		};
 	}
 }

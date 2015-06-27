@@ -4,45 +4,46 @@ namespace AssortedWidgets
 {
 	namespace Test
 	{
-		TextNDropTestDialog::TextNDropTestDialog(void):Dialog("TextField and DropList Test:",200,200,320,200)
+        TextNDropTestDialog::TextNDropTestDialog(void)
+            :Dialog("TextField and DropList Test:",200,200,320,200)
 		{
-			girdLayout=new Layout::GirdLayout(5,1);
-			girdLayout->setRight(16);
-			girdLayout->setLeft(16);
-			girdLayout->setTop(8);
-			girdLayout->setBottom(8);
-			girdLayout->setSpacer(4);
+            m_girdLayout=new Layout::GirdLayout(5,1);
+            m_girdLayout->setRight(16);
+            m_girdLayout->setLeft(16);
+            m_girdLayout->setTop(8);
+            m_girdLayout->setBottom(8);
+            m_girdLayout->setSpacer(4);
 
-			girdLayout->setHorizontalAlignment(1,0,Layout::GirdLayout::HCenter);
-			girdLayout->setHorizontalAlignment(3,0,Layout::GirdLayout::HCenter);
-			girdLayout->setHorizontalAlignment(4,0,Layout::GirdLayout::HRight);
+            m_girdLayout->setHorizontalAlignment(1,0,Layout::GirdLayout::HCenter);
+            m_girdLayout->setHorizontalAlignment(3,0,Layout::GirdLayout::HCenter);
+            m_girdLayout->setHorizontalAlignment(4,0,Layout::GirdLayout::HRight);
 
-			closeButton=new Widgets::Button("Close");
-			textField=new Widgets::TextField(160);
-			dropList=new Widgets::DropList();
-			option1=new Widgets::DropListItem("Option one");
-			option2=new Widgets::DropListItem("Option Two");
-			option3=new Widgets::DropListItem("Option Three");
-			dropList->add(option1);
-			dropList->add(option2);
-			dropList->add(option3);
+            m_closeButton=new Widgets::Button("Close");
+            m_textField=new Widgets::TextField(160);
+            m_dropList=new Widgets::DropList();
+            m_option1=new Widgets::DropListItem("Option one");
+            m_option2=new Widgets::DropListItem("Option Two");
+            m_option3=new Widgets::DropListItem("Option Three");
+            m_dropList->add(m_option1);
+            m_dropList->add(m_option2);
+            m_dropList->add(m_option3);
 
-			textLabel=new Widgets::Label("Text input here:");
-			optionLabel=new Widgets::Label("Drop List test:");
+            m_textLabel=new Widgets::Label("Text input here:");
+            m_optionLabel=new Widgets::Label("Drop List test:");
 
-			setLayout(girdLayout);
+            setLayout(m_girdLayout);
 
-			add(textLabel);
-			add(textField);
-			add(optionLabel);
-			add(dropList);
-			add(closeButton);
+            add(m_textLabel);
+            add(m_textField);
+            add(m_optionLabel);
+            add(m_dropList);
+            add(m_closeButton);
 
 			pack();
 
 			MouseDelegate onClose;
 			onClose.bind(this,&TextNDropTestDialog::onClose);
-			closeButton->mouseReleasedHandlerList.push_back(onClose);
+            m_closeButton->mouseReleasedHandlerList.push_back(onClose);
 
 
 		}
@@ -54,15 +55,15 @@ namespace AssortedWidgets
 
 		TextNDropTestDialog::~TextNDropTestDialog(void)
 		{
-			delete closeButton;
-			delete textField;
-			delete dropList;
-			delete option1;
-			delete option2;
-			delete option3;
-			delete girdLayout;
-			delete optionLabel;
-			delete textLabel;
+            delete m_closeButton;
+            delete m_textField;
+            delete m_dropList;
+            delete m_option1;
+            delete m_option2;
+            delete m_option3;
+            delete m_girdLayout;
+            delete m_optionLabel;
+            delete m_textLabel;
 		}
 	}
 }

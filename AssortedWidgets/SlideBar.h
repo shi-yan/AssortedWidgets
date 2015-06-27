@@ -15,12 +15,14 @@ namespace AssortedWidgets
 				Horizontal,
 				Vertical
 			};
+
 		private:
 			SlideBarSlider *slider;
 			int type;
 			float value;
 			float minV;
 			float maxV;
+
 		public:
 			float getValue()
 			{

@@ -4,14 +4,16 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		Spacer::Spacer(int _type):type(_type)
+        Spacer::Spacer(enum Type _type)
+            :Element(),
+              m_type(_type)
 		{
-			if(type==Horizontal)
+            if(m_type==Horizontal)
 			{
 				setHorizontalStyle(Element::Stretch);
 				setVerticalStyle(Element::Fit);
 			}
-			else if(type==Vertical)
+            else if(m_type==Vertical)
 			{
 				setHorizontalStyle(Element::Fit);
 				setVerticalStyle(Element::Stretch);				

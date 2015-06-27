@@ -78,7 +78,7 @@ namespace AssortedWidgets
 				}
 			}
 
-			int widthAvailable(area.width-(columnCount-1)*spacer-left-right);
+            int widthAvailable(area.width-(columnCount-1)*m_spacer-m_left-m_right);
 			unsigned int stretchSegment(0);
 			for(size_t e=0;e<columnCount;++e)
 			{
@@ -115,7 +115,7 @@ namespace AssortedWidgets
 				}
 			}
 
-			int heightAvailable(area.height-top-bottom-(rowCount-1)*spacer);
+            int heightAvailable(area.height-m_top-m_bottom-(rowCount-1)*m_spacer);
 			stretchSegment=0;
 			for(size_t i=0;i<rowCount;++i)
 			{
@@ -152,8 +152,8 @@ namespace AssortedWidgets
 				}
 			}
 
-			int tempX=left+origin.x;
-			int tempY=top+origin.y;
+            int tempX=m_left+origin.x;
+            int tempY=m_top+origin.y;
 
 			for(size_t i=0;i<rowCount;++i)
 			{
@@ -162,10 +162,10 @@ namespace AssortedWidgets
 					Util::Position Cposition(tempX,tempY);
 					Util::Size Carea(columnInfo[e].miniSize,rowInfo[i].miniSize);
 					orderComponent(static_cast<unsigned int>(i),static_cast<unsigned int>(e),Cposition,Carea);
-					tempX+=columnInfo[e].miniSize+spacer;
+                    tempX+=columnInfo[e].miniSize+m_spacer;
 				}
-				tempX=left+origin.x;
-				tempY+=spacer+rowInfo[i].miniSize;
+                tempX=m_left+origin.x;
+                tempY+=m_spacer+rowInfo[i].miniSize;
 			}
 
 			delete [] columnInfo;
@@ -236,7 +236,7 @@ namespace AssortedWidgets
 			}
 		}
 
-		Util::Size GirdLayout::getPreferedSize()
+        Util::Size GirdLayout::getPreferedSize() const
 		{
 			return Util::Size();
 		}

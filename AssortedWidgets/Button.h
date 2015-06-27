@@ -12,20 +12,20 @@ namespace AssortedWidgets
 		private:
 			std::string text;
 		public:
-			std::string getText()
+            const std::string& getText() const
 			{
 				return text;
-			};
+            }
 
 			Util::Size getPreferedSize()
 			{
 				return Theme::ThemeEngine::getSingleton().getTheme().getButtonPreferedSize(this);
-			};
+            }
 
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintButton(this);
-			};
+            }
 
 			Button(std::string &_text);
 			Button(char *_text);

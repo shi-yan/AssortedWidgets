@@ -5,21 +5,21 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		TypeAble::TypeAble(void):active(false)
+        TypeAble::TypeAble(void):m_active(false)
 		{
 			MouseDelegate mPressed;
 			mPressed.bind(this,&TypeAble::mousePressed);
 			mousePressedHandlerList.push_back(mPressed);
 		}
 
-		TypeAble::TypeAble(char *_text):text(_text),active(false)
+        TypeAble::TypeAble(char *_text):m_text(_text),m_active(false)
 		{
 			MouseDelegate mPressed;
 			mPressed.bind(this,&TypeAble::mousePressed);
 			mousePressedHandlerList.push_back(mPressed);
 		}
 
-		TypeAble::TypeAble(std::string &_text):text(_text),active(false)
+        TypeAble::TypeAble(std::string &_text):m_text(_text),m_active(false)
 		{
 			MouseDelegate mPressed;
 			mPressed.bind(this,&TypeAble::mousePressed);
@@ -33,7 +33,7 @@ namespace AssortedWidgets
 		void TypeAble::mousePressed(const Event::MouseEvent &e)
 		{
 			Manager::TypeActiveManager::getSingleton().setActive(this);
-			active=true;
+            m_active=true;
 		}
 	}
 }

@@ -5,52 +5,50 @@ namespace AssortedWidgets
 	{
 		BorderLayoutTestDialog::BorderLayoutTestDialog(void):Dialog("BorderLayout Test:",250,250,320,240)
 		{
-			borderLayout=new Layout::BorderLayout(16,16,16,16,4);
-			closeButton=new Widgets::Button("Close");
-			closeButton->setLayoutProperty(Layout::BorderLayout::South);
+            m_borderLayout=new Layout::BorderLayout(4, 16, 16, 16, 16);
+            m_closeButton=new Widgets::Button("Close");
+            m_closeButton->setLayoutProperty(Layout::BorderLayout::South);
 
-			northLabel=new Widgets::Label("North");
-			northLabel->setHorizontalStyle(Widgets::Label::Stretch);
-			northLabel->setDrawBackground(true);
-			northLabel->setLayoutProperty(Layout::BorderLayout::North);
+            m_northLabel=new Widgets::Label("North");
+            m_northLabel->setHorizontalStyle(Widgets::Label::Stretch);
+            m_northLabel->setDrawBackground(true);
+            m_northLabel->setLayoutProperty(Layout::BorderLayout::North);
 
-			southLabel=new Widgets::Label("South");
-			southLabel->setHorizontalStyle(Widgets::Label::Stretch);
-			southLabel->setDrawBackground(true);
-			southLabel->setLayoutProperty(Layout::BorderLayout::South);
+            m_southLabel=new Widgets::Label("South");
+            m_southLabel->setHorizontalStyle(Widgets::Label::Stretch);
+            m_southLabel->setDrawBackground(true);
+            m_southLabel->setLayoutProperty(Layout::BorderLayout::South);
 
-			westLabel=new Widgets::Label("West");
-			westLabel->setVerticalStyle(Widgets::Label::Stretch);
-			westLabel->setDrawBackground(true);
-			westLabel->setLayoutProperty(Layout::BorderLayout::West);
+            m_westLabel=new Widgets::Label("West");
+            m_westLabel->setVerticalStyle(Widgets::Label::Stretch);
+            m_westLabel->setDrawBackground(true);
+            m_westLabel->setLayoutProperty(Layout::BorderLayout::West);
 
-			eastLabel=new Widgets::Label("East");
-			eastLabel->setVerticalStyle(Widgets::Label::Stretch);
-			eastLabel->setDrawBackground(true);
-			eastLabel->setLayoutProperty(Layout::BorderLayout::East);
+            m_eastLabel=new Widgets::Label("East");
+            m_eastLabel->setVerticalStyle(Widgets::Label::Stretch);
+            m_eastLabel->setDrawBackground(true);
+            m_eastLabel->setLayoutProperty(Layout::BorderLayout::East);
 
-			centerLabel=new Widgets::Label("Center");
-			centerLabel->setHorizontalStyle(Widgets::Label::Stretch);
-			centerLabel->setVerticalStyle(Widgets::Label::Stretch);
-			centerLabel->setDrawBackground(true);
-			centerLabel->setLayoutProperty(Layout::BorderLayout::Center);
+            m_centerLabel=new Widgets::Label("Center");
+            m_centerLabel->setHorizontalStyle(Widgets::Label::Stretch);
+            m_centerLabel->setVerticalStyle(Widgets::Label::Stretch);
+            m_centerLabel->setDrawBackground(true);
+            m_centerLabel->setLayoutProperty(Layout::BorderLayout::Center);
 
-			setLayout(borderLayout);
+            setLayout(m_borderLayout);
 
-			add(northLabel);
-			add(southLabel);
-			add(closeButton);
-			add(westLabel);
-			add(eastLabel);
-			add(centerLabel);
+            add(m_northLabel);
+            add(m_southLabel);
+            add(m_closeButton);
+            add(m_westLabel);
+            add(m_eastLabel);
+            add(m_centerLabel);
 
 			pack();
 
-						MouseDelegate onClose;
+            MouseDelegate onClose;
 			onClose.bind(this,&BorderLayoutTestDialog::onClose);
-			closeButton->mouseReleasedHandlerList.push_back(onClose);
-
-
+            m_closeButton->mouseReleasedHandlerList.push_back(onClose);
 		}
 
 				void BorderLayoutTestDialog::onClose(const Event::MouseEvent &e)
@@ -60,13 +58,13 @@ namespace AssortedWidgets
 
 		BorderLayoutTestDialog::~BorderLayoutTestDialog(void)
 		{
-			delete closeButton;
-			delete northLabel;
-			delete southLabel;
-			delete westLabel;
-			delete eastLabel;
-			delete borderLayout;
-			delete centerLabel;
+            delete m_closeButton;
+            delete m_northLabel;
+            delete m_southLabel;
+            delete m_westLabel;
+            delete m_eastLabel;
+            delete m_borderLayout;
+            delete m_centerLabel;
 		}
 	}
 }

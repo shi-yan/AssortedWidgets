@@ -5,7 +5,7 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		class Spacer:public Element
+        class Spacer: public Element
 		{
 		public:
 			enum Type
@@ -15,18 +15,18 @@ namespace AssortedWidgets
 				Vertical
 			};
 		private:
-			int type;
+            enum Type m_type;
 		public:
-			int getType()
+            enum Type getType() const
 			{
-				return type;
-			};
-			Util::Size getPreferedSize()
+                return m_type;
+            }
+            Util::Size getPreferedSize()
 			{
 				return Util::Size(2,2);
-			};
-			void paint(){};
-			Spacer(int _type);
+            }
+            void paint(){}
+            Spacer(enum Type _type);
 		public:
 			~Spacer(void);
 		};

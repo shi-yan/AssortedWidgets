@@ -60,7 +60,7 @@ namespace AssortedWidgets
 			virtual void paintMenuItemSeparator(Widgets::MenuItemSeparator *component)=0;
 			virtual Util::Size getMenuItemSubMenuPreferedSize(Widgets::MenuItemSubMenu *component)=0;
 			virtual void paintMenuItemSubMenu(Widgets::MenuItemSubMenu *component)=0;
-			virtual Util::Size getLabelPreferedSize(Widgets::Label *component)=0;
+            virtual Util::Size getLabelPreferedSize(Widgets::Label *component) const =0;
 			virtual void paintLabel(Widgets::Label *component)=0;
 			virtual Util::Size getButtonPreferedSize(Widgets::Button *component)=0;
 			virtual void paintButton(Widgets::Button *component)=0;
@@ -72,7 +72,7 @@ namespace AssortedWidgets
 			virtual void paintMenuItemRadioGroup(Widgets::MenuItemRadioGroup *component)=0;
 			virtual Util::Size getDialogPreferedSize(Widgets::Dialog *component)=0;
 			virtual void paintDialog(Widgets::Dialog *component)=0;
-			virtual Util::Size getDialogTittleBarPreferedSize(Widgets::DialogTittleBar *component)=0;
+            virtual Util::Size getDialogTittleBarPreferedSize(Widgets::DialogTittleBar *component) = 0;
 			virtual void paintDialogTittleBar(Widgets::DialogTittleBar *component)=0;
 			virtual Util::Size getTextFieldPreferedSize(Widgets::TextField *component)=0;
 			virtual void paintTextField(Widgets::TextField *component)=0;

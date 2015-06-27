@@ -28,13 +28,13 @@ namespace AssortedWidgets
 			unsigned int bottom;
 			unsigned int top;
 			std::string text;
-			int style;
-			int status;
+            enum Style style;
+            enum Status status;
 		public:
-			int getStatus()
+            enum Status getStatus() const
 			{
 				return status;
-			};
+            }
 
 			void mousePressed(const Event::MouseEvent &e);
 
@@ -47,10 +47,10 @@ namespace AssortedWidgets
 			
 			MenuItemButton(std::string &_text);
 			MenuItemButton(char *_text);
-			std::string getText()
+            const std::string& getText() const
 			{
 				return text;
-			};
+            }
 			int getStyle()
 			{
 				return style;

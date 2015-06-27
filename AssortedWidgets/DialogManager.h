@@ -23,7 +23,7 @@ namespace AssortedWidgets
 			{
 				static DialogManager obj;
 				return obj;
-			};
+            }
 
 			void importMouseMotion(int mx,int my);
 			void importMousePressed(int mx,int my);

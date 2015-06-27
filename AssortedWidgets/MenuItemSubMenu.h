@@ -8,7 +8,7 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		class MenuItemSubMenu:public MenuItem
+        class MenuItemSubMenu: public MenuItem
 		{
 		public:
 			enum Status
@@ -18,20 +18,20 @@ namespace AssortedWidgets
 				pressed
 			};
 		private:
-			unsigned int left;
-			unsigned int right;
-			unsigned int bottom;
-			unsigned int top;
-			bool expand;
-			std::string text;
-			int status;
-			MenuList menuList;
+            unsigned int m_left;
+            unsigned int m_right;
+            unsigned int m_bottom;
+            unsigned int m_top;
+            bool m_expand;
+            std::string m_text;
+            enum Status m_status;
+            MenuList m_menuList;
 
 		public:
-			bool isExpand()
+            bool isExpand() const
 			{
-				return expand;
-			};
+                return m_expand;
+            }
 			void mousePressed(const Event::MouseEvent &e);
 
 			void mouseEntered(const Event::MouseEvent &e);
@@ -46,59 +46,61 @@ namespace AssortedWidgets
 
 			void shrink()
 			{
-				expand=false;
-				status=normal;
-			};
+                m_expand=false;
+                m_status=normal;
+            }
 
-			std::string getText() const
+            const std::string& getText() const
 			{
-				return text;
-			};
+                return m_text;
+            }
 
-			int getStatus() const
+            enum Status getStatus() const
 			{
-				return status;
-			};
-			unsigned int getLeft()
-			{
-				return left;
-			};
+                return m_status;
+            }
 
-			unsigned int getRight()
+            unsigned int getLeft() const
 			{
-				return right;
-			};
+                return m_left;
+            }
 
-			unsigned int getBottom()
+            unsigned int getRight() const
 			{
-				return bottom;
-			};
+                return m_right;
+            }
 
-			unsigned int getTop()
+            unsigned int getBottom() const
 			{
-				return top;
-			};
+                return m_bottom;
+            }
+
+            unsigned int getTop() const
+			{
+                return m_top;
+            }
+
 			void addItem(MenuItem *item)
 			{
-				menuList.addItem(item);
-			};
+                m_menuList.addItem(item);
+            }
 
 			Util::Size getPreferedSize()
 			{
 				return Theme::ThemeEngine::getSingleton().getTheme().getMenuItemSubMenuPreferedSize(this);
-			};
+            }
 
 			void paint(void)
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintMenuItemSubMenu(this);
-				if(expand && !menuList.getItemList().empty())
+                if(m_expand && !m_menuList.getItemList().empty())
 				{
                     Util::Position p(position);
                     Util::Graphics::getSingleton().pushPosition(p);
-					menuList.paint();
+                    m_menuList.paint();
 					Util::Graphics::getSingleton().popPosition();
 				}
-			};
+            }
 
 			MenuItemSubMenu(std::string &_text);
 			MenuItemSubMenu(char *_text);

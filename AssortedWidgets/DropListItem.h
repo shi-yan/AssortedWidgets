@@ -15,10 +15,10 @@ namespace AssortedWidgets
 				text=_text;
 			};
 
-			std::string getText()
+            const std::string &getText() const
 			{
 				return text;
-			};
+            }
 			DropListItem(char *_text);
 			DropListItem(std::string &_text);
 			void paint()

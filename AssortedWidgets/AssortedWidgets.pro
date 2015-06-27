@@ -6,20 +6,25 @@ TARGET = AssortedWidgets
 TEMPLATE = app
 
 CONFIG -= console
+CONFIG += C++14
 
 
-INCLUDEPATH += C:/temp/freetype-2.6/include \
-               C:/temp/SDL-1.2.15/include \
-               C:/temp/SDL_image-1.2.12
+#INCLUDEPATH += C:/temp/freetype-2.6/include \
+#               C:/temp/SDL-1.2.15/include \
+#               C:/temp/SDL_image-1.2.12
 
-LIBS += -LC:/temp/SDL_image-1.2.12/VisualC/Debug \
-        -LC:/temp/SDL-1.2.15/lib/x86 \
-        -LC:/temp/freetype-2.6/objs/vc2010/Win32 \
-        -LC:/Qt/Qt5.4.2/5.4/msvc2013_opengl/lib \
-        -lSDL \
-        -lfreetype26d \
-        -lSDL_image \
-        -lqtmaind
+#LIBS += -LC:/temp/SDL_image-1.2.12/VisualC/Debug \
+#        -LC:/temp/SDL-1.2.15/lib/x86 \
+#        -LC:/temp/freetype-2.6/objs/vc2010/Win32 \
+#        -LC:/Qt/Qt5.4.2/5.4/msvc2013_opengl/lib \
+#        -lSDL \
+#        -lfreetype26d \
+#        -lSDL_image \
+#        -lqtmaind
+
+INCLUDEPATH += /usr/include/freetype2 \
+
+LIBS += -lSDL2 -lGL -lGLU -lSDL2_image -lfreetype
 
 HEADERS += \
     AbstractButton.h \

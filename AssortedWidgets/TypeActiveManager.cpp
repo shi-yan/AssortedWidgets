@@ -7,29 +7,29 @@ namespace AssortedWidgets
 	{
 		void TypeActiveManager::setActive(Widgets::TypeAble *_currentActive)
 		{
-			if(currentActive)
+            if(m_currentActive)
 			{
-				currentActive->setActive(false);
+                m_currentActive->setActive(false);
 			}
-			currentActive=_currentActive;
-		};
+            m_currentActive=_currentActive;
+        }
 
 		void TypeActiveManager::disactive()
 		{
-			if(currentActive)
+            if(m_currentActive)
 			{
-				currentActive->setActive(false);
-				currentActive=0;
+                m_currentActive->setActive(false);
+                m_currentActive=0;
 			}
-		};
+        }
 
 		void TypeActiveManager::onCharTyped(char character,int modifier)
 		{
-			if(currentActive)
+            if(m_currentActive)
 			{
-				currentActive->onCharTyped(character,modifier);
+                m_currentActive->onCharTyped(character,modifier);
 			}
-		};
+        }
 
 		TypeActiveManager::~TypeActiveManager(void)
 		{

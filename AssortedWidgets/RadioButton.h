@@ -28,10 +28,10 @@ namespace AssortedWidgets
 				check=true;
 			};
 			void mouseReleased(const Event::MouseEvent &e);
-			std::string getText()
+            const std::string& getText() const
 			{
 				return text;
-			};
+            }
 
 			void setText(std::string &_text)
 			{

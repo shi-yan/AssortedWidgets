@@ -103,7 +103,6 @@ namespace AssortedWidgets
 			void mouseMoved(const Event::MouseEvent &e);
 			void paintChild()
 			{
-				
 				std::vector<Element*>::iterator iter;
 				for(iter=childList.begin();iter<childList.end();++iter)
 				{
@@ -111,8 +110,7 @@ namespace AssortedWidgets
 					(*iter)->paint();
 					Theme::ThemeEngine::getSingleton().getTheme().scissorEnd();
 				}
-				
-			};
+            }
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintDialog(this);
@@ -122,7 +120,7 @@ namespace AssortedWidgets
 				//layout->testPaint();
 				paintChild();
 				Util::Graphics::getSingleton().popPosition();
-			};
+            }
 		public:
 			~Dialog(void);
 		};

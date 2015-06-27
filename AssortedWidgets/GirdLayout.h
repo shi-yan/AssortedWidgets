@@ -54,7 +54,7 @@ namespace AssortedWidgets
 			};
 
 			void updateLayout(std::vector<Widgets::Element *> &componentList,Util::Position &origin,Util::Size &area);
-			Util::Size getPreferedSize();
+            Util::Size getPreferedSize() const;
 
 			void setHorizontalAlignment(unsigned int i,unsigned int e,int _HAlignment)
 			{

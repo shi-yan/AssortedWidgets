@@ -24,75 +24,79 @@ namespace AssortedWidgets
 			};
 
 		private:
-			unsigned int left;
-			unsigned int right;
-			unsigned int bottom;
-			unsigned int top;
-			std::string text;
-			int style;
-			int status;
-			bool toggle;
+            unsigned int m_left;
+            unsigned int m_right;
+            unsigned int m_bottom;
+            unsigned int m_top;
+            std::string m_text;
+            int m_style;
+            enum Status m_status;
+            bool m_toggle;
+
 		public:
-			int getStatus()
+            enum Status getStatus() const
 			{
-				return status;
-			};
+                return m_status;
+            }
+
 			void setToggle(bool _toggle)
 			{
-				toggle=_toggle;
-			};
-			bool getToggle()
+                m_toggle=_toggle;
+            }
+
+            bool getToggle() const
 			{
-				return toggle;
-			};
+                return m_toggle;
+            }
+
 			void mousePressed(const Event::MouseEvent &e);
-
 			void mouseEntered(const Event::MouseEvent &e);
-
 			void mouseReleased(const Event::MouseEvent &e);
-
 			void mouseExited(const Event::MouseEvent &e);
 
-			
 			MenuItemToggleButton(std::string &_text);
 			MenuItemToggleButton(char *_text);
-			std::string getText()
+
+            const std::string& getText() const
 			{
-				return text;
-			};
-			int getStyle()
+                return m_text;
+            }
+
+            int getStyle() const
 			{
-				return style;
+                return m_style;
 			}
+
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintMenuItemToggleButton(this);
-			};
+            }
 
-			unsigned int getLeft()
+            unsigned int getLeft() const
 			{
-				return left;
-			};
+                return m_left;
+            }
 
-			unsigned int getRight()
+            unsigned int getRight() const
 			{
-				return right;
-			};
+                return m_right;
+            }
 
-			unsigned int getBottom()
+            unsigned int getBottom() const
 			{
-				return bottom;
-			};
+                return m_bottom;
+            }
 
-			unsigned int getTop()
+            unsigned int getTop() const
 			{
-				return top;
-			};
+                return m_top;
+            }
 
 			Util::Size getPreferedSize()
 			{
 				return Theme::ThemeEngine::getSingleton().getTheme().getMenuItemToggleButtonPreferedSize(this);
-			};
+            }
+
 		public:
 			~MenuItemToggleButton(void);
 		};

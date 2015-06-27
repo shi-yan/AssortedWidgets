@@ -14,15 +14,15 @@ namespace AssortedWidgets
 		class TextNDropTestDialog:public Widgets::Dialog
 		{
 		private:
-			Widgets::Button *closeButton;
-			Widgets::TextField *textField;
-			Widgets::DropList *dropList;
-			Widgets::DropListItem *option1;
-			Widgets::DropListItem *option2;
-			Widgets::DropListItem *option3;
-			Layout::GirdLayout *girdLayout;
-			Widgets::Label *optionLabel;
-			Widgets::Label *textLabel;
+            Widgets::Button *m_closeButton;
+            Widgets::TextField *m_textField;
+            Widgets::DropList *m_dropList;
+            Widgets::DropListItem *m_option1;
+            Widgets::DropListItem *m_option2;
+            Widgets::DropListItem *m_option3;
+            Layout::GirdLayout *m_girdLayout;
+            Widgets::Label *m_optionLabel;
+            Widgets::Label *m_textLabel;
 		public:
 			void onClose(const Event::MouseEvent &e);
 			TextNDropTestDialog(void);

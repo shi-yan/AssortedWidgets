@@ -20,32 +20,32 @@ namespace AssortedWidgets
 			std::vector<MenuItemRadioButton*> itemList;
 			MenuItemRadioButton *currentSelection;
 		public:
-			unsigned int getSpacer()
+            unsigned int getSpacer() const
 			{
 				return spacer;
-			};
+            }
 			std::vector<MenuItemRadioButton *> &getItemList()
 			{
 				return itemList;
-			};
-			unsigned int getTop()
+            }
+            unsigned int getTop() const
 			{
 				return top;
-			};
-			unsigned int getBottom()
+            }
+            unsigned int getBottom() const
 			{
 				return bottom;
-			};
+            }
 			void mousePressed(const Event::MouseEvent &e);
 			void mouseEntered(const Event::MouseEvent &e);
 			void mouseReleased(const Event::MouseEvent &e);
 			void mouseExited(const Event::MouseEvent &e);
 			void mouseMoved(const Event::MouseEvent &e);
 	
-			unsigned int getLeft()
+            unsigned int getLeft() const
 			{
 				return left;
-			};
+            }
 
 			void setSelection(size_t index);
 			int getSelection();
@@ -54,17 +54,17 @@ namespace AssortedWidgets
 			unsigned int getRight()
 			{
 				return right;
-			};
+            }
 			unsigned int getMinimizeSize()
 			{
 				return minimizeSize;
-			};
+            }
 			void addItem(MenuItemRadioButton *item);
 			void updateLayout();
 			Util::Size getPreferedSize(void)
 			{
 				return Theme::ThemeEngine::getSingleton().getTheme().getMenuItemRadioGroupPreferedSize(this);
-			};
+            }
 			void paint();
 			MenuItemRadioGroup(void);
 		public:

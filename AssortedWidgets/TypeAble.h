@@ -8,43 +8,43 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		class TypeAble:public Element
+        class TypeAble: public Element
 		{
 		private:
-			std::string text;
-			bool active;
+            std::string m_text;
+            bool m_active;
 		public:
 			TypeAble(char *_text);
 			TypeAble(std::string &_text);
 			TypeAble(void);
 			bool isActive()
 			{
-				return active;
-			};
-			std::string getText()
+                return m_active;
+            }
+            const std::string& getText() const
 			{
-				return text;
+                return m_text;
 			}
 			void setActive(bool _active)
 			{
-				active=_active;
-			};
+                m_active=_active;
+            }
 			void mousePressed(const Event::MouseEvent &e);
 			void onCharTyped(char character,int modifier)
 			{
-				if(character==8 && text.length())
+                if(character==8 && m_text.length())
 				{
-					text.erase(text.length()-1);
+                    m_text.erase(m_text.length()-1);
 				}
 				else
 				{
 					if((modifier & Event::KeyEvent::MOD_LSHIFT) ||(modifier & Event::KeyEvent::MOD_RSHIFT) ||(modifier & Event::KeyEvent::MOD_CAPS))
 					{
-						text+=toupper(character);
+                        m_text+=toupper(character);
 					}
 					else
 					{
-						text+=character;
+                        m_text+=character;
 					}
 				}
 			};

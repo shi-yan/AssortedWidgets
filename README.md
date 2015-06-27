@@ -1,7 +1,7 @@
 # AssortedWidgets
 An OpenGL GUI library
 
-![Assorted Widgets](screenshot.png =250x)
+![Assorted Widgets](screenshot.png)
 
 Assorted Widgets is an OpenGL GUI Library I wrote in 2007 while still in colledge. At the time, I cared very much about the look of my software, a 3D modeler. I spent quite sometime to investigate different GUI options. I have tried MFC, wxWidget, GDK, Qt and many others. What I wanted is a themeable UI system, but many of the options favor os native look and feel. Qt, of course, is the best choice which supports customized look and feel, but it only had GPL license at the time. After knowing Blender3D implements its own UI with opengl, I started to do the same.
 
@@ -12,7 +12,7 @@ For the past 8 years, I cared very little about this project, I can't even remem
 I wanted to give this project some updates if I have time. Here is my current plan:
 
 1. Upgrade to SDL2 from SDL1.2. (DONE)
-2. Replace the [C++ delegate code](http://www.codeproject.com/Articles/11015/The-Impossibly-Fast-C-Delegates) with C++11 functional features.
+2. Replace the [C++ delegate code](http://www.codeproject.com/cpp/FastDelegate.asp) with C++11 functional features.
 3. Or even implement a signal-slot system similar to that of Qt.
 4. Modernize the old OpenGL code with OpenGL ES 2.
 5. Build it with EMScripten to make it web.

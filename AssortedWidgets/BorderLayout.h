@@ -8,7 +8,7 @@ namespace AssortedWidgets
 {
 	namespace Layout
 	{
-		class BorderLayout:public Layout
+        class BorderLayout: public Layout
 		{
 		public:
 			enum Format
@@ -41,145 +41,145 @@ namespace AssortedWidgets
 			};
 
 		private:
-			int eastFormat;
-			int southFormat;
-			int westFormat;
-			int northFormat;
-			int centerFormat;
+            int m_eastFormat;
+            int m_southFormat;
+            int m_westFormat;
+            int m_northFormat;
+            int m_centerFormat;
 
-			int eastHAlignment;
-			int southHAlignment;
-			int westHAlignment;
-			int northHAlignment;
-			int centerHAlignment;
+            int m_eastHAlignment;
+            int m_southHAlignment;
+            int m_westHAlignment;
+            int m_northHAlignment;
+            int m_centerHAlignment;
 
-			int eastVAlignment;
-			int southVAlignment;
-			int westVAlignment;
-			int northVAlignment;
-			int centerVAlignment;
+            int m_eastVAlignment;
+            int m_southVAlignment;
+            int m_westVAlignment;
+            int m_northVAlignment;
+            int m_centerVAlignment;
 
-			float testNorthX;
-			float testNorthY;
-			float testNorthWidth;
-			float testNorthHeight;
+            float m_testNorthX;
+            float m_testNorthY;
+            float m_testNorthWidth;
+            float m_testNorthHeight;
 
 		public:
 			void testPaint()
 			{
-				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
+                Util::Position origin = Util::Graphics::getSingleton().getOrigin();
 				glDisable(GL_TEXTURE_2D);
 				glColor3ub(0,0,255);
 				glBegin(GL_QUADS);
-				glVertex2f(origin.x+testNorthX,origin.y+testNorthY);
-				glVertex2f(origin.x+testNorthX+testNorthWidth,origin.y+testNorthY);
-				glVertex2f(origin.x+testNorthX+testNorthWidth,origin.y+testNorthY+testNorthHeight);
-				glVertex2f(origin.x+testNorthX,origin.y+testNorthY+testNorthHeight);
+                glVertex2f(origin.x + m_testNorthX, origin.y + m_testNorthY);
+                glVertex2f(origin.x + m_testNorthX + m_testNorthWidth, origin.y + m_testNorthY);
+                glVertex2f(origin.x + m_testNorthX + m_testNorthWidth, origin.y + m_testNorthY + m_testNorthHeight);
+                glVertex2f(origin.x + m_testNorthX, origin.y + m_testNorthY + m_testNorthHeight);
 				glEnd();
-			};
+            }
 
-			void setEastHAlignment(int _eastHAlignment)
+            void setEastHAlignment(int eastHAlignment)
 			{
-				eastHAlignment=_eastHAlignment;
-			};
+                m_eastHAlignment = eastHAlignment;
+            }
 
-			void setSouthHAlignment(int _southHAlignment)
+            void setSouthHAlignment(int southHAlignment)
 			{
-				southHAlignment=_southHAlignment;
-			};
+                m_southHAlignment = southHAlignment;
+            }
 
-			void setWestHAlignment(int _westHAlignment)
+            void setWestHAlignment(int westHAlignment)
 			{
-				westHAlignment=_westHAlignment;
-			};
+                m_westHAlignment = westHAlignment;
+            }
 
-			void setNorthHAlignment(int _northHAlignment)
+            void setNorthHAlignment(int northHAlignment)
 			{
-				northHAlignment=_northHAlignment;
-			};
+                m_northHAlignment = northHAlignment;
+            }
 
-			void setCenterHAlignment(int _centerHAlignment)
+            void setCenterHAlignment(int centerHAlignment)
 			{
-				centerHAlignment=_centerHAlignment;
-			};
+                m_centerHAlignment = centerHAlignment;
+            }
 
-			void setEastVAlignment(int _eastVAlignment)
+            void setEastVAlignment(int eastVAlignment)
 			{
-				eastVAlignment=_eastVAlignment;
-			};
+                m_eastVAlignment = eastVAlignment;
+            }
 
-			void setSouthVAlignment(int _southVAlignment)
+            void setSouthVAlignment(int southVAlignment)
 			{
-				southVAlignment=_southVAlignment;
-			};
+                m_southVAlignment = southVAlignment;
+            }
 
-			void setWestVAlignment(int _westVAlignment)
+            void setWestVAlignment(int westVAlignment)
 			{
-				westVAlignment=_westVAlignment;
-			};
+                m_westVAlignment = westVAlignment;
+            }
 
-			void setNorthVAlignment(int _northVAlignment)
+            void setNorthVAlignment(int northVAlignment)
 			{
-				northVAlignment=_northVAlignment;
-			};
+                m_northVAlignment = northVAlignment;
+            }
 
-			void setCenterVAlignment(int _centerVAlignment)
+            void setCenterVAlignment(int centerVAlignment)
 			{
-				centerVAlignment=_centerVAlignment;
-			};
+                m_centerVAlignment = centerVAlignment;
+            }
 
-			void setEastFormat(int _eastFormat)
+            void setEastFormat(int eastFormat)
 			{
-				eastFormat=_eastFormat;
-			};
+                m_eastFormat = eastFormat;
+            }
 
-			void setSouthFormat(int _southFormat)
+            void setSouthFormat(int southFormat)
 			{
-				southFormat=_southFormat;
-			};
+                m_southFormat = southFormat;
+            }
 
-			void setNorthFormat(int _northFormat)
+            void setNorthFormat(int northFormat)
 			{
-				northFormat=_northFormat;
-			};
+                m_northFormat = northFormat;
+            }
 
-			void setWestFormat(int _westFormat)
+            void setWestFormat(int westFormat)
 			{
-				westFormat=_westFormat;
-			};
+                m_westFormat = westFormat;
+            }
 
-			void setCenterFormat(int _centerFormat)
+            void setCenterFormat(int centerFormat)
 			{
-				centerFormat=_centerFormat;
-			};
+                m_centerFormat = centerFormat;
+            }
 
-			void updateLayout(std::vector<Widgets::Element *> &componentList,Util::Position &origin,Util::Size &area);
-			Util::Size getPreferedSize();
-			BorderLayout(void)
-				:Layout(),eastFormat(horizontal),southFormat(horizontal),westFormat(horizontal),northFormat(horizontal),centerFormat(horizontal),eastHAlignment(HLeft),southHAlignment(HLeft),westHAlignment(HLeft),northHAlignment(HLeft),centerHAlignment(HLeft),eastVAlignment(VCenter),southVAlignment(VCenter),westVAlignment(VCenter),northVAlignment(VCenter),centerVAlignment(VCenter)
-			{
-				testNorthX=0;
-				testNorthY=0;
-				testNorthWidth=0;
-				testNorthHeight=0;
-			};
-			BorderLayout(unsigned int _spacer)
-				:Layout(_spacer),eastFormat(horizontal),southFormat(horizontal),westFormat(horizontal),northFormat(horizontal),centerFormat(horizontal),eastHAlignment(HLeft),southHAlignment(HLeft),westHAlignment(HLeft),northHAlignment(HLeft),centerHAlignment(HLeft),eastVAlignment(VCenter),southVAlignment(VCenter),westVAlignment(VCenter),northVAlignment(VCenter),centerVAlignment(VCenter)
-			{
-				testNorthX=0;
-				testNorthY=0;
-				testNorthWidth=0;
-				testNorthHeight=0;
-			};
-			BorderLayout(unsigned int _top,unsigned int _bottom,unsigned int _left,unsigned int _right,unsigned int _spacer)
-				:Layout(_top,_bottom,_left,_right,_spacer),eastFormat(horizontal),southFormat(horizontal),westFormat(horizontal),northFormat(horizontal),centerFormat(horizontal),eastHAlignment(HLeft),southHAlignment(HLeft),westHAlignment(HLeft),northHAlignment(HLeft),centerHAlignment(HLeft),eastVAlignment(VCenter),southVAlignment(VCenter),westVAlignment(VCenter),northVAlignment(VCenter),centerVAlignment(VCenter)
-			{
-				testNorthX=0;
-				testNorthY=0;
-				testNorthWidth=0;
-				testNorthHeight=0;
-			};
-					
+            void updateLayout(std::vector<Widgets::Element *> &componentList, Util::Position &origin, Util::Size &area);
+            Util::Size getPreferedSize() const;
+
+            BorderLayout(unsigned int spacer = 2, unsigned int top = 0, unsigned int bottom = 0, unsigned int left = 0, unsigned int right = 0)
+                :Layout(spacer, top, bottom, left, right),
+                  m_eastFormat(horizontal),
+                  m_southFormat(horizontal),
+                  m_westFormat(horizontal),
+                  m_northFormat(horizontal),
+                  m_centerFormat(horizontal),
+                  m_eastHAlignment(HLeft),
+                  m_southHAlignment(HLeft),
+                  m_westHAlignment(HLeft),
+                  m_northHAlignment(HLeft),
+                  m_centerHAlignment(HLeft),
+                  m_eastVAlignment(VCenter),
+                  m_southVAlignment(VCenter),
+                  m_westVAlignment(VCenter),
+                  m_northVAlignment(VCenter),
+                  m_centerVAlignment(VCenter),
+                  m_testNorthX(0),
+                  m_testNorthY(0),
+                  m_testNorthWidth(0),
+                  m_testNorthHeight(0)
+            {
+            }
+
 		private:
 			unsigned int getPreferedHeight(std::vector<Widgets::Element*> &list,int format);
 			unsigned int getPreferedWidth(std::vector<Widgets::Element*> &list,int format);

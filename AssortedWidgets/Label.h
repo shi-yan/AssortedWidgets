@@ -20,20 +20,22 @@ namespace AssortedWidgets
 			void setDrawBackground(bool _drawBackground)
 			{
 				drawBackground=_drawBackground;
-			};
-			bool isDrawBackground()
+            }
+
+            bool isDrawBackground() const
 			{
 				return drawBackground;
-			};
-			std::string getText()
+            }
+
+            const std::string &getText() const
 			{
 				return text;
-			};
+            }
 
-			unsigned int getTop()
+            unsigned int getTop() const
 			{
 				return top;
-			};
+            }
 
 			void setText(char *_text)
 			{
@@ -45,30 +47,30 @@ namespace AssortedWidgets
 				text=_text;
 			}
 
-			unsigned int getLeft()
+            unsigned int getLeft() const
 			{
 				return left;
-			};
+            }
 
-			unsigned int getRight()
+            unsigned int getRight() const
 			{
 				return right;
-			};
+            }
 
-			unsigned int getBottom()
+            unsigned int getBottom() const
 			{
 				return bottom;
-			};
+            }
 
-			Util::Size getPreferedSize()
+            Util::Size getPreferedSize()
 			{
 				return Theme::ThemeEngine::getSingleton().getTheme().getLabelPreferedSize(this);
-			};
+            }
 
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintLabel(this);
-			};
+            }
 
 			Label(std::string &_text);
 			Label(char *_text);

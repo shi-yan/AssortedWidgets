@@ -397,11 +397,11 @@ namespace AssortedWidgets
 			}
 		}
 
-					Util::Size DefaultTheme::getLabelPreferedSize(Widgets::Label *component)
+            Util::Size DefaultTheme::getLabelPreferedSize(Widgets::Label *component) const
 			{
 				Util::Size text=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(component->getText());
 				return Util::Size(component->getRight()+component->getLeft()+text.width,20);
-			};
+            }
 
 			void DefaultTheme::paintLabel(Widgets::Label *component)
 			{

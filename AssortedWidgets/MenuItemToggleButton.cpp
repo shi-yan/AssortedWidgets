@@ -4,12 +4,28 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		MenuItemToggleButton::MenuItemToggleButton(std::string &_text):text(_text),style(stretch),left(24),top(4),bottom(2),right(2),status(normal),toggle(false)
+        MenuItemToggleButton::MenuItemToggleButton(std::string &_text)
+            :m_text(_text),
+              m_style(stretch),
+              m_left(24),
+              m_top(4),
+              m_bottom(2),
+              m_right(2),
+              m_status(normal),
+              m_toggle(false)
 		{
 			size=getPreferedSize();
 		}
 
-		MenuItemToggleButton::MenuItemToggleButton(char *_text):text(_text),style(stretch),left(24),top(4),bottom(2),right(2),status(normal),toggle(false)
+        MenuItemToggleButton::MenuItemToggleButton(char *_text)
+            :m_text(_text),
+              m_style(stretch),
+              m_left(24),
+              m_top(4),
+              m_bottom(2),
+              m_right(2),
+              m_status(normal),
+              m_toggle(false)
 		{
 			size=getPreferedSize();
 
@@ -36,25 +52,25 @@ namespace AssortedWidgets
 
 		void MenuItemToggleButton::mousePressed(const Event::MouseEvent &e)
 		{
-			status=pressed;
-		};
+            m_status=pressed;
+        }
 		
 		void MenuItemToggleButton::mouseEntered(const Event::MouseEvent &e)
 		{
 			isHover=true;
-			status=hover;
-		};
+            m_status=hover;
+        }
 
 		void MenuItemToggleButton::mouseReleased(const Event::MouseEvent &e)
 		{
-			status=hover;
-			toggle=!toggle;
-		};
+            m_status=hover;
+            m_toggle=!m_toggle;
+        }
 
 		void MenuItemToggleButton::mouseExited(const Event::MouseEvent &e)
 		{
 			isHover=false;
-			status=normal;
-		};
+            m_status=normal;
+        }
 	}
 }

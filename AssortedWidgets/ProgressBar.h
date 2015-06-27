@@ -14,6 +14,7 @@ namespace AssortedWidgets
 				Horizontal,
 				Vertical
 			};
+
 		private:
 			int type;
 			float value;
@@ -24,16 +25,17 @@ namespace AssortedWidgets
 			int getType()
 			{
 				return type;
-			};
+            }
+
 			float getValue()
 			{
 				return min+(max-min)*value;
-			};
+            }
 
 			unsigned int getPOfSlider()
 			{
 				return POfSlider;	
-			};
+            }
 
 			void setValue(float _value)
 			{
@@ -49,7 +51,7 @@ namespace AssortedWidgets
 						POfSlider=static_cast<unsigned int>(value*size.height);
 					}
 				}
-			};
+            }
 
 			Util::Size getPreferedSize()
 			{

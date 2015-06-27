@@ -139,7 +139,7 @@ namespace AssortedWidgets
 			
 			void paintMenuItemSubMenu(Widgets::MenuItemSubMenu *component);
 
-			Util::Size getLabelPreferedSize(Widgets::Label *component);
+            Util::Size getLabelPreferedSize(Widgets::Label *component) const;
 
 			void paintLabel(Widgets::Label *component);
 

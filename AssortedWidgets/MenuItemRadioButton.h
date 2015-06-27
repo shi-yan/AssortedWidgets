@@ -7,7 +7,7 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		class MenuItemRadioButton:public MenuItem
+        class MenuItemRadioButton: public MenuItem
 		{
 		public:
 			enum Style
@@ -30,8 +30,8 @@ namespace AssortedWidgets
 			unsigned int bottom;
 			unsigned int top;
 			std::string text;
-			int style;
-			int status;
+            enum Style style;
+            enum Status status;
 			bool toggle;
 			MenuItemRadioGroup *group;
 
@@ -40,45 +40,48 @@ namespace AssortedWidgets
 			{
 				toggle=false;
 			}
+
 			void on()
 			{
 				toggle=true;
-			}
-			int getStatus()
+            }
+
+            enum Status getStatus() const
 			{
 				return status;
-			};
+            }
+
 			void setGroup(MenuItemRadioGroup *_group)
 			{
 				group=_group;
-			};
+            }
+
 			MenuItemRadioGroup* getGroup()
 			{
 				return group;
-			};
+            }
+
 			void setToggle(bool _toggle)
 			{
 				toggle=_toggle;
-			};
-			bool getToggle()
+            }
+
+            bool getToggle() const
 			{
 				return toggle;
-			};
+            }
+
 			void mousePressed(const Event::MouseEvent &e);
-
 			void mouseEntered(const Event::MouseEvent &e);
-
 			void mouseReleased(const Event::MouseEvent &e);
-
 			void mouseExited(const Event::MouseEvent &e);
 
-			
-			MenuItemRadioButton(std::string &_text);
+            MenuItemRadioButton(std::string &_text);
 			MenuItemRadioButton(char *_text);
-			std::string getText()
+            const std::string& getText() const
 			{
 				return text;
-			};
+            }
 			int getStyle()
 			{
 				return style;
@@ -86,32 +89,32 @@ namespace AssortedWidgets
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintMenuItemRadioButton(this);
-			};
+            }
 
-			unsigned int getLeft()
+            unsigned int getLeft() const
 			{
 				return left;
-			};
+            }
 
-			unsigned int getRight()
+            unsigned int getRight() const
 			{
 				return right;
-			};
+            }
 
-			unsigned int getBottom()
+            unsigned int getBottom() const
 			{
 				return bottom;
-			};
+            }
 
-			unsigned int getTop()
+            unsigned int getTop() const
 			{
 				return top;
-			};
+            }
 
 			Util::Size getPreferedSize()
 			{
 				return Theme::ThemeEngine::getSingleton().getTheme().getMenuItemRadioButtonPreferedSize(this);
-			};
+            }
 		public:
 			~MenuItemRadioButton(void);
 		};

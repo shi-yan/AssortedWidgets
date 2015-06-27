@@ -7,7 +7,7 @@ namespace AssortedWidgets
 {
 	namespace Event
 	{
-		class MouseEvent:public Event
+        class MouseEvent: public Event
 		{
 		public:
 			enum MouseEventTypes
@@ -30,29 +30,33 @@ namespace AssortedWidgets
 				MOUSE_SCROLL_DOWN
 			};
 
-			MouseEvent(Widgets::Component* _source, int _type, int _x, int _y, int _mouseButton):Event(_source,_type),mouseX(_x),mouseY(_y),mouseButton(_mouseButton)
-			{};
+            MouseEvent(Widgets::Component* _source, int _type, int _x, int _y, int _mouseButton)
+                :Event(_source,_type),
+                  m_mouseX(_x),
+                  m_mouseY(_y),
+                  m_mouseButton(_mouseButton)
+            {}
 
-			int getButton()
+            int getButton() const
 			{
-				return mouseButton;
-			};
+                return m_mouseButton;
+            }
 
 			int getX() const
 			{
-				return mouseX;
-			};
+                return m_mouseX;
+            }
 
 			int getY() const
 			{
-				return mouseY;
-			};
+                return m_mouseY;
+            }
 		private:
-			int mouseX;
-			int mouseY;
-			int mouseButton;
+            int m_mouseX;
+            int m_mouseY;
+            int m_mouseButton;
 		public:
-			~MouseEvent(void){};
+            ~MouseEvent(void){}
 		};
 	}
 }

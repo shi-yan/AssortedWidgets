@@ -5,7 +5,11 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		Panel::Panel(void):left(2),right(2),top(2),bottom(2)
+        Panel::Panel(void)
+            :m_left(2),
+              m_right(2),
+              m_top(2),
+              m_bottom(2)
 		{
 			position.x=0;
 			position.y=0;
@@ -141,13 +145,13 @@ namespace AssortedWidgets
 
 		void Panel::pack()
 		{
-			contentPosition=Util::Position(left,top);
-			contentSize=Util::Size(size.width-left-right,size.height-top-bottom);
+            contentPosition=Util::Position(m_left, m_top);
+            contentSize=Util::Size(size.width-m_left-m_right,size.height-m_top-m_bottom);
 
 			if(layout)
 			{
 				layout->updateLayout(childList,contentPosition,contentSize);
 			}
-		};
+        }
 	}
 }
