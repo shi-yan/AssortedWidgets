@@ -29,7 +29,7 @@ namespace AssortedWidgets
             unsigned int m_bottom;
             unsigned int m_top;
             std::string m_text;
-            int m_style;
+            enum Style m_style;
             enum Status m_status;
             bool m_toggle;
 
@@ -62,7 +62,7 @@ namespace AssortedWidgets
                 return m_text;
             }
 
-            int getStyle() const
+            enum Style getStyle() const
 			{
                 return m_style;
 			}

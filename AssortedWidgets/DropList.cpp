@@ -7,13 +7,20 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		DropList::DropList(void):selectedItem(0),spacer(2),left(4),right(4),top(4),bottom(4),dropped(false)
+        DropList::DropList(void)
+            :m_selectedItem(0),
+              m_spacer(2),
+              m_left(4),
+              m_right(4),
+              m_top(4),
+              m_bottom(4),
+              m_dropped(false)
 		{
 			size=getPreferedSize();
 			horizontalStyle=Element::Fit;
 			verticalStyle=Element::Fit;
-			button.position.x=size.width-18;
-			button.position.y=2;
+            m_button.position.x=size.width-18;
+            m_button.position.y=2;
 
 			MouseDelegate mPressed;
 			mPressed.bind(this,&DropList::mousePressed);
@@ -37,7 +44,7 @@ namespace AssortedWidgets
 
 			MouseDelegate dropReleased;
 			dropReleased.bind(this,&DropList::onDropReleased);
-			button.mouseReleasedHandlerList.push_back(dropReleased);
+            m_button.mouseReleasedHandlerList.push_back(dropReleased);
 		
 		}
 
@@ -46,22 +53,22 @@ namespace AssortedWidgets
 			Theme::ThemeEngine::getSingleton().getTheme().paintDropList(this);
             Util::Position p(position);
             Util::Graphics::getSingleton().pushPosition(p);
-			button.paint();
+            m_button.paint();
 			Util::Graphics::getSingleton().popPosition();
 
 		}
 
 		void DropList::onDropReleased(const Event::MouseEvent &e)
 		{
-			if(dropped)
+            if(m_dropped)
 			{
 				Manager::DropListManager::getSingleton().shrinkBack();
-				dropped=false;
+                m_dropped=false;
 			}
 			else
 			{
 				Manager::DropListManager::getSingleton().setDropped(this,e.getX(),e.getY());
-				dropped=true;
+                m_dropped=true;
 			}
 		}
 
@@ -69,10 +76,10 @@ namespace AssortedWidgets
 		{
 			int mx=e.getX()-position.x;
 			int my=e.getY()-position.y;
-			if(button.isIn(mx,my))
+            if(m_button.isIn(mx,my))
 			{
-				Event::MouseEvent event(&button,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
-				button.processMousePressed(event);
+                Event::MouseEvent event(&m_button,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
+                m_button.processMousePressed(event);
 				return;
 			}
 		}
@@ -81,10 +88,10 @@ namespace AssortedWidgets
 		{
 			int mx=e.getX()-position.x;
 			int my=e.getY()-position.y;
-			if(button.isIn(mx,my))
+            if(m_button.isIn(mx,my))
 			{
-				Event::MouseEvent event(&button,Event::MouseEvent::MOUSE_RELEASED,mx,my,0);
-				button.processMouseReleased(event);
+                Event::MouseEvent event(&m_button,Event::MouseEvent::MOUSE_RELEASED,mx,my,0);
+                m_button.processMouseReleased(event);
 				return;
 			}
 		}
@@ -94,10 +101,10 @@ namespace AssortedWidgets
 			isHover=true;
 			int mx=e.getX()-position.x;
 			int my=e.getY()-position.y;
-			if(button.isIn(mx,my))
+            if(m_button.isIn(mx,my))
 			{
-				Event::MouseEvent event(&button,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
-				button.processMouseEntered(event);
+                Event::MouseEvent event(&m_button,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
+                m_button.processMouseEntered(event);
 				return;
 			}
 		}
@@ -107,10 +114,10 @@ namespace AssortedWidgets
 			isHover=false;
 			int mx=e.getX()-position.x;
 			int my=e.getY()-position.y;
-			if(button.isHover)
+            if(m_button.isHover)
 			{
-				Event::MouseEvent event(&button,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
-				button.processMouseExited(event);
+                Event::MouseEvent event(&m_button,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
+                m_button.processMouseExited(event);
 				return;
 			}
 		}
@@ -119,28 +126,28 @@ namespace AssortedWidgets
 		{
 			int mx=e.getX()-position.x;
 			int my=e.getY()-position.y;
-			if(button.isIn(mx,my))
+            if(m_button.isIn(mx,my))
 			{
-				if(!button.isHover)
+                if(!m_button.isHover)
 				{
-					Event::MouseEvent event(&button,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
-					button.processMouseEntered(event);
+                    Event::MouseEvent event(&m_button,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
+                    m_button.processMouseEntered(event);
 				}
 			}
 			else
 			{
-				if(button.isHover)
+                if(m_button.isHover)
 				{
-					Event::MouseEvent event(&button,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
-					button.processMouseExited(event);
+                    Event::MouseEvent event(&m_button,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
+                    m_button.processMouseExited(event);
 				}
 			}
 		}
 
 		void DropList::pack()
 		{
-			button.position.x=size.width-18;
-			button.position.y=2;			
+            m_button.position.x=size.width-18;
+            m_button.position.y=2;
 		}
 
 		DropList::~DropList(void)

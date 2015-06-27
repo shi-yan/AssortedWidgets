@@ -5,12 +5,26 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		MenuItemButton::MenuItemButton(std::string &_text):text(_text),style(stretch),left(24),top(4),bottom(2),right(2),status(normal)
+        MenuItemButton::MenuItemButton(std::string &_text)
+            :m_text(_text),
+              m_style(stretch),
+              m_left(24),
+              m_top(4),
+              m_bottom(2),
+              m_right(2),
+              m_status(normal)
 		{
 			size=getPreferedSize();
 		}
 
-		MenuItemButton::MenuItemButton(char *_text):text(_text),style(stretch),left(24),top(4),bottom(2),right(2),status(normal)
+        MenuItemButton::MenuItemButton(char *_text)
+            :m_text(_text),
+              m_style(stretch),
+              m_left(24),
+              m_top(4),
+              m_bottom(2),
+              m_right(2),
+              m_status(normal)
 		{
 			size=getPreferedSize();
 
@@ -37,25 +51,25 @@ namespace AssortedWidgets
 
 		void MenuItemButton::mousePressed(const Event::MouseEvent &e)
 		{
-			status=pressed;
-		};
+            m_status=pressed;
+        }
 		
 		void MenuItemButton::mouseEntered(const Event::MouseEvent &e)
 		{
 			isHover=true;
-			status=hover;
-		};
+            m_status=hover;
+        }
 
 		void MenuItemButton::mouseReleased(const Event::MouseEvent &e)
 		{
-			status=normal;
+            m_status=normal;
 			MenuBar::getSingleton().setShrink();
-		};
+        }
 
 		void MenuItemButton::mouseExited(const Event::MouseEvent &e)
 		{
 			isHover=false;
-			status=normal;
-		};
+            m_status=normal;
+        }
 	}
 }

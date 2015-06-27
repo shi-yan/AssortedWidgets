@@ -10,104 +10,109 @@ namespace AssortedWidgets
 		class DropList:public Element
 		{
 		private:
-			DropListButton button;
-			std::vector<DropListItem*> itemList;
-			DropListItem *selectedItem;
-			unsigned int spacer;
-			unsigned int top;
-			unsigned int bottom;
-			unsigned int left;
-			unsigned int right;
-			bool dropped;
+            DropListButton m_button;
+            std::vector<DropListItem*> m_itemList;
+            DropListItem *m_selectedItem;
+            unsigned int m_spacer;
+            unsigned int m_top;
+            unsigned int m_bottom;
+            unsigned int m_left;
+            unsigned int m_right;
+            bool m_dropped;
+
 		public:
-			bool isDropped()
+            bool isDropped() const
 			{
-				return dropped;
-			};
+                return m_dropped;
+            }
 
 			void shrinkBack()
 			{
-				dropped=false;
-			};
+                m_dropped=false;
+            }
 
 			DropList(void);
 			void setSpacer(unsigned int _spacer)
 			{
-				spacer=_spacer;
-			};
+                m_spacer=_spacer;
+            }
 
 			void setTop(unsigned int _top)
 			{
-				top=_top;
-			};
+                m_top=_top;
+            }
 
 			void setBottom(unsigned int _bottom)
 			{
-				bottom=_bottom;
-			};
+                m_bottom=_bottom;
+            }
 
 			void setLeft(unsigned int _left)
 			{
-				left=_left;
-			};
+                m_left=_left;
+            }
 
 			void setRight(unsigned int _right)
 			{
-				right=_right;
-			};
+                m_right=_right;
+            }
 
-			unsigned int getTop()
+            unsigned int getTop() const
 			{
-				return top;
-			};
+                return m_top;
+            }
 
-			unsigned int getBottom()
+            unsigned int getBottom() const
 			{
-				return bottom;
-			};
+                return m_bottom;
+            }
 
-			unsigned int getLeft()
+            unsigned int getLeft() const
 			{
-				return left;
-			};
+                return m_left;
+            }
 
-			unsigned int getRight()
+            unsigned int getRight() const
 			{
-				return right;
-			};
+                return m_right;
+            }
 
-
-			unsigned int getSpacer()
+            unsigned int getSpacer() const
 			{
-				return spacer;
-			};
+                return m_spacer;
+            }
 
 			std::vector<DropListItem*> &getItemList()
 			{
-				return itemList;
-			};
+                return m_itemList;
+            }
+
 			DropListItem* getSelectedItem()
 			{
-				return selectedItem;
-			};
+                return m_selectedItem;
+            }
+
 			void add(DropListItem *item)
 			{
-				itemList.push_back(item);
+                m_itemList.push_back(item);
 				size=getPreferedSize();
-			};
+            }
+
 			void setSelection(size_t index)
 			{
-				selectedItem=itemList[index];
-			};
+                m_selectedItem=m_itemList[index];
+            }
+
 			void setSelection(DropListItem *selected)
 			{
-				selectedItem=selected;
+                m_selectedItem=selected;
 			}
+
 			Util::Size getPreferedSize()
 			{
 				unsigned miniSize=0;
 				std::vector<DropListItem*>::iterator iter;
-				for(iter=itemList.begin();iter<itemList.end();++iter)
+                for(iter=m_itemList.begin(); iter<m_itemList.end();++iter)
 				{
 					miniSize=std::max<unsigned int>((*iter)->getPreferedSize().width,miniSize);
 				}

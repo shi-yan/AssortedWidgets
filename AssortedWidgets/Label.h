@@ -10,56 +10,57 @@ namespace AssortedWidgets
 		class Label:public Element
 		{
 		private:
-			std::string text;
-			unsigned int top;
-			unsigned int left;
-			unsigned int right;
-			unsigned int bottom;
-			bool drawBackground;
+            std::string m_text;
+            unsigned int m_top;
+            unsigned int m_left;
+            unsigned int m_right;
+            unsigned int m_bottom;
+            bool m_drawBackground;
+
 		public:
 			void setDrawBackground(bool _drawBackground)
 			{
-				drawBackground=_drawBackground;
+                m_drawBackground=_drawBackground;
             }
 
             bool isDrawBackground() const
 			{
-				return drawBackground;
+                return m_drawBackground;
             }
 
             const std::string &getText() const
 			{
-				return text;
+                return m_text;
             }
 
             unsigned int getTop() const
 			{
-				return top;
+                return m_top;
             }
 
 			void setText(char *_text)
 			{
-				text=_text;
+                m_text=_text;
 			}
 
             void setText(const std::string &_text)
 			{
-				text=_text;
+                m_text=_text;
 			}
 
             unsigned int getLeft() const
 			{
-				return left;
+                return m_left;
             }
 
             unsigned int getRight() const
 			{
-				return right;
+                return m_right;
             }
 
             unsigned int getBottom() const
 			{
-				return bottom;
+                return m_bottom;
             }
 
             Util::Size getPreferedSize()

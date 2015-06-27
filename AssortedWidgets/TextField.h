@@ -23,22 +23,26 @@ namespace AssortedWidgets
 			{
                 return m_length;
             }
+
 			unsigned int getTop()
 			{
                 return m_top;
 			}
-			unsigned int getBottom()
+
+            unsigned int getBottom() const
 			{
                 return m_bottom;
 			}
+
 			Util::Size getPreferedSize()
 			{
 				return Theme::ThemeEngine::getSingleton().getTheme().getTextFieldPreferedSize(this);
             }
+
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintTextField(this);
-			};
+            }
 		public:
 			~TextField(void);
 		};

@@ -25,50 +25,50 @@ namespace AssortedWidgets
 			};
 
 		private:
-			unsigned int left;
-			unsigned int right;
-			unsigned int bottom;
-			unsigned int top;
-			std::string text;
-            enum Style style;
-            enum Status status;
-			bool toggle;
-			MenuItemRadioGroup *group;
+            unsigned int m_left;
+            unsigned int m_right;
+            unsigned int m_bottom;
+            unsigned int m_top;
+            std::string m_text;
+            enum Style m_style;
+            enum Status m_status;
+            bool m_toggle;
+            MenuItemRadioGroup *m_group;
 
 		public:
 			void off()
 			{
-				toggle=false;
+                m_toggle=false;
 			}
 
 			void on()
 			{
-				toggle=true;
+                m_toggle=true;
             }
 
             enum Status getStatus() const
 			{
-				return status;
+                return m_status;
             }
 
 			void setGroup(MenuItemRadioGroup *_group)
 			{
-				group=_group;
+                m_group=_group;
             }
 
 			MenuItemRadioGroup* getGroup()
 			{
-				return group;
+                return m_group;
             }
 
 			void setToggle(bool _toggle)
 			{
-				toggle=_toggle;
+                m_toggle=_toggle;
             }
 
             bool getToggle() const
 			{
-				return toggle;
+                return m_toggle;
             }
 
 			void mousePressed(const Event::MouseEvent &e);
@@ -80,12 +80,14 @@ namespace AssortedWidgets
 			MenuItemRadioButton(char *_text);
             const std::string& getText() const
 			{
-				return text;
+                return m_text;
             }
-			int getStyle()
+
+            enum Style getStyle() const
 			{
-				return style;
+                return m_style;
 			}
+
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintMenuItemRadioButton(this);
@@ -93,22 +95,22 @@ namespace AssortedWidgets
 
             unsigned int getLeft() const
 			{
-				return left;
+                return m_left;
             }
 
             unsigned int getRight() const
 			{
-				return right;
+                return m_right;
             }
 
             unsigned int getBottom() const
 			{
-				return bottom;
+                return m_bottom;
             }
 
             unsigned int getTop() const
 			{
-				return top;
+                return m_top;
             }
 
 			Util::Size getPreferedSize()

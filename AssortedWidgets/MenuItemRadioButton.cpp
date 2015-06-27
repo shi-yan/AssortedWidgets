@@ -4,7 +4,15 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		MenuItemRadioButton::MenuItemRadioButton(std::string &_text):text(_text),style(stretch),left(24),top(4),bottom(2),right(2),status(normal),toggle(false)
+        MenuItemRadioButton::MenuItemRadioButton(std::string &_text)
+            :m_text(_text),
+              m_style(stretch),
+              m_left(24),
+              m_top(4),
+              m_bottom(2),
+              m_right(2),
+              m_status(normal),
+              m_toggle(false)
 		{
 			size=getPreferedSize();
 
@@ -25,7 +33,15 @@ namespace AssortedWidgets
 			mouseReleasedHandlerList.push_back(mReleased);
 		}
 
-		MenuItemRadioButton::MenuItemRadioButton(char *_text):text(_text),style(stretch),left(24),top(4),bottom(2),right(2),status(normal),toggle(false)
+        MenuItemRadioButton::MenuItemRadioButton(char *_text)
+            :m_text(_text),
+              m_style(stretch),
+              m_left(24),
+              m_top(4),
+              m_bottom(2),
+              m_right(2),
+              m_status(normal),
+              m_toggle(false)
 		{
 			size=getPreferedSize();
 
@@ -52,26 +68,26 @@ namespace AssortedWidgets
 
 		void MenuItemRadioButton::mousePressed(const Event::MouseEvent &e)
 		{
-			status=pressed;
-		};
+            m_status=pressed;
+        }
 		
 		void MenuItemRadioButton::mouseEntered(const Event::MouseEvent &e)
 		{
 			isHover=true;
-			status=hover;
-		};
+            m_status=hover;
+        }
 
 		void MenuItemRadioButton::mouseReleased(const Event::MouseEvent &e)
 		{
-			status=hover;
-			group->setSelection(this);
-			toggle=true;
-		};
+            m_status=hover;
+            m_group->setSelection(this);
+            m_toggle=true;
+        }
 
 		void MenuItemRadioButton::mouseExited(const Event::MouseEvent &e)
 		{
 			isHover=false;
-			status=normal;
-		};
+            m_status=normal;
+        }
 	}
 }

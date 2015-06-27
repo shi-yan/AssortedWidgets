@@ -11,30 +11,30 @@ namespace AssortedWidgets
 		class MenuItemRadioGroup:public MenuItem
 		{
 		private:
-			unsigned int top;
-			unsigned int left;
-			unsigned int right;
-			unsigned int bottom;
-			unsigned int spacer;
-			unsigned int minimizeSize;
-			std::vector<MenuItemRadioButton*> itemList;
-			MenuItemRadioButton *currentSelection;
+            unsigned int m_top;
+            unsigned int m_left;
+            unsigned int m_right;
+            unsigned int m_bottom;
+            unsigned int m_spacer;
+            unsigned int m_minimizeSize;
+            std::vector<MenuItemRadioButton*> m_itemList;
+            MenuItemRadioButton *m_currentSelection;
 		public:
             unsigned int getSpacer() const
 			{
-				return spacer;
+                return m_spacer;
             }
 			std::vector<MenuItemRadioButton *> &getItemList()
 			{
-				return itemList;
+                return m_itemList;
             }
             unsigned int getTop() const
 			{
-				return top;
+                return m_top;
             }
             unsigned int getBottom() const
 			{
-				return bottom;
+                return m_bottom;
             }
 			void mousePressed(const Event::MouseEvent &e);
 			void mouseEntered(const Event::MouseEvent &e);
@@ -44,7 +44,7 @@ namespace AssortedWidgets
 	
             unsigned int getLeft() const
 			{
-				return left;
+                return m_left;
             }
 
 			void setSelection(size_t index);
@@ -53,11 +53,11 @@ namespace AssortedWidgets
 
 			unsigned int getRight()
 			{
-				return right;
+                return m_right;
             }
 			unsigned int getMinimizeSize()
 			{
-				return minimizeSize;
+                return m_minimizeSize;
             }
 			void addItem(MenuItemRadioButton *item);
 			void updateLayout();

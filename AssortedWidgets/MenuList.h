@@ -14,28 +14,28 @@ namespace AssortedWidgets
 		class MenuList:public Component
 		{
 		private:
-			std::vector<MenuItem*> itemList;
-			unsigned int minimizeSize;
-			unsigned int top;
-			unsigned int bottom;
-			unsigned int left;
-			unsigned int right;
-			unsigned int spacer;
+            std::vector<MenuItem*> m_itemList;
+            unsigned int m_minimizeSize;
+            unsigned int m_top;
+            unsigned int m_bottom;
+            unsigned int m_left;
+            unsigned int m_right;
+            unsigned int m_spacer;
 
 		private:
-			MenuItemSubMenu *expandSubMenu;
-			bool expand;
+            MenuItemSubMenu *m_expandSubMenu;
+            bool m_expand;
 
 		public:
 
 			MenuItemSubMenu* getExpandMenu()
 			{
-				return expandSubMenu;
+                return m_expandSubMenu;
             }
 
-			bool isExpand()
+            bool isExpand() const
 			{
-				return expand;
+                return m_expand;
             }
 
 			void setExpand(MenuItemSubMenu *_expandSubMenu);
@@ -47,7 +47,7 @@ namespace AssortedWidgets
 			
 			std::vector<MenuItem *> &getItemList()
 			{
-				return itemList;
+                return m_itemList;
             }
 			void paint();
 			void mousePressed(const Event::MouseEvent &e);
@@ -57,27 +57,27 @@ namespace AssortedWidgets
 			void mouseMoved(const Event::MouseEvent &e);
             unsigned int getSpacer() const
 			{
-				return spacer;
+                return m_spacer;
             }
             unsigned int getTop() const
 			{
-				return top;
+                return m_top;
             }
             unsigned int getBottom() const
 			{
-				return bottom;
+                return m_bottom;
             }
             unsigned int getLeft() const
 			{
-				return left;
+                return m_left;
             }
             unsigned int getRight() const
 			{
-				return right;
+                return m_right;
             }
             unsigned int getMinimizeSize() const
 			{
-				return minimizeSize;
+                return m_minimizeSize;
             }
 			Util::Size getPreferedSize()
 			{

@@ -8,7 +8,15 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		MenuList::MenuList(void):minimizeSize(232),spacer(2),top(6),left(9),right(9),bottom(16),expandSubMenu(0),expand(false)
+        MenuList::MenuList(void)
+            :m_minimizeSize(232),
+              m_spacer(2),
+              m_top(6),
+              m_left(9),
+              m_right(9),
+              m_bottom(16),
+              m_expandSubMenu(0),
+              m_expand(false)
 		{
 			MouseDelegate mEntered;
 			mEntered.bind(this,&MenuList::mouseEntered);
@@ -38,7 +46,7 @@ namespace AssortedWidgets
 			
 		void MenuList::addItem(MenuItem *item)
 		{
-			itemList.push_back(item);
+            m_itemList.push_back(item);
 			item->setMenuList(this);
 			updateLayout();
 		}
@@ -49,7 +57,7 @@ namespace AssortedWidgets
             Util::Position p(position);
             Util::Graphics::getSingleton().pushPosition(p);
 			std::vector<MenuItem *>::iterator iter;
-			for(iter=itemList.begin();iter<itemList.end();++iter)
+            for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
 				(*iter)->paint();
 			}
@@ -58,26 +66,26 @@ namespace AssortedWidgets
 
 		void MenuList::updateLayout()
 		{
-			unsigned int tempX=left;
-			unsigned int tempY=top;
-			size.width=minimizeSize;
+            unsigned int tempX=m_left;
+            unsigned int tempY=m_top;
+            size.width=m_minimizeSize;
 			size.height=0;
 			std::vector<MenuItem*>::iterator iter;
-			for(iter=itemList.begin();iter<itemList.end();++iter)
+            for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
 				Util::Size itemSize=(*iter)->getPreferedSize();
                 size.width=std::max(size.width,itemSize.width);
-				size.height+=itemSize.height+spacer;
+                size.height+=itemSize.height+m_spacer;
 				(*iter)->position.x=tempX;
 				(*iter)->position.y=tempY;
-				tempY+=spacer+itemSize.height;
+                tempY+=m_spacer+itemSize.height;
 			}
-			for(iter=itemList.begin();iter<itemList.end();++iter)
+            for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
 				(*iter)->size.width=size.width;
 			}
-			size.width+=left+right;
-			size.height+=top+bottom-spacer;
+            size.width+=m_left+m_right;
+            size.height+=m_top+m_bottom-m_spacer;
 		}
 
 		void MenuList::mousePressed(const Event::MouseEvent &e)
@@ -85,7 +93,7 @@ namespace AssortedWidgets
 			int mx=e.getX()-position.x;
 			int my=e.getY()-position.y;
 			std::vector<MenuItem*>::iterator iter;
-			for(iter=itemList.begin();iter<itemList.end();++iter)
+            for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
 				if((*iter)->isIn(mx,my))
 				{
@@ -106,7 +114,7 @@ namespace AssortedWidgets
 			int mx=e.getX()-position.x;
 			int my=e.getY()-position.y;
 			std::vector<MenuItem*>::iterator iter;
-			for(iter=itemList.begin();iter<itemList.end();++iter)
+            for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
 				if((*iter)->isIn(mx,my))
 				{
@@ -121,7 +129,7 @@ namespace AssortedWidgets
 			int mx=e.getX()-position.x;
 			int my=e.getY()-position.y;
 			std::vector<MenuItem*>::iterator iter;
-			for(iter=itemList.begin();iter<itemList.end();++iter)
+            for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
 				if((*iter)->isIn(mx,my))
 				{
@@ -155,22 +163,22 @@ namespace AssortedWidgets
 
 		void MenuList::setExpand(MenuItemSubMenu *_expandSubMenu)
 		{
-			if(expandSubMenu)
+            if(m_expandSubMenu)
 			{
-				expandSubMenu->shrink();
+                m_expandSubMenu->shrink();
 			}
-			expandSubMenu=_expandSubMenu;
-			expand=true;
+            m_expandSubMenu=_expandSubMenu;
+            m_expand=true;
 		}
 
 		void MenuList::setShrink()
 		{
-			if(expandSubMenu)
+            if(m_expandSubMenu)
 			{
-				expandSubMenu->shrink();
+                m_expandSubMenu->shrink();
 			}
-			expandSubMenu=0;
-			expand=false;
+            m_expandSubMenu=0;
+            m_expand=false;
 		};
 	}
 }

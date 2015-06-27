@@ -47,7 +47,7 @@ namespace AssortedWidgets
                         m_text+=character;
 					}
 				}
-			};
+            }
 		public:
 			~TypeAble(void);
 		};

@@ -27,60 +27,55 @@ namespace AssortedWidgets
 				Modeless
 			};
 		private:
-			DialogTittleBar tittleBar;
+            DialogTittleBar m_tittleBar;
+            DialogUpLeft m_borderUpLeft;
+            DialogUpRight m_borderUpRight;
+            DialogUp m_borderUp;
+            DialogLeft m_borderLeft;
+            DialogRight m_borderRight;
+            DialogBottomLeft m_borderBottomLeft;
+            DialogBottom m_borderBottom;
+            DialogBottomRight m_borderBottomRight;
 
-			DialogUpLeft borderUpLeft;
-			DialogUpRight borderUpRight;
-			DialogUp borderUp;
-			DialogLeft borderLeft;
-			DialogRight borderRight;
-			DialogBottomLeft borderBottomLeft;
-			DialogBottom borderBottom;
-			DialogBottomRight borderBottomRight;
-
-			bool dragable;
-			bool resizable;
-
-			bool active;
-
-			int showType;
-
-			unsigned int top;
-			unsigned int bottom;
-			unsigned int left;
-			unsigned int right;
-
-			Util::Position contentPosition;
-			Util::Size contentSize;
+            bool m_dragable;
+            bool m_resizable;
+            bool m_active;
+            enum ShowType m_showType;
+            unsigned int m_top;
+            unsigned int m_bottom;
+            unsigned int m_left;
+            unsigned int m_right;
+            Util::Position m_contentPosition;
+            Util::Size m_contentSize;
 			
 		public:
-			void setShowType(int _showType)
+            void setShowType(enum ShowType _showType)
 			{
-				showType=_showType;
-			};
-			int getShowType()
+                m_showType=_showType;
+            }
+            enum ShowType getShowType() const
 			{
-				return showType;
-			};
+                return m_showType;
+            }
 			void setDragable(bool _dragable)
 			{
-				dragable=_dragable;
-			};
+                m_dragable=_dragable;
+            }
 
 			void setActive(bool _active)
 			{
-				active=_active;
-			};
+                m_active=_active;
+            }
 
-			bool isActive()
+            bool isActive() const
 			{
-				return active;
-			};
+                return m_active;
+            }
 
 			void setResizable(bool _resizable)
 			{
-				resizable=_resizable;
-			};
+                m_resizable=_resizable;
+            }
 
 			void Close();
 
@@ -90,13 +85,12 @@ namespace AssortedWidgets
 			Util::Size getPreferedSize()
 			{
 				//return Theme::ThemeEngine::getSingleton().getTheme().getDialogPreferedSize(this);
-				Util::Size result(tittleBar.getPreferedSize());
-				result.width+=left+right;
-				result.height+=top+bottom;
+                Util::Size result(m_tittleBar.getPreferedSize());
+                result.width+=m_left+m_right;
+                result.height+=m_top+m_bottom;
 				return result;
-			};
+            }
 			void mousePressed(const Event::MouseEvent &e);
-			
 			void mouseReleased(const Event::MouseEvent &e);
 			void mouseEntered(const Event::MouseEvent &e);
 			void mouseExited(const Event::MouseEvent &e);
@@ -106,7 +100,7 @@ namespace AssortedWidgets
 				std::vector<Element*>::iterator iter;
 				for(iter=childList.begin();iter<childList.end();++iter)
 				{
-					Theme::ThemeEngine::getSingleton().getTheme().scissorBegin(contentPosition,contentSize);
+                    Theme::ThemeEngine::getSingleton().getTheme().scissorBegin(m_contentPosition,m_contentSize);
 					(*iter)->paint();
 					Theme::ThemeEngine::getSingleton().getTheme().scissorEnd();
 				}
@@ -116,7 +110,7 @@ namespace AssortedWidgets
 				Theme::ThemeEngine::getSingleton().getTheme().paintDialog(this);
                 Util::Position p(position);
                 Util::Graphics::getSingleton().pushPosition(p);
-				tittleBar.paint();
+                m_tittleBar.paint();
 				//layout->testPaint();
 				paintChild();
 				Util::Graphics::getSingleton().popPosition();

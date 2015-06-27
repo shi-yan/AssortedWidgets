@@ -5,11 +5,21 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		DialogTittleBar::DialogTittleBar(std::string &_text):text(_text),left(10),right(10),bottom(4),top(4)
+        DialogTittleBar::DialogTittleBar(std::string &_text)
+            :m_text(_text),
+              m_left(10),
+              m_right(10),
+              m_bottom(4),
+              m_top(4)
 		{
 		}
 
-		DialogTittleBar::DialogTittleBar(char *_text):text(_text),left(10),right(10),bottom(4),top(4)
+        DialogTittleBar::DialogTittleBar(char *_text)
+            :m_text(_text),
+              m_left(10),
+              m_right(10),
+              m_bottom(4),
+              m_top(4)
 		{
 		}
 
@@ -24,8 +34,8 @@ namespace AssortedWidgets
 
 		void DialogTittleBar::dragMoved(int offsetX,int offsetY)
 		{
-			parent->position.x+=offsetX;
-			parent->position.y+=offsetY;
+            m_parent->position.x+=offsetX;
+            m_parent->position.y+=offsetY;
 		}
 	}
 }

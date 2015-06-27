@@ -7,7 +7,14 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		MenuItemRadioGroup::MenuItemRadioGroup(void):left(0),right(0),top(0),bottom(4),spacer(2),minimizeSize(232),currentSelection(0)
+        MenuItemRadioGroup::MenuItemRadioGroup(void)
+            :m_left(0),
+              m_right(0),
+              m_top(0),
+              m_bottom(4),
+              m_spacer(2),
+              m_minimizeSize(232),
+              m_currentSelection(0)
 		{
 			MouseDelegate mEntered;
 			mEntered.bind(this,&MenuItemRadioGroup::mouseEntered);
@@ -40,7 +47,7 @@ namespace AssortedWidgets
 			int mx=e.getX()-position.x;
 			int my=e.getY()-position.y;
 			std::vector<MenuItemRadioButton*>::iterator iter;
-			for(iter=itemList.begin();iter<itemList.end();++iter)
+            for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
 				if((*iter)->isIn(mx,my))
 				{
@@ -61,7 +68,7 @@ namespace AssortedWidgets
 			int mx=e.getX()-position.x;
 			int my=e.getY()-position.y;
 			std::vector<MenuItemRadioButton*>::iterator iter;
-			for(iter=itemList.begin();iter<itemList.end();++iter)
+            for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
 				if((*iter)->isIn(mx,my))
 				{
@@ -76,7 +83,7 @@ namespace AssortedWidgets
 			int mx=e.getX()-position.x;
 			int my=e.getY()-position.y;
 			std::vector<MenuItemRadioButton*>::iterator iter;
-			for(iter=itemList.begin();iter<itemList.end();++iter)
+            for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
 				if((*iter)->isIn(mx,my))
 				{
@@ -111,33 +118,33 @@ namespace AssortedWidgets
 
 		void MenuItemRadioGroup::addItem(MenuItemRadioButton *item)
 		{
-			itemList.push_back(item);
+            m_itemList.push_back(item);
 			item->setGroup(this);
 			updateLayout();
 		};
 
 		void MenuItemRadioGroup::updateLayout()
 		{
-			unsigned int tempX=left;
-			unsigned int tempY=top;
-			size.width=minimizeSize;
+            unsigned int tempX=m_left;
+            unsigned int tempY=m_top;
+            size.width=m_minimizeSize;
 			size.height=0;
 			std::vector<MenuItemRadioButton*>::iterator iter;
-			for(iter=itemList.begin();iter<itemList.end();++iter)
+            for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
 				Util::Size itemSize=(*iter)->getPreferedSize();
                 size.width=std::max(size.width,itemSize.width);
-				size.height+=itemSize.height+spacer;
+                size.height+=itemSize.height+m_spacer;
 				(*iter)->position.x=tempX;
 				(*iter)->position.y=tempY;
-				tempY+=spacer+itemSize.height;
+                tempY+=m_spacer+itemSize.height;
 			}
-			for(iter=itemList.begin();iter<itemList.end();++iter)
+            for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
 				(*iter)->size.width=size.width;
 			}
-			size.width+=left+right;
-			size.height+=top+bottom-spacer;
+            size.width+=m_left+m_right;
+            size.height+=m_top+m_bottom-m_spacer;
 		}
 
 		void MenuItemRadioGroup::paint()
@@ -145,7 +152,7 @@ namespace AssortedWidgets
             Util::Position p(position);
             Util::Graphics::getSingleton().pushPosition(p);
 			std::vector<MenuItemRadioButton *>::iterator iter;
-			for(iter=itemList.begin();iter<itemList.end();++iter)
+            for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
 				(*iter)->paint();
 			}
@@ -154,17 +161,17 @@ namespace AssortedWidgets
 
 		void MenuItemRadioGroup::setSelection(size_t index)
 		{
-			if(currentSelection)
+            if(m_currentSelection)
 			{
-				currentSelection->off();
+                m_currentSelection->off();
 			}
-			currentSelection=itemList[index];
-		};
+            m_currentSelection=m_itemList[index];
+        }
 		int MenuItemRadioGroup::getSelection()
 		{
-			for(size_t i=0;i<itemList.size();++i)
+            for(size_t i=0;i<m_itemList.size();++i)
 			{
-				if(itemList[i]==currentSelection)
+                if(m_itemList[i]==m_currentSelection)
 				{
 					return static_cast<int>(i);
 				}
@@ -173,11 +180,11 @@ namespace AssortedWidgets
 		};
 		void MenuItemRadioGroup::setSelection(MenuItemRadioButton *item)
 		{
-			if(currentSelection)
+            if(m_currentSelection)
 			{
-				currentSelection->off();
+                m_currentSelection->off();
 			}
-			currentSelection=item;
+            m_currentSelection=item;
 		}
 	}
 }

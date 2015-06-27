@@ -23,17 +23,17 @@ namespace AssortedWidgets
 				pressed
 			};
 		private:
-			unsigned int left;
-			unsigned int right;
-			unsigned int bottom;
-			unsigned int top;
-			std::string text;
-            enum Style style;
-            enum Status status;
+            unsigned int m_left;
+            unsigned int m_right;
+            unsigned int m_bottom;
+            unsigned int m_top;
+            std::string m_text;
+            enum Style m_style;
+            enum Status m_status;
 		public:
             enum Status getStatus() const
 			{
-				return status;
+                return m_status;
             }
 
 			void mousePressed(const Event::MouseEvent &e);
@@ -49,41 +49,43 @@ namespace AssortedWidgets
 			MenuItemButton(char *_text);
             const std::string& getText() const
 			{
-				return text;
+                return m_text;
             }
-			int getStyle()
+
+            enum Style getStyle() const
 			{
-				return style;
+                return m_style;
 			}
+
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintMenuItemButton(this);
-			};
+            }
 
-			unsigned int getLeft()
+            unsigned int getLeft() const
 			{
-				return left;
-			};
+                return m_left;
+            }
 
-			unsigned int getRight()
+            unsigned int getRight() const
 			{
-				return right;
-			};
+                return m_right;
+            }
 
-			unsigned int getBottom()
+            unsigned int getBottom() const
 			{
-				return bottom;
-			};
+                return m_bottom;
+            }
 
-			unsigned int getTop()
+            unsigned int getTop() const
 			{
-				return top;
-			};
+                return m_top;
+            }
 
 			Util::Size getPreferedSize()
 			{
 				return Theme::ThemeEngine::getSingleton().getTheme().getMenuItemButtonPreferedSize(this);
-			};
+            }
 		public:
 			~MenuItemButton(void);
 		};
