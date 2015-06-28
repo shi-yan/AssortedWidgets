@@ -11,9 +11,9 @@ For the past 8 years, I cared very little about this project, I can't even remem
 
 I wanted to give this project some updates if I have time. Here is my current plan:
 
-1. Upgrade to SDL2 from SDL1.2. (DONE)
-2. Replace the [C++ delegate code](http://www.codeproject.com/cpp/FastDelegate.asp) with C++11 functional features.
+1. ~~Upgrade to SDL2 from SDL1.2.~~ (DONE)
+2. ~~Replace the [C++ delegate code](http://www.codeproject.com/cpp/FastDelegate.asp) with C++11 functional features.~~ (DONE)
 3. Or even implement a signal-slot system similar to that of Qt.
 4. Modernize the old OpenGL code with OpenGL ES 2.
 5. Build it with EMScripten to make it web.
-6. Give it a flexible platform plugin system, so that not only SDL is supported, but it can be easily embedded into other OpenGL environment.
+6. Give it a flexible platform plugin system, so that not only SDL is supported, but it can be easily embedded into other OpenGL environments.
