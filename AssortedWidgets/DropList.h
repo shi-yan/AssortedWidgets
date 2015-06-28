@@ -117,7 +117,7 @@ namespace AssortedWidgets
 					miniSize=std::max<unsigned int>((*iter)->getPreferedSize().width,miniSize);
 				}
 				return Util::Size(miniSize+23,20);
-			};
+            }
 			void paint();
 			void mousePressed(const Event::MouseEvent &e);
 			void mouseReleased(const Event::MouseEvent &e);

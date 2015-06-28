@@ -16,7 +16,7 @@ namespace AssortedWidgets
 			void setSelectionManager(Manager::SelectionManager *_selectionManager)
 			{
 				selectionManager=_selectionManager;
-			};
+            }
 			void dragPressed(const Event::MouseEvent &e);
 			virtual void dragReleased(const Event::MouseEvent &e)=0;
 			virtual void dragMoved(int offsetX,int offsetY)=0;

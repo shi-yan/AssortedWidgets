@@ -15,14 +15,17 @@ namespace AssortedWidgets
 			Dialog *parent;
 		public:
 			DialogBottom(int x,int y,unsigned int width,unsigned int height);
-			void setParent(Dialog *_parent)
+
+            void setParent(Dialog *_parent)
 			{
 				parent=_parent;
-			};
+            }
+
 			Util::Size getPreferedSize()
 			{
 				return size;
-			};
+            }
+
 			void paint()
 			{
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
@@ -34,7 +37,7 @@ namespace AssortedWidgets
 				glVertex2f(static_cast<GLfloat>(origin.x+position.x+size.width),static_cast<GLfloat>(origin.y+position.y+size.height));
 				glVertex2f(static_cast<GLfloat>(origin.x+position.x),static_cast<GLfloat>(origin.y+position.y+size.height));
 				glEnd();
-			};
+            }
 			void dragReleased(const Event::MouseEvent &e);
 			void dragMoved(int offsetX,int offsetY);
 		public:

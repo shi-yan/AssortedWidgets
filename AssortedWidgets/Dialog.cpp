@@ -119,7 +119,7 @@ namespace AssortedWidgets
 			{
 				Manager::DialogManager::getSingleton().dropModelessDialog(this);
 			}
-		};
+        }
 
 		void Dialog::mouseEntered(const Event::MouseEvent &e)
 		{
@@ -314,7 +314,7 @@ namespace AssortedWidgets
 				
                 layout->updateLayout(childList,m_contentPosition,m_contentSize);
 			}
-		};
+        }
 
 		Dialog::~Dialog(void)
 		{

@@ -30,7 +30,7 @@ namespace AssortedWidgets
 				_modelessDialog->setActive(true);
 			}
 			_modelessDialog->setShowType(Widgets::Dialog::Modeless);
-		};
+        }
 
 		void DialogManager::setModalDialog(Widgets::Dialog *_modalDialog)
 		{
@@ -42,7 +42,7 @@ namespace AssortedWidgets
 			{
 				(*iter)->setActive(false);
 			}
-		};
+        }
 
 		void DialogManager::dropModalDialog()
 		{

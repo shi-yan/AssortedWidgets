@@ -11,12 +11,12 @@ namespace AssortedWidgets
 			Util::Size getPreferedSize()
 			{
 				return Util::Size(15,15);
-			};
+            }
 
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintDropListButton(this);
-			};
+            }
 			DropListButton(void);
 		public:
 			~DropListButton(void);

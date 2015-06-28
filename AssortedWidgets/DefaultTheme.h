@@ -118,7 +118,7 @@ namespace AssortedWidgets
 				delete ProgressBarBottom;
 
 				glDeleteTextures(1,&textureID);
-			};
+            }
 
 			Util::Size getMenuPreferedSize(Widgets::Menu *component);
 			void paintMenu(Widgets::Menu *component);

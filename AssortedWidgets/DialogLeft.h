@@ -19,11 +19,13 @@ namespace AssortedWidgets
 			void setParent(Dialog *_parent)
 			{
 				parent=_parent;
-			};
+            }
+
 			Util::Size getPreferedSize()
 			{
 				return size;
-			};
+            }
+
 			void paint()
 			{
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();

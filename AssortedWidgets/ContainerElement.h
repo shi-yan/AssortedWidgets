@@ -97,7 +97,7 @@ namespace AssortedWidgets
 					delete (*iter);
 				}*/
 				childList.clear();
-			};
+            }
 		};
 	}
 }

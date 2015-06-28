@@ -134,13 +134,13 @@ namespace AssortedWidgets
 			DialogUpLeftDeactive=new SubImage(89.0/256.0,61.0/256.0,113.0/256.0,77.0/256.0,textureID);
 			DialogUpDeactive=new SubImage(111.0/256.0,61.0/256.0,116.0/256.0,77.0/256.0,textureID);
 			DialogUpRightDeactive=new SubImage(119.0/256.0,61.0/256.0,143.0/256.0,77.0/256.0,textureID);
-		};
+        }
 
 		Util::Size DefaultTheme::getMenuPreferedSize(Widgets::Menu *component)
 		{
 			Util::Size text=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(component->getText());
 			return Util::Size(12+text.width,19);
-		};
+        }
 
 		void DefaultTheme::paintMenu(Widgets::Menu *component)
 		{
@@ -209,12 +209,12 @@ namespace AssortedWidgets
 					}
 				}
 			}
-		};
+        }
 
 		Util::Size DefaultTheme::getMenuBarPreferedSize(Widgets::MenuBar *component)
 		{
 			return Util::Size(component->size.width,30);
-		};
+        }
 
 		void DefaultTheme::paintMenuBar(Widgets::MenuBar *component)
 		{
@@ -235,7 +235,7 @@ namespace AssortedWidgets
 			glVertex2f(x2,y2);
 			glVertex2f(x1+40.0f,y2);
 			glEnd();
-		};
+        }
 
 		Util::Size DefaultTheme::getMenuListPreferedSize(Widgets::MenuList *component)
 		{
@@ -252,7 +252,7 @@ namespace AssortedWidgets
 			}
 
 			return Util::Size(width+component->getLeft()+component->getRight(),height+component->getTop()+component->getBottom());
-		};
+        }
 
 		void DefaultTheme::paintMenuList(Widgets::MenuList *component)
 		{
@@ -279,18 +279,18 @@ namespace AssortedWidgets
 			glVertex2f(x2-24.0f,y2-16.0f);
 			glVertex2f(x1+24.0f,y2-16.0f);
 			glEnd();
-		};
+        }
 
 		Util::Size DefaultTheme::getMenuItemButtonPreferedSize(Widgets::MenuItemButton *component)
 		{
 			Util::Size text=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(component->getText());
 			return Util::Size(24+text.width,20);
-		};
+        }
 
 		Util::Size DefaultTheme::getMenuItemSeparatorPreferedSize(Widgets::MenuItemSeparator *component)
 		{
 			return Util::Size(component->size);
-		};
+        }
 
 		void DefaultTheme::paintMenuItemSeparator(Widgets::MenuItemSeparator *component)
 		{
@@ -301,7 +301,7 @@ namespace AssortedWidgets
 			glVertex2f(static_cast<float>(10+origin.x+component->position.x),static_cast<float>(origin.y+component->position.y+1));
 			glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-10),static_cast<float>(origin.y+component->position.y+1));
 			glEnd();
-		};
+        }
 
 		void DefaultTheme::paintMenuItemButton(Widgets::MenuItemButton *component)
 		{
@@ -418,13 +418,13 @@ namespace AssortedWidgets
 				}
 				glColor3ub(255,255,255);
 				Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft(),origin.y+component->position.y+component->getTop(),component->getText());
-			};
+            }
 
 			Util::Size DefaultTheme::getButtonPreferedSize(Widgets::Button *component)
 			{
 				Util::Size text=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(component->getText());
 				return Util::Size(component->getRight()+component->getLeft()+text.width,19);
-			};
+            }
 			
 			void DefaultTheme::paintButton(Widgets::Button *component)
 			{
@@ -488,13 +488,13 @@ namespace AssortedWidgets
 						break;
 					};
 				}
-			};
+            }
 
 			Util::Size DefaultTheme::getMenuItemToggleButtonPreferedSize(Widgets::MenuItemToggleButton *component)
 			{
 				Util::Size text=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(component->getText());
 				return Util::Size(10+24+text.width,20);
-			};
+            }
 
 			void DefaultTheme::paintMenuItemToggleButton(Widgets::MenuItemToggleButton *component)
 			{
@@ -543,13 +543,13 @@ namespace AssortedWidgets
 						break;
 					};
 				}
-			};
+            }
 
 			Util::Size DefaultTheme::getMenuItemRadioButtonPreferedSize(Widgets::MenuItemRadioButton *component)
 			{
 				Util::Size text=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(component->getText());
 				return Util::Size(10+24+text.width,20);
-			};
+            }
 
 			void DefaultTheme::paintMenuItemRadioButton(Widgets::MenuItemRadioButton *component)
 			{
@@ -598,7 +598,7 @@ namespace AssortedWidgets
 						break;
 					};
 				}
-			};
+            }
 			
 			Util::Size DefaultTheme::getMenuItemRadioGroupPreferedSize(Widgets::MenuItemRadioGroup *component)
 			{
@@ -614,16 +614,16 @@ namespace AssortedWidgets
 					height+=itemSize.height;
 				}
 				return Util::Size(width+component->getLeft()+component->getRight(),height+component->getTop()+component->getBottom());
-			};
+            }
 			
 			void DefaultTheme::paintMenuItemRadioGroup(Widgets::MenuItemRadioGroup *component)
 			{
-			};
+            }
 
 			Util::Size DefaultTheme::getDialogPreferedSize(Widgets::Dialog *component)
 			{
 				return component->size;
-			};
+            }
 
 			void DefaultTheme::paintDialog(Widgets::Dialog *component)
 			{
@@ -661,13 +661,13 @@ namespace AssortedWidgets
 				glVertex2f(static_cast<float>(x2),static_cast<float>(y1));
 				glVertex2f(static_cast<float>(x1),static_cast<float>(y1));
 				glEnd();
-			};
+            }
 
 			Util::Size DefaultTheme::getDialogTittleBarPreferedSize(Widgets::DialogTittleBar *component)
 			{
 				Util::Size text=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(component->getText());
 				return Util::Size(20+text.width,20);
-			};
+            }
 			
 			void DefaultTheme::paintDialogTittleBar(Widgets::DialogTittleBar *component)
 			{
@@ -681,12 +681,12 @@ namespace AssortedWidgets
 				glEnd();
 				glColor3ub(255,255,255);
 				Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
-			};
+            }
 
 			Util::Size DefaultTheme::getTextFieldPreferedSize(Widgets::TextField *component)
 			{
 				return Util::Size(component->getLength()+12,20);
-			};
+            }
 
 			void DefaultTheme::paintTextField(Widgets::TextField *component)
 			{
@@ -726,24 +726,25 @@ namespace AssortedWidgets
 				glScissor(static_cast<GLint>(x1),static_cast<GLint>(screenHeight-y2),static_cast<GLint>(component->size.width),static_cast<GLint>(component->size.height));
 				Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(x3-4-textSize.width),static_cast<int>(component->getTop()+y1),component->getText());
 				glDisable(GL_SCISSOR_TEST);
-			};
+            }
 
 			Util::Size DefaultTheme::getLogoPreferedSize(Widgets::Logo *component)
 			{
 				return Util::Size();
-			};
+            }
 
 			void DefaultTheme::paintLogo(Widgets::Logo *component)
 			{
 				glEnable(GL_TEXTURE_2D);
 				glColor3ub(255,255,255);
 				Logo->paint(static_cast<float>(component->position.x),static_cast<float>(component->position.y),static_cast<float>(component->position.x+component->size.width),static_cast<float>(component->position.y+component->size.height));
-			};
+            }
 
 			Util::Size DefaultTheme::getScrollBarButtonPreferedSize(Widgets::ScrollBarButton *component)
 			{
 				return Util::Size();
-			};
+            }
+
 			void DefaultTheme::paintScrollBarButton(Widgets::ScrollBarButton *component)
 			{
 				SubImage *button=0;
@@ -818,12 +819,12 @@ namespace AssortedWidgets
 				glEnable(GL_TEXTURE_2D);
 				glColor3ub(255,255,255);
 				button->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
-			};
+            }
 
 			Util::Size DefaultTheme::getScrollBarSliderPreferedSize(Widgets::ScrollBarSlider *component)
 			{
 				return Util::Size();
-			};
+            }
 
 			void DefaultTheme::paintScrollBarSlider(Widgets::ScrollBarSlider *component)
 			{
@@ -836,12 +837,12 @@ namespace AssortedWidgets
 				glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
 				glVertex2f(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y+component->size.height));
 				glEnd();
-			};
+            }
 
 			Util::Size DefaultTheme::getScrollBarPreferedSize(Widgets::ScrollBar *component)
 			{
 				return Util::Size();
-			};
+            }
 						
 			void DefaultTheme::paintScrollBar(Widgets::ScrollBar *component)
 			{
@@ -856,12 +857,12 @@ namespace AssortedWidgets
 				{
 					ScrollBarVerticalBackground->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
 				}		
-			};
+            }
 
 			Util::Size DefaultTheme::getScrollPanelPreferedSize(Widgets::ScrollPanel *component)
 			{
 				return Util::Size();
-			};
+            }
 
 			void DefaultTheme::paintScrollPanel(Widgets::ScrollPanel *component)
 			{
@@ -885,7 +886,7 @@ namespace AssortedWidgets
 					glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-15),static_cast<float>(origin.y+component->position.y+component->size.height-1));
 					glEnd();
 				}
-			};
+            }
 
 			void DefaultTheme::scissorBegin(Util::Position &position,Util::Size &area)
 			{
@@ -900,18 +901,18 @@ namespace AssortedWidgets
 				glEnable(GL_SCISSOR_TEST);
 				glScissor(origin.x+position.x,screenHeight-origin.y-area.height-position.y,area.width,area.height);
 
-			};
+            }
 
 			void DefaultTheme::scissorEnd()
 			{
 				glDisable(GL_SCISSOR_TEST);
-			};
+            }
 
 			Util::Size DefaultTheme::getCheckButtonPreferedSize(Widgets::CheckButton *component)
 			{
 				Util::Size text=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(component->getText());
 				return Util::Size(component->getRight()+component->getLeft()+text.width+15,19);
-			};
+            }
 
 			void DefaultTheme::paintCheckButton(Widgets::CheckButton *component)
 			{
@@ -993,13 +994,13 @@ namespace AssortedWidgets
 						break;
 					};
 				}
-			};
+            }
 
 			Util::Size DefaultTheme::getRadioButtonPreferedSize(Widgets::RadioButton *component)
 			{
 				Util::Size text=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(component->getText());
 				return Util::Size(component->getRight()+component->getLeft()+text.width+15,19);
-			};
+            }
 
 			void DefaultTheme::paintRadioButton(Widgets::RadioButton *component)
 			{
@@ -1081,12 +1082,12 @@ namespace AssortedWidgets
 						break;
 					};
 				}
-			};
+            }
 
 			Util::Size DefaultTheme::getProgressBarPreferedSize(Widgets::ProgressBar *component)
 			{
 				return Util::Size();
-			};
+            }
 
 			void DefaultTheme::paintProgressBar(Widgets::ProgressBar *component)
 			{
@@ -1151,12 +1152,12 @@ namespace AssortedWidgets
 					glVertex2f(x1+2,y4-2);
 					glEnd();
 				}
-			};
+            }
 
 			Util::Size DefaultTheme::getSlideBarSliderPreferedSize(Widgets::SlideBarSlider *component)
 			{
 				return Util::Size();
-			};
+            }
 
 			void DefaultTheme::paintSlideBarSlider(Widgets::SlideBarSlider *component)
 			{
@@ -1169,12 +1170,12 @@ namespace AssortedWidgets
 				glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
 				glVertex2f(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y+component->size.height));
 				glEnd();
-			};
+            }
 
 			Util::Size DefaultTheme::getSlideBarPreferedSize(Widgets::SlideBar *component)
 			{
 				return Util::Size();
-			};
+            }
 
 			void DefaultTheme::paintSlideBar(Widgets::SlideBar *component)
 			{
@@ -1224,7 +1225,7 @@ namespace AssortedWidgets
 					glVertex2f(x1,y3);
 					glEnd();
 				}
-			};
+            }
 
 			Util::Size DefaultTheme::getDropListButtonPreferedSize(Widgets::DropListButton *component)
 			{
@@ -1256,12 +1257,12 @@ namespace AssortedWidgets
 				glEnable(GL_TEXTURE_2D);
 				glColor3ub(255,255,255);
 				button->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
-			};
+            }
 
 			Util::Size DefaultTheme::getDropListPreferedSize(Widgets::DropList *component)
 			{
 				return Util::Size();
-			};
+            }
 
 			void DefaultTheme::paintDropList(Widgets::DropList *component)
 			{
@@ -1292,13 +1293,13 @@ namespace AssortedWidgets
 					glColor3ub(0,0,0);
 					Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft(),origin.y+component->position.y+component->getTop(),selected->getText());
 				}
-			};
+            }
 
 			Util::Size DefaultTheme::getDropListItemPreferedSize(Widgets::DropListItem *component)
 			{
 				Util::Size text=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(component->getText());
 				return Util::Size(component->getRight()+component->getLeft()+text.width,20);
-			};
+            }
 			
 			void DefaultTheme::paintDropListItem(Widgets::DropListItem *component)
 			{
@@ -1315,7 +1316,7 @@ namespace AssortedWidgets
 				}
 				glColor3ub(0,0,0);
 				Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft(),origin.y+component->position.y+component->getTop(),component->getText());
-			};
+            }
 
 			void DefaultTheme::paintDropDown(Util::Position &position,Util::Size &area)
 			{
@@ -1336,7 +1337,7 @@ namespace AssortedWidgets
 				glVertex2f(static_cast<float>(position.x),static_cast<float>(position.y+area.height));
 				glVertex2f(static_cast<float>(position.x),static_cast<float>(position.y));
 				glEnd();
-			};
+            }
 
 		DefaultTheme::~DefaultTheme(void)
 		{

@@ -52,7 +52,7 @@ namespace AssortedWidgets
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintDialogTittleBar(this);
-			};
+            }
 			void dragReleased(const Event::MouseEvent &e);
 			void dragMoved(int offsetX,int offsetY);
 		public:

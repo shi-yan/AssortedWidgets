@@ -14,12 +14,12 @@ namespace AssortedWidgets
 			bool isCheck()
 			{
 				return check;
-			};
+            }
 
 			void setCheck(bool _check)
 			{
 				check=_check;
-			};
+            }
 
             const std::string& getText() const
 			{
@@ -29,7 +29,7 @@ namespace AssortedWidgets
 			void setText(std::string &_text)
 			{
 				text=_text;
-			};
+            }
 
 			CheckButton(std::string &_text,bool _check=false);
 			CheckButton(char *_text,bool _check=false);
@@ -37,11 +37,12 @@ namespace AssortedWidgets
 			Util::Size getPreferedSize()
 			{
 				return Theme::ThemeEngine::getSingleton().getTheme().getCheckButtonPreferedSize(this);
-			};
+            }
+
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintCheckButton(this);
-			};
+            }
 		public:
 			~CheckButton(void);
 		};
