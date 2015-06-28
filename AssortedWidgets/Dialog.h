@@ -86,8 +86,8 @@ namespace AssortedWidgets
 			{
 				//return Theme::ThemeEngine::getSingleton().getTheme().getDialogPreferedSize(this);
                 Util::Size result(m_tittleBar.getPreferedSize());
-                result.width+=m_left+m_right;
-                result.height+=m_top+m_bottom;
+                result.m_width+=m_left+m_right;
+                result.m_height+=m_top+m_bottom;
 				return result;
             }
 			void mousePressed(const Event::MouseEvent &e);

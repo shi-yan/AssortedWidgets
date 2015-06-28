@@ -4,7 +4,8 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		SlideBarSlider::SlideBarSlider(int _type):type(_type)
+        SlideBarSlider::SlideBarSlider(int _type)
+            :m_type(_type)
 		{
 		}
 

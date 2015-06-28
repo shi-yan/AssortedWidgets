@@ -12,47 +12,47 @@ namespace AssortedWidgets
 		class Graphics
 		{
 		private:
-			std::stack<Position> positionStack;
+            std::stack<Position> m_positionStack;
 		private:
-			Graphics(){};
+            Graphics(){}
 		public:
 			static Graphics& getSingleton()
 			{
 				static Graphics obj;
 				return obj;
-			};
+            }
             void pushPosition(Position &newPosition)
 			{
-				if(positionStack.empty())
+                if(m_positionStack.empty())
 				{
-					positionStack.push(newPosition);
+                    m_positionStack.push(newPosition);
 				}
 				else
 				{
-					newPosition.x+=positionStack.top().x;
-					newPosition.y+=positionStack.top().y;
-					positionStack.push(newPosition);
+                    newPosition.x+=m_positionStack.top().x;
+                    newPosition.y+=m_positionStack.top().y;
+                    m_positionStack.push(newPosition);
 				}
-			};
+            }
 			Position popPosition()
 			{
-				Position result=positionStack.top();
-				positionStack.pop();
+                Position result=m_positionStack.top();
+                m_positionStack.pop();
 				return result;
-			};
+            }
 			Position getOrigin()
 			{
-				if(positionStack.empty())
+                if(m_positionStack.empty())
 				{
 					return Util::Position(0,0);
 				}
 				else
 				{
-					return positionStack.top();
+                    return m_positionStack.top();
 				}
 			}
 		private:
-			~Graphics(void){};
+            ~Graphics(void){}
 		};
 	}
 }

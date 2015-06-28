@@ -16,8 +16,8 @@ namespace AssortedWidgets
             unsigned int m_left;
             unsigned int m_right;
 
-			Util::Position contentPosition;
-			Util::Size contentSize;
+            Util::Position m_contentPosition;
+            Util::Size m_contentSize;
 		public:
 			void pack();
 			Panel(void);
@@ -39,7 +39,7 @@ namespace AssortedWidgets
 				std::vector<Element*>::iterator iter;
 				for(iter=childList.begin();iter<childList.end();++iter)
 				{
-					Theme::ThemeEngine::getSingleton().getTheme().scissorBegin(contentPosition,contentSize);
+                    Theme::ThemeEngine::getSingleton().getTheme().scissorBegin(m_contentPosition,m_contentSize);
 					(*iter)->paint();
 					Theme::ThemeEngine::getSingleton().getTheme().scissorEnd();
 				}

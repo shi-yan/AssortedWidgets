@@ -11,16 +11,16 @@ namespace AssortedWidgets
 		class FlowLayoutTestDialog:public Widgets::Dialog
 		{
 		private:
-			Layout::FlowLayout *flowLayout;
-			Widgets::Button *closeButton;
-			Widgets::Label *TheLabel;
-			Widgets::Label *quickLabel;
-			Widgets::Label *brownLabel;
-			Widgets::Label *foxLabel;
-			Widgets::Label *jumpsLabel;
-			Widgets::Label *overLabel;
-			Widgets::Label *theLabel;
-			Widgets::Label *lazyDogLabel;
+            Layout::FlowLayout *m_flowLayout;
+            Widgets::Button *m_closeButton;
+            Widgets::Label *m_TheLabel;
+            Widgets::Label *m_quickLabel;
+            Widgets::Label *m_brownLabel;
+            Widgets::Label *m_foxLabel;
+            Widgets::Label *m_jumpsLabel;
+            Widgets::Label *m_overLabel;
+            Widgets::Label *m_aLabel;
+            Widgets::Label *m_lazyDogLabel;
 		public:
 			void onClose(const Event::MouseEvent &e);
 			FlowLayoutTestDialog(void);

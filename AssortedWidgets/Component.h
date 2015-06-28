@@ -19,17 +19,17 @@ namespace AssortedWidgets
 		class Component: public Util::BoundingBox
 		{
 		public:
-			bool isHover;
-			bool isEnable;
-			bool isVisible;
+            bool m_isHover;
+            bool m_isEnable;
+            bool m_isVisible;
 		private:
-			int layoutProperty;
+            int m_layoutProperty;
 		public:
             Component(void)
-                :isEnable(true),
-                  isVisible(true),
-                  isHover(false),
-                  layoutProperty(0)
+                :m_isEnable(true),
+                  m_isVisible(true),
+                  m_isHover(false),
+                  m_layoutProperty(0)
             {}
 
 			virtual void paint()
@@ -37,12 +37,12 @@ namespace AssortedWidgets
 
 			void setLayoutProperty(int _layoutProperty)
 			{
-				layoutProperty=_layoutProperty;
+                m_layoutProperty=_layoutProperty;
             }
 
             int getLayoutProperty() const
 			{
-				return layoutProperty;	
+                return m_layoutProperty;
             }
 
 			void setLocation(int x,int y)
@@ -53,8 +53,8 @@ namespace AssortedWidgets
 
 			void setSize(unsigned int width,unsigned int height)
 			{
-                m_size.width=width;
-                m_size.height=height;
+                m_size.m_width=width;
+                m_size.m_height=height;
             }
 
 			void processMouseClick(const Event::MouseEvent &e)
@@ -124,7 +124,7 @@ namespace AssortedWidgets
 			std::vector<MouseDelegate> mouseMovedHandlerList;
 
 		public:
-			~Component(void)
+            virtual ~Component(void)
 			{
 				mouseClickHandlerList.clear();
 				mousePressedHandlerList.clear();

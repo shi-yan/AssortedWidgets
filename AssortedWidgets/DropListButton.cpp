@@ -8,8 +8,8 @@ namespace AssortedWidgets
 		DropListButton::DropListButton(void)
 		{
             m_size=getPreferedSize();
-			horizontalStyle=Element::Fit;
-			verticalStyle=Element::Fit;
+            m_horizontalStyle=Element::Fit;
+            m_verticalStyle=Element::Fit;
 		}
 
 		DropListButton::~DropListButton(void)

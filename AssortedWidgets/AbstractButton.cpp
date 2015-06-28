@@ -11,8 +11,8 @@ namespace AssortedWidgets
               m_right(right),
               m_status(status)
 		{
-			horizontalStyle=Element::Fit;
-			verticalStyle=Element::Fit;
+            m_horizontalStyle=Element::Fit;
+            m_verticalStyle=Element::Fit;
 
             mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(AbstractButton::mouseEntered));
             mouseExitedHandlerList.push_back(MOUSE_DELEGATE(AbstractButton::mouseExited));
@@ -20,25 +20,25 @@ namespace AssortedWidgets
             mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(AbstractButton::mouseReleased));
 		}
 
-		void AbstractButton::mousePressed(const Event::MouseEvent &e)
+        void AbstractButton::mousePressed(const Event::MouseEvent &)
 		{
             m_status=pressed;
         }
 		
-		void AbstractButton::mouseEntered(const Event::MouseEvent &e)
+        void AbstractButton::mouseEntered(const Event::MouseEvent &)
 		{
-			isHover=true;
+            m_isHover=true;
             m_status=hover;
         }
 
-		void AbstractButton::mouseReleased(const Event::MouseEvent &e)
+        void AbstractButton::mouseReleased(const Event::MouseEvent &)
 		{
             m_status=hover;
         }
 
-		void AbstractButton::mouseExited(const Event::MouseEvent &e)
+        void AbstractButton::mouseExited(const Event::MouseEvent &)
 		{
-			isHover=false;
+            m_isHover=false;
             m_status=normal;
         }
 

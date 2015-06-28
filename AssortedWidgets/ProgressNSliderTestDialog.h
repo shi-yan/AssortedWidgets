@@ -15,15 +15,15 @@ namespace AssortedWidgets
 		class ProgressNSliderTestDialog:public Widgets::Dialog
 		{
 		private:
-			Widgets::Button *closeButton;
-			Widgets::Label *valueLabel;
-			Widgets::ProgressBar *horizontalPBar;
-			Widgets::ProgressBar *verticalPBar;
-			Widgets::SlideBar *horizontalSBar;
-			Widgets::SlideBar *verticalSBar;
-			Layout::BorderLayout *borderLayout;
-			Widgets::Panel *centerPanel;
-			Layout::GirdLayout *centerGirdLayout;
+            Widgets::Button *m_closeButton;
+            Widgets::Label *m_valueLabel;
+            Widgets::ProgressBar *m_horizontalPBar;
+            Widgets::ProgressBar *m_verticalPBar;
+            Widgets::SlideBar *m_horizontalSBar;
+            Widgets::SlideBar *m_verticalSBar;
+            Layout::BorderLayout *m_borderLayout;
+            Widgets::Panel *m_centerPanel;
+            Layout::GirdLayout *m_centerGirdLayout;
 		public:
 			void onClose(const Event::MouseEvent &e);
 			void onHSlider(const Event::MouseEvent &e);

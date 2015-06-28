@@ -8,27 +8,27 @@ namespace AssortedWidgets
 		class CheckButton:public AbstractButton
 		{
 		private:
-			std::string text;
-			bool check;
+            std::string m_text;
+            bool m_check;
 		public:
-			bool isCheck()
+            bool isCheck() const
 			{
-				return check;
+                return m_check;
             }
 
 			void setCheck(bool _check)
 			{
-				check=_check;
+                m_check=_check;
             }
 
             const std::string& getText() const
 			{
-				return text;
+                return m_text;
             }
 
 			void setText(std::string &_text)
 			{
-				text=_text;
+                m_text=_text;
             }
 
 			CheckButton(std::string &_text,bool _check=false);

@@ -12,8 +12,8 @@ namespace AssortedWidgets
 		class DialogManager
 		{
 		private:
-			Widgets::Dialog *modalDialog;
-			std::vector<Widgets::Dialog*> modelessDialog;
+            Widgets::Dialog *m_modalDialog;
+            std::vector<Widgets::Dialog*> m_modelessDialog;
 		public:
 			void setModalDialog(Widgets::Dialog *_modalDialog);
 			void setModelessDialog(Widgets::Dialog *_modelessDialog);

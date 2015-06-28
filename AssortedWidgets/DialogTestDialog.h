@@ -12,11 +12,11 @@ namespace AssortedWidgets
 		class DialogTestDialog:public Widgets::Dialog
 		{
 		private:
-			Widgets::Button *closeButton;
-			Layout::GirdLayout *girdLayout;
-			Widgets::CheckButton *dragAble;
-			Widgets::CheckButton *sizeAble;
-			Widgets::Label *label;
+            Widgets::Button *m_closeButton;
+            Layout::GirdLayout *m_girdLayout;
+            Widgets::CheckButton *m_dragAble;
+            Widgets::CheckButton *m_sizeAble;
+            Widgets::Label *m_label;
 		public:
 			void onClose(const Event::MouseEvent &e);
 			void onDrag(const Event::MouseEvent &e);

@@ -9,77 +9,77 @@ namespace AssortedWidgets
 	{
 		ProgressNSliderTestDialog::ProgressNSliderTestDialog(void):Dialog("Progress and Slider Test:",150,150,320,200)
 		{
-			borderLayout=new Layout::BorderLayout(16,16,16,16,8);
-			borderLayout->setSouthHAlignment(Layout::BorderLayout::HRight);
+            m_borderLayout=new Layout::BorderLayout(16,16,16,16,8);
+            m_borderLayout->setSouthHAlignment(Layout::BorderLayout::HRight);
 
-			closeButton=new Widgets::Button("Close");
-			closeButton->setLayoutProperty(Layout::BorderLayout::South);
+            m_closeButton=new Widgets::Button("Close");
+            m_closeButton->setLayoutProperty(Layout::BorderLayout::South);
 
-			valueLabel=new Widgets::Label("Value:0%");
-			valueLabel->setLayoutProperty(Layout::BorderLayout::North);
+            m_valueLabel=new Widgets::Label("Value:0%");
+            m_valueLabel->setLayoutProperty(Layout::BorderLayout::North);
 
-			centerPanel=new Widgets::Panel();
-			centerGirdLayout=new Layout::GirdLayout(2,1);
-			centerPanel->setLayout(centerGirdLayout);
+            m_centerPanel=new Widgets::Panel();
+            m_centerGirdLayout=new Layout::GirdLayout(2,1);
+            m_centerPanel->setLayout(m_centerGirdLayout);
 
-			horizontalPBar=new Widgets::ProgressBar(0.0f,100.0f,0.0f);
-			horizontalSBar=new Widgets::SlideBar(0.0f,100.0f,0.0f);
+            m_horizontalPBar=new Widgets::ProgressBar(0.0f,100.0f,0.0f);
+            m_horizontalSBar=new Widgets::SlideBar(0.0f,100.0f,0.0f);
 
-			centerPanel->add(horizontalPBar);
-			centerPanel->add(horizontalSBar);
-			centerPanel->setLayoutProperty(Layout::BorderLayout::Center);
-			centerPanel->pack();
+            m_centerPanel->add(m_horizontalPBar);
+            m_centerPanel->add(m_horizontalSBar);
+            m_centerPanel->setLayoutProperty(Layout::BorderLayout::Center);
+            m_centerPanel->pack();
 
-			verticalPBar=new Widgets::ProgressBar(0.0f,100.0f,0.0f,Widgets::ProgressBar::Vertical);
-			verticalSBar=new Widgets::SlideBar(0.0f,100.0f,0.0f,Widgets::ProgressBar::Vertical);
+            m_verticalPBar=new Widgets::ProgressBar(0.0f,100.0f,0.0f,Widgets::ProgressBar::Vertical);
+            m_verticalSBar=new Widgets::SlideBar(0.0f,100.0f,0.0f,Widgets::ProgressBar::Vertical);
 
-			verticalPBar->setLayoutProperty(Layout::BorderLayout::East);
-			verticalSBar->setLayoutProperty(Layout::BorderLayout::East);
+            m_verticalPBar->setLayoutProperty(Layout::BorderLayout::East);
+            m_verticalSBar->setLayoutProperty(Layout::BorderLayout::East);
 
-			add(closeButton);
-			add(valueLabel);
-			add(centerPanel);
-			add(verticalPBar);
-			add(verticalSBar);
+            add(m_closeButton);
+            add(m_valueLabel);
+            add(m_centerPanel);
+            add(m_verticalPBar);
+            add(m_verticalSBar);
 
-			setLayout(borderLayout);
+            setLayout(m_borderLayout);
 
 			pack();
 
-            closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ProgressNSliderTestDialog::onClose));
-            horizontalSBar->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ProgressNSliderTestDialog::onHSlider));
-            verticalSBar->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ProgressNSliderTestDialog::onVSlider));
+            m_closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ProgressNSliderTestDialog::onClose));
+            m_horizontalSBar->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ProgressNSliderTestDialog::onHSlider));
+            m_verticalSBar->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ProgressNSliderTestDialog::onVSlider));
 		}
 
-		void ProgressNSliderTestDialog::onHSlider(const Event::MouseEvent &e)
+        void ProgressNSliderTestDialog::onHSlider(const Event::MouseEvent &)
 		{
-			horizontalPBar->setValue(horizontalSBar->getValue());
+            m_horizontalPBar->setValue(m_horizontalSBar->getValue());
 			std::ostringstream ostr ;
-			ostr<<"Value:"<<static_cast<int>(horizontalSBar->getValue())<<"%";     
-			valueLabel->setText(ostr.str());
+            ostr<<"Value:"<<static_cast<int>(m_horizontalSBar->getValue())<<"%";
+            m_valueLabel->setText(ostr.str());
 		}
 
-		void ProgressNSliderTestDialog::onVSlider(const Event::MouseEvent &e)
+        void ProgressNSliderTestDialog::onVSlider(const Event::MouseEvent &)
 		{
-			verticalPBar->setValue(verticalSBar->getValue());
+            m_verticalPBar->setValue(m_verticalSBar->getValue());
 		}
 
-		void ProgressNSliderTestDialog::onClose(const Event::MouseEvent &e)
+        void ProgressNSliderTestDialog::onClose(const Event::MouseEvent &)
 		{
 			Close();
 		}
 
 		ProgressNSliderTestDialog::~ProgressNSliderTestDialog(void)
 		{
-			delete closeButton;
-			delete valueLabel;
-			delete horizontalPBar;
-			delete verticalPBar;
-			delete horizontalSBar;
-			delete verticalSBar;
-			delete borderLayout;
-			delete centerPanel;
-			delete centerGirdLayout;
+            delete m_closeButton;
+            delete m_valueLabel;
+            delete m_horizontalPBar;
+            delete m_verticalPBar;
+            delete m_horizontalSBar;
+            delete m_verticalSBar;
+            delete m_borderLayout;
+            delete m_centerPanel;
+            delete m_centerGirdLayout;
 		}
 	}
 }

@@ -13,57 +13,57 @@ namespace AssortedWidgets
 
 		void MenuBar::setExpand(Menu *_expandMenu)
 		{
-			if(expandMenu)
+            if(m_expandMenu)
 			{
-				expandMenu->shrink();
+                m_expandMenu->shrink();
 			}
-			expandMenu=_expandMenu;
-			expand=true;
-		};
+            m_expandMenu=_expandMenu;
+            m_expand=true;
+        }
 
 		void MenuBar::setShrink()
 		{
-			if(expandMenu)
+            if(m_expandMenu)
 			{
-				expandMenu->shrink();
+                m_expandMenu->shrink();
 			}
-			expandMenu=0;
-			expand=false;
-		};
+            m_expandMenu=0;
+            m_expand=false;
+        }
 
 		void MenuBar::addMenu(Menu *menu)
 		{
-			menuList.push_back(menu);
-			menu->setMenuBar(this);
+            m_menuList.push_back(menu);
+            menu->setMenuBar(this);
 			updateLayout();
-		};
+        }
 
 		void MenuBar::paint()
 		{
 			Theme::ThemeEngine::getSingleton().getTheme().paintMenuBar(this);
 			std::vector<Menu*>::iterator iter;
-			for(iter=menuList.begin();iter<menuList.end();++iter)
+            for(iter=m_menuList.begin();iter<m_menuList.end();++iter)
 			{
 				(*iter)->paint();
 			}
-		};
+        }
 
 		void MenuBar::onMouseEnter(const Event::MouseEvent &e)
 		{
-			isHover=true;
+            m_isHover=true;
 			onMouseMove(e);
-		};
+        }
 
 		void MenuBar::onMouseExit(const Event::MouseEvent &e)
 		{
-			isHover=false;
+            m_isHover=false;
 			onMouseMove(e);
-		};
+        }
 
 		void MenuBar::onMousePressed(const Event::MouseEvent &e)
 		{
 			std::vector<Menu*>::iterator iter;
-			for(iter=menuList.begin();iter<menuList.end();++iter)
+            for(iter=m_menuList.begin();iter<m_menuList.end();++iter)
 			{
 				if((*iter)->isIn(e.getX(),e.getY()))
 				{
@@ -72,16 +72,16 @@ namespace AssortedWidgets
 				}
 			}
 
-			if(isExpand() && expandMenu)
+            if(isExpand() && m_expandMenu)
 			{
-				expandMenu->listMousePressed(e);
+                m_expandMenu->listMousePressed(e);
 			}
-		};
+        }
 
 		void MenuBar::onMouseReleased(const Event::MouseEvent &e)
 		{
 			std::vector<Menu*>::iterator iter;
-			for(iter=menuList.begin();iter<menuList.end();++iter)
+            for(iter=m_menuList.begin();iter<m_menuList.end();++iter)
 			{
 				if((*iter)->isIn(e.getX(),e.getY()))
 				{
@@ -89,20 +89,20 @@ namespace AssortedWidgets
 					(*iter)->processMouseReleased(event);
 				}
 			}
-			if(isExpand() && expandMenu)
+            if(isExpand() && m_expandMenu)
 			{
-				expandMenu->listMouseReleased(e);
+                m_expandMenu->listMouseReleased(e);
 			}
-		};
+        }
 
 		void MenuBar::onMouseMove(const Event::MouseEvent &e)
 		{
 			std::vector<Menu*>::iterator iter;
-			for(iter=menuList.begin();iter<menuList.end();++iter)
+            for(iter=m_menuList.begin();iter<m_menuList.end();++iter)
 			{
 				if((*iter)->isIn(e.getX(),e.getY()))
 				{
-					if(!(*iter)->isHover)
+                    if(!(*iter)->m_isHover)
 					{
 						Event::MouseEvent event((*iter),Event::MouseEvent::MOUSE_ENTERED,e.getX(),e.getY(),0);
 						(*iter)->processMouseEntered(event);
@@ -110,7 +110,7 @@ namespace AssortedWidgets
 				}
 				else
 				{
-					if((*iter)->isHover)
+                    if((*iter)->m_isHover)
 					{
 						Event::MouseEvent event((*iter),Event::MouseEvent::MOUSE_EXITED,e.getX(),e.getY(),0);
 						(*iter)->processMouseExited(event);
@@ -118,22 +118,22 @@ namespace AssortedWidgets
 				}
 			}
 
-			if(isExpand() && expandMenu)
+            if(isExpand() && m_expandMenu)
 			{
-				expandMenu->listMouseMotion(e);
+                m_expandMenu->listMouseMotion(e);
 			}
-		};
+        }
 
 		void MenuBar::updateLayout()
 		{
 			std::vector<Menu*>::iterator iter;
-			int tempBegin=rightSpacer;
-			for(iter=menuList.begin();iter<menuList.end();++iter)
+            int tempBegin=m_rightSpacer;
+            for(iter=m_menuList.begin();iter<m_menuList.end();++iter)
 			{
                 (*iter)->m_position.x=tempBegin;
-                (*iter)->m_position.y=topSpacer;
-				tempBegin+=spacer+(*iter)->getPreferedSize().width;
+                (*iter)->m_position.y=m_topSpacer;
+                tempBegin+=m_spacer+(*iter)->getPreferedSize().m_width;
 			}
-		};
+        }
 	}
 }

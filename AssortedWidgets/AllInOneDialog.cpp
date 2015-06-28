@@ -24,8 +24,8 @@ namespace AssortedWidgets
             add(m_textField);
 
             m_labelInScroll=new Widgets::Label("I am a Label in a Scroll Panel.");
-            m_labelInScroll->m_size.width=500;
-            m_labelInScroll->m_size.height=500;
+            m_labelInScroll->m_size.m_width=500;
+            m_labelInScroll->m_size.m_height=500;
             m_labelInScroll->setDrawBackground(true);
             m_scrollPanel=new Widgets::ScrollPanel();
             m_scrollPanel->setContent(m_labelInScroll);

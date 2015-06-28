@@ -7,16 +7,16 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		class MenuItem:public Component
+        class MenuItem: public Component
 		{
 		protected:
-			MenuList *parentMenuList;
+            MenuList *m_parentMenuList;
 		public:
 			MenuItem(void);
 	
 			void setMenuList(MenuList *_menuList)
 			{
-				parentMenuList=_menuList;
+                m_parentMenuList=_menuList;
 			}
 		//	void paint(){};
 		public:

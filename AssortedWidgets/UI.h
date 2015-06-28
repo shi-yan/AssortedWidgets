@@ -155,12 +155,12 @@ namespace AssortedWidgets
 			{
 				Manager::TypeActiveManager::getSingleton().onCharTyped(static_cast<char>(keyCode),modifier);
 			}
-		};
+        }
 
-		void importKeyUp(int keyCode,int modifier)
+        void importKeyUp(int ,int )
 		{
 
-		};
+        }
 
 		void importMousePress(unsigned int button,int x,int y)
 		{
@@ -439,21 +439,21 @@ namespace AssortedWidgets
             menuItemDialogTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::dialogTest));
 
 			logo=new Widgets::Logo();
-            logo->m_position.x=width-logo->m_size.width-20;
-            logo->m_position.y=height-logo->m_size.height-20;
+            logo->m_position.x=width-logo->m_size.m_width-20;
+            logo->m_position.y=height-logo->m_size.m_height-20;
 
 		//	selectionManager.registerComponent(labelTest);
 		//	selectionManager.registerComponent(buttonTest);
 
-		};
+        }
 
 		static UI &getSingleton()
 		{
 			static UI obj;
 			return obj;
-		};
+        }
 
-		void dialogTest(const Event::MouseEvent &e)
+        void dialogTest(const Event::MouseEvent &)
 		{
 			if(dialogTestDialog->getShowType()==Widgets::Dialog::None)
 			{
@@ -463,9 +463,9 @@ namespace AssortedWidgets
 			{
 				dialogTestDialog->Close();
 			}
-		};
+        }
 
-		void allInOneTest(const Event::MouseEvent &e)
+        void allInOneTest(const Event::MouseEvent &)
 		{
 			if(allInOneDialog->getShowType()==Widgets::Dialog::None)
 			{
@@ -475,9 +475,9 @@ namespace AssortedWidgets
 			{
 				allInOneDialog->Close();
 			}
-		};
+        }
 
-		void panelTest(const Event::MouseEvent &e)
+        void panelTest(const Event::MouseEvent &)
 		{
 			if(panelTestDialog->getShowType()==Widgets::Dialog::None)
 			{
@@ -487,9 +487,9 @@ namespace AssortedWidgets
 			{
 				panelTestDialog->Close();
 			}
-		};
+        }
 
-		void multipleLayoutTest(const Event::MouseEvent &e)
+        void multipleLayoutTest(const Event::MouseEvent &)
 		{
 			if(multipleLayoutTestDialog->getShowType()==Widgets::Dialog::None)
 			{
@@ -499,9 +499,9 @@ namespace AssortedWidgets
 			{
 				multipleLayoutTestDialog->Close();
 			}
-		};
+        }
 
-		void girdLayoutTest(const Event::MouseEvent &e)
+        void girdLayoutTest(const Event::MouseEvent &)
 		{
 			if(girdLayoutTestDialog->getShowType()==Widgets::Dialog::None)
 			{
@@ -511,9 +511,9 @@ namespace AssortedWidgets
 			{
 				girdLayoutTestDialog->Close();
 			}
-		};
+        }
 
-		void borderLayoutTest(const Event::MouseEvent &e)
+        void borderLayoutTest(const Event::MouseEvent &)
 		{
 			if(borderLayoutTestDialog->getShowType()==Widgets::Dialog::None)
 			{
@@ -523,9 +523,9 @@ namespace AssortedWidgets
 			{
 				borderLayoutTestDialog->Close();
 			}
-		};
+        }
 
-		void flowLayoutTest(const Event::MouseEvent &e)
+        void flowLayoutTest(const Event::MouseEvent &)
 		{
 			if(flowLayoutTestDialog->getShowType()==Widgets::Dialog::None)
 			{
@@ -535,9 +535,9 @@ namespace AssortedWidgets
 			{
 				flowLayoutTestDialog->Close();
 			}
-		};
+        }
 
-		void textNDropTest(const Event::MouseEvent &e)
+        void textNDropTest(const Event::MouseEvent &)
 		{
 			if(textNDropTestDialog->getShowType()==Widgets::Dialog::None)
 			{
@@ -547,9 +547,9 @@ namespace AssortedWidgets
 			{
 				textNDropTestDialog->Close();
 			}
-		};
+        }
 
-		void progressNSliderTest(const Event::MouseEvent &e)
+        void progressNSliderTest(const Event::MouseEvent &)
 		{
 			if(progressNSliderTestDialog->getShowType()==Widgets::Dialog::None)
 			{
@@ -559,9 +559,9 @@ namespace AssortedWidgets
 			{
 				progressNSliderTestDialog->Close();
 			}
-		};
+        }
 
-		void checkNRadioTest(const Event::MouseEvent &e)
+        void checkNRadioTest(const Event::MouseEvent &)
 		{
 			if(checkNRadioTestDialog->getShowType()==Widgets::Dialog::None)
 			{
@@ -571,9 +571,9 @@ namespace AssortedWidgets
 			{
 				checkNRadioTestDialog->Close();
 			}
-		};
+        }
 
-		void labelNButtonTest(const Event::MouseEvent &e)
+        void labelNButtonTest(const Event::MouseEvent &)
 		{
 			if(labelNButtonTestDialog->getShowType()==Widgets::Dialog::None)
 			{
@@ -583,12 +583,12 @@ namespace AssortedWidgets
 			{
 				labelNButtonTestDialog->Close();
 			}
-		};
+        }
 
-		void appExit(const Event::MouseEvent &e)
+        void appExit(const Event::MouseEvent &)
 		{
 			exit(0);
-		};
+        }
 
 		void mouseMotion(int mx,int my)
 		{
@@ -601,7 +601,7 @@ namespace AssortedWidgets
 			{
 				if(Manager::DropListManager::getSingleton().isIn(mx,my))
 				{
-					if(Manager::DropListManager::getSingleton().isHover)
+                    if(Manager::DropListManager::getSingleton().m_isHover)
 					{
 						Event::MouseEvent event(0,Event::MouseEvent::MOUSE_MOTION,mx,my,0);
 						Manager::DropListManager::getSingleton().importMouseMotion(event);
@@ -615,7 +615,7 @@ namespace AssortedWidgets
 				}
 				else
 				{
-					if(Manager::DropListManager::getSingleton().isHover)
+                    if(Manager::DropListManager::getSingleton().m_isHover)
 					{
 						Event::MouseEvent event(0,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
 						Manager::DropListManager::getSingleton().importMouseExited(event);
@@ -624,7 +624,7 @@ namespace AssortedWidgets
 			}
 			if(Widgets::MenuBar::getSingleton().isIn(mx,my))
 			{
-				if(Widgets::MenuBar::getSingleton().isHover)
+                if(Widgets::MenuBar::getSingleton().m_isHover)
 				{
 					Event::MouseEvent event(0,Event::MouseEvent::MOUSE_MOTION,mx,my,0);
 					Widgets::MenuBar::getSingleton().processMouseMoved(event);
@@ -637,7 +637,7 @@ namespace AssortedWidgets
 			}
 			else
 			{
-				if(Widgets::MenuBar::getSingleton().isHover)
+                if(Widgets::MenuBar::getSingleton().m_isHover)
 				{
 					Event::MouseEvent event(0,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
 					Widgets::MenuBar::getSingleton().processMouseExited(event);
@@ -661,7 +661,7 @@ namespace AssortedWidgets
 				{
 					if((*iter)->isIn(mx,my))
 					{
-						if((*iter)->isHover)
+                        if((*iter)->m_isHover)
 						{
 							Event::MouseEvent event((*iter),Event::MouseEvent::MOUSE_MOTION,mx,my,0);
 							(*iter)->processMouseMoved(event);	
@@ -674,7 +674,7 @@ namespace AssortedWidgets
 					}
 					else
 					{
-						if((*iter)->isHover)
+                        if((*iter)->m_isHover)
 						{
 							Event::MouseEvent event((*iter),Event::MouseEvent::MOUSE_EXITED,mx,my,0);
 							(*iter)->processMouseExited(event);												

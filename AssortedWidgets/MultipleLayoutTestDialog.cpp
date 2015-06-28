@@ -6,101 +6,101 @@ namespace AssortedWidgets
 	{
 		MultipleLayoutTestDialog::MultipleLayoutTestDialog(void):Dialog("MultipleLayout Test:",350,350,400,180)
 		{
-			girdLayout=new Layout::GirdLayout(1,2);
-			girdLayout->setRight(16);
-			girdLayout->setLeft(16);
-			girdLayout->setTop(8);
-			girdLayout->setBottom(8);
-			girdLayout->setSpacer(4);
+            m_girdLayout=new Layout::GirdLayout(1,2);
+            m_girdLayout->setRight(16);
+            m_girdLayout->setLeft(16);
+            m_girdLayout->setTop(8);
+            m_girdLayout->setBottom(8);
+            m_girdLayout->setSpacer(4);
 
-			flowLayout=new Layout::FlowLayout(2,2,2,2,4);
+            m_flowLayout=new Layout::FlowLayout(2,2,2,2,4);
 			
 
-			TheLabel=new Widgets::Label("The");
-			TheLabel->setDrawBackground(true);
+            m_TheLabel=new Widgets::Label("The");
+            m_TheLabel->setDrawBackground(true);
 
-			quickLabel=new Widgets::Label("quick");
-			quickLabel->setDrawBackground(true);
+            m_quickLabel=new Widgets::Label("quick");
+            m_quickLabel->setDrawBackground(true);
 
-			brownLabel=new Widgets::Label("brown");
-			brownLabel->setDrawBackground(true);
+            m_brownLabel=new Widgets::Label("brown");
+            m_brownLabel->setDrawBackground(true);
 
-			foxLabel=new Widgets::Label("Fox");
-			foxLabel->setDrawBackground(true);
+            m_foxLabel=new Widgets::Label("Fox");
+            m_foxLabel->setDrawBackground(true);
 
-			jumpsLabel=new Widgets::Label("jumps");
-			jumpsLabel->setDrawBackground(true);
+            m_jumpsLabel=new Widgets::Label("jumps");
+            m_jumpsLabel->setDrawBackground(true);
 
-			overLabel=new Widgets::Label("over");
-			overLabel->setDrawBackground(true);
+            m_overLabel=new Widgets::Label("over");
+            m_overLabel->setDrawBackground(true);
 
-			theLabel=new Widgets::Label("a");
-			theLabel->setDrawBackground(true);
+            m_aLabel=new Widgets::Label("a");
+            m_aLabel->setDrawBackground(true);
 
-			lazyDogLabel=new Widgets::Label("lazy dog.");
-			lazyDogLabel->setDrawBackground(true);
+            m_lazyDogLabel=new Widgets::Label("lazy dog.");
+            m_lazyDogLabel->setDrawBackground(true);
 
-			flowPanel=new Widgets::Panel();
-			flowPanel->setLayout(flowLayout);
-			flowPanel->add(TheLabel);
-			flowPanel->add(quickLabel);
-			flowPanel->add(brownLabel);
-			flowPanel->add(foxLabel);
-			flowPanel->add(jumpsLabel);
-			flowPanel->add(overLabel);
-			flowPanel->add(theLabel);
-			flowPanel->add(lazyDogLabel);
+            m_flowPanel=new Widgets::Panel();
+            m_flowPanel->setLayout(m_flowLayout);
+            m_flowPanel->add(m_TheLabel);
+            m_flowPanel->add(m_quickLabel);
+            m_flowPanel->add(m_brownLabel);
+            m_flowPanel->add(m_foxLabel);
+            m_flowPanel->add(m_jumpsLabel);
+            m_flowPanel->add(m_overLabel);
+            m_flowPanel->add(m_aLabel);
+            m_flowPanel->add(m_lazyDogLabel);
 		
-			flowPanel->pack();
+            m_flowPanel->pack();
 
-			borderLayout=new Layout::BorderLayout(2,2,2,2,4);
-			closeButton=new Widgets::Button("Close");
-			closeButton->setLayoutProperty(Layout::BorderLayout::South);
+            m_borderLayout=new Layout::BorderLayout(2,2,2,2,4);
+            m_closeButton=new Widgets::Button("Close");
+            m_closeButton->setLayoutProperty(Layout::BorderLayout::South);
 
-			northLabel=new Widgets::Label("North");
-			northLabel->setHorizontalStyle(Widgets::Label::Stretch);
-			northLabel->setDrawBackground(true);
-			northLabel->setLayoutProperty(Layout::BorderLayout::North);
+            m_northLabel=new Widgets::Label("North");
+            m_northLabel->setHorizontalStyle(Widgets::Label::Stretch);
+            m_northLabel->setDrawBackground(true);
+            m_northLabel->setLayoutProperty(Layout::BorderLayout::North);
 
-			southLabel=new Widgets::Label("South");
-			southLabel->setHorizontalStyle(Widgets::Label::Stretch);
-			southLabel->setDrawBackground(true);
-			southLabel->setLayoutProperty(Layout::BorderLayout::South);
+            m_southLabel=new Widgets::Label("South");
+            m_southLabel->setHorizontalStyle(Widgets::Label::Stretch);
+            m_southLabel->setDrawBackground(true);
+            m_southLabel->setLayoutProperty(Layout::BorderLayout::South);
 
-			westLabel=new Widgets::Label("West");
-			westLabel->setVerticalStyle(Widgets::Label::Stretch);
-			westLabel->setDrawBackground(true);
-			westLabel->setLayoutProperty(Layout::BorderLayout::West);
+            m_westLabel=new Widgets::Label("West");
+            m_westLabel->setVerticalStyle(Widgets::Label::Stretch);
+            m_westLabel->setDrawBackground(true);
+            m_westLabel->setLayoutProperty(Layout::BorderLayout::West);
 
-			eastLabel=new Widgets::Label("East");
-			eastLabel->setVerticalStyle(Widgets::Label::Stretch);
-			eastLabel->setDrawBackground(true);
-			eastLabel->setLayoutProperty(Layout::BorderLayout::East);
+            m_eastLabel=new Widgets::Label("East");
+            m_eastLabel->setVerticalStyle(Widgets::Label::Stretch);
+            m_eastLabel->setDrawBackground(true);
+            m_eastLabel->setLayoutProperty(Layout::BorderLayout::East);
 
-			centerLabel=new Widgets::Label("Center");
-			centerLabel->setHorizontalStyle(Widgets::Label::Stretch);
-			centerLabel->setVerticalStyle(Widgets::Label::Stretch);
-			centerLabel->setDrawBackground(true);
-			centerLabel->setLayoutProperty(Layout::BorderLayout::Center);
+            m_centerLabel=new Widgets::Label("Center");
+            m_centerLabel->setHorizontalStyle(Widgets::Label::Stretch);
+            m_centerLabel->setVerticalStyle(Widgets::Label::Stretch);
+            m_centerLabel->setDrawBackground(true);
+            m_centerLabel->setLayoutProperty(Layout::BorderLayout::Center);
 
-			borderPanel=new Widgets::Panel();
-			borderPanel->setLayout(borderLayout);
+            m_borderPanel=new Widgets::Panel();
+            m_borderPanel->setLayout(m_borderLayout);
 
-			borderPanel->add(northLabel);
-			borderPanel->add(southLabel);
-			borderPanel->add(closeButton);
-			borderPanel->add(westLabel);
-			borderPanel->add(eastLabel);
-			borderPanel->add(centerLabel);
+            m_borderPanel->add(m_northLabel);
+            m_borderPanel->add(m_southLabel);
+            m_borderPanel->add(m_closeButton);
+            m_borderPanel->add(m_westLabel);
+            m_borderPanel->add(m_eastLabel);
+            m_borderPanel->add(m_centerLabel);
 
-			borderPanel->pack();
+            m_borderPanel->pack();
 			
-			setLayout(girdLayout);
-			add(flowPanel);
-			add(borderPanel);
+            setLayout(m_girdLayout);
+            add(m_flowPanel);
+            add(m_borderPanel);
 			pack();
 
-            closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(MultipleLayoutTestDialog::onClose));
+            m_closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(MultipleLayoutTestDialog::onClose));
 		}
 
 		void MultipleLayoutTestDialog::onClose(const Event::MouseEvent &e)
@@ -110,25 +110,25 @@ namespace AssortedWidgets
 
 		MultipleLayoutTestDialog::~MultipleLayoutTestDialog(void)
 		{
-			delete closeButton;
-			delete northLabel;
-			delete southLabel;
-			delete westLabel;
-			delete eastLabel;
-			delete borderLayout;
-			delete centerLabel;
-			delete flowLayout;
-			delete TheLabel;
-			delete quickLabel;
-			delete brownLabel;
-			delete foxLabel;
-			delete jumpsLabel;
-			delete overLabel;
-			delete theLabel;
-			delete lazyDogLabel;
-			delete girdLayout;
-			delete flowPanel;
-			delete borderPanel;
+            delete m_closeButton;
+            delete m_northLabel;
+            delete m_southLabel;
+            delete m_westLabel;
+            delete m_eastLabel;
+            delete m_borderLayout;
+            delete m_centerLabel;
+            delete m_flowLayout;
+            delete m_TheLabel;
+            delete m_quickLabel;
+            delete m_brownLabel;
+            delete m_foxLabel;
+            delete m_jumpsLabel;
+            delete m_overLabel;
+            delete m_aLabel;
+            delete m_lazyDogLabel;
+            delete m_girdLayout;
+            delete m_flowPanel;
+            delete m_borderPanel;
 		}
-}
+    }
 }

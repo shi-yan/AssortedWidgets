@@ -10,10 +10,10 @@ namespace AssortedWidgets
 		class FreeTypeFont: public Font
 		{
 		private:
-			OGLFT::TranslucentTexture *ftfont;
-			std::vector<Util::Size> fontCache;
-			unsigned int width[256];
-			unsigned int height[256];
+            OGLFT::TranslucentTexture *m_ftfont;
+            std::vector<Util::Size> m_fontCache;
+            unsigned int m_width[256];
+            unsigned int m_height[256];
 
 		public:
 			FreeTypeFont(char* _fontName,size_t _size);

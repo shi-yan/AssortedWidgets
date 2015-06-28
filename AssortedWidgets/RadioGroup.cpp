@@ -5,18 +5,19 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		RadioGroup::RadioGroup(void):currentChecked(0)
+        RadioGroup::RadioGroup(void)
+            :m_currentChecked(0)
 		{
 		}
 
 		void RadioGroup::setCheck(RadioButton *_currentChecked)
 		{
-			if(currentChecked)
+            if(m_currentChecked)
 			{
-				currentChecked->checkOff();
+                m_currentChecked->checkOff();
 			}
-			currentChecked=_currentChecked;
-			currentChecked->checkOn();
+            m_currentChecked=_currentChecked;
+            m_currentChecked->checkOn();
 		}
 
 		RadioGroup::~RadioGroup(void)

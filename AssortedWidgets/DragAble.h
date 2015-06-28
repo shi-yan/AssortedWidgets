@@ -10,12 +10,12 @@ namespace AssortedWidgets
 		class DragAble:virtual public Component
 		{
 		private:
-			Manager::SelectionManager *selectionManager;
+            Manager::SelectionManager *m_selectionManager;
 		public:
 			DragAble(void);
 			void setSelectionManager(Manager::SelectionManager *_selectionManager)
 			{
-				selectionManager=_selectionManager;
+                m_selectionManager=_selectionManager;
             }
 			void dragPressed(const Event::MouseEvent &e);
 			virtual void dragReleased(const Event::MouseEvent &e)=0;

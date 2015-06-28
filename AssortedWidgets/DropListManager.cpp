@@ -6,52 +6,54 @@ namespace AssortedWidgets
 {
 	namespace Manager
 	{
-		DropListManager::DropListManager(void):currentDropped(0),isHover(false)
+        DropListManager::DropListManager(void)
+            :m_currentDropped(0),
+              m_isHover(false)
 		{
 		}
 
 		void DropListManager::setDropped(Widgets::DropList *_currentDropped,int rx,int ry)
 		{
-			currentDropped=_currentDropped;
-			position.x=currentX-rx;
-			position.y=currentY-ry+22;
-			size.width=0;
-			size.height=0;
-			unsigned int spacer(currentDropped->getSpacer());
-			std::vector<Widgets::DropListItem*> &itemList=currentDropped->getItemList();
+            m_currentDropped=_currentDropped;
+            m_position.x=m_currentX-rx;
+            m_position.y=m_currentY-ry+22;
+            m_size.m_width=0;
+            m_size.m_height=0;
+            unsigned int spacer(m_currentDropped->getSpacer());
+            std::vector<Widgets::DropListItem*> &itemList=m_currentDropped->getItemList();
 			std::vector<Widgets::DropListItem*>::iterator iter;
-			int tempY=currentDropped->getTop();
+            int tempY=m_currentDropped->getTop();
 			for(iter=itemList.begin();iter<itemList.end();++iter)
 			{
 				Util::Size perfectSize=(*iter)->getPreferedSize();
-                (*iter)->m_position.x=currentDropped->getLeft();
+                (*iter)->m_position.x=m_currentDropped->getLeft();
                 (*iter)->m_position.y=tempY;
-				size.width=std::max<unsigned int>(perfectSize.width,size.width);
-				size.height+=spacer+perfectSize.height;
-				tempY+=perfectSize.height+spacer;
+                m_size.m_width=std::max<unsigned int>(perfectSize.m_width, m_size.m_width);
+                m_size.m_height+=spacer+perfectSize.m_height;
+                tempY+=perfectSize.m_height+spacer;
 			}
 
 			for(iter=itemList.begin();iter<itemList.end();++iter)
 			{
-                (*iter)->m_size.width=size.width;
+                (*iter)->m_size.m_width = m_size.m_width;
 			}
 
-			size.width+=currentDropped->getLeft()+currentDropped->getRight();
-			size.height+=currentDropped->getTop()+currentDropped->getBottom()-spacer;
-		};
+            m_size.m_width += m_currentDropped->getLeft()+m_currentDropped->getRight();
+            m_size.m_height += m_currentDropped->getTop()+m_currentDropped->getBottom() - spacer;
+        }
 
 		void DropListManager::importMousePressed(Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 
-			std::vector<Widgets::DropListItem*> &itemList=currentDropped->getItemList();
+            std::vector<Widgets::DropListItem*> &itemList=m_currentDropped->getItemList();
 			std::vector<Widgets::DropListItem*>::iterator iter;
 			for(iter=itemList.begin();iter<itemList.end();++iter)
 			{
 				if((*iter)->isIn(mx,my))
 				{
-					currentDropped->setSelection((*iter));
+                    m_currentDropped->setSelection((*iter));
 					shrinkBack();
 					return;
 				}
@@ -59,54 +61,55 @@ namespace AssortedWidgets
 
 			shrinkBack();
 
-		};
+        }
 
-			void DropListManager::shrinkBack()
-			{
-				if(currentDropped)
-				{
-					currentDropped->shrinkBack();
-					currentDropped=0;
-				}
-			};
+        void DropListManager::shrinkBack()
+        {
+            if(m_currentDropped)
+            {
+                m_currentDropped->shrinkBack();
+                m_currentDropped=0;
+            }
+        }
+
 		void  DropListManager::paint()
 		{
-			Theme::ThemeEngine::getSingleton().getTheme().paintDropDown(position,size);
-            Util::Position p(position);
+            Theme::ThemeEngine::getSingleton().getTheme().paintDropDown(m_position, m_size);
+            Util::Position p(m_position);
             Util::Graphics::getSingleton().pushPosition(p);
-			std::vector<Widgets::DropListItem*> &itemList=currentDropped->getItemList();
+            std::vector<Widgets::DropListItem*> &itemList = m_currentDropped->getItemList();
 			std::vector<Widgets::DropListItem*>::iterator iter;
 			for(iter=itemList.begin();iter<itemList.end();++iter)
 			{
 				(*iter)->paint();
 			}
 			Util::Graphics::getSingleton().popPosition();
-		};
+        }
 
 		void DropListManager::importMouseEntered(Event::MouseEvent &e)
 		{
-			isHover=true;
+            m_isHover=true;
 			importMouseMotion(e);
 		}
 
 		void DropListManager::importMouseExited(Event::MouseEvent &e)
 		{
-			isHover=false;
+            m_isHover=false;
 			importMouseMotion(e);
 		}
 
 		void DropListManager::importMouseMotion(Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 
-			std::vector<Widgets::DropListItem*> &itemList=currentDropped->getItemList();
+            std::vector<Widgets::DropListItem*> &itemList=m_currentDropped->getItemList();
 			std::vector<Widgets::DropListItem*>::iterator iter;
 			for(iter=itemList.begin();iter<itemList.end();++iter)
 			{
 				if((*iter)->isIn(mx,my))
 				{
-					if((*iter)->isHover)
+                    if((*iter)->m_isHover)
 					{
 						
 					}
@@ -118,7 +121,7 @@ namespace AssortedWidgets
 				}
 				else
 				{
-					if((*iter)->isHover)
+                    if((*iter)->m_isHover)
 					{
 						Event::MouseEvent event((*iter),Event::MouseEvent::MOUSE_EXITED,mx,my,0);
 						(*iter)->processMouseExited(event);

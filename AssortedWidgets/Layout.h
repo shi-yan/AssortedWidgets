@@ -85,7 +85,7 @@ namespace AssortedWidgets
             virtual Util::Size getPreferedSize() const = 0;
             virtual void testPaint() {}
 		public:
-            ~Layout(void) {}
+            virtual ~Layout(void) {}
 		};
 	}
 }

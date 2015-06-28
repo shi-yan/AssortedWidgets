@@ -13,8 +13,8 @@ namespace AssortedWidgets
 		{
             m_position.x=0;
             m_position.y=0;
-            m_size.width=50;
-            m_size.height=50;
+            m_size.m_width=50;
+            m_size.m_height=50;
 			setHorizontalStyle(Element::Stretch);
 			setVerticalStyle(Element::Stretch);
 
@@ -32,7 +32,7 @@ namespace AssortedWidgets
 
         void Panel::mouseEntered(const Event::MouseEvent &e)
 		{
-			isHover=true;
+            m_isHover=true;
             int mx=e.getX()-m_position.x;
             int my=e.getY()-m_position.y;
 			std::vector<Element*>::iterator iter;
@@ -49,13 +49,13 @@ namespace AssortedWidgets
 
 		void Panel::mouseExited(const Event::MouseEvent &e)
 		{
-			isHover=false;
+            m_isHover=false;
             int mx=e.getX()-m_position.x;
             int my=e.getY()-m_position.y;
 			std::vector<Element*>::iterator iter;
 			for(iter=childList.begin();iter<childList.end();++iter)
 			{
-				if((*iter)->isHover)
+                if((*iter)->m_isHover)
 				{
 					Event::MouseEvent event((*iter),Event::MouseEvent::MOUSE_EXITED,mx,my,0);
 					(*iter)->processMouseExited(event);
@@ -73,7 +73,7 @@ namespace AssortedWidgets
 			{
 				if((*iter)->isIn(mx,my))
 				{
-					if((*iter)->isHover)
+                    if((*iter)->m_isHover)
 					{
 						Event::MouseEvent event((*iter),Event::MouseEvent::MOUSE_MOTION,mx,my,0);
 						(*iter)->processMouseMoved(event);
@@ -88,7 +88,7 @@ namespace AssortedWidgets
 				}
 				else
 				{
-					if((*iter)->isHover)
+                    if((*iter)->m_isHover)
 					{
 						Event::MouseEvent event((*iter),Event::MouseEvent::MOUSE_EXITED,mx,my,0);
 						(*iter)->processMouseExited(event);
@@ -133,12 +133,12 @@ namespace AssortedWidgets
 
 		void Panel::pack()
 		{
-            contentPosition=Util::Position(m_left, m_top);
-            contentSize=Util::Size(m_size.width-m_left-m_right,m_size.height-m_top-m_bottom);
+            m_contentPosition=Util::Position(m_left, m_top);
+            m_contentSize=Util::Size(m_size.m_width-m_left-m_right,m_size.m_height-m_top-m_bottom);
 
 			if(layout)
 			{
-				layout->updateLayout(childList,contentPosition,contentSize);
+                layout->updateLayout(childList,m_contentPosition,m_contentSize);
 			}
         }
 	}

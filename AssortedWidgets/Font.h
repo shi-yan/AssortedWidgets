@@ -9,20 +9,20 @@ namespace AssortedWidgets
 		class Font
 		{
 		private:
-			std::string fontName;
-			size_t size;
+            std::string m_fontName;
+            size_t m_size;
 		public:
             Font(char* _fontName,size_t _size)
-                :fontName(_fontName),
-                  size(_size)
+                :m_fontName(_fontName),
+                  m_size(_size)
             {}
-			std::string getFontName() const
+            const std::string &getFontName() const
 			{
-				return fontName;
+                return m_fontName;
             }
 			size_t getSize() const
 			{
-				return size;
+                return m_size;
             }
 			virtual Util::Size getStringBoundingBox(const std::string &text) const = 0;
 			virtual void drawString(int x, int y, const std::string &text) const = 0;

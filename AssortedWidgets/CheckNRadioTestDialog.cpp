@@ -6,57 +6,57 @@ namespace AssortedWidgets
 	{
 		CheckNRadioTestDialog::CheckNRadioTestDialog(void):Dialog("Check And Radio Test:",100,100,320,200)
 		{
-			girdLayout=new Layout::GirdLayout(4,2);
+            m_girdLayout=new Layout::GirdLayout(4,2);
 
-			girdLayout->setHorizontalAlignment(0,0,Layout::GirdLayout::HCenter);
-			girdLayout->setHorizontalAlignment(1,0,Layout::GirdLayout::HCenter);
-			girdLayout->setHorizontalAlignment(2,0,Layout::GirdLayout::HCenter);
-			girdLayout->setHorizontalAlignment(3,0,Layout::GirdLayout::HCenter);
+            m_girdLayout->setHorizontalAlignment(0,0,Layout::GirdLayout::HCenter);
+            m_girdLayout->setHorizontalAlignment(1,0,Layout::GirdLayout::HCenter);
+            m_girdLayout->setHorizontalAlignment(2,0,Layout::GirdLayout::HCenter);
+            m_girdLayout->setHorizontalAlignment(3,0,Layout::GirdLayout::HCenter);
 
-			girdLayout->setHorizontalAlignment(0,1,Layout::GirdLayout::HCenter);
-			girdLayout->setHorizontalAlignment(1,1,Layout::GirdLayout::HCenter);
-			girdLayout->setHorizontalAlignment(2,1,Layout::GirdLayout::HCenter);
-			girdLayout->setHorizontalAlignment(3,1,Layout::GirdLayout::HCenter);
+            m_girdLayout->setHorizontalAlignment(0,1,Layout::GirdLayout::HCenter);
+            m_girdLayout->setHorizontalAlignment(1,1,Layout::GirdLayout::HCenter);
+            m_girdLayout->setHorizontalAlignment(2,1,Layout::GirdLayout::HCenter);
+            m_girdLayout->setHorizontalAlignment(3,1,Layout::GirdLayout::HCenter);
 
-			girdLayout->setVerticalAlignment(0,0,Layout::GirdLayout::VCenter);
-			girdLayout->setVerticalAlignment(1,0,Layout::GirdLayout::VCenter);
-			girdLayout->setVerticalAlignment(2,0,Layout::GirdLayout::VCenter);
-			girdLayout->setVerticalAlignment(3,0,Layout::GirdLayout::VCenter);
+            m_girdLayout->setVerticalAlignment(0,0,Layout::GirdLayout::VCenter);
+            m_girdLayout->setVerticalAlignment(1,0,Layout::GirdLayout::VCenter);
+            m_girdLayout->setVerticalAlignment(2,0,Layout::GirdLayout::VCenter);
+            m_girdLayout->setVerticalAlignment(3,0,Layout::GirdLayout::VCenter);
 
-			girdLayout->setVerticalAlignment(0,1,Layout::GirdLayout::VCenter);
-			girdLayout->setVerticalAlignment(1,1,Layout::GirdLayout::VCenter);
-			girdLayout->setVerticalAlignment(2,1,Layout::GirdLayout::VCenter);
-			girdLayout->setVerticalAlignment(3,1,Layout::GirdLayout::VCenter);
+            m_girdLayout->setVerticalAlignment(0,1,Layout::GirdLayout::VCenter);
+            m_girdLayout->setVerticalAlignment(1,1,Layout::GirdLayout::VCenter);
+            m_girdLayout->setVerticalAlignment(2,1,Layout::GirdLayout::VCenter);
+            m_girdLayout->setVerticalAlignment(3,1,Layout::GirdLayout::VCenter);
 
-			girdLayout->setRight(16);
-			girdLayout->setLeft(16);
-			girdLayout->setTop(8);
-			girdLayout->setBottom(8);
-			girdLayout->setSpacer(4);
+            m_girdLayout->setRight(16);
+            m_girdLayout->setLeft(16);
+            m_girdLayout->setTop(8);
+            m_girdLayout->setBottom(8);
+            m_girdLayout->setSpacer(4);
 
-			closeButton=new Widgets::Button("Close");
-			checkButton1=new Widgets::CheckButton("Check 1");
-			checkButton2=new Widgets::CheckButton("Check 2");
-			checkButton3=new Widgets::CheckButton("Check 3");
-			radioGroup=new Widgets::RadioGroup();
-			radioButton1=new Widgets::RadioButton("Radio 1",radioGroup);
-			radioButton2=new Widgets::RadioButton("Radio 2",radioGroup);
-			radioButton3=new Widgets::RadioButton("Radio 3",radioGroup);
-			spacer=new Widgets::Spacer(Widgets::Spacer::Fit);
+            m_closeButton=new Widgets::Button("Close");
+            m_checkButton1=new Widgets::CheckButton("Check 1");
+            m_checkButton2=new Widgets::CheckButton("Check 2");
+            m_checkButton3=new Widgets::CheckButton("Check 3");
+            m_radioGroup=new Widgets::RadioGroup();
+            m_radioButton1=new Widgets::RadioButton("Radio 1",m_radioGroup);
+            m_radioButton2=new Widgets::RadioButton("Radio 2",m_radioGroup);
+            m_radioButton3=new Widgets::RadioButton("Radio 3",m_radioGroup);
+            m_spacer=new Widgets::Spacer(Widgets::Spacer::Fit);
 
-			add(checkButton1);
-			add(radioButton1);
-			add(checkButton2);
-			add(radioButton2);
-			add(checkButton3);
-			add(radioButton3);
-			add(spacer);
-			add(closeButton);
-			setLayout(girdLayout);
+            add(m_checkButton1);
+            add(m_radioButton1);
+            add(m_checkButton2);
+            add(m_radioButton2);
+            add(m_checkButton3);
+            add(m_radioButton3);
+            add(m_spacer);
+            add(m_closeButton);
+            setLayout(m_girdLayout);
 			pack();
 
 
-            closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(CheckNRadioTestDialog::onClose));
+            m_closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(CheckNRadioTestDialog::onClose));
 		}
 
 		void CheckNRadioTestDialog::onClose(const Event::MouseEvent &e)
@@ -66,16 +66,16 @@ namespace AssortedWidgets
 
 		CheckNRadioTestDialog::~CheckNRadioTestDialog(void)
 		{
-			delete closeButton;
-			delete checkButton1;
-			delete checkButton2;
-			delete checkButton3;
-			delete radioButton1;
-			delete radioButton2;
-			delete radioButton3;
-			delete radioGroup;
-			delete spacer;
-			delete girdLayout;
+            delete m_closeButton;
+            delete m_checkButton1;
+            delete m_checkButton2;
+            delete m_checkButton3;
+            delete m_radioButton1;
+            delete m_radioButton2;
+            delete m_radioButton3;
+            delete m_radioGroup;
+            delete m_spacer;
+            delete m_girdLayout;
 		}
 	}
 }

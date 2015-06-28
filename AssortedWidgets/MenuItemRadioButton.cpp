@@ -44,27 +44,27 @@ namespace AssortedWidgets
 		{
 		}
 
-		void MenuItemRadioButton::mousePressed(const Event::MouseEvent &e)
+        void MenuItemRadioButton::mousePressed(const Event::MouseEvent &)
 		{
             m_status=pressed;
         }
 		
-		void MenuItemRadioButton::mouseEntered(const Event::MouseEvent &e)
+        void MenuItemRadioButton::mouseEntered(const Event::MouseEvent &)
 		{
-			isHover=true;
+            m_isHover=true;
             m_status=hover;
         }
 
-		void MenuItemRadioButton::mouseReleased(const Event::MouseEvent &e)
+        void MenuItemRadioButton::mouseReleased(const Event::MouseEvent &)
 		{
             m_status=hover;
             m_group->setSelection(this);
             m_toggle=true;
         }
 
-		void MenuItemRadioButton::mouseExited(const Event::MouseEvent &e)
+        void MenuItemRadioButton::mouseExited(const Event::MouseEvent &)
 		{
-			isHover=false;
+            m_isHover=false;
             m_status=normal;
         }
 	}

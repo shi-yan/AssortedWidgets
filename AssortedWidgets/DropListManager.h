@@ -13,23 +13,24 @@ namespace AssortedWidgets
 		class DropListManager
 		{
 		private:
-			int currentX;
-			int currentY;
-			
-			Widgets::DropList *currentDropped;
-			Util::Size size;
-			Util::Position position;
+            int m_currentX;
+            int m_currentY;
+            Widgets::DropList *m_currentDropped;
+            Util::Size m_size;
+            Util::Position m_position;
+
 		public:
-            bool isHover;
+            bool m_isHover;
+
 			void shrinkBack();
 			Widgets::DropList* getDropped()
 			{
-				return currentDropped;
+                return m_currentDropped;
             }
 
 			bool isIn(int mx,int my)
 			{
-				if((mx>position.x && mx<static_cast<int>(position.x+size.width))&&(my>position.y&&my<static_cast<float>(position.y+size.height)))
+                if((mx>m_position.x && mx<static_cast<int>(m_position.x+m_size.m_width))&&(my>m_position.y&&my<static_cast<float>(m_position.y+m_size.m_height)))
 				{
 					return true;
 				}
@@ -46,25 +47,24 @@ namespace AssortedWidgets
 
 			void setCurrent(int _currentX,int _currentY)
 			{
-				currentX=_currentX;
-				currentY=_currentY;
-			};
+                m_currentX=_currentX;
+                m_currentY=_currentY;
+            }
 
 			void setDropped(Widgets::DropList *_currentDropped,int rx,int ry);
 
 			void paint();
 
-
-			bool isDropped()
+            bool isDropped() const
 			{
-				return currentDropped!=0;
+                return m_currentDropped != NULL;
 			}
 
 			static DropListManager & getSingleton()
 			{
 				static DropListManager obj;
 				return obj;
-			};
+            }
 		private:
 			DropListManager(void);
 			~DropListManager(void);

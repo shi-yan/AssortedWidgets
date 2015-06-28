@@ -10,19 +10,25 @@ namespace AssortedWidgets
 		class MenuBar:public Component
 		{
 		private:
-			std::vector<Menu*> menuList;
-			std::vector<Component*> inList;
-			int spacer;
-			int leftSpacer;
-			int topSpacer;
-			int rightSpacer;
-			int bottomSpacer;
+            std::vector<Menu*> m_menuList;
+            std::vector<Component*> m_inList;
+            int m_spacer;
+            int m_leftSpacer;
+            int m_topSpacer;
+            int m_rightSpacer;
+            int m_bottomSpacer;
 
-			Menu *expandMenu;
-			bool expand;
+            Menu *m_expandMenu;
+            bool m_expand;
 
 		private:
-			MenuBar():leftSpacer(45),topSpacer(5),rightSpacer(45),bottomSpacer(5),expand(false),expandMenu(0)
+            MenuBar()
+                :m_leftSpacer(45),
+                  m_topSpacer(5),
+                  m_rightSpacer(45),
+                  m_bottomSpacer(5),
+                  m_expand(false),
+                  m_expandMenu(0)
             {
                 mouseMovedHandlerList.push_back(MOUSE_DELEGATE(MenuBar::onMouseMove));
                 mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(MenuBar::onMouseEnter));
@@ -34,11 +40,11 @@ namespace AssortedWidgets
 		public:
 			void init(unsigned int width,unsigned int height=30,int _spacer=5)
 			{
-				spacer=_spacer;
+                m_spacer=_spacer;
                 m_position.x=0;
                 m_position.y=0;
-                m_size.width=width;
-                m_size.height=30;
+                m_size.m_width=width;
+                m_size.m_height=30;
             }
 
 			static MenuBar& getSingleton()
@@ -49,13 +55,13 @@ namespace AssortedWidgets
 
 			Menu* getExpandMenu()
 			{
-				return expandMenu;
-			};
+                return m_expandMenu;
+            }
 
-			bool isExpand()
+            bool isExpand() const
 			{
-				return expand;
-			};
+                return m_expand;
+            }
 
 			void setExpand(Menu *_expandMenu);
 
@@ -81,7 +87,6 @@ namespace AssortedWidgets
 			void onMouseMove(const Event::MouseEvent &e);
 
 			void updateLayout();
-
 
 		public:
 			~MenuBar(void);

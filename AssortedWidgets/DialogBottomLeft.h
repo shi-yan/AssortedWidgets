@@ -13,12 +13,12 @@ namespace AssortedWidgets
 		class DialogBottomLeft:public DragAble
 		{
 		private:
-			Dialog *parent;
+            Dialog *m_parent;
 		public:
 			DialogBottomLeft(int x,int y,unsigned int width,unsigned int height);
 			void setParent(Dialog *_parent)
 			{
-				parent=_parent;
+                m_parent=_parent;
             }
 
 			Util::Size getPreferedSize()
@@ -33,9 +33,9 @@ namespace AssortedWidgets
 				glColor3ub(255,0,0);
 				glBegin(GL_QUADS);
                 glVertex2f(static_cast<GLfloat>(origin.x+m_position.x),static_cast<GLfloat>(origin.y+m_position.y));
-                glVertex2f(static_cast<GLfloat>(origin.x+m_position.x+m_size.width),static_cast<GLfloat>(origin.y+m_position.y));
-                glVertex2f(static_cast<GLfloat>(origin.x+m_position.x+m_size.width),static_cast<GLfloat>(origin.y+m_position.y+m_size.height));
-                glVertex2f(static_cast<GLfloat>(origin.x+m_position.x),static_cast<GLfloat>(origin.y+m_position.y+m_size.height));
+                glVertex2f(static_cast<GLfloat>(origin.x+m_position.x+m_size.m_width),static_cast<GLfloat>(origin.y+m_position.y));
+                glVertex2f(static_cast<GLfloat>(origin.x+m_position.x+m_size.m_width),static_cast<GLfloat>(origin.y+m_position.y+m_size.m_height));
+                glVertex2f(static_cast<GLfloat>(origin.x+m_position.x),static_cast<GLfloat>(origin.y+m_position.y+m_size.m_height));
 				glEnd();
             }
 			void dragReleased(const Event::MouseEvent &e);

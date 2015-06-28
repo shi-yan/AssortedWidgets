@@ -4,7 +4,8 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		ScrollBarSlider::ScrollBarSlider(int _type):type(_type)
+        ScrollBarSlider::ScrollBarSlider(int _type)
+            :m_type(_type)
 		{
 		}
 

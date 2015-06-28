@@ -14,9 +14,9 @@ namespace AssortedWidgets
 		class Element: virtual public Component
 		{
 		protected:
-			Container *parent;
-			int horizontalStyle;
-			int verticalStyle;
+            Container *m_parent;
+            int m_horizontalStyle;
+            int m_verticalStyle;
 		public:
 			enum Style
 			{
@@ -24,36 +24,45 @@ namespace AssortedWidgets
 				Fit,
 				Stretch
             };
+
+            Element()
+                :m_parent(NULL),
+                  m_horizontalStyle(0),
+                  m_verticalStyle(0)
+            {}
            	
 			void setHorizontalStyle(int _horizontalStyle)
 			{
-				horizontalStyle=_horizontalStyle;
+                m_horizontalStyle=_horizontalStyle;
             }
 
 			void setVerticalStyle(int _verticalStyle)
 			{
-				verticalStyle=_verticalStyle;
+                m_verticalStyle=_verticalStyle;
             }
 
             int getHorizontalStyle() const
 			{
-				return horizontalStyle;
+                return m_horizontalStyle;
             }
 
             int getVerticalStyle() const
 			{
-				return verticalStyle;
+                return m_verticalStyle;
             }
 
 			void setParent(Container *_parent)
 			{
-				parent=_parent;
+                m_parent=_parent;
             }
 
 			Container& getParent()
 			{
-				return *parent;
+                return *m_parent;
             }
+
+            virtual ~Element()
+            {}
 		};
 
 		class Container:virtual public Component

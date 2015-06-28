@@ -16,60 +16,60 @@ namespace AssortedWidgets
 			};
 
 		private:
-			int type;
-			float value;
-			float min;
-			float max;
-			unsigned int POfSlider;
+            int m_type;
+            float m_value;
+            float m_min;
+            float m_max;
+            unsigned int m_POfSlider;
 		public:
-			int getType()
+            int getType() const
 			{
-				return type;
+                return m_type;
             }
 
-			float getValue()
+            float getValue() const
 			{
-				return min+(max-min)*value;
+                return m_min+(m_max-m_min)*m_value;
             }
 
-			unsigned int getPOfSlider()
+            unsigned int getPOfSlider() const
 			{
-				return POfSlider;	
+                return m_POfSlider;
             }
 
 			void setValue(float _value)
 			{
-				if(_value>=min && _value<=max)
+                if(_value>=m_min && _value<=m_max)
 				{
-					value=(_value-min)/(max-min);
-					if(type==Horizontal)
+                    m_value=(_value-m_min)/(m_max-m_min);
+                    if(m_type==Horizontal)
 					{
-                        POfSlider=static_cast<unsigned int>(value*m_size.width);
+                        m_POfSlider=static_cast<unsigned int>(m_value*m_size.m_width);
 					}
-					else if(type==Vertical)
+                    else if(m_type==Vertical)
 					{
-                        POfSlider=static_cast<unsigned int>(value*m_size.height);
+                        m_POfSlider=static_cast<unsigned int>(m_value*m_size.m_height);
 					}
 				}
             }
 
 			Util::Size getPreferedSize()
 			{
-				if(type==Horizontal)
+                if(m_type==Horizontal)
 				{
 					return Util::Size(10,20);
 				}
-				else if(type==Vertical)
+                else if(m_type==Vertical)
 				{
 					return Util::Size(20,10);
 				}
 				return Util::Size();
-			};
+            }
 			
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintProgressBar(this);
-			};
+            }
 
 			void pack();
 			ProgressBar(void);

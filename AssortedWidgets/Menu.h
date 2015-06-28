@@ -22,16 +22,16 @@ namespace AssortedWidgets
 				pressed
 			};
 		private:
-			bool expand;
-			std::string text;
-            enum Status status;
-			MenuList menuList;
-			MenuBar *menuBar;
+            bool m_expand;
+            std::string m_text;
+            enum Status m_status;
+            MenuList m_menuList;
+            MenuBar *m_menuBar;
 
 		public:
-			bool isExpand()
+            bool isExpand() const
 			{
-				return expand;
+                return m_expand;
             }
 
 			void mousePressed(const Event::MouseEvent &e);
@@ -49,28 +49,28 @@ namespace AssortedWidgets
 
 			void setMenuBar(MenuBar *_menuBar)
 			{
-				menuBar=_menuBar;
+                m_menuBar=_menuBar;
             }
 
 			void shrink()
 			{
-				expand=false;
-				status=normal;
+                m_expand=false;
+                m_status=normal;
 			}
 
             const std::string& getText() const
 			{
-				return text;
+                return m_text;
             }
 
             enum Status getStatus() const
 			{
-				return status;
+                return m_status;
             }
 
 			void addItem(MenuItem *item)
 			{
-				menuList.addItem(item);
+                m_menuList.addItem(item);
             }
 
 			Util::Size getPreferedSize()
@@ -81,11 +81,11 @@ namespace AssortedWidgets
 			void paint(void)
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintMenu(this);
-				if(expand && !menuList.getItemList().empty())
+                if(m_expand && !m_menuList.getItemList().empty())
 				{
                     Util::Position p(m_position.x,m_position.y);
                     Util::Graphics::getSingleton().pushPosition(p);
-					menuList.paint();
+                    m_menuList.paint();
 					Util::Graphics::getSingleton().popPosition();
 				}
             }

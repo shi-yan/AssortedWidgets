@@ -16,69 +16,69 @@ namespace AssortedWidgets
 				Never
 			};
 		private:
-			Element *content;
-			unsigned int offsetX;
-			unsigned int offsetY;
-			unsigned int offsetXMax;
-			unsigned int offsetYMax;
-			unsigned int scissorWidth;
-			unsigned int scissorHeight;
-			int horizontalScrollStyle;
-			int verticalScrollStyle;
-			ScrollBar *horizontalBar;
-			ScrollBar *verticalBar;
-			bool horizontalBarShow;
-			bool verticalBarShow;
+            Element *m_content;
+            unsigned int m_offsetX;
+            unsigned int m_offsetY;
+            unsigned int m_offsetXMax;
+            unsigned int m_offsetYMax;
+            unsigned int m_scissorWidth;
+            unsigned int m_scissorHeight;
+            int m_horizontalScrollStyle;
+            int m_verticalScrollStyle;
+            ScrollBar *m_horizontalBar;
+            ScrollBar *m_verticalBar;
+            bool m_horizontalBarShow;
+            bool m_verticalBarShow;
 			
 		public:
 			void onValueChanged(ScrollBar *scrollBar);
-			bool isHorizontalBarShow()
+            bool isHorizontalBarShow() const
 			{
-				return horizontalBarShow;
-			};
-			bool isVerticalBarShow()
+                return m_horizontalBarShow;
+            }
+            bool isVerticalBarShow() const
 			{
-				return verticalBarShow;
-			};
+                return m_verticalBarShow;
+            }
 			void setHorizontalScrollStyle(int _horizontalScrollStyle)
 			{
-				horizontalScrollStyle=_horizontalScrollStyle;
+                m_horizontalScrollStyle=_horizontalScrollStyle;
 			}
 			void setVerticalScrollStyle(int _verticalScrollStyle)
 			{
-				verticalScrollStyle=_verticalScrollStyle;
+                m_verticalScrollStyle=_verticalScrollStyle;
 			}
-			int getHorizontalScrollStyle()
+            int getHorizontalScrollStyle() const
 			{
-				return horizontalScrollStyle;
+                return m_horizontalScrollStyle;
 			}
-			int getVerticalScrollStyle()
+            int getVerticalScrollStyle() const
 			{
-				return verticalScrollStyle;
+                return m_verticalScrollStyle;
 			}
-			unsigned int getOffsetX()
+            unsigned int getOffsetX() const
 			{
-				return offsetX;
-			};
-			unsigned int getOffsetY()
+                return m_offsetX;
+            }
+            unsigned int getOffsetY() const
 			{
-				return offsetY;
-			};
+                return m_offsetY;
+            }
 			void setContent(Element *_content)
 			{
-				content=_content;
-                offsetXMax=content->m_size.width-(m_size.width-17);
-                offsetYMax=content->m_size.height-(m_size.height-17);
+                m_content=_content;
+                m_offsetXMax=m_content->m_size.m_width-(m_size.m_width-17);
+                m_offsetYMax=m_content->m_size.m_height-(m_size.m_height-17);
 			}
 			void removeContent()
 			{
-				content=0;
+                m_content=0;
 			}
 			ScrollPanel(void);
 			Util::Size getPreferedSize()
 			{
 				return Util::Size(60,60);
-			};
+            }
 			void paint();
 			void mousePressed(const Event::MouseEvent &e);
 			void mouseReleased(const Event::MouseEvent &e);

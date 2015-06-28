@@ -17,9 +17,9 @@ namespace AssortedWidgets
               m_dropped(false)
 		{
             m_size=getPreferedSize();
-			horizontalStyle=Element::Fit;
-			verticalStyle=Element::Fit;
-            m_button.m_position.x=m_size.width-18;
+            m_horizontalStyle=Element::Fit;
+            m_verticalStyle=Element::Fit;
+            m_button.m_position.x=m_size.m_width-18;
             m_button.m_position.y=2;
 
             mousePressedHandlerList.push_back(MOUSE_DELEGATE(DropList::mousePressed));
@@ -81,7 +81,7 @@ namespace AssortedWidgets
 
 		void DropList::mouseEntered(const Event::MouseEvent &e)
 		{
-			isHover=true;
+            m_isHover=true;
             int mx=e.getX()-m_position.x;
             int my=e.getY()-m_position.y;
             if(m_button.isIn(mx,my))
@@ -94,10 +94,10 @@ namespace AssortedWidgets
 
 		void DropList::mouseExited(const Event::MouseEvent &e)
 		{
-			isHover=false;
+            m_isHover=false;
             int mx=e.getX()-m_position.x;
             int my=e.getY()-m_position.y;
-            if(m_button.isHover)
+            if(m_button.m_isHover)
 			{
                 Event::MouseEvent event(&m_button,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
                 m_button.processMouseExited(event);
@@ -111,7 +111,7 @@ namespace AssortedWidgets
             int my=e.getY()-m_position.y;
             if(m_button.isIn(mx,my))
 			{
-                if(!m_button.isHover)
+                if(!m_button.m_isHover)
 				{
                     Event::MouseEvent event(&m_button,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
                     m_button.processMouseEntered(event);
@@ -119,7 +119,7 @@ namespace AssortedWidgets
 			}
 			else
 			{
-                if(m_button.isHover)
+                if(m_button.m_isHover)
 				{
                     Event::MouseEvent event(&m_button,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
                     m_button.processMouseExited(event);
@@ -129,7 +129,7 @@ namespace AssortedWidgets
 
 		void DropList::pack()
 		{
-            m_button.m_position.x=m_size.width-18;
+            m_button.m_position.x=m_size.m_width-18;
             m_button.m_position.y=2;
 		}
 

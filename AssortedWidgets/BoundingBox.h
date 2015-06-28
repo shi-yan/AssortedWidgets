@@ -36,11 +36,11 @@ namespace AssortedWidgets
 
 			bool isIn(int x,int y)
 			{
-                return ((m_position.x<x)&&(x<(m_position.x+static_cast<int>(m_size.width)))&&(m_position.y<y)&&(y<(m_position.y+static_cast<int>(m_size.height))));
+                return ((m_position.x<x)&&(x<(m_position.x+static_cast<int>(m_size.m_width)))&&(m_position.y<y)&&(y<(m_position.y+static_cast<int>(m_size.m_height))));
             }
 
 		public:
-            ~BoundingBox(void){}
+            virtual ~BoundingBox(void){}
 		};
 	}
 }

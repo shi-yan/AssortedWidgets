@@ -39,26 +39,26 @@ namespace AssortedWidgets
 		{
 		}
 
-		void MenuItemToggleButton::mousePressed(const Event::MouseEvent &e)
+        void MenuItemToggleButton::mousePressed(const Event::MouseEvent &)
 		{
             m_status=pressed;
         }
 		
-		void MenuItemToggleButton::mouseEntered(const Event::MouseEvent &e)
+        void MenuItemToggleButton::mouseEntered(const Event::MouseEvent &)
 		{
-			isHover=true;
+            m_isHover=true;
             m_status=hover;
         }
 
-		void MenuItemToggleButton::mouseReleased(const Event::MouseEvent &e)
+        void MenuItemToggleButton::mouseReleased(const Event::MouseEvent &)
 		{
             m_status=hover;
             m_toggle=!m_toggle;
         }
 
-		void MenuItemToggleButton::mouseExited(const Event::MouseEvent &e)
+        void MenuItemToggleButton::mouseExited(const Event::MouseEvent &)
 		{
-			isHover=false;
+            m_isHover=false;
             m_status=normal;
         }
 	}

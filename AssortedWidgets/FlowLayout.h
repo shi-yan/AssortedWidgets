@@ -9,9 +9,9 @@ namespace AssortedWidgets
 		{
 		public:
 			FlowLayout(void):Layout()
-			{};
+            {}
 			FlowLayout(unsigned int spacer):Layout(spacer)
-			{};
+            {}
 			FlowLayout(unsigned int top,unsigned int bottom,unsigned int left,unsigned int right,unsigned int spacer):Layout(top,bottom,left,right,spacer)
 			{}
 			void updateLayout(std::vector<Widgets::Element *> &componentList,Util::Position &origin,Util::Size &area);

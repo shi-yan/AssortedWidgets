@@ -14,28 +14,28 @@ namespace AssortedWidgets
 		class MultipleLayoutTestDialog:public Widgets::Dialog
 		{
 		private:
-			Layout::GirdLayout *girdLayout;
-			Layout::FlowLayout *flowLayout;
-			Widgets::Button *closeButton;
+            Layout::GirdLayout *m_girdLayout;
+            Layout::FlowLayout *m_flowLayout;
+            Widgets::Button *m_closeButton;
 
-			Widgets::Label *TheLabel;
-			Widgets::Label *quickLabel;
-			Widgets::Label *brownLabel;
-			Widgets::Label *foxLabel;
-			Widgets::Label *jumpsLabel;
-			Widgets::Label *overLabel;
-			Widgets::Label *theLabel;
-			Widgets::Label *lazyDogLabel;
+            Widgets::Label *m_TheLabel;
+            Widgets::Label *m_quickLabel;
+            Widgets::Label *m_brownLabel;
+            Widgets::Label *m_foxLabel;
+            Widgets::Label *m_jumpsLabel;
+            Widgets::Label *m_overLabel;
+            Widgets::Label *m_aLabel;
+            Widgets::Label *m_lazyDogLabel;
 
-			Widgets::Label *northLabel;
-			Widgets::Label *southLabel;
-			Widgets::Label *westLabel;
-			Widgets::Label *eastLabel;
-			Widgets::Label *centerLabel;
-			Layout::BorderLayout *borderLayout;
+            Widgets::Label *m_northLabel;
+            Widgets::Label *m_southLabel;
+            Widgets::Label *m_westLabel;
+            Widgets::Label *m_eastLabel;
+            Widgets::Label *m_centerLabel;
+            Layout::BorderLayout *m_borderLayout;
 
-			Widgets::Panel *flowPanel;
-			Widgets::Panel *borderPanel;
+            Widgets::Panel *m_flowPanel;
+            Widgets::Panel *m_borderPanel;
 
 
 

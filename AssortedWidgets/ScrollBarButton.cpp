@@ -4,10 +4,12 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		ScrollBarButton::ScrollBarButton(int _type):type(_type),AbstractButton(0,0,0,0)
+        ScrollBarButton::ScrollBarButton(int _type)
+            :m_type(_type),
+              AbstractButton(0,0,0,0)
 		{
-            m_size.width=15;
-            m_size.height=15;
+            m_size.m_width=15;
+            m_size.m_height=15;
 		}
 
 		ScrollBarButton::~ScrollBarButton(void)

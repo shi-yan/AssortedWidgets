@@ -4,12 +4,14 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		DropListItem::DropListItem(char *_text):text(_text)
+        DropListItem::DropListItem(char *_text)
+            :m_text(_text)
 		{
-            m_size=getPreferedSize();
+            m_size = getPreferedSize();
 		}
 
-		DropListItem::DropListItem(std::string &_text):text(_text)
+        DropListItem::DropListItem(std::string &_text)
+            :m_text(_text)
 		{
             m_size=getPreferedSize();
 		}

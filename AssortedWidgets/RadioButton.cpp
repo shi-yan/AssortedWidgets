@@ -5,29 +5,35 @@ namespace AssortedWidgets
 	namespace Widgets
 	{
 
-		RadioButton::RadioButton(std::string &_text,RadioGroup *_group):text(_text),group(_group),check(false)
+        RadioButton::RadioButton(std::string &_text,RadioGroup *_group)
+            :m_text(_text),
+              m_group(_group),
+              m_check(false)
 		{
             m_size=getPreferedSize();
-			horizontalStyle=Element::Fit;
-			verticalStyle=Element::Fit;	
+            m_horizontalStyle=Element::Fit;
+            m_verticalStyle=Element::Fit;
 
             mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(RadioButton::mouseReleased));
 		}
 
-		RadioButton::RadioButton(char *_text,RadioGroup *_group):text(_text),group(_group),check(false)
+        RadioButton::RadioButton(char *_text,RadioGroup *_group)
+            :m_text(_text),
+              m_group(_group),
+              m_check(false)
 		{
             m_size=getPreferedSize();
-			horizontalStyle=Element::Fit;
-			verticalStyle=Element::Fit;	
+            m_horizontalStyle=Element::Fit;
+            m_verticalStyle=Element::Fit;
 
             mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(RadioButton::mouseReleased));
 		}
 
-		void RadioButton::mouseReleased(const Event::MouseEvent &e)
+        void RadioButton::mouseReleased(const Event::MouseEvent &)
 		{
-			if(!check)
+            if(!m_check)
 			{
-				group->setCheck(this);
+                m_group->setCheck(this);
 				//check=true;
 			}
 		}

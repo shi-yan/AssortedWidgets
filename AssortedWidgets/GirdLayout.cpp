@@ -7,80 +7,80 @@ namespace AssortedWidgets
 	{
 		GirdLayout::~GirdLayout(void)
 		{
-			for (size_t i = 0; i < rowCount; ++i)
-				delete [] alignment[i];
-			delete [] alignment;
+            for (size_t i = 0; i < m_rowCount; ++i)
+                delete [] m_alignment[i];
+            delete [] m_alignment;
 		}
 
 		void GirdLayout::updateLayout(std::vector<Widgets::Element *> &componentList,Util::Position &origin,Util::Size &area)
 		{
 			std::vector<Widgets::Element*>::iterator iter(componentList.begin());
-			for(size_t i=0;i<rowCount;++i)
+            for(size_t i=0;i<m_rowCount;++i)
 			{
-				for(size_t e=0;e<columnCount;++e)
+                for(size_t e=0;e<m_columnCount;++e)
 				{
 					if(iter<componentList.end())
 					{
-						alignment[i][e].component=(*iter);
+                        m_alignment[i][e].m_component=(*iter);
 						Util::Size perfectSize=(*iter)->getPreferedSize();
-						alignment[i][e].width=perfectSize.width;
-						alignment[i][e].height=perfectSize.height;
-						alignment[i][e].HStyle=(*iter)->getHorizontalStyle();
-						alignment[i][e].VStyle=(*iter)->getVerticalStyle();
+                        m_alignment[i][e].m_width=perfectSize.m_width;
+                        m_alignment[i][e].m_height=perfectSize.m_height;
+                        m_alignment[i][e].m_HStyle=(*iter)->getHorizontalStyle();
+                        m_alignment[i][e].m_VStyle=(*iter)->getVerticalStyle();
 						++iter;
 					}
 					else
 					{
-						alignment[i][e].component=0;
-						alignment[i][e].width=0;
-						alignment[i][e].height=0;
-						alignment[i][e].HStyle=Widgets::Element::Fit;
-						alignment[i][e].VStyle=Widgets::Element::Fit;
+                        m_alignment[i][e].m_component=0;
+                        m_alignment[i][e].m_width=0;
+                        m_alignment[i][e].m_height=0;
+                        m_alignment[i][e].m_HStyle=Widgets::Element::Fit;
+                        m_alignment[i][e].m_VStyle=Widgets::Element::Fit;
 					}
 				}
 			}
 
 			struct OneLineInfo
 			{
-				unsigned int miniSize;
-				bool isStretch;
+                unsigned int miniSize;
+                bool isStretch;
 			};
 
-			struct OneLineInfo *columnInfo=new struct OneLineInfo[columnCount];
+            struct OneLineInfo *columnInfo=new struct OneLineInfo[m_columnCount];
 
-			for(size_t e=0;e<columnCount;++e)
+            for(size_t e=0;e<m_columnCount;++e)
 			{
-				columnInfo[e].miniSize=0;
+                columnInfo[e].miniSize=0;
 				columnInfo[e].isStretch=false;
-				for(size_t i=0;i<rowCount;++i)
+                for(size_t i=0;i<m_rowCount;++i)
 				{
-					if(alignment[i][e].HStyle==Widgets::Element::Stretch)
+                    if(m_alignment[i][e].m_HStyle==Widgets::Element::Stretch)
 					{
 						columnInfo[e].isStretch=true;
 					}
-					columnInfo[e].miniSize=std::max<unsigned int>(columnInfo[e].miniSize,alignment[i][e].width);
+                    columnInfo[e].miniSize=std::max<unsigned int>(columnInfo[e].miniSize,m_alignment[i][e].m_width);
 				}
 			}
 
-			struct OneLineInfo *rowInfo=new struct OneLineInfo[rowCount];
+            struct OneLineInfo *rowInfo=new struct OneLineInfo[m_rowCount];
 
-			for(size_t i=0;i<rowCount;++i)
+            for(size_t i=0;i<m_rowCount;++i)
 			{
 				rowInfo[i].miniSize=0;
 				rowInfo[i].isStretch=false;
-				for(size_t e=0;e<columnCount;++e)
+                for(size_t e=0;e<m_columnCount;++e)
 				{
-					if(alignment[i][e].VStyle==Widgets::Element::Stretch)
+                    if(m_alignment[i][e].m_VStyle==Widgets::Element::Stretch)
 					{
 						rowInfo[i].isStretch=true;
 					}
-					rowInfo[i].miniSize=std::max<unsigned int>(rowInfo[i].miniSize,alignment[i][e].height);
+                    rowInfo[i].miniSize=std::max<unsigned int>(rowInfo[i].miniSize,m_alignment[i][e].m_height);
 				}
 			}
 
-            int widthAvailable(area.width-(columnCount-1)*m_spacer-m_left-m_right);
+            int widthAvailable(area.m_width-(m_columnCount-1)*m_spacer-m_left-m_right);
 			unsigned int stretchSegment(0);
-			for(size_t e=0;e<columnCount;++e)
+            for(size_t e=0;e<m_columnCount;++e)
 			{
 				if(columnInfo[e].isStretch)
 				{
@@ -97,7 +97,7 @@ namespace AssortedWidgets
 				if(stretchSegment)
 				{
 					unsigned int averageWidth(widthAvailable/stretchSegment);
-					for(size_t e=0;e<columnCount;++e)
+                    for(size_t e=0;e<m_columnCount;++e)
 					{
 						if(columnInfo[e].isStretch)
 						{
@@ -107,17 +107,17 @@ namespace AssortedWidgets
 				}
 				else
 				{
-					unsigned int averageAppend(widthAvailable/columnCount);
-					for(size_t e=0;e<columnCount;++e)
+                    unsigned int averageAppend(widthAvailable/m_columnCount);
+                    for(size_t e=0;e<m_columnCount;++e)
 					{
 						columnInfo[e].miniSize+=averageAppend;
 					}
 				}
 			}
 
-            int heightAvailable(area.height-m_top-m_bottom-(rowCount-1)*m_spacer);
+            int heightAvailable(area.m_height-m_top-m_bottom-(m_rowCount-1)*m_spacer);
 			stretchSegment=0;
-			for(size_t i=0;i<rowCount;++i)
+            for(size_t i=0;i<m_rowCount;++i)
 			{
 				if(rowInfo[i].isStretch)
 				{
@@ -134,7 +134,7 @@ namespace AssortedWidgets
 				if(stretchSegment)
 				{
 					unsigned int averageHeight(heightAvailable/stretchSegment);
-					for(size_t i=0;i<rowCount;++i)
+                    for(size_t i=0;i<m_rowCount;++i)
 					{
 						if(rowInfo[i].isStretch)
 						{
@@ -144,8 +144,8 @@ namespace AssortedWidgets
 				}
 				else
 				{
-					unsigned int averageAppend(heightAvailable/rowCount);
-					for(size_t i=0;i<rowCount;++i)
+                    unsigned int averageAppend(heightAvailable/m_rowCount);
+                    for(size_t i=0;i<m_rowCount;++i)
 					{
 						rowInfo[i].miniSize+=averageAppend;
 					}
@@ -155,9 +155,9 @@ namespace AssortedWidgets
             int tempX=m_left+origin.x;
             int tempY=m_top+origin.y;
 
-			for(size_t i=0;i<rowCount;++i)
+            for(size_t i=0;i<m_rowCount;++i)
 			{
-				for(size_t e=0;e<columnCount;++e)
+                for(size_t e=0;e<m_columnCount;++e)
 				{
 					Util::Position Cposition(tempX,tempY);
 					Util::Size Carea(columnInfo[e].miniSize,rowInfo[i].miniSize);
@@ -174,65 +174,64 @@ namespace AssortedWidgets
 
 		void GirdLayout::orderComponent(unsigned int row,unsigned int column,Util::Position &origin,Util::Size &area)
 		{
-			struct Alignment component=alignment[row][column];
-			if(component.component)
+            struct Alignment component=m_alignment[row][column];
+            if(component.m_component)
 			{
-				if(component.HStyle==Widgets::Element::Stretch)
+                if(component.m_HStyle==Widgets::Element::Stretch)
 				{
-                    component.component->m_size.width=area.width;
-                    component.component->m_position.x=origin.x;
+                    component.m_component->m_size.m_width=area.m_width;
+                    component.m_component->m_position.x=origin.x;
 				}
 				else
 				{
-					switch(component.HAlignment)
+                    switch(component.m_HAlignment)
 					{
 						case HLeft:
 						{
-                            component.component->m_position.x=origin.x;
+                            component.m_component->m_position.x=origin.x;
 							break;
 						}
 						case HCenter:
 						{
-                            component.component->m_position.x=static_cast<int>(origin.x+(area.width-component.width)*0.5f);
+                            component.m_component->m_position.x=static_cast<int>(origin.x+(area.m_width-component.m_width)*0.5f);
 							break;
 						}
 						case HRight:
 						{
-                            component.component->m_position.x=origin.x+(area.width-component.width);
+                            component.m_component->m_position.x=origin.x+(area.m_width-component.m_width);
 							break;
 						}
 					}
 				}
 
-				if(component.VStyle==Widgets::Element::Stretch)
+                if(component.m_VStyle==Widgets::Element::Stretch)
 				{
-                    component.component->m_size.height=area.height;
-                    component.component->m_position.y=origin.y;
-
+                    component.m_component->m_size.m_height=area.m_height;
+                    component.m_component->m_position.y=origin.y;
 				}
 				else
 				{
-					switch(component.VAlignment)
+                    switch(component.m_VAlignment)
 					{
 						case VTop:
 						{
-                            component.component->m_position.y=origin.y;
+                            component.m_component->m_position.y=origin.y;
 							break;
 						}
 						case VCenter:
 						{
-                            component.component->m_position.y=static_cast<int>(origin.y+(area.height-component.height)*0.5f);
+                            component.m_component->m_position.y=static_cast<int>(origin.y+(area.m_height-component.m_height)*0.5f);
 							break;
 						}
 						case VBottom:
 						{
-                            component.component->m_position.y=origin.y+(area.height-component.height);
+                            component.m_component->m_position.y=origin.y+(area.m_height-component.m_height);
 							break;
 						}
 					}
 				}
 
-				component.component->pack();
+                component.m_component->pack();
 			}
 		}
 

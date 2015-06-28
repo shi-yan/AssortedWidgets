@@ -17,18 +17,18 @@ namespace AssortedWidgets
 				VerticalBottom
 			};
 		private:
-			int type;
+            int m_type;
 		public:
-			int getType()
+            int getType() const
 			{
-				return type;
-			};
+                return m_type;
+            }
 			ScrollBarButton(int _type);
 
 			Util::Size getPreferedSize()
 			{
 				return Util::Size(15,15);
-			};
+            }
 
 			void paint()
 			{

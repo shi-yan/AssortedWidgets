@@ -10,7 +10,7 @@ namespace AssortedWidgets
 		class ScrollBarSlider:public DragAble
 		{
 		private:
-			ScrollBar *parent;
+            ScrollBar *m_parent;
 		public:
 			enum Type
 			{
@@ -18,16 +18,16 @@ namespace AssortedWidgets
 				Vertical
 			};
 		private:
-			int type;
+            int m_type;
 		public:
-			int getType()
+            int getType() const
 			{
-				return type;
+                return m_type;
 			}
 			void setScrollBar(ScrollBar *_parent)
 			{
-				parent=_parent;
-			};
+                m_parent=_parent;
+            }
 			ScrollBarSlider(int _type);
 			Util::Size getPreferedSize()
 			{
@@ -44,34 +44,34 @@ namespace AssortedWidgets
 
 			void dragMoved(int offsetX,int offsetY)
 			{
-				if(type==Horizontal)
+                if(m_type==Horizontal)
 				{
                     m_position.x+=offsetX;
                     if(m_position.x<17)
 					{
                         m_position.x=17;
 					}
-                    else if(m_position.x>static_cast<int>(parent->m_size.width-17-m_size.width))
+                    else if(m_position.x>static_cast<int>(m_parent->m_size.m_width-17-m_size.m_width))
 					{
-                        m_position.x=parent->m_size.width-17-m_size.width;
+                        m_position.x=m_parent->m_size.m_width-17-m_size.m_width;
 					}
-                    parent->setValue(static_cast<float>(m_position.x-17)/static_cast<float>(parent->m_size.width-34-m_size.width));
+                    m_parent->setValue(static_cast<float>(m_position.x-17)/static_cast<float>(m_parent->m_size.m_width-34-m_size.m_width));
 				}
-				else if(type==Vertical)
+                else if(m_type==Vertical)
 				{
                     m_position.y+=offsetY;
                     if(m_position.y<17)
 					{
                         m_position.y=17;
 					}
-                    else if(m_position.y>static_cast<int>(parent->m_size.height-17-m_size.height))
+                    else if(m_position.y>static_cast<int>(m_parent->m_size.m_height-17-m_size.m_height))
 					{
-                        m_position.y=parent->m_size.height-17-m_size.height;
+                        m_position.y=m_parent->m_size.m_height-17-m_size.m_height;
 					}
-                    parent->setValue(static_cast<float>(m_position.y-17)/static_cast<float>(parent->m_size.height-34-m_size.height));
+                    m_parent->setValue(static_cast<float>(m_position.y-17)/static_cast<float>(m_parent->m_size.m_height-34-m_size.m_height));
 				}
-				parent->onValueChanged();
-			};
+                m_parent->onValueChanged();
+            }
 
 		public:
 			~ScrollBarSlider(void);

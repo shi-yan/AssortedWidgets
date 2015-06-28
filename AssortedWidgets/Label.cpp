@@ -13,8 +13,8 @@ namespace AssortedWidgets
               m_bottom(4),
               m_drawBackground(false)
 		{
-			horizontalStyle=Element::Fit;
-			verticalStyle=Element::Fit;
+            m_horizontalStyle=Element::Fit;
+            m_verticalStyle=Element::Fit;
             m_size=getPreferedSize();
 		}
 
@@ -26,8 +26,8 @@ namespace AssortedWidgets
               m_bottom(4),
               m_drawBackground(false)
 		{
-			horizontalStyle=Element::Fit;
-			verticalStyle=Element::Fit;
+            m_horizontalStyle=Element::Fit;
+            m_verticalStyle=Element::Fit;
             m_size=getPreferedSize();
 		}
 

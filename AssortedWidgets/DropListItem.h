@@ -8,27 +8,27 @@ namespace AssortedWidgets
 		class DropListItem:public AbstractButton
 		{
 		private:
-			std::string text;
+            std::string m_text;
 		public:
 			void setString(std::string &_text)
 			{
-				text=_text;
-			};
+                m_text=_text;
+            }
 
             const std::string &getText() const
 			{
-				return text;
+                return m_text;
             }
 			DropListItem(char *_text);
 			DropListItem(std::string &_text);
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintDropListItem(this);
-			};
+            }
 			Util::Size getPreferedSize()
 			{
 				return Theme::ThemeEngine::getSingleton().getTheme().getDropListItemPreferedSize(this);
-			};
+            }
 		public:
 			~DropListItem(void);
 		};

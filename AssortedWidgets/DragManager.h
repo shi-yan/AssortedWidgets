@@ -15,7 +15,10 @@ namespace AssortedWidgets
 			int preX;
 			int preY;
 		private:
-			DragManager(void):componentOnDrag(0),oldX(0),oldY(0)
+            DragManager(void)
+                :componentOnDrag(0),
+                  oldX(0),
+                  oldY(0)
             {}
 		public:
 			int currentX;

@@ -17,52 +17,52 @@ namespace AssortedWidgets
 			};
 
 		private:
-			SlideBarSlider *slider;
-			int type;
-			float value;
-			float minV;
-			float maxV;
+            SlideBarSlider *m_slider;
+            int m_type;
+            float m_value;
+            float m_minV;
+            float m_maxV;
 
 		public:
-			float getValue()
+            float getValue() const
 			{
-				return (maxV-minV)*value+minV;
-			};
-			float getMax()
+                return (m_maxV-m_minV)*m_value+m_minV;
+            }
+            float getMax() const
 			{
-				return maxV;
-			};
+                return m_maxV;
+            }
 			//void onValueChanged();
 			void setValue(float _value)
 			{
-				if(_value>=minV && _value<=maxV)
+                if(_value>=m_minV && _value<=m_maxV)
 				{
-					value=(_value-minV)/(maxV-minV);
+                    m_value=(_value-m_minV)/(m_maxV-m_minV);
 				}
-			};
+            }
 			void setPercent(float _value)
 			{
-				value=_value;
-			};
+                m_value=_value;
+            }
 			SlideBar(int _type=Horizontal);
 			SlideBar(float _minV,float _maxV,int _type=Horizontal);
 			SlideBar(float _minV,float _maxV,float _value,int _type=Horizontal);
-			int getType()
+            int getType() const
 			{
-				return type;
-			};
+                return m_type;
+            }
 			Util::Size getPreferedSize()
 			{
-				if(type==Horizontal)
+                if(m_type==Horizontal)
 				{
 					return Util::Size(10,20);
 				}
-				else if(type==Vertical)
+                else if(m_type==Vertical)
 				{
 					return Util::Size(20,10);
 				}
 				return Util::Size();
-			};
+            }
 			void paint();
 			void mousePressed(const Event::MouseEvent &e);
 			void pack();

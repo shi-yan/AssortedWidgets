@@ -9,13 +9,13 @@ namespace AssortedWidgets
 {
 	namespace Test
 	{
-		class PanelTestDialog:public Widgets::Dialog
+        class PanelTestDialog: public Widgets::Dialog
 		{
 		private:
-			Widgets::Button *closeButton;
-			Widgets::Label *label;
-			Widgets::ScrollPanel *panel;
-			Layout::GirdLayout *girdLayout;
+            Widgets::Button *m_closeButton;
+            Widgets::Label *m_label;
+            Widgets::ScrollPanel *m_panel;
+            Layout::GirdLayout *m_girdLayout;
 		public:
 			void onClose(const Event::MouseEvent &e);
 			PanelTestDialog(void);

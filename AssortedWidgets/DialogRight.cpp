@@ -9,8 +9,8 @@ namespace AssortedWidgets
 		{
             m_position.x=x;
             m_position.y=y;
-            m_size.width=width;
-            m_size.height=height;
+            m_size.m_width=width;
+            m_size.m_height=height;
 		}
 
 		DialogRight::~DialogRight(void)
@@ -20,16 +20,16 @@ namespace AssortedWidgets
 		void DialogRight::dragReleased(const Event::MouseEvent &e)
 		{}
 
-		void DialogRight::dragMoved(int offsetX,int offsetY)
+        void DialogRight::dragMoved(int offsetX,int )
 		{
-			Util::Size minimize=parent->getPreferedSize();
+            Util::Size minimize=m_parent->getPreferedSize();
 			
-            if((parent->m_size.width+offsetX)>minimize.width)
+            if((m_parent->m_size.m_width+offsetX)>minimize.m_width)
 			{
-                parent->m_size.width+=offsetX;
+                m_parent->m_size.m_width+=offsetX;
 			}
 
-			parent->pack();
+            m_parent->pack();
 		}
 	}
 }

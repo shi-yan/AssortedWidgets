@@ -4,67 +4,87 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		ProgressBar::ProgressBar(void):type(Horizontal),min(0.0f),max(100.0f),value(0.0f),POfSlider(0)
+        ProgressBar::ProgressBar(void)
+            :m_type(Horizontal),
+              m_min(0.0f),
+              m_max(100.0f),
+              m_value(0.0f),
+              m_POfSlider(0)
 		{
             m_size=getPreferedSize();
-			if(type==Horizontal)
+            if(m_type==Horizontal)
 			{
-				horizontalStyle=Element::Stretch;
-				verticalStyle=Element::Fit;
+                m_horizontalStyle=Element::Stretch;
+                m_verticalStyle=Element::Fit;
 			}
-			else if(type==Vertical)
+            else if(m_type==Vertical)
 			{
-				horizontalStyle=Element::Fit;
-				verticalStyle=Element::Stretch;
+                m_horizontalStyle=Element::Fit;
+                m_verticalStyle=Element::Stretch;
 			}
 			pack();
 		}
 
-		ProgressBar::ProgressBar(int _type):type(_type),min(0.0f),max(100.0f),value(0.0f),POfSlider(0)
+        ProgressBar::ProgressBar(int _type)
+            :m_type(_type),
+              m_min(0.0f),
+              m_max(100.0f),
+              m_value(0.0f),
+              m_POfSlider(0)
 		{
             m_size=getPreferedSize();
-			if(type==Horizontal)
+            if(m_type==Horizontal)
 			{
-				horizontalStyle=Element::Stretch;
-				verticalStyle=Element::Fit;
+                m_horizontalStyle=Element::Stretch;
+                m_verticalStyle=Element::Fit;
 			}
-			else if(type==Vertical)
+            else if(m_type==Vertical)
 			{
-				horizontalStyle=Element::Fit;
-				verticalStyle=Element::Stretch;
+                m_horizontalStyle=Element::Fit;
+                m_verticalStyle=Element::Stretch;
 			}
 			pack();
 		}
 
-		ProgressBar::ProgressBar(float _min,float _max,int _type):type(_type),min(_min),max(_max),value(0.0f),POfSlider(0)
+        ProgressBar::ProgressBar(float _min,float _max,int _type)
+            :m_type(_type),
+              m_min(_min),
+              m_max(_max),
+              m_value(0.0f),
+              m_POfSlider(0)
 		{
             m_size=getPreferedSize();
-			if(type==Horizontal)
+            if(m_type==Horizontal)
 			{
-				horizontalStyle=Element::Stretch;
-				verticalStyle=Element::Fit;
+                m_horizontalStyle=Element::Stretch;
+                m_verticalStyle=Element::Fit;
 			}
-			else if(type==Vertical)
+            else if(m_type==Vertical)
 			{
-				horizontalStyle=Element::Fit;
-				verticalStyle=Element::Stretch;
+                m_horizontalStyle=Element::Fit;
+                m_verticalStyle=Element::Stretch;
 			}
 			pack();
 		}
 
-		ProgressBar::ProgressBar(float _min,float _max,float _value,int _type):type(_type),min(_min),max(_max),value(0),POfSlider(0)
+        ProgressBar::ProgressBar(float _min,float _max,float _value,int _type)
+            :m_type(_type),
+              m_min(_min),
+              m_max(_max),
+              m_value(0),
+              m_POfSlider(0)
 		{
 			setValue(_value);
             m_size=getPreferedSize();
-			if(type==Horizontal)
+            if(m_type==Horizontal)
 			{
-				horizontalStyle=Element::Stretch;
-				verticalStyle=Element::Fit;
+                m_horizontalStyle=Element::Stretch;
+                m_verticalStyle=Element::Fit;
 			}
-			else if(type==Vertical)
+            else if(m_type==Vertical)
 			{
-				horizontalStyle=Element::Fit;
-				verticalStyle=Element::Stretch;
+                m_horizontalStyle=Element::Fit;
+                m_verticalStyle=Element::Stretch;
 			}
 			pack();
 		}
@@ -75,13 +95,13 @@ namespace AssortedWidgets
 
 		void ProgressBar::pack()
 		{
-			if(type==Horizontal)
+            if(m_type==Horizontal)
 			{
-                POfSlider=static_cast<int>(value*m_size.width);
+                m_POfSlider=static_cast<int>(m_value*m_size.m_width);
 			}
-			else if(type==Vertical)
+            else if(m_type==Vertical)
 			{
-                POfSlider=static_cast<int>(value*m_size.height);
+                m_POfSlider=static_cast<int>(m_value*m_size.m_height);
 			}			
 		}
 	}

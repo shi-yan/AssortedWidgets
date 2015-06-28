@@ -54,12 +54,12 @@ namespace AssortedWidgets
 		{
             if(m_expand)
 			{
-				parentMenuList->setShrink();
+                m_parentMenuList->setShrink();
                 m_expand=false;
 			}
 			else
 			{
-				parentMenuList->setExpand(this);
+                m_parentMenuList->setExpand(this);
                 m_expand=true;
 			}
             m_status=hover;
@@ -105,7 +105,7 @@ namespace AssortedWidgets
             int my=e.getY()-m_position.y;
             if(m_expand && m_menuList.isIn(mx,my))
 			{
-                if(m_menuList.isHover)
+                if(m_menuList.m_isHover)
 				{
                     Event::MouseEvent event(&m_menuList,Event::MouseEvent::MOUSE_MOTION,mx,my,0);
                     m_menuList.processMouseMoved(event);
@@ -118,7 +118,7 @@ namespace AssortedWidgets
 			}
 			else
 			{
-                if(m_menuList.isHover)
+                if(m_menuList.m_isHover)
 				{
                     Event::MouseEvent event(&m_menuList,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
                     m_menuList.processMouseExited(event);
@@ -132,14 +132,14 @@ namespace AssortedWidgets
 			}
 		}
 
-		void MenuItemSubMenu::mousePressed(const Event::MouseEvent &e)
+        void MenuItemSubMenu::mousePressed(const Event::MouseEvent &)
 		{
             m_status=pressed;
 		}
 
-		void MenuItemSubMenu::mouseEntered(const Event::MouseEvent &e)
+        void MenuItemSubMenu::mouseEntered(const Event::MouseEvent &)
 		{
-			isHover=true;
+            m_isHover=true;
             m_status=hover;//
 			/*if(parentMenuList->isExpand())
 			{
@@ -155,9 +155,9 @@ namespace AssortedWidgets
 			}*/
 		}
 
-		void MenuItemSubMenu::mouseExited(const Event::MouseEvent &e)
+        void MenuItemSubMenu::mouseExited(const Event::MouseEvent &)
 		{
-			isHover=false;
+            m_isHover=false;
             m_status=normal;
 		}
 	}

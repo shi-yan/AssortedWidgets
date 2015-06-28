@@ -43,7 +43,6 @@ namespace AssortedWidgets
 			void mouseReleased(const Event::MouseEvent &e);
 
 			void mouseExited(const Event::MouseEvent &e);
-
 			
 			MenuItemButton(std::string &_text);
 			MenuItemButton(char *_text);

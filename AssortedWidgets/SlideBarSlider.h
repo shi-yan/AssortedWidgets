@@ -10,7 +10,7 @@ namespace AssortedWidgets
 		class SlideBarSlider:public DragAble
 		{
 		private:
-			SlideBar *parent;
+            SlideBar *m_parent;
 		public:
 			enum Type
 			{
@@ -18,15 +18,15 @@ namespace AssortedWidgets
 				Vertical
 			};
 		private:
-			int type;
+            int m_type;
 		public:
-			int getType()
+            int getType() const
 			{
-				return type;
+                return m_type;
 			}
 			void setSlideBar(SlideBar *_parent)
 			{
-				parent=_parent;
+                m_parent=_parent;
             }
 			SlideBarSlider(int _type);
 			Util::Size getPreferedSize()
@@ -39,39 +39,39 @@ namespace AssortedWidgets
 				Theme::ThemeEngine::getSingleton().getTheme().paintSlideBarSlider(this);
             }
 						
-			void dragReleased(const Event::MouseEvent &e)
+            void dragReleased(const Event::MouseEvent &)
             {}
 
 			void dragMoved(int offsetX,int offsetY)
 			{
-				if(type==Horizontal)
+                if(m_type==Horizontal)
 				{
                     m_position.x+=offsetX;
                     if(m_position.x<2)
 					{
                         m_position.x=2;
 					}
-                    else if(m_position.x>static_cast<int>(parent->m_size.width-2-m_size.width))
+                    else if(m_position.x>static_cast<int>(m_parent->m_size.m_width-2-m_size.m_width))
 					{
-                        m_position.x=parent->m_size.width-2-m_size.width;
+                        m_position.x=m_parent->m_size.m_width-2-m_size.m_width;
 					}
-                    parent->setPercent(std::min<float>(1.0f,static_cast<float>(m_position.x-2)/static_cast<float>(parent->m_size.width-4-m_size.width)));
+                    m_parent->setPercent(std::min<float>(1.0f,static_cast<float>(m_position.x-2)/static_cast<float>(m_parent->m_size.m_width-4-m_size.m_width)));
 				}
-				else if(type==Vertical)
+                else if(m_type==Vertical)
 				{
                     m_position.y+=offsetY;
                     if(m_position.y<2)
 					{
                         m_position.y=2;
 					}
-                    else if(m_position.y>static_cast<int>(parent->m_size.height-2-m_size.height))
+                    else if(m_position.y>static_cast<int>(m_parent->m_size.m_height-2-m_size.m_height))
 					{
-                        m_position.y=parent->m_size.height-2-m_size.height;
+                        m_position.y=m_parent->m_size.m_height-2-m_size.m_height;
 					}
-                    parent->setPercent(std::min<float>(1.0f,static_cast<float>(m_position.y-2)/static_cast<float>(parent->m_size.height-4-m_size.height)));
+                    m_parent->setPercent(std::min<float>(1.0f,static_cast<float>(m_position.y-2)/static_cast<float>(m_parent->m_size.m_height-4-m_size.m_height)));
 				}
 //				parent->onValueChanged();
-			};
+            }
 
 		public:
 			~SlideBarSlider(void);

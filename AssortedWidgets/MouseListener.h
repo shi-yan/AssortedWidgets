@@ -19,25 +19,25 @@ namespace AssortedWidgets
 			virtual void mouseDragged(const MouseEvent &e) = 0;
 			virtual void mouseMotion(const MouseEvent &e) = 0;
 		public:
-			MouseListener(void){};
+            MouseListener(void){}
 		public:
-			~MouseListener(void){};
+            ~MouseListener(void){}
 		};
 
 		class MouseAdapter: public MouseListener
 		{
 		public:
-			virtual void mouseClicked(const MouseEvent &e){};
-			virtual void mousePressed(const MouseEvent &e){};
-			virtual void mouseEntered(const MouseEvent &e){};
-			virtual void mouseExited(const MouseEvent &e){};
-			virtual void mouseReleased(const MouseEvent &e){};
-			virtual void mouseDragged(const MouseEvent &e){};
-			virtual void mouseMotion(const MouseEvent &e){};
+            virtual void mouseClicked(const MouseEvent &e){}
+            virtual void mousePressed(const MouseEvent &e){}
+            virtual void mouseEntered(const MouseEvent &e){}
+            virtual void mouseExited(const MouseEvent &e){}
+            virtual void mouseReleased(const MouseEvent &e){}
+            virtual void mouseDragged(const MouseEvent &e){}
+            virtual void mouseMotion(const MouseEvent &e){}
 		public:
-			MouseAdapter(void){};
+            MouseAdapter(void){}
 		public:
-			~MouseAdapter(void){};
+            ~MouseAdapter(void){}
 		};
 	}
 }

@@ -5,7 +5,8 @@ namespace AssortedWidgets
 {
 	namespace Manager
 	{
-		DialogManager::DialogManager(void):modalDialog(0)
+        DialogManager::DialogManager(void)
+            :m_modalDialog(0)
 		{
 		}
 
@@ -16,12 +17,12 @@ namespace AssortedWidgets
 		void DialogManager::setModelessDialog(Widgets::Dialog *_modelessDialog)
 		{
 			std::vector<Widgets::Dialog*>::iterator iter;
-			for(iter=modelessDialog.begin();iter<modelessDialog.end();++iter)
+            for(iter=m_modelessDialog.begin();iter<m_modelessDialog.end();++iter)
 			{
 				(*iter)->setActive(false);
 			}
-			modelessDialog.push_back(_modelessDialog);
-			if(modalDialog)
+            m_modelessDialog.push_back(_modelessDialog);
+            if(m_modalDialog)
 			{
 				_modelessDialog->setActive(false);
 			}
@@ -34,11 +35,11 @@ namespace AssortedWidgets
 
 		void DialogManager::setModalDialog(Widgets::Dialog *_modalDialog)
 		{
-			modalDialog=_modalDialog;
-			modalDialog->setActive(true);
-			modalDialog->setShowType(Widgets::Dialog::Modal);
+            m_modalDialog=_modalDialog;
+            m_modalDialog->setActive(true);
+            m_modalDialog->setShowType(Widgets::Dialog::Modal);
 			std::vector<Widgets::Dialog*>::iterator iter;
-			for(iter=modelessDialog.begin();iter<modelessDialog.end();++iter)
+            for(iter=m_modelessDialog.begin();iter<m_modelessDialog.end();++iter)
 			{
 				(*iter)->setActive(false);
 			}
@@ -46,66 +47,66 @@ namespace AssortedWidgets
 
 		void DialogManager::dropModalDialog()
 		{
-			modalDialog->setActive(false);
-			modalDialog->setShowType(Widgets::Dialog::None);
-			modalDialog=0;
-			if(!modelessDialog.empty())
+            m_modalDialog->setActive(false);
+            m_modalDialog->setShowType(Widgets::Dialog::None);
+            m_modalDialog=0;
+            if(!m_modelessDialog.empty())
 			{
-				modelessDialog[modelessDialog.size()-1]->setActive(true);
+                m_modelessDialog[m_modelessDialog.size()-1]->setActive(true);
 			}
 		}
 
 		void DialogManager::dropModelessDialog(Widgets::Dialog *toBeDropped)
 		{
-			for(size_t i=0;i<modelessDialog.size();++i)
+            for(size_t i=0;i<m_modelessDialog.size();++i)
 			{
-				if(modelessDialog[i]==toBeDropped)
+                if(m_modelessDialog[i]==toBeDropped)
 				{
 					toBeDropped->setActive(false);
 					toBeDropped->setShowType(Widgets::Dialog::None);
-					modelessDialog[i]=modelessDialog[modelessDialog.size()-1];
-					modelessDialog.pop_back();
+                    m_modelessDialog[i]=m_modelessDialog[m_modelessDialog.size()-1];
+                    m_modelessDialog.pop_back();
 				}
 			}
 		}
 
 		void DialogManager::importMouseMotion(int mx,int my)
 		{
-			if(modalDialog)
+            if(m_modalDialog)
 			{
-				if(modalDialog->isIn(mx,my))
+                if(m_modalDialog->isIn(mx,my))
 				{
-					if(modalDialog->isHover)
+                    if(m_modalDialog->m_isHover)
 					{
-						Event::MouseEvent event(modalDialog,Event::MouseEvent::MOUSE_MOTION,mx,my,0);
-						modalDialog->processMouseMoved(event);
+                        Event::MouseEvent event(m_modalDialog,Event::MouseEvent::MOUSE_MOTION,mx,my,0);
+                        m_modalDialog->processMouseMoved(event);
 					}
 					else
 					{
-						Event::MouseEvent event(modalDialog,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
-						modalDialog->processMouseEntered(event);
+                        Event::MouseEvent event(m_modalDialog,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
+                        m_modalDialog->processMouseEntered(event);
 					}
 					
 				}
 				else
 				{
-					if(modalDialog->isHover)
+                    if(m_modalDialog->m_isHover)
 					{
-						Event::MouseEvent event(modalDialog,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
-						modalDialog->processMouseExited(event);
+                        Event::MouseEvent event(m_modalDialog,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
+                        m_modalDialog->processMouseExited(event);
 					}
 				}
 			}
 			else
 			{
-				if(!modelessDialog.empty())
+                if(!m_modelessDialog.empty())
 				{
-					Widgets::Dialog *currentActive=modelessDialog[modelessDialog.size()-1];
+                    Widgets::Dialog *currentActive = m_modelessDialog[m_modelessDialog.size()-1];
 					if(currentActive->isActive())
 					{
 						if(currentActive->isIn(mx,my))
 						{
-							if(currentActive->isHover)
+                            if(currentActive->m_isHover)
 							{
 								Event::MouseEvent event(currentActive,Event::MouseEvent::MOUSE_MOTION,mx,my,0);
 								currentActive->processMouseMoved(event);
@@ -118,7 +119,7 @@ namespace AssortedWidgets
 						}
 						else
 						{
-							if(currentActive->isHover)
+                            if(currentActive->m_isHover)
 							{
 								Event::MouseEvent event(currentActive,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
 								currentActive->processMouseExited(event);
@@ -131,19 +132,19 @@ namespace AssortedWidgets
 
 		void DialogManager::importMousePressed(int mx,int my)
 		{
-			if(modalDialog)
+            if(m_modalDialog)
 			{
-				if(modalDialog->isIn(mx,my))
+                if(m_modalDialog->isIn(mx,my))
 				{
-					Event::MouseEvent event(modalDialog,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
-					modalDialog->processMousePressed(event);
+                    Event::MouseEvent event(m_modalDialog,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
+                    m_modalDialog->processMousePressed(event);
 				}
 			}
 			else
 			{
-				if(!modelessDialog.empty())
+                if(!m_modelessDialog.empty())
 				{
-					Widgets::Dialog *currentActive=modelessDialog[modelessDialog.size()-1];
+                    Widgets::Dialog *currentActive=m_modelessDialog[m_modelessDialog.size()-1];
 					if(currentActive->isActive())
 					{
 						if(currentActive->isIn(mx,my))
@@ -153,16 +154,16 @@ namespace AssortedWidgets
 						}
 						else
 						{
-							for(int i=static_cast<int>(modelessDialog.size()-1);i>=0;--i)
+                            for(int i=static_cast<int>(m_modelessDialog.size()-1);i>=0;--i)
 							{
-								if(modelessDialog[i]->isIn(mx,my))
+                                if(m_modelessDialog[i]->isIn(mx,my))
 								{
-									modelessDialog[modelessDialog.size()-1]->setActive(false);
-									modelessDialog[i]->setActive(true);
+                                    m_modelessDialog[m_modelessDialog.size()-1]->setActive(false);
+                                    m_modelessDialog[i]->setActive(true);
 
-									Widgets::Dialog *temp(modelessDialog[i]);
-									modelessDialog[i]=modelessDialog[modelessDialog.size()-1];
-									modelessDialog[modelessDialog.size()-1]=temp;
+                                    Widgets::Dialog *temp(m_modelessDialog[i]);
+                                    m_modelessDialog[i]=m_modelessDialog[m_modelessDialog.size()-1];
+                                    m_modelessDialog[m_modelessDialog.size()-1]=temp;
 
 									Event::MouseEvent event(temp,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
 									temp->processMousePressed(event);
@@ -173,16 +174,16 @@ namespace AssortedWidgets
 					}
 					else
 					{
-						for(int i=static_cast<int>(modelessDialog.size()-1);i>=0;--i)
+                        for(int i=static_cast<int>(m_modelessDialog.size()-1);i>=0;--i)
 						{
-							if(modelessDialog[i]->isIn(mx,my))
+                            if(m_modelessDialog[i]->isIn(mx,my))
 							{
-								modelessDialog[modelessDialog.size()-1]->setActive(false);
-								modelessDialog[i]->setActive(true);
+                                m_modelessDialog[m_modelessDialog.size()-1]->setActive(false);
+                                m_modelessDialog[i]->setActive(true);
 
-								Widgets::Dialog *temp(modelessDialog[i]);
-								modelessDialog[i]=modelessDialog[modelessDialog.size()-1];
-								modelessDialog[modelessDialog.size()-1]=temp;
+                                Widgets::Dialog *temp(m_modelessDialog[i]);
+                                m_modelessDialog[i]=m_modelessDialog[m_modelessDialog.size()-1];
+                                m_modelessDialog[m_modelessDialog.size()-1]=temp;
 							}
 						}
 					}
@@ -192,19 +193,19 @@ namespace AssortedWidgets
 
 		void DialogManager::importMouseReleased(int mx,int my)
 		{
-			if(modalDialog)
+            if(m_modalDialog)
 			{
-				if(modalDialog->isIn(mx,my))
+                if(m_modalDialog->isIn(mx,my))
 				{
-					Event::MouseEvent event(modalDialog,Event::MouseEvent::MOUSE_RELEASED,mx,my,0);
-					modalDialog->processMouseReleased(event);
+                    Event::MouseEvent event(m_modalDialog,Event::MouseEvent::MOUSE_RELEASED,mx,my,0);
+                    m_modalDialog->processMouseReleased(event);
 				}
 			}
 			else
 			{
-				if(!modelessDialog.empty())
+                if(!m_modelessDialog.empty())
 				{
-					Widgets::Dialog *currentActive=modelessDialog[modelessDialog.size()-1];
+                    Widgets::Dialog *currentActive=m_modelessDialog[m_modelessDialog.size()-1];
 					if(currentActive->isActive())
 					{
 						if(currentActive->isIn(mx,my))
@@ -220,13 +221,13 @@ namespace AssortedWidgets
 		void DialogManager::paint()
 		{
 			std::vector<Widgets::Dialog*>::iterator iter;
-			for(iter=modelessDialog.begin();iter<modelessDialog.end();++iter)
+            for(iter=m_modelessDialog.begin();iter<m_modelessDialog.end();++iter)
 			{
 				(*iter)->paint();
 			}
-			if(modalDialog)
+            if(m_modalDialog)
 			{
-				modalDialog->paint();
+                m_modalDialog->paint();
 			}
 		}
 	}

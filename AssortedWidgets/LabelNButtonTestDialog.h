@@ -11,10 +11,10 @@ namespace AssortedWidgets
 		class LabelNButtonTestDialog:public Widgets::Dialog
 		{
 		private:
-			Layout::GirdLayout *girdLayout;
-			Widgets::Button *testButton;
-			Widgets::Button *closeButton;
-			Widgets::Label *testLabel;
+            Layout::GirdLayout *m_girdLayout;
+            Widgets::Button *m_testButton;
+            Widgets::Button *m_closeButton;
+            Widgets::Label *m_testLabel;
 
 		public:
 			LabelNButtonTestDialog(void);

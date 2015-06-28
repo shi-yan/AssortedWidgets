@@ -14,16 +14,16 @@ namespace AssortedWidgets
 		class CheckNRadioTestDialog:public Widgets::Dialog
 		{
 		private:
-			Layout::GirdLayout *girdLayout;
-			Widgets::Button *closeButton;
-			Widgets::CheckButton *checkButton1;
-			Widgets::CheckButton *checkButton2;
-			Widgets::CheckButton *checkButton3;
-			Widgets::RadioButton *radioButton1;
-			Widgets::RadioButton *radioButton2;
-			Widgets::RadioButton *radioButton3;
-			Widgets::RadioGroup *radioGroup;
-			Widgets::Spacer *spacer;
+            Layout::GirdLayout *m_girdLayout;
+            Widgets::Button *m_closeButton;
+            Widgets::CheckButton *m_checkButton1;
+            Widgets::CheckButton *m_checkButton2;
+            Widgets::CheckButton *m_checkButton3;
+            Widgets::RadioButton *m_radioButton1;
+            Widgets::RadioButton *m_radioButton2;
+            Widgets::RadioButton *m_radioButton3;
+            Widgets::RadioGroup *m_radioGroup;
+            Widgets::Spacer *m_spacer;
 		public:
 			CheckNRadioTestDialog(void);
 			void onClose(const Event::MouseEvent &e);

@@ -114,7 +114,7 @@ namespace AssortedWidgets
 				std::vector<DropListItem*>::iterator iter;
                 for(iter=m_itemList.begin(); iter<m_itemList.end();++iter)
 				{
-					miniSize=std::max<unsigned int>((*iter)->getPreferedSize().width,miniSize);
+                    miniSize=std::max<unsigned int>((*iter)->getPreferedSize().m_width,miniSize);
 				}
 				return Util::Size(miniSize+23,20);
             }

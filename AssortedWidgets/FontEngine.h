@@ -9,9 +9,10 @@ namespace AssortedWidgets
 		class FontEngine
 		{
 		private:
-			FreeTypeFont freeTypeFont;
-			FontEngine(void):freeTypeFont("arial.ttf",10)
-			{};
+            FreeTypeFont m_freeTypeFont;
+            FontEngine(void)
+                :m_freeTypeFont("arial.ttf", 10)
+            {}
 		public:
 			static FontEngine &getSingleton()
 			{
@@ -20,8 +21,8 @@ namespace AssortedWidgets
 			}
 			FreeTypeFont &getFont()
 			{
-				return freeTypeFont;
-			};
+                return m_freeTypeFont;
+            }
 		private:
 			~FontEngine(void);
 		};

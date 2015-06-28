@@ -9,8 +9,11 @@ namespace AssortedWidgets
 		class KeyEvent : public Event
 		{
 		public:
-			KeyEvent(Widgets::Component* _source, int _type, int _keyCode, int _modifiers):Event(_source,_type),keyCode(_keyCode),modifiers(_modifiers)
-			{};
+            KeyEvent(Widgets::Component* _source, int _type, int _keyCode, int _modifiers)
+                :Event(_source,_type),
+                  m_keyCode(_keyCode),
+                  m_modifiers(_modifiers)
+            {}
 
 			enum KeyEventTypes
 			{
@@ -190,16 +193,17 @@ namespace AssortedWidgets
 
 			int getKeyCode() const
 			{
-				return keyCode;
-			};
+                return m_keyCode;
+            }
 
 			int getModifier() const
 			{
-				return modifiers;
-			};
+                return m_modifiers;
+            }
 
 		private:
-			int keyCode, modifiers;
+            int m_keyCode;
+            int m_modifiers;
 		};
 	}
 }

@@ -6,41 +6,41 @@ namespace AssortedWidgets
 	{
 		PanelTestDialog::PanelTestDialog(void):Dialog("Scroll Panel Test:",400,400,320,240)
 		{
-			girdLayout=new Layout::GirdLayout(2,1);
-			girdLayout->setRight(16);
-			girdLayout->setLeft(16);
-			girdLayout->setTop(8);
-			girdLayout->setBottom(8);
-			girdLayout->setSpacer(4);
+            m_girdLayout=new Layout::GirdLayout(2,1);
+            m_girdLayout->setRight(16);
+            m_girdLayout->setLeft(16);
+            m_girdLayout->setTop(8);
+            m_girdLayout->setBottom(8);
+            m_girdLayout->setSpacer(4);
 
-			girdLayout->setHorizontalAlignment(1,0,Layout::GirdLayout::HRight);
+            m_girdLayout->setHorizontalAlignment(1,0,Layout::GirdLayout::HRight);
 
-			closeButton=new Widgets::Button("Close");
-			label=new Widgets::Label("I am a very very big Label in a Scroll Panel.");
-            label->m_size.height=label->m_size.width=500;
-			panel=new Widgets::ScrollPanel();
-			panel->setContent(label);
+            m_closeButton=new Widgets::Button("Close");
+            m_label=new Widgets::Label("I am a very very big Label in a Scroll Panel.");
+            m_label->m_size.m_height=m_label->m_size.m_width=500;
+            m_panel=new Widgets::ScrollPanel();
+            m_panel->setContent(m_label);
 
-			setLayout(girdLayout);
-			add(panel);
-			add(closeButton);
+            setLayout(m_girdLayout);
+            add(m_panel);
+            add(m_closeButton);
 
             pack();
 
-            closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(PanelTestDialog::onClose));
+            m_closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(PanelTestDialog::onClose));
 		}
 
-        void PanelTestDialog::onClose(const Event::MouseEvent &e)
+        void PanelTestDialog::onClose(const Event::MouseEvent &)
 		{
 			Close();
 		}
 
 		PanelTestDialog::~PanelTestDialog(void)
 		{
-			delete closeButton;
-			delete label;
-			delete panel;
-			delete girdLayout;
+            delete m_closeButton;
+            delete m_label;
+            delete m_panel;
+            delete m_girdLayout;
 		}
 	}
 }

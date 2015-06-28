@@ -18,44 +18,44 @@ namespace AssortedWidgets
 				Vertical
 			};
 		private:
-			ScrollBarButton *min;
-			ScrollBarButton *max;
-			ScrollBarSlider *slider;
-			ScrollPanel *parent;
-			int type;
-			float value;
+            ScrollBarButton *m_min;
+            ScrollBarButton *m_max;
+            ScrollBarSlider *m_slider;
+            ScrollPanel *m_parent;
+            int m_type;
+            float m_value;
 		public:
 			void setScrollPanel(ScrollPanel *_parent)
 			{
-				parent=_parent;
-			};
+                m_parent=_parent;
+            }
 			void onValueChanged();
 			ScrollBar(int _type);
-			float getValue()
+            float getValue() const
 			{
-				return value;
+                return m_value;
 			}
 			void setValue(float _value)
 			{
-				value=_value;
+                m_value=_value;
 			//	printf("%f",value);
 			}
-			int getType()
+            int getType() const
 			{
-				return type;
-			};
+                return m_type;
+            }
 			Util::Size getPreferedSize()
 			{
-				if(type==Horizontal)
+                if(m_type==Horizontal)
 				{
 					return Util::Size(40,15);
 				}
-				else if(type==Vertical)
+                else if(m_type==Vertical)
 				{
 					return Util::Size(15,40);
 				}
 				return Util::Size();
-			};
+            }
 			void paint();
 			void mousePressed(const Event::MouseEvent &e);
 			void mouseReleased(const Event::MouseEvent &e);

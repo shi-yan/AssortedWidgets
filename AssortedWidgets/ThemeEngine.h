@@ -41,10 +41,11 @@ namespace AssortedWidgets
 		class Theme
 		{
 		protected:
-			unsigned int screenWidth;
-			unsigned int screenHeight;
+            unsigned int m_screenWidth;
+            unsigned int m_screenHeight;
 
 		public:
+            virtual ~Theme(){}
 			virtual void setup()=0;
 			virtual void test()=0;
 			virtual void uninstall()=0;

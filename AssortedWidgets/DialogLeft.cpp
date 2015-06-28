@@ -9,28 +9,28 @@ namespace AssortedWidgets
 		{
             m_position.x=x;
             m_position.y=y;
-            m_size.width=width;
-            m_size.height=height;
+            m_size.m_width=width;
+            m_size.m_height=height;
 		}
 
 		DialogLeft::~DialogLeft(void)
 		{
 		}
 
-		void DialogLeft::dragReleased(const Event::MouseEvent &e)
+        void DialogLeft::dragReleased(const Event::MouseEvent &)
 		{}
 
-		void DialogLeft::dragMoved(int offsetX,int offsetY)
+        void DialogLeft::dragMoved(int offsetX, int )
 		{
-			Util::Size minimize=parent->getPreferedSize();
+            Util::Size minimize = m_parent->getPreferedSize();
 			
-            if((parent->m_size.width-offsetX)>minimize.width)
+            if((m_parent->m_size.m_width-offsetX)>minimize.m_width)
 			{
-                parent->m_position.x+=offsetX;
-                parent->m_size.width-=offsetX;
+                m_parent->m_position.x+=offsetX;
+                m_parent->m_size.m_width-=offsetX;
 			}
 
-			parent->pack();
+            m_parent->pack();
 		}
 	}
 }

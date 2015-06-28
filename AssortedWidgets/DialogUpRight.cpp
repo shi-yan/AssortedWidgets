@@ -9,8 +9,8 @@ namespace AssortedWidgets
 		{
             m_position.x=x;
             m_position.y=y;
-            m_size.width=width;
-            m_size.height=height;
+            m_size.m_width=width;
+            m_size.m_height=height;
 		}
 
 		DialogUpRight::~DialogUpRight(void)
@@ -22,20 +22,20 @@ namespace AssortedWidgets
 
 		void DialogUpRight::dragMoved(int offsetX,int offsetY)
 		{
-			Util::Size minimize=parent->getPreferedSize();
+            Util::Size minimize=m_parent->getPreferedSize();
 			
-            if((parent->m_size.width+offsetX)>minimize.width)
+            if((m_parent->m_size.m_width+offsetX)>minimize.m_width)
 			{
-                parent->m_size.width+=offsetX;
+                m_parent->m_size.m_width+=offsetX;
 			}
 			
-            if((parent->m_size.height-offsetY)>minimize.height)
+            if((m_parent->m_size.m_height-offsetY)>minimize.m_height)
 			{
-                parent->m_position.y+=offsetY;
-                parent->m_size.height-=offsetY;
+                m_parent->m_position.y+=offsetY;
+                m_parent->m_size.m_height-=offsetY;
 			}
 			
-			parent->pack();
+            m_parent->pack();
 		}
 	}
 }

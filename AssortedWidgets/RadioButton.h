@@ -9,34 +9,35 @@ namespace AssortedWidgets
 		class RadioButton: public AbstractButton
 		{
 		private:
-			std::string text;
-			bool check;
-			RadioGroup *group;
+            std::string m_text;
+            bool m_check;
+            RadioGroup *m_group;
 		public:
-			bool isCheck()
+            bool isCheck() const
 			{
-				return check;
-			};
+                return m_check;
+            }
 
 			void checkOff()
 			{
-				check=false;
-			};
+                m_check=false;
+            }
 
 			void checkOn()
 			{
-				check=true;
-			};
+                m_check=true;
+            }
+
 			void mouseReleased(const Event::MouseEvent &e);
             const std::string& getText() const
 			{
-				return text;
+                return m_text;
             }
 
 			void setText(std::string &_text)
 			{
-				text=_text;
-			};
+                m_text=_text;
+            }
 
 			RadioButton(std::string &_text,RadioGroup *_group);
 			RadioButton(char *_text,RadioGroup *_group);
@@ -44,11 +45,11 @@ namespace AssortedWidgets
 			Util::Size getPreferedSize()
 			{
 				return Theme::ThemeEngine::getSingleton().getTheme().getRadioButtonPreferedSize(this);
-			};
+            }
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintRadioButton(this);
-			};
+            }
 		public:
 			~RadioButton(void);
 		};

@@ -8,14 +8,23 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		ScrollPanel::ScrollPanel(void):content(0),offsetX(0),offsetY(0),horizontalScrollStyle(Auto),verticalScrollStyle(Auto),offsetXMax(0),offsetYMax(0),horizontalBarShow(false),verticalBarShow(false)
+        ScrollPanel::ScrollPanel(void)
+            :m_content(0),
+              m_offsetX(0),
+              m_offsetY(0),
+              m_horizontalScrollStyle(Auto),
+              m_verticalScrollStyle(Auto),
+              m_offsetXMax(0),
+              m_offsetYMax(0),
+              m_horizontalBarShow(false),
+              m_verticalBarShow(false)
 		{
-			horizontalBar=new ScrollBar(ScrollBar::Horizontal);
-			verticalBar=new ScrollBar(ScrollBar::Vertical);
+            m_horizontalBar=new ScrollBar(ScrollBar::Horizontal);
+            m_verticalBar=new ScrollBar(ScrollBar::Vertical);
 			setHorizontalStyle(Element::Stretch);
 			setVerticalStyle(Element::Stretch);
-			horizontalBar->setScrollPanel(this);
-			verticalBar->setScrollPanel(this);
+            m_horizontalBar->setScrollPanel(this);
+            m_verticalBar->setScrollPanel(this);
 
             mousePressedHandlerList.push_back(MOUSE_DELEGATE(ScrollPanel::mousePressed));
             mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ScrollPanel::mouseReleased));
@@ -28,39 +37,39 @@ namespace AssortedWidgets
 
 		void ScrollPanel::mouseEntered(const Event::MouseEvent &e)
 		{
-			isHover=true;
+            m_isHover=true;
             int mx=e.getX()-m_position.x;
             int my=e.getY()-m_position.y;
-			if(verticalBar->isIn(mx,my))
+            if(m_verticalBar->isIn(mx,my))
 			{
-				Event::MouseEvent event(verticalBar,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
-				verticalBar->processMouseEntered(event);
+                Event::MouseEvent event(m_verticalBar,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
+                m_verticalBar->processMouseEntered(event);
 				return;
 			}
-			else if(horizontalBar->isIn(mx,my))
+            else if(m_horizontalBar->isIn(mx,my))
 			{
-				Event::MouseEvent event(horizontalBar,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
-				horizontalBar->processMouseEntered(event);
+                Event::MouseEvent event(m_horizontalBar,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
+                m_horizontalBar->processMouseEntered(event);
 				return;			
 			}
 		}
 
 		void ScrollPanel::onValueChanged(ScrollBar *scrollBar)
 		{
-			if(scrollBar==horizontalBar)
+            if(scrollBar==m_horizontalBar)
 			{
-				offsetX=static_cast<unsigned int>(offsetXMax*scrollBar->getValue());
-				if(content)
+                m_offsetX=static_cast<unsigned int>(m_offsetXMax*scrollBar->getValue());
+                if(m_content)
 				{
-                    content->m_position.x=-static_cast<int>(offsetX);
+                    m_content->m_position.x=-static_cast<int>(m_offsetX);
 				}
 			}
-			else if(scrollBar==verticalBar)
+            else if(scrollBar==m_verticalBar)
 			{
-				offsetY=static_cast<unsigned int>(offsetYMax*scrollBar->getValue());
-				if(content)
+                m_offsetY=static_cast<unsigned int>(m_offsetYMax*scrollBar->getValue());
+                if(m_content)
 				{
-                    content->m_position.y=-static_cast<int>(offsetY);
+                    m_content->m_position.y=-static_cast<int>(m_offsetY);
 				}
 			}
 		}
@@ -69,52 +78,52 @@ namespace AssortedWidgets
 		{
             int mx=e.getX()-m_position.x;
             int my=e.getY()-m_position.y;
-			if(verticalBar->isIn(mx,my))
+            if(m_verticalBar->isIn(mx,my))
 			{
-				if(verticalBar->isHover)
+                if(m_verticalBar->m_isHover)
 				{
-					Event::MouseEvent event(verticalBar,Event::MouseEvent::MOUSE_MOTION,mx,my,0);
-					verticalBar->processMouseMoved(event);
+                    Event::MouseEvent event(m_verticalBar,Event::MouseEvent::MOUSE_MOTION,mx,my,0);
+                    m_verticalBar->processMouseMoved(event);
 					return;
 				}
 				else
 				{
-					Event::MouseEvent event(verticalBar,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
-					verticalBar->processMouseEntered(event);
+                    Event::MouseEvent event(m_verticalBar,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
+                    m_verticalBar->processMouseEntered(event);
 					return;
 				}
 			}
 			else
 			{
-				if(verticalBar->isHover)
+                if(m_verticalBar->m_isHover)
 				{
-					Event::MouseEvent event(verticalBar,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
-					verticalBar->processMouseExited(event);
+                    Event::MouseEvent event(m_verticalBar,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
+                    m_verticalBar->processMouseExited(event);
 					return;				
 				}
 			}
 
-			if(horizontalBar->isIn(mx,my))
+            if(m_horizontalBar->isIn(mx,my))
 			{
-				if(horizontalBar->isHover)
+                if(m_horizontalBar->m_isHover)
 				{
-					Event::MouseEvent event(horizontalBar,Event::MouseEvent::MOUSE_MOTION,mx,my,0);
-					horizontalBar->processMouseMoved(event);
+                    Event::MouseEvent event(m_horizontalBar,Event::MouseEvent::MOUSE_MOTION,mx,my,0);
+                    m_horizontalBar->processMouseMoved(event);
 					return;			
 				}
 				else
 				{
-					Event::MouseEvent event(horizontalBar,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
-					horizontalBar->processMouseEntered(event);
+                    Event::MouseEvent event(m_horizontalBar,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
+                    m_horizontalBar->processMouseEntered(event);
 					return;			
 				}
 			}	
 			else
 			{
-				if(horizontalBar->isHover)
+                if(m_horizontalBar->m_isHover)
 				{
-					Event::MouseEvent event(horizontalBar,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
-					horizontalBar->processMouseExited(event);
+                    Event::MouseEvent event(m_horizontalBar,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
+                    m_horizontalBar->processMouseExited(event);
 					return;					
 				}
 			}
@@ -122,19 +131,19 @@ namespace AssortedWidgets
 
 		void ScrollPanel::mouseExited(const Event::MouseEvent &e)
 		{
-			isHover=false;
+            m_isHover=false;
             int mx=e.getX()-m_position.x;
             int my=e.getY()-m_position.y;
-			if(verticalBar->isHover)
+            if(m_verticalBar->m_isHover)
 			{
-				Event::MouseEvent event(verticalBar,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
-				verticalBar->processMouseExited(event);
+                Event::MouseEvent event(m_verticalBar,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
+                m_verticalBar->processMouseExited(event);
 				return;
 			}
-			else if(horizontalBar->isHover)
+            else if(m_horizontalBar->m_isHover)
 			{
-				Event::MouseEvent event(horizontalBar,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
-				horizontalBar->processMouseExited(event);
+                Event::MouseEvent event(m_horizontalBar,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
+                m_horizontalBar->processMouseExited(event);
 				return;			
 			}	
 		}
@@ -143,16 +152,16 @@ namespace AssortedWidgets
 		{
             int mx=e.getX()-m_position.x;
             int my=e.getY()-m_position.y;
-			if(verticalBar->isIn(mx,my))
+            if(m_verticalBar->isIn(mx,my))
 			{
-				Event::MouseEvent event(verticalBar,Event::MouseEvent::MOUSE_RELEASED,mx,my,0);
-				verticalBar->processMouseReleased(event);
+                Event::MouseEvent event(m_verticalBar,Event::MouseEvent::MOUSE_RELEASED,mx,my,0);
+                m_verticalBar->processMouseReleased(event);
 				return;
 			}
-			else if(horizontalBar->isIn(mx,my))
+            else if(m_horizontalBar->isIn(mx,my))
 			{
-				Event::MouseEvent event(horizontalBar,Event::MouseEvent::MOUSE_RELEASED,mx,my,0);
-				horizontalBar->processMouseReleased(event);
+                Event::MouseEvent event(m_horizontalBar,Event::MouseEvent::MOUSE_RELEASED,mx,my,0);
+                m_horizontalBar->processMouseReleased(event);
 				return;			
 			}
 		}
@@ -161,62 +170,62 @@ namespace AssortedWidgets
 		{
             int mx=e.getX()-m_position.x;
             int my=e.getY()-m_position.y;
-			if(verticalBar->isIn(mx,my))
+            if(m_verticalBar->isIn(mx,my))
 			{
-				Event::MouseEvent event(verticalBar,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
-				verticalBar->processMousePressed(event);
+                Event::MouseEvent event(m_verticalBar,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
+                m_verticalBar->processMousePressed(event);
 				return;
 			}
-			else if(horizontalBar->isIn(mx,my))
+            else if(m_horizontalBar->isIn(mx,my))
 			{
-				Event::MouseEvent event(horizontalBar,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
-				horizontalBar->processMousePressed(event);
+                Event::MouseEvent event(m_horizontalBar,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
+                m_horizontalBar->processMousePressed(event);
 				return;			
 			}
 		}
 
 		void ScrollPanel::pack()
 		{
-            scissorWidth=m_size.width-2;
-            scissorHeight=m_size.height-2;
-			if(content)
+            m_scissorWidth=m_size.m_width-2;
+            m_scissorHeight=m_size.m_height-2;
+            if(m_content)
 			{
-                if(content->m_size.width>m_size.width-17 && horizontalScrollStyle==Auto)
+                if(m_content->m_size.m_width>m_size.m_width-17 && m_horizontalScrollStyle==Auto)
 				{
-					horizontalBarShow=true;
-					scissorWidth-=18;
-                    horizontalBar->m_position.x=2;
-                    horizontalBar->m_position.y=m_size.height-16;
-                    horizontalBar->m_size.width=m_size.width-18;
-					horizontalBar->pack();
+                    m_horizontalBarShow=true;
+                    m_scissorWidth-=18;
+                    m_horizontalBar->m_position.x=2;
+                    m_horizontalBar->m_position.y=m_size.m_height-16;
+                    m_horizontalBar->m_size.m_width=m_size.m_width-18;
+                    m_horizontalBar->pack();
 				}
 				else
 				{
-					horizontalBar->setValue(0);
-					horizontalBarShow=false;
+                    m_horizontalBar->setValue(0);
+                    m_horizontalBarShow=false;
 				}
 
-                if(content->m_size.height>m_size.height-17 && verticalScrollStyle==Auto)
+                if(m_content->m_size.m_height>m_size.m_height-17 && m_verticalScrollStyle==Auto)
 				{
-					verticalBarShow=true;
-					scissorHeight-=18;
-                    verticalBar->m_position.x=m_size.width-16;
-                    verticalBar->m_position.y=2;
-                    verticalBar->m_size.height=m_size.height-18;
-					verticalBar->pack();
+                    m_verticalBarShow=true;
+                    m_scissorHeight-=18;
+                    m_verticalBar->m_position.x=m_size.m_width-16;
+                    m_verticalBar->m_position.y=2;
+                    m_verticalBar->m_size.m_height=m_size.m_height-18;
+                    m_verticalBar->pack();
 				}
 				else
 				{
-					verticalBar->setValue(0);
-					verticalBarShow=false;
+                    m_verticalBar->setValue(0);
+                    m_verticalBarShow=false;
 				}
 
-                offsetXMax=std::max<unsigned int>(content->m_size.width-(m_size.width-17),0);
-                offsetYMax=std::max<unsigned int>(content->m_size.height-(m_size.height-17),0);
-				offsetX=static_cast<unsigned int>(offsetXMax*horizontalBar->getValue());
-                content->m_position.x=-static_cast<int>(offsetX);
-				offsetY=static_cast<int>(offsetYMax*verticalBar->getValue());
-                content->m_position.y=-static_cast<int>(offsetY);
+                m_offsetXMax=std::max<unsigned int>(m_content->m_size.m_width-(m_size.m_width-17),0);
+                m_offsetYMax=std::max<unsigned int>(m_content->m_size.m_height-(m_size.m_height-17),0);
+                m_offsetX=static_cast<unsigned int>(m_offsetXMax*m_horizontalBar->getValue());
+                m_content->m_position.x=-static_cast<int>(m_offsetX);
+                m_offsetY=static_cast<int>(m_offsetYMax*m_verticalBar->getValue());
+                m_content->m_position.y=-static_cast<int>(m_offsetY);
 			}
 		}
 
@@ -226,20 +235,20 @@ namespace AssortedWidgets
             Util::Position p(m_position);
             Util::Graphics::getSingleton().pushPosition(p);
 
-			if(horizontalBarShow)
+            if(m_horizontalBarShow)
 			{
-				horizontalBar->paint();
+                m_horizontalBar->paint();
 			}
-			if(verticalBarShow)
+            if(m_verticalBarShow)
 			{
-				verticalBar->paint();
+                m_verticalBar->paint();
 			}
 			Util::Position sPosition(2,2);
-			Util::Size sArea(scissorWidth,scissorHeight);
+            Util::Size sArea(m_scissorWidth,m_scissorHeight);
 			Theme::ThemeEngine::getSingleton().getTheme().scissorBegin(sPosition,sArea);
-			if(content)
+            if(m_content)
 			{
-				content->paint();
+                m_content->paint();
 			}
 			Theme::ThemeEngine::getSingleton().getTheme().scissorEnd();
 			Util::Graphics::getSingleton().popPosition();
@@ -247,8 +256,8 @@ namespace AssortedWidgets
 
 		ScrollPanel::~ScrollPanel(void)
 		{
-			delete horizontalBar;
-			delete verticalBar;
+            delete m_horizontalBar;
+            delete m_verticalBar;
 		}
 	}
 }

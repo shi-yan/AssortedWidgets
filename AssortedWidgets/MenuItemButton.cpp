@@ -38,26 +38,26 @@ namespace AssortedWidgets
 		{
 		}
 
-		void MenuItemButton::mousePressed(const Event::MouseEvent &e)
+        void MenuItemButton::mousePressed(const Event::MouseEvent &)
 		{
             m_status=pressed;
         }
 		
-		void MenuItemButton::mouseEntered(const Event::MouseEvent &e)
+        void MenuItemButton::mouseEntered(const Event::MouseEvent &)
 		{
-			isHover=true;
+            m_isHover=true;
             m_status=hover;
         }
 
-		void MenuItemButton::mouseReleased(const Event::MouseEvent &e)
+        void MenuItemButton::mouseReleased(const Event::MouseEvent &)
 		{
             m_status=normal;
 			MenuBar::getSingleton().setShrink();
         }
 
-		void MenuItemButton::mouseExited(const Event::MouseEvent &e)
+        void MenuItemButton::mouseExited(const Event::MouseEvent &)
 		{
-			isHover=false;
+            m_isHover=false;
             m_status=normal;
         }
 	}

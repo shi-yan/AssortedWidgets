@@ -25,8 +25,8 @@ namespace AssortedWidgets
 		{
             m_position.x=x;
             m_position.y=y;
-            m_size.width=width;
-            m_size.height=height;
+            m_size.m_width=width;
+            m_size.m_height=height;
             m_tittleBar.setDialog(this);
             m_borderUpLeft.setParent(this);
             m_borderUpRight.setParent(this);
@@ -65,8 +65,8 @@ namespace AssortedWidgets
 		{
             m_position.x=x;
             m_position.y=y;
-            m_size.width=width;
-            m_size.height=height;
+            m_size.m_width=width;
+            m_size.m_height=height;
             m_tittleBar.setDialog(this);
             m_borderUpLeft.setParent(this);
             m_borderUpRight.setParent(this);
@@ -100,7 +100,7 @@ namespace AssortedWidgets
 
 		void Dialog::mouseEntered(const Event::MouseEvent &e)
 		{
-			isHover=true;
+            m_isHover=true;
             int mx=e.getX()-m_position.x;
             int my=e.getY()-m_position.y;
 			std::vector<Element*>::iterator iter;
@@ -117,13 +117,13 @@ namespace AssortedWidgets
 
 		void Dialog::mouseExited(const Event::MouseEvent &e)
 		{
-			isHover=false;
+            m_isHover=false;
             int mx=e.getX()-m_position.x;
             int my=e.getY()-m_position.y;
 			std::vector<Element*>::iterator iter;
 			for(iter=childList.begin();iter<childList.end();++iter)
 			{
-				if((*iter)->isHover)
+                if((*iter)->m_isHover)
 				{
 					Event::MouseEvent event((*iter),Event::MouseEvent::MOUSE_EXITED,mx,my,0);
 					(*iter)->processMouseExited(event);
@@ -141,7 +141,7 @@ namespace AssortedWidgets
 			{
 				if((*iter)->isIn(mx,my))
 				{
-					if((*iter)->isHover)
+                    if((*iter)->m_isHover)
 					{
 						Event::MouseEvent event((*iter),Event::MouseEvent::MOUSE_MOTION,mx,my,0);
 						(*iter)->processMouseMoved(event);
@@ -156,7 +156,7 @@ namespace AssortedWidgets
 				}
 				else
 				{
-					if((*iter)->isHover)
+                    if((*iter)->m_isHover)
 					{
 						Event::MouseEvent event((*iter),Event::MouseEvent::MOUSE_EXITED,mx,my,0);
 						(*iter)->processMouseExited(event);
@@ -263,25 +263,25 @@ namespace AssortedWidgets
 		{
             m_tittleBar.m_position.x=m_left;
             m_tittleBar.m_position.y=m_top;
-            m_tittleBar.m_size.width=m_size.width-m_left-m_right;
-            m_tittleBar.m_size.height=20;
+            m_tittleBar.m_size.m_width=m_size.m_width-m_left-m_right;
+            m_tittleBar.m_size.m_height=20;
 
-            m_borderUpRight.m_position.x=m_size.width-13;
-            m_borderUp.m_size.width=m_size.width-26;
-            m_borderLeft.m_size.height=m_size.height-27;
-            m_borderRight.m_position.x=m_size.width-13;
-            m_borderRight.m_size.height=m_size.height-27;
+            m_borderUpRight.m_position.x=m_size.m_width-13;
+            m_borderUp.m_size.m_width=m_size.m_width-26;
+            m_borderLeft.m_size.m_height=m_size.m_height-27;
+            m_borderRight.m_position.x=m_size.m_width-13;
+            m_borderRight.m_size.m_height=m_size.m_height-27;
 
-            m_borderBottomLeft.m_position.y=m_size.height-15;
+            m_borderBottomLeft.m_position.y=m_size.m_height-15;
 			
-            m_borderBottom.m_position.y=m_size.height-15;
-            m_borderBottom.m_size.width=m_size.width-26;
+            m_borderBottom.m_position.y=m_size.m_height-15;
+            m_borderBottom.m_size.m_width=m_size.m_width-26;
 			
-            m_borderBottomRight.m_position.x=m_size.width-13;
-            m_borderBottomRight.m_position.y=m_size.height-15;
+            m_borderBottomRight.m_position.x=m_size.m_width-13;
+            m_borderBottomRight.m_position.y=m_size.m_height-15;
 
-            m_contentPosition=Util::Position(m_left,(m_top+m_tittleBar.m_size.height+2));
-            m_contentSize=Util::Size(m_size.width-m_left-m_right,m_size.height-m_top-m_bottom-2-m_tittleBar.m_size.height);
+            m_contentPosition=Util::Position(m_left,(m_top+m_tittleBar.m_size.m_height+2));
+            m_contentSize=Util::Size(m_size.m_width-m_left-m_right,m_size.m_height-m_top-m_bottom-2-m_tittleBar.m_size.m_height);
 
 
 			//contentSize=Util::Size(100,100);

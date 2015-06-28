@@ -9,12 +9,12 @@ namespace AssortedWidgets
 		class RadioGroup
 		{
 		private:
-			RadioButton *currentChecked;
+            RadioButton *m_currentChecked;
 		public:
 			RadioButton* getChecked()
 			{
-				return currentChecked;
-			};
+                return m_currentChecked;
+            }
 
 			void setCheck(RadioButton *_currentChecked);
 		
