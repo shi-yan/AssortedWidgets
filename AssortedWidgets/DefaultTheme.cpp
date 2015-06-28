@@ -146,10 +146,10 @@ namespace AssortedWidgets
 		{
 			if(component->isExpand())
 			{
-				float x1=static_cast<float>(component->position.x);
-				float y1=static_cast<float>(component->position.y);
-				float x2=static_cast<float>(component->position.x+component->size.width);
-				float y2=static_cast<float>(component->position.y+component->size.height);
+                float x1=static_cast<float>(component->m_position.x);
+                float y1=static_cast<float>(component->m_position.y);
+                float x2=static_cast<float>(component->m_position.x+component->m_size.width);
+                float y2=static_cast<float>(component->m_position.y+component->m_size.height);
 				glDisable(GL_TEXTURE_2D);
 				glColor3ub(44,55,55);
 				glBegin(GL_QUADS);
@@ -171,10 +171,10 @@ namespace AssortedWidgets
 				{
 					case Widgets::Menu::hover :
 					{
-						float x1=static_cast<float>(component->position.x);
-						float y1=static_cast<float>(component->position.y);
-						float x2=static_cast<float>(component->position.x+component->size.width);
-						float y2=static_cast<float>(component->position.y+component->size.height);
+                        float x1=static_cast<float>(component->m_position.x);
+                        float y1=static_cast<float>(component->m_position.y);
+                        float x2=static_cast<float>(component->m_position.x+component->m_size.width);
+                        float y2=static_cast<float>(component->m_position.y+component->m_size.height);
 						glDisable(GL_TEXTURE_2D);
 						glColor3ub(44,55,55);
 						glBegin(GL_QUADS);
@@ -193,16 +193,16 @@ namespace AssortedWidgets
 					}
 					case Widgets::Menu::normal:
 					{
-						float x1=static_cast<float>(component->position.x);
-						float y1=static_cast<float>(component->position.y);
+                        float x1=static_cast<float>(component->m_position.x);
+                        float y1=static_cast<float>(component->m_position.y);
 						glColor3ub(150,155,161);
 						Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(x1+6),static_cast<int>(y1+6),component->getText());
 						break;
 					}
 					case Widgets::Menu::pressed:
 					{
-						float x1=static_cast<float>(component->position.x);
-						float y1=static_cast<float>(component->position.y);
+                        float x1=static_cast<float>(component->m_position.x);
+                        float y1=static_cast<float>(component->m_position.y);
 						glColor3ub(250,250,250);
 						Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(x1+6),static_cast<int>(y1+6),component->getText());
 						break;
@@ -213,14 +213,14 @@ namespace AssortedWidgets
 
 		Util::Size DefaultTheme::getMenuBarPreferedSize(Widgets::MenuBar *component)
 		{
-			return Util::Size(component->size.width,30);
+            return Util::Size(component->m_size.width,30);
         }
 
 		void DefaultTheme::paintMenuBar(Widgets::MenuBar *component)
 		{
 			float x1=0.0f;
 			float y1=0.0f;
-			float x2=static_cast<float>(component->size.width);
+            float x2=static_cast<float>(component->m_size.width);
 			float y2=30.0f;
 			glDisable(GL_TEXTURE_2D);
 			glBegin(GL_QUADS);
@@ -257,10 +257,10 @@ namespace AssortedWidgets
 		void DefaultTheme::paintMenuList(Widgets::MenuList *component)
 		{
 			Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-			float x1=static_cast<float>(origin.x+component->position.x);
-			float y1=static_cast<float>(origin.y+component->position.y);
-			float x2=static_cast<float>(x1+component->size.width);
-			float y2=static_cast<float>(y1+component->size.height);
+            float x1=static_cast<float>(origin.x+component->m_position.x);
+            float y1=static_cast<float>(origin.y+component->m_position.y);
+            float x2=static_cast<float>(x1+component->m_size.width);
+            float y2=static_cast<float>(y1+component->m_size.height);
 			glEnable(GL_TEXTURE_2D);
 			glColor3ub(255,255,255);
 			MenuListUpLeft->paint(x1,y1,x1+24.0f,y1+9.0f);
@@ -289,7 +289,7 @@ namespace AssortedWidgets
 
 		Util::Size DefaultTheme::getMenuItemSeparatorPreferedSize(Widgets::MenuItemSeparator *component)
 		{
-			return Util::Size(component->size);
+            return Util::Size(component->m_size);
         }
 
 		void DefaultTheme::paintMenuItemSeparator(Widgets::MenuItemSeparator *component)
@@ -298,8 +298,8 @@ namespace AssortedWidgets
 			glDisable(GL_TEXTURE_2D);
 			glColor3ub(79,91,84);
 			glBegin(GL_LINES);
-			glVertex2f(static_cast<float>(10+origin.x+component->position.x),static_cast<float>(origin.y+component->position.y+1));
-			glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-10),static_cast<float>(origin.y+component->position.y+1));
+            glVertex2f(static_cast<float>(10+origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y+1));
+            glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-10),static_cast<float>(origin.y+component->m_position.y+1));
 			glEnd();
         }
 
@@ -311,13 +311,13 @@ namespace AssortedWidgets
 				case Widgets::MenuItemButton::normal:
 				{
 					glColor3ub(255,255,255);
-					Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
+                    Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 					break;
 				};
 				case Widgets::MenuItemButton::pressed:
 				{
 					glColor3ub(200,200,200);
-					Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
+                    Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 					break;
 				};
 				case Widgets::MenuItemButton::hover:
@@ -325,13 +325,13 @@ namespace AssortedWidgets
 					glDisable(GL_TEXTURE_2D);
 					glColor3ub(176,200,28);
 					glBegin(GL_QUADS);
-					glVertex2f(static_cast<float>(component->position.x+origin.x),static_cast<float>(origin.y+component->position.y));
-					glVertex2f(static_cast<float>(component->position.x+origin.x+component->size.width),static_cast<float>(origin.y+component->position.y));
-					glVertex2f(static_cast<float>(component->position.x+origin.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
-					glVertex2f(static_cast<float>(component->position.x+origin.x),static_cast<float>(origin.y+component->position.y+component->size.height));
+                    glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y));
+                    glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y));
+                    glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
+                    glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
 					glEnd();
 					glColor3ub(88,101,9);
-					Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
+                    Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 					break;
 				};
 			}
@@ -351,23 +351,23 @@ namespace AssortedWidgets
 				case Widgets::MenuItemSubMenu::normal:
 				{
 					glColor3ub(255,255,255);
-					Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
+                    Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 					glEnable(GL_TEXTURE_2D);
 					glColor3ub(255,255,255);
 					if(component->isExpand())
 					{
-						MenuItemSubMenuArrow->paint(static_cast<float>(origin.x+component->position.x+component->size.width-17),static_cast<float>(component->position.y+origin.y+5),static_cast<float>(origin.x+component->position.x+component->size.width-12),static_cast<float>(component->position.y+origin.y+14));
+                        MenuItemSubMenuArrow->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-17),static_cast<float>(component->m_position.y+origin.y+5),static_cast<float>(origin.x+component->m_position.x+component->m_size.width-12),static_cast<float>(component->m_position.y+origin.y+14));
 					}
 					else
 					{
-						MenuItemSubMenuArrow->paint(static_cast<float>(origin.x+component->position.x+component->size.width-22),static_cast<float>(component->position.y+origin.y+5),static_cast<float>(origin.x+component->position.x+component->size.width-17),static_cast<float>(component->position.y+origin.y+14));
+                        MenuItemSubMenuArrow->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-22),static_cast<float>(component->m_position.y+origin.y+5),static_cast<float>(origin.x+component->m_position.x+component->m_size.width-17),static_cast<float>(component->m_position.y+origin.y+14));
 					}
 					break;
 				};
 				case Widgets::MenuItemSubMenu::pressed:
 				{
 					glColor3ub(200,200,200);
-					Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
+                    Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 					break;
 				};
 				case Widgets::MenuItemSubMenu::hover:
@@ -375,22 +375,22 @@ namespace AssortedWidgets
 					glDisable(GL_TEXTURE_2D);
 					glColor3ub(176,200,28);
 					glBegin(GL_QUADS);
-					glVertex2f(static_cast<float>(component->position.x+origin.x),static_cast<float>(origin.y+component->position.y));
-					glVertex2f(static_cast<float>(component->position.x+origin.x+component->size.width),static_cast<float>(origin.y+component->position.y));
-					glVertex2f(static_cast<float>(component->position.x+origin.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
-					glVertex2f(static_cast<float>(component->position.x+origin.x),static_cast<float>(origin.y+component->position.y+component->size.height));
+                    glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y));
+                    glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y));
+                    glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
+                    glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
 					glEnd();
 					glColor3ub(88,101,9);
-					Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
+                    Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 					glEnable(GL_TEXTURE_2D);
 					glColor3ub(255,255,255);
 					if(component->isExpand())
 					{
-						MenuItemSubMenuArrow->paint(static_cast<float>(origin.x+component->position.x+component->size.width-17),static_cast<float>(component->position.y+origin.y+5),static_cast<float>(origin.x+component->position.x+component->size.width-12),static_cast<float>(component->position.y+origin.y+14));
+                        MenuItemSubMenuArrow->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-17),static_cast<float>(component->m_position.y+origin.y+5),static_cast<float>(origin.x+component->m_position.x+component->m_size.width-12),static_cast<float>(component->m_position.y+origin.y+14));
 					}
 					else
 					{
-						MenuItemSubMenuArrow->paint(static_cast<float>(origin.x+component->position.x+component->size.width-22),static_cast<float>(component->position.y+origin.y+5),static_cast<float>(origin.x+component->position.x+component->size.width-17),static_cast<float>(component->position.y+origin.y+14));
+                        MenuItemSubMenuArrow->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-22),static_cast<float>(component->m_position.y+origin.y+5),static_cast<float>(origin.x+component->m_position.x+component->m_size.width-17),static_cast<float>(component->m_position.y+origin.y+14));
 					}
 					break;
 				};
@@ -410,14 +410,14 @@ namespace AssortedWidgets
 				{
 					glColor3ub(0,0,0);
 					glBegin(GL_QUADS);
-					glVertex2f(static_cast<GLfloat>(origin.x+component->position.x),static_cast<GLfloat>(origin.y+component->position.y));
-					glVertex2f(static_cast<GLfloat>(origin.x+component->position.x+component->size.width),static_cast<GLfloat>(origin.y+component->position.y));
-					glVertex2f(static_cast<GLfloat>(origin.x+component->position.x+component->size.width),static_cast<GLfloat>(origin.y+component->position.y+component->size.height));
-					glVertex2f(static_cast<GLfloat>(origin.x+component->position.x),static_cast<GLfloat>(origin.y+component->position.y+component->size.height));
+                    glVertex2f(static_cast<GLfloat>(origin.x+component->m_position.x),static_cast<GLfloat>(origin.y+component->m_position.y));
+                    glVertex2f(static_cast<GLfloat>(origin.x+component->m_position.x+component->m_size.width),static_cast<GLfloat>(origin.y+component->m_position.y));
+                    glVertex2f(static_cast<GLfloat>(origin.x+component->m_position.x+component->m_size.width),static_cast<GLfloat>(origin.y+component->m_position.y+component->m_size.height));
+                    glVertex2f(static_cast<GLfloat>(origin.x+component->m_position.x),static_cast<GLfloat>(origin.y+component->m_position.y+component->m_size.height));
 					glEnd();
 				}
 				glColor3ub(255,255,255);
-				Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft(),origin.y+component->position.y+component->getTop(),component->getText());
+                Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft(),origin.y+component->m_position.y+component->getTop(),component->getText());
             }
 
 			Util::Size DefaultTheme::getButtonPreferedSize(Widgets::Button *component)
@@ -435,18 +435,18 @@ namespace AssortedWidgets
 					{
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						ButtonNormalLeft->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
-						ButtonNormalRight->paint(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+19));
+                        ButtonNormalLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
+                        ButtonNormalRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+19));
 						glDisable(GL_TEXTURE_2D);
 						glColor3ub(55,67,65);
 						glBegin(GL_QUADS);
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y+19));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
 						glEnd();
 						glColor3ub(137,155,145);
-						Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft(),origin.y+component->position.y+component->getTop(),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft(),origin.y+component->m_position.y+component->getTop(),component->getText());
 						break;
 					};
 
@@ -454,18 +454,18 @@ namespace AssortedWidgets
 					{
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						ButtonHoverLeft->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
-						ButtonHoverRight->paint(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+19));
+                        ButtonHoverLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
+                        ButtonHoverRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+19));
 						glDisable(GL_TEXTURE_2D);
 						glColor3ub(175,200,28);
 						glBegin(GL_QUADS);
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y+19));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
 						glEnd();
 						glColor3ub(0,0,0);
-						Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft(),origin.y+component->position.y+component->getTop(),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft(),origin.y+component->m_position.y+component->getTop(),component->getText());
 						break;
 					};
 
@@ -473,18 +473,18 @@ namespace AssortedWidgets
 					{
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						ButtonNormalLeft->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
-						ButtonNormalRight->paint(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+19));
+                        ButtonNormalLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
+                        ButtonNormalRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+19));
 						glDisable(GL_TEXTURE_2D);
 						glColor3ub(55,67,65);
 						glBegin(GL_QUADS);
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y+19));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
 						glEnd();
 						glColor3ub(0,0,0);
-						Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft(),origin.y+component->position.y+component->getTop(),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft(),origin.y+component->m_position.y+component->getTop(),component->getText());
 						break;
 					};
 				}
@@ -504,22 +504,22 @@ namespace AssortedWidgets
 					case Widgets::MenuItemToggleButton::normal:
 					{
 						glColor3ub(255,255,255);
-						Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 						if(component->getToggle())
 						{
 							glEnable(GL_TEXTURE_2D);
-							RightHook->paint(static_cast<float>(component->position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->position.y),static_cast<float>(8+component->position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->position.y+9));
+                            RightHook->paint(static_cast<float>(component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y),static_cast<float>(8+component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y+9));
 						}
 						break;
 					};
 					case Widgets::MenuItemToggleButton::pressed:
 					{
 						glColor3ub(200,200,200);
-						Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 						if(component->getToggle())
 						{
 							glEnable(GL_TEXTURE_2D);
-							RightHook->paint(static_cast<float>(component->position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->position.y),static_cast<float>(8+component->position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->position.y+9));
+                            RightHook->paint(static_cast<float>(component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y),static_cast<float>(8+component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y+9));
 						}
 						break;
 					};
@@ -528,17 +528,17 @@ namespace AssortedWidgets
 						glDisable(GL_TEXTURE_2D);
 						glColor3ub(176,200,28);
 						glBegin(GL_QUADS);
-						glVertex2f(static_cast<float>(component->position.x+origin.x),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(component->position.x+origin.x+component->size.width),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(component->position.x+origin.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
-						glVertex2f(static_cast<float>(component->position.x+origin.x),static_cast<float>(origin.y+component->position.y+component->size.height));
+                        glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
+                        glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
 						glEnd();
 						glColor3ub(88,101,9);
-						Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 						if(component->getToggle())
 						{
 							glEnable(GL_TEXTURE_2D);
-							RightHook->paint(static_cast<float>(component->position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->position.y),static_cast<float>(8+component->position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->position.y+9));
+                            RightHook->paint(static_cast<float>(component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y),static_cast<float>(8+component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y+9));
 						}
 						break;
 					};
@@ -559,22 +559,22 @@ namespace AssortedWidgets
 					case Widgets::MenuItemRadioButton::normal:
 					{
 						glColor3ub(255,255,255);
-						Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 						if(component->getToggle())
 						{
 							glEnable(GL_TEXTURE_2D);
-							RadioDot->paint(static_cast<float>(component->position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->position.y),static_cast<float>(8+component->position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->position.y+9));
+                            RadioDot->paint(static_cast<float>(component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y),static_cast<float>(8+component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y+9));
 						}
 						break;
 					};
 					case Widgets::MenuItemRadioButton::pressed:
 					{
 						glColor3ub(200,200,200);
-						Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 						if(component->getToggle())
 						{
 							glEnable(GL_TEXTURE_2D);
-							RadioDot->paint(static_cast<float>(component->position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->position.y),static_cast<float>(8+component->position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->position.y+9));
+                            RadioDot->paint(static_cast<float>(component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y),static_cast<float>(8+component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y+9));
 						}
 						break;
 					};
@@ -583,17 +583,17 @@ namespace AssortedWidgets
 						glDisable(GL_TEXTURE_2D);
 						glColor3ub(176,200,28);
 						glBegin(GL_QUADS);
-						glVertex2f(static_cast<float>(component->position.x+origin.x),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(component->position.x+origin.x+component->size.width),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(component->position.x+origin.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
-						glVertex2f(static_cast<float>(component->position.x+origin.x),static_cast<float>(origin.y+component->position.y+component->size.height));
+                        glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
+                        glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
 						glEnd();
 						glColor3ub(88,101,9);
-						Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 						if(component->getToggle())
 						{
 							glEnable(GL_TEXTURE_2D);
-							RadioDot->paint(static_cast<float>(component->position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->position.y),static_cast<float>(8+component->position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->position.y+9));
+                            RadioDot->paint(static_cast<float>(component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y),static_cast<float>(8+component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y+9));
 						}
 						break;
 					};
@@ -622,42 +622,42 @@ namespace AssortedWidgets
 
 			Util::Size DefaultTheme::getDialogPreferedSize(Widgets::Dialog *component)
 			{
-				return component->size;
+                return component->m_size;
             }
 
 			void DefaultTheme::paintDialog(Widgets::Dialog *component)
 			{
-				float x1=static_cast<float>(component->position.x+24);
-				float x2=static_cast<float>(component->position.x+component->size.width-24);
-				float y1=static_cast<float>(component->position.y+component->size.height-16);
-				float y2=static_cast<float>(component->position.y+component->size.height);
+                float x1=static_cast<float>(component->m_position.x+24);
+                float x2=static_cast<float>(component->m_position.x+component->m_size.width-24);
+                float y1=static_cast<float>(component->m_position.y+component->m_size.height-16);
+                float y2=static_cast<float>(component->m_position.y+component->m_size.height);
 
 				glEnable(GL_TEXTURE_2D);
 				glColor3ub(255,255,255);
 
 				if(component->isActive())
 				{
-					DialogUpLeftActive->paint(static_cast<float>(component->position.x),static_cast<float>(component->position.y),static_cast<float>(x1),static_cast<float>(component->position.y+16));
-					DialogUpActive->paint(static_cast<float>(x1),static_cast<float>(component->position.y),static_cast<float>(x2),static_cast<float>(component->position.y+16));
-					DialogUpRightActive->paint(static_cast<float>(x2),static_cast<float>(component->position.y),static_cast<float>(component->position.x+component->size.width),static_cast<float>(component->position.y+16));
+                    DialogUpLeftActive->paint(static_cast<float>(component->m_position.x),static_cast<float>(component->m_position.y),static_cast<float>(x1),static_cast<float>(component->m_position.y+16));
+                    DialogUpActive->paint(static_cast<float>(x1),static_cast<float>(component->m_position.y),static_cast<float>(x2),static_cast<float>(component->m_position.y+16));
+                    DialogUpRightActive->paint(static_cast<float>(x2),static_cast<float>(component->m_position.y),static_cast<float>(component->m_position.x+component->m_size.width),static_cast<float>(component->m_position.y+16));
 				}
 				else
 				{
-					DialogUpLeftDeactive->paint(static_cast<float>(component->position.x),static_cast<float>(component->position.y),static_cast<float>(x1),static_cast<float>(component->position.y+16));
-					DialogUpDeactive->paint(static_cast<float>(x1),static_cast<float>(component->position.y),static_cast<float>(x2),static_cast<float>(component->position.y+16));
-					DialogUpRightDeactive->paint(static_cast<float>(x2),static_cast<float>(component->position.y),static_cast<float>(component->position.x+component->size.width),static_cast<float>(component->position.y+16));
+                    DialogUpLeftDeactive->paint(static_cast<float>(component->m_position.x),static_cast<float>(component->m_position.y),static_cast<float>(x1),static_cast<float>(component->m_position.y+16));
+                    DialogUpDeactive->paint(static_cast<float>(x1),static_cast<float>(component->m_position.y),static_cast<float>(x2),static_cast<float>(component->m_position.y+16));
+                    DialogUpRightDeactive->paint(static_cast<float>(x2),static_cast<float>(component->m_position.y),static_cast<float>(component->m_position.x+component->m_size.width),static_cast<float>(component->m_position.y+16));
 				}
 
-				DialogLeft->paint(static_cast<float>(component->position.x),static_cast<float>(component->position.y+16),static_cast<float>(x1),static_cast<float>(y1));
-				DialogRight->paint(static_cast<float>(x2),static_cast<float>(component->position.y+16),static_cast<float>(component->position.x+component->size.width),static_cast<float>(y1));
-				DialogBottomLeft->paint(static_cast<float>(component->position.x),static_cast<float>(y1),static_cast<float>(x1),static_cast<float>(y2));
+                DialogLeft->paint(static_cast<float>(component->m_position.x),static_cast<float>(component->m_position.y+16),static_cast<float>(x1),static_cast<float>(y1));
+                DialogRight->paint(static_cast<float>(x2),static_cast<float>(component->m_position.y+16),static_cast<float>(component->m_position.x+component->m_size.width),static_cast<float>(y1));
+                DialogBottomLeft->paint(static_cast<float>(component->m_position.x),static_cast<float>(y1),static_cast<float>(x1),static_cast<float>(y2));
 				DialogBottom->paint(static_cast<float>(x1),static_cast<float>(y1),static_cast<float>(x2),static_cast<float>(y2));
-				DialogBottomRight->paint(static_cast<float>(x2),static_cast<float>(y1),static_cast<float>(component->position.x+component->size.width),static_cast<float>(y2));
+                DialogBottomRight->paint(static_cast<float>(x2),static_cast<float>(y1),static_cast<float>(component->m_position.x+component->m_size.width),static_cast<float>(y2));
 				glDisable(GL_TEXTURE_2D);
 				glColor3ub(46,55,53);
 				glBegin(GL_QUADS);
-				glVertex2f(static_cast<float>(x1),static_cast<float>(component->position.y+16));
-				glVertex2f(static_cast<float>(x2),static_cast<float>(component->position.y+16));
+                glVertex2f(static_cast<float>(x1),static_cast<float>(component->m_position.y+16));
+                glVertex2f(static_cast<float>(x2),static_cast<float>(component->m_position.y+16));
 				glVertex2f(static_cast<float>(x2),static_cast<float>(y1));
 				glVertex2f(static_cast<float>(x1),static_cast<float>(y1));
 				glEnd();
@@ -674,13 +674,13 @@ namespace AssortedWidgets
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
 				glColor3ub(31,31,31);
 				glBegin(GL_QUADS);
-				glVertex2f(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y));
-				glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y));
-				glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
-				glVertex2f(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y+component->size.height));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
 				glEnd();
 				glColor3ub(255,255,255);
-				Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->position.y),component->getText());
+                Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
             }
 
 			Util::Size DefaultTheme::getTextFieldPreferedSize(Widgets::TextField *component)
@@ -691,12 +691,12 @@ namespace AssortedWidgets
 			void DefaultTheme::paintTextField(Widgets::TextField *component)
 			{
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-				float x1=static_cast<float>(origin.x+component->position.x);
-				float x2=static_cast<float>(origin.x+component->position.x+4);
-				float x3=static_cast<float>(origin.x+component->position.x+component->size.width-4);
-				float x4=static_cast<float>(origin.x+component->position.x+component->size.width);
-				float y1=static_cast<float>(origin.y+component->position.y);
-				float y2=static_cast<float>(origin.y+component->position.y+component->size.height);
+                float x1=static_cast<float>(origin.x+component->m_position.x);
+                float x2=static_cast<float>(origin.x+component->m_position.x+4);
+                float x3=static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4);
+                float x4=static_cast<float>(origin.x+component->m_position.x+component->m_size.width);
+                float y1=static_cast<float>(origin.y+component->m_position.y);
+                float y2=static_cast<float>(origin.y+component->m_position.y+component->m_size.height);
 
 				glEnable(GL_TEXTURE_2D);
 				glColor3ub(255,255,255);
@@ -723,7 +723,7 @@ namespace AssortedWidgets
 				glEnable(GL_TEXTURE_2D);
 				Util::Size textSize=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(component->getText());
 				glEnable(GL_SCISSOR_TEST);
-				glScissor(static_cast<GLint>(x1),static_cast<GLint>(screenHeight-y2),static_cast<GLint>(component->size.width),static_cast<GLint>(component->size.height));
+                glScissor(static_cast<GLint>(x1),static_cast<GLint>(screenHeight-y2),static_cast<GLint>(component->m_size.width),static_cast<GLint>(component->m_size.height));
 				Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(x3-4-textSize.width),static_cast<int>(component->getTop()+y1),component->getText());
 				glDisable(GL_SCISSOR_TEST);
             }
@@ -737,7 +737,7 @@ namespace AssortedWidgets
 			{
 				glEnable(GL_TEXTURE_2D);
 				glColor3ub(255,255,255);
-				Logo->paint(static_cast<float>(component->position.x),static_cast<float>(component->position.y),static_cast<float>(component->position.x+component->size.width),static_cast<float>(component->position.y+component->size.height));
+                Logo->paint(static_cast<float>(component->m_position.x),static_cast<float>(component->m_position.y),static_cast<float>(component->m_position.x+component->m_size.width),static_cast<float>(component->m_position.y+component->m_size.height));
             }
 
 			Util::Size DefaultTheme::getScrollBarButtonPreferedSize(Widgets::ScrollBarButton *component)
@@ -818,7 +818,7 @@ namespace AssortedWidgets
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
 				glEnable(GL_TEXTURE_2D);
 				glColor3ub(255,255,255);
-				button->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
+                button->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
             }
 
 			Util::Size DefaultTheme::getScrollBarSliderPreferedSize(Widgets::ScrollBarSlider *component)
@@ -832,10 +832,10 @@ namespace AssortedWidgets
 				glDisable(GL_TEXTURE_2D);
 				glColor3ub(46,55,53);
 				glBegin(GL_QUADS);
-				glVertex2f(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y));
-				glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y));
-				glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
-				glVertex2f(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y+component->size.height));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
 				glEnd();
             }
 
@@ -851,11 +851,11 @@ namespace AssortedWidgets
 				glColor3ub(255,255,255);
 				if(component->getType()==Widgets::ScrollBar::Horizontal)
 				{
-					ScrollBarHorizontalBackground->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
+                    ScrollBarHorizontalBackground->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
 				}
 				else if(component->getType()==Widgets::ScrollBar::Vertical)
 				{
-					ScrollBarVerticalBackground->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
+                    ScrollBarVerticalBackground->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
 				}		
             }
 
@@ -870,20 +870,20 @@ namespace AssortedWidgets
 				glDisable(GL_TEXTURE_2D);
 				glColor3ub(79,91,84);
 				glBegin(GL_QUADS);
-				glVertex2f(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y));
-				glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y));
-				glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
-				glVertex2f(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y+component->size.height));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
 				glEnd();
 
 				if(component->isHorizontalBarShow()||component->isVerticalBarShow())
 				{
 					glColor3ub(46,55,53);
 					glBegin(GL_QUADS);
-					glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-15),static_cast<float>(origin.y+component->position.y+component->size.height-15));
-					glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-1),static_cast<float>(origin.y+component->position.y+component->size.height-15));
-					glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-1),static_cast<float>(origin.y+component->position.y+component->size.height-1));
-					glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-15),static_cast<float>(origin.y+component->position.y+component->size.height-1));
+                    glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-15),static_cast<float>(origin.y+component->m_position.y+component->m_size.height-15));
+                    glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-1),static_cast<float>(origin.y+component->m_position.y+component->m_size.height-15));
+                    glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-1),static_cast<float>(origin.y+component->m_position.y+component->m_size.height-1));
+                    glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-15),static_cast<float>(origin.y+component->m_position.y+component->m_size.height-1));
 					glEnd();
 				}
             }
@@ -932,21 +932,21 @@ namespace AssortedWidgets
 					{
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						ButtonNormalLeft->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
-						ButtonNormalRight->paint(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+19));
+                        ButtonNormalLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
+                        ButtonNormalRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+19));
 						glDisable(GL_TEXTURE_2D);
 						glColor3ub(55,67,65);
 						glBegin(GL_QUADS);
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y+19));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
 						glEnd();
 						glColor3ub(137,155,145);
-						Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft()+15,origin.y+component->position.y+component->getTop(),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft()+15,origin.y+component->m_position.y+component->getTop(),component->getText());
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						checkStatus->paint(static_cast<float>(origin.x+component->position.x+component->getLeft()),static_cast<float>(origin.y+component->position.y+component->getTop()),static_cast<float>(origin.x+component->position.x+component->getLeft()+11),static_cast<float>(origin.y+component->position.y+component->getTop()+11));
+                        checkStatus->paint(static_cast<float>(origin.x+component->m_position.x+component->getLeft()),static_cast<float>(origin.y+component->m_position.y+component->getTop()),static_cast<float>(origin.x+component->m_position.x+component->getLeft()+11),static_cast<float>(origin.y+component->m_position.y+component->getTop()+11));
 						break;
 					};
 
@@ -954,21 +954,21 @@ namespace AssortedWidgets
 					{
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						ButtonHoverLeft->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
-						ButtonHoverRight->paint(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+19));
+                        ButtonHoverLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
+                        ButtonHoverRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+19));
 						glDisable(GL_TEXTURE_2D);
 						glColor3ub(175,200,28);
 						glBegin(GL_QUADS);
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y+19));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
 						glEnd();
 						glColor3ub(0,0,0);
-						Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft()+15,origin.y+component->position.y+component->getTop(),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft()+15,origin.y+component->m_position.y+component->getTop(),component->getText());
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						checkStatus->paint(static_cast<float>(origin.x+component->position.x+component->getLeft()),static_cast<float>(origin.y+component->position.y+component->getTop()),static_cast<float>(origin.x+component->position.x+component->getLeft()+11),static_cast<float>(origin.y+component->position.y+component->getTop()+11));
+                        checkStatus->paint(static_cast<float>(origin.x+component->m_position.x+component->getLeft()),static_cast<float>(origin.y+component->m_position.y+component->getTop()),static_cast<float>(origin.x+component->m_position.x+component->getLeft()+11),static_cast<float>(origin.y+component->m_position.y+component->getTop()+11));
 						break;
 					};
 
@@ -976,21 +976,21 @@ namespace AssortedWidgets
 					{
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						ButtonNormalLeft->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
-						ButtonNormalRight->paint(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+19));
+                        ButtonNormalLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
+                        ButtonNormalRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+19));
 						glDisable(GL_TEXTURE_2D);
 						glColor3ub(55,67,65);
 						glBegin(GL_QUADS);
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y+19));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
 						glEnd();
 						glColor3ub(0,0,0);
-						Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft()+15,origin.y+component->position.y+component->getTop(),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft()+15,origin.y+component->m_position.y+component->getTop(),component->getText());
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						checkStatus->paint(static_cast<float>(origin.x+component->position.x+component->getLeft()),static_cast<float>(origin.y+component->position.y+component->getTop()),static_cast<float>(origin.x+component->position.x+component->getLeft()+11),static_cast<float>(origin.y+component->position.y+component->getTop()+11));
+                        checkStatus->paint(static_cast<float>(origin.x+component->m_position.x+component->getLeft()),static_cast<float>(origin.y+component->m_position.y+component->getTop()),static_cast<float>(origin.x+component->m_position.x+component->getLeft()+11),static_cast<float>(origin.y+component->m_position.y+component->getTop()+11));
 						break;
 					};
 				}
@@ -1020,21 +1020,21 @@ namespace AssortedWidgets
 					{
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						ButtonNormalLeft->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
-						ButtonNormalRight->paint(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+19));
+                        ButtonNormalLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
+                        ButtonNormalRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+19));
 						glDisable(GL_TEXTURE_2D);
 						glColor3ub(55,67,65);
 						glBegin(GL_QUADS);
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y+19));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
 						glEnd();
 						glColor3ub(137,155,145);
-						Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft()+15,origin.y+component->position.y+component->getTop(),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft()+15,origin.y+component->m_position.y+component->getTop(),component->getText());
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						checkStatus->paint(static_cast<float>(origin.x+component->position.x+component->getLeft()),static_cast<float>(origin.y+component->position.y+component->getTop()),static_cast<float>(origin.x+component->position.x+component->getLeft()+11),static_cast<float>(origin.y+component->position.y+component->getTop()+11));
+                        checkStatus->paint(static_cast<float>(origin.x+component->m_position.x+component->getLeft()),static_cast<float>(origin.y+component->m_position.y+component->getTop()),static_cast<float>(origin.x+component->m_position.x+component->getLeft()+11),static_cast<float>(origin.y+component->m_position.y+component->getTop()+11));
 						break;
 					};
 
@@ -1042,21 +1042,21 @@ namespace AssortedWidgets
 					{
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						ButtonHoverLeft->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
-						ButtonHoverRight->paint(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+19));
+                        ButtonHoverLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
+                        ButtonHoverRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+19));
 						glDisable(GL_TEXTURE_2D);
 						glColor3ub(175,200,28);
 						glBegin(GL_QUADS);
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y+19));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
 						glEnd();
 						glColor3ub(0,0,0);
-						Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft()+15,origin.y+component->position.y+component->getTop(),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft()+15,origin.y+component->m_position.y+component->getTop(),component->getText());
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						checkStatus->paint(static_cast<float>(origin.x+component->position.x+component->getLeft()),static_cast<float>(origin.y+component->position.y+component->getTop()),static_cast<float>(origin.x+component->position.x+component->getLeft()+11),static_cast<float>(origin.y+component->position.y+component->getTop()+11));
+                        checkStatus->paint(static_cast<float>(origin.x+component->m_position.x+component->getLeft()),static_cast<float>(origin.y+component->m_position.y+component->getTop()),static_cast<float>(origin.x+component->m_position.x+component->getLeft()+11),static_cast<float>(origin.y+component->m_position.y+component->getTop()+11));
 						break;
 					};
 
@@ -1064,21 +1064,21 @@ namespace AssortedWidgets
 					{
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						ButtonNormalLeft->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
-						ButtonNormalRight->paint(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+19));
+                        ButtonNormalLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
+                        ButtonNormalRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+19));
 						glDisable(GL_TEXTURE_2D);
 						glColor3ub(55,67,65);
 						glBegin(GL_QUADS);
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width-4),static_cast<float>(origin.y+component->position.y+19));
-						glVertex2f(static_cast<float>(origin.x+component->position.x+4),static_cast<float>(origin.y+component->position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4),static_cast<float>(origin.y+component->m_position.y+19));
+                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
 						glEnd();
 						glColor3ub(0,0,0);
-						Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft()+15,origin.y+component->position.y+component->getTop(),component->getText());
+                        Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft()+15,origin.y+component->m_position.y+component->getTop(),component->getText());
 						glEnable(GL_TEXTURE_2D);
 						glColor3ub(255,255,255);
-						checkStatus->paint(static_cast<float>(origin.x+component->position.x+component->getLeft()),static_cast<float>(origin.y+component->position.y+component->getTop()),static_cast<float>(origin.x+component->position.x+component->getLeft()+11),static_cast<float>(origin.y+component->position.y+component->getTop()+11));
+                        checkStatus->paint(static_cast<float>(origin.x+component->m_position.x+component->getLeft()),static_cast<float>(origin.y+component->m_position.y+component->getTop()),static_cast<float>(origin.x+component->m_position.x+component->getLeft()+11),static_cast<float>(origin.y+component->m_position.y+component->getTop()+11));
 						break;
 					};
 				}
@@ -1095,12 +1095,12 @@ namespace AssortedWidgets
 				if(component->getType()==Widgets::ProgressBar::Horizontal)
 				{
 					Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-					float x1=static_cast<float>(origin.x+component->position.x);
-					float x2=static_cast<float>(origin.x+component->position.x+4);
-					float x3=static_cast<float>(origin.x+component->position.x+component->size.width-4);
-					float x4=static_cast<float>(origin.x+component->position.x+component->size.width);
-					float y1=static_cast<float>(origin.y+component->position.y);
-					float y2=static_cast<float>(origin.y+component->position.y+component->size.height);
+                    float x1=static_cast<float>(origin.x+component->m_position.x);
+                    float x2=static_cast<float>(origin.x+component->m_position.x+4);
+                    float x3=static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4);
+                    float x4=static_cast<float>(origin.x+component->m_position.x+component->m_size.width);
+                    float y1=static_cast<float>(origin.y+component->m_position.y);
+                    float y2=static_cast<float>(origin.y+component->m_position.y+component->m_size.height);
 
 					glEnable(GL_TEXTURE_2D);
 					glColor3ub(255,255,255);
@@ -1127,12 +1127,12 @@ namespace AssortedWidgets
 				{
 					glEnable(GL_TEXTURE_2D);
 					glColor3ub(255,255,255);
-					float x1=static_cast<float>(origin.x+component->position.x);
-					float x2=static_cast<float>(origin.x+component->position.x+component->size.width);
-					float y1=static_cast<float>(origin.y+component->position.y);
-					float y2=static_cast<float>(origin.y+component->position.y+4);
-					float y3=static_cast<float>(origin.y+component->position.y+component->size.height-4);
-					float y4=static_cast<float>(origin.y+component->position.y+component->size.height);
+                    float x1=static_cast<float>(origin.x+component->m_position.x);
+                    float x2=static_cast<float>(origin.x+component->m_position.x+component->m_size.width);
+                    float y1=static_cast<float>(origin.y+component->m_position.y);
+                    float y2=static_cast<float>(origin.y+component->m_position.y+4);
+                    float y3=static_cast<float>(origin.y+component->m_position.y+component->m_size.height-4);
+                    float y4=static_cast<float>(origin.y+component->m_position.y+component->m_size.height);
 
 					ProgressBarTop->paint(x1,y1,x2,y2);
 					ProgressBarBottom->paint(x1,y3,x2,y4);
@@ -1165,10 +1165,10 @@ namespace AssortedWidgets
 				glDisable(GL_TEXTURE_2D);
 				glColor3ub(46,55,53);
 				glBegin(GL_QUADS);
-				glVertex2f(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y));
-				glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y));
-				glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
-				glVertex2f(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y+component->size.height));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
+                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
 				glEnd();
             }
 
@@ -1183,12 +1183,12 @@ namespace AssortedWidgets
 				if(component->getType()==Widgets::SlideBar::Horizontal)
 				{
 					Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-					float x1=static_cast<float>(origin.x+component->position.x);
-					float x2=static_cast<float>(origin.x+component->position.x+4);
-					float x3=static_cast<float>(origin.x+component->position.x+component->size.width-4);
-					float x4=static_cast<float>(origin.x+component->position.x+component->size.width);
-					float y1=static_cast<float>(origin.y+component->position.y);
-					float y2=static_cast<float>(origin.y+component->position.y+component->size.height);
+                    float x1=static_cast<float>(origin.x+component->m_position.x);
+                    float x2=static_cast<float>(origin.x+component->m_position.x+4);
+                    float x3=static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4);
+                    float x4=static_cast<float>(origin.x+component->m_position.x+component->m_size.width);
+                    float y1=static_cast<float>(origin.y+component->m_position.y);
+                    float y2=static_cast<float>(origin.y+component->m_position.y+component->m_size.height);
 
 					glEnable(GL_TEXTURE_2D);
 					glColor3ub(255,255,255);
@@ -1207,12 +1207,12 @@ namespace AssortedWidgets
 				{
 					glEnable(GL_TEXTURE_2D);
 					glColor3ub(255,255,255);
-					float x1=static_cast<float>(origin.x+component->position.x);
-					float x2=static_cast<float>(origin.x+component->position.x+component->size.width);
-					float y1=static_cast<float>(origin.y+component->position.y);
-					float y2=static_cast<float>(origin.y+component->position.y+4);
-					float y3=static_cast<float>(origin.y+component->position.y+component->size.height-4);
-					float y4=static_cast<float>(origin.y+component->position.y+component->size.height);
+                    float x1=static_cast<float>(origin.x+component->m_position.x);
+                    float x2=static_cast<float>(origin.x+component->m_position.x+component->m_size.width);
+                    float y1=static_cast<float>(origin.y+component->m_position.y);
+                    float y2=static_cast<float>(origin.y+component->m_position.y+4);
+                    float y3=static_cast<float>(origin.y+component->m_position.y+component->m_size.height-4);
+                    float y4=static_cast<float>(origin.y+component->m_position.y+component->m_size.height);
 
 					ProgressBarTop->paint(x1,y1,x2,y2);
 					ProgressBarBottom->paint(x1,y3,x2,y4);
@@ -1256,7 +1256,7 @@ namespace AssortedWidgets
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
 				glEnable(GL_TEXTURE_2D);
 				glColor3ub(255,255,255);
-				button->paint(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y),static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
+                button->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
             }
 
 			Util::Size DefaultTheme::getDropListPreferedSize(Widgets::DropList *component)
@@ -1267,12 +1267,12 @@ namespace AssortedWidgets
 			void DefaultTheme::paintDropList(Widgets::DropList *component)
 			{
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-				float x1=static_cast<float>(origin.x+component->position.x);
-				float x2=static_cast<float>(origin.x+component->position.x+4);
-				float x3=static_cast<float>(origin.x+component->position.x+component->size.width-4);
-				float x4=static_cast<float>(origin.x+component->position.x+component->size.width);
-				float y1=static_cast<float>(origin.y+component->position.y);
-				float y2=static_cast<float>(origin.y+component->position.y+component->size.height);
+                float x1=static_cast<float>(origin.x+component->m_position.x);
+                float x2=static_cast<float>(origin.x+component->m_position.x+4);
+                float x3=static_cast<float>(origin.x+component->m_position.x+component->m_size.width-4);
+                float x4=static_cast<float>(origin.x+component->m_position.x+component->m_size.width);
+                float y1=static_cast<float>(origin.y+component->m_position.y);
+                float y2=static_cast<float>(origin.y+component->m_position.y+component->m_size.height);
 
 				glEnable(GL_TEXTURE_2D);
 				glColor3ub(255,255,255);
@@ -1291,7 +1291,7 @@ namespace AssortedWidgets
 				if(selected)
 				{
 					glColor3ub(0,0,0);
-					Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft(),origin.y+component->position.y+component->getTop(),selected->getText());
+                    Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft(),origin.y+component->m_position.y+component->getTop(),selected->getText());
 				}
             }
 
@@ -1308,14 +1308,14 @@ namespace AssortedWidgets
 				{
 					glColor3ub(175,200,28);
 					glBegin(GL_QUADS);
-					glVertex2f(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y));
-					glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y));
-					glVertex2f(static_cast<float>(origin.x+component->position.x+component->size.width),static_cast<float>(origin.y+component->position.y+component->size.height));
-					glVertex2f(static_cast<float>(origin.x+component->position.x),static_cast<float>(origin.y+component->position.y+component->size.height));
+                    glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y));
+                    glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y));
+                    glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.width),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
+                    glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.height));
 					glEnd();
 				}
 				glColor3ub(0,0,0);
-				Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->position.x+component->getLeft(),origin.y+component->position.y+component->getTop(),component->getText());
+                Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft(),origin.y+component->m_position.y+component->getTop(),component->getText());
             }
 
 			void DefaultTheme::paintDropDown(Util::Position &position,Util::Size &area)

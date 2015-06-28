@@ -100,10 +100,7 @@ namespace AssortedWidgets
 			add(borderPanel);
 			pack();
 
-			MouseDelegate onClose;
-			onClose.bind(this,&MultipleLayoutTestDialog::onClose);
-			closeButton->mouseReleasedHandlerList.push_back(onClose);
-
+            closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(MultipleLayoutTestDialog::onClose));
 		}
 
 		void MultipleLayoutTestDialog::onClose(const Event::MouseEvent &e)

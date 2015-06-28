@@ -23,10 +23,10 @@ namespace AssortedWidgets
               m_resizable(true),
               m_showType(None)
 		{
-			position.x=x;
-			position.y=y;
-			size.width=width;
-			size.height=height;
+            m_position.x=x;
+            m_position.y=y;
+            m_size.width=width;
+            m_size.height=height;
             m_tittleBar.setDialog(this);
             m_borderUpLeft.setParent(this);
             m_borderUpRight.setParent(this);
@@ -36,21 +36,11 @@ namespace AssortedWidgets
             m_borderBottomLeft.setParent(this);
             m_borderBottom.setParent(this);
             m_borderBottomRight.setParent(this);
-			MouseDelegate mPressed;
-			mPressed.bind(this,&Dialog::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
 
-			MouseDelegate mReleased;
-			mReleased.bind(this,&Dialog::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
-
-			MouseDelegate mEntered;
-			mEntered.bind(this,&Dialog::mouseEntered);
-			mouseEnteredHandlerList.push_back(mEntered);
-			
-			MouseDelegate mExited;
-			mExited.bind(this,&Dialog::mouseExited);
-			mouseExitedHandlerList.push_back(mExited);
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(Dialog::mousePressed));
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(Dialog::mouseReleased));
+            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(Dialog::mouseEntered));
+            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(Dialog::mouseEntered));
 
 			pack();
 		}
@@ -73,10 +63,10 @@ namespace AssortedWidgets
               m_resizable(true),
               m_showType(None)
 		{
-			position.x=x;
-			position.y=y;
-			size.width=width;
-			size.height=height;
+            m_position.x=x;
+            m_position.y=y;
+            m_size.width=width;
+            m_size.height=height;
             m_tittleBar.setDialog(this);
             m_borderUpLeft.setParent(this);
             m_borderUpRight.setParent(this);
@@ -86,25 +76,12 @@ namespace AssortedWidgets
             m_borderBottomLeft.setParent(this);
             m_borderBottom.setParent(this);
             m_borderBottomRight.setParent(this);
-			MouseDelegate mPressed;
-			mPressed.bind(this,&Dialog::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
 
-			MouseDelegate mReleased;
-			mReleased.bind(this,&Dialog::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
-
-			MouseDelegate mEntered;
-			mEntered.bind(this,&Dialog::mouseEntered);
-			mouseEnteredHandlerList.push_back(mEntered);
-			
-			MouseDelegate mExited;
-			mExited.bind(this,&Dialog::mouseExited);
-			mouseExitedHandlerList.push_back(mExited);
-
-			MouseDelegate mMoved;
-			mMoved.bind(this,&Dialog::mouseMoved);
-			mouseMovedHandlerList.push_back(mMoved);
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(Dialog::mousePressed));
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(Dialog::mouseReleased));
+            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(Dialog::mouseEntered));
+            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(Dialog::mouseExited));
+            mouseMovedHandlerList.push_back(MOUSE_DELEGATE(Dialog::mouseMoved));
 		
 			pack();
 		}
@@ -124,8 +101,8 @@ namespace AssortedWidgets
 		void Dialog::mouseEntered(const Event::MouseEvent &e)
 		{
 			isHover=true;
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			std::vector<Element*>::iterator iter;
 			for(iter=childList.begin();iter<childList.end();++iter)
 			{
@@ -141,8 +118,8 @@ namespace AssortedWidgets
 		void Dialog::mouseExited(const Event::MouseEvent &e)
 		{
 			isHover=false;
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			std::vector<Element*>::iterator iter;
 			for(iter=childList.begin();iter<childList.end();++iter)
 			{
@@ -157,8 +134,8 @@ namespace AssortedWidgets
 
 		void Dialog::mouseMoved(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			std::vector<Element*>::iterator iter;
 			for(iter=childList.begin();iter<childList.end();++iter)
 			{
@@ -191,8 +168,8 @@ namespace AssortedWidgets
 
 		void Dialog::mousePressed(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
             if(m_dragable)
 			{
                 if(m_tittleBar.isIn(mx,my))
@@ -268,8 +245,8 @@ namespace AssortedWidgets
 
 		void Dialog::mouseReleased(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			std::vector<Element*>::iterator iter;
 			for(iter=childList.begin();iter<childList.end();++iter)
 			{
@@ -284,27 +261,27 @@ namespace AssortedWidgets
 
 		void Dialog::pack()
 		{
-            m_tittleBar.position.x=m_left;
-            m_tittleBar.position.y=m_top;
-            m_tittleBar.size.width=size.width-m_left-m_right;
-            m_tittleBar.size.height=20;
+            m_tittleBar.m_position.x=m_left;
+            m_tittleBar.m_position.y=m_top;
+            m_tittleBar.m_size.width=m_size.width-m_left-m_right;
+            m_tittleBar.m_size.height=20;
 
-            m_borderUpRight.position.x=size.width-13;
-            m_borderUp.size.width=size.width-26;
-            m_borderLeft.size.height=size.height-27;
-            m_borderRight.position.x=size.width-13;
-            m_borderRight.size.height=size.height-27;
+            m_borderUpRight.m_position.x=m_size.width-13;
+            m_borderUp.m_size.width=m_size.width-26;
+            m_borderLeft.m_size.height=m_size.height-27;
+            m_borderRight.m_position.x=m_size.width-13;
+            m_borderRight.m_size.height=m_size.height-27;
 
-            m_borderBottomLeft.position.y=size.height-15;
+            m_borderBottomLeft.m_position.y=m_size.height-15;
 			
-            m_borderBottom.position.y=size.height-15;
-            m_borderBottom.size.width=size.width-26;
+            m_borderBottom.m_position.y=m_size.height-15;
+            m_borderBottom.m_size.width=m_size.width-26;
 			
-            m_borderBottomRight.position.x=size.width-13;
-            m_borderBottomRight.position.y=size.height-15;
+            m_borderBottomRight.m_position.x=m_size.width-13;
+            m_borderBottomRight.m_position.y=m_size.height-15;
 
-            m_contentPosition=Util::Position(m_left,(m_top+m_tittleBar.size.height+2));
-            m_contentSize=Util::Size(size.width-m_left-m_right,size.height-m_top-m_bottom-2-m_tittleBar.size.height);
+            m_contentPosition=Util::Position(m_left,(m_top+m_tittleBar.m_size.height+2));
+            m_contentSize=Util::Size(m_size.width-m_left-m_right,m_size.height-m_top-m_bottom-2-m_tittleBar.m_size.height);
 
 
 			//contentSize=Util::Size(100,100);

@@ -11,28 +11,17 @@ namespace AssortedWidgets
               m_top(2),
               m_bottom(2)
 		{
-			position.x=0;
-			position.y=0;
-			size.width=50;
-			size.height=50;
+            m_position.x=0;
+            m_position.y=0;
+            m_size.width=50;
+            m_size.height=50;
 			setHorizontalStyle(Element::Stretch);
 			setVerticalStyle(Element::Stretch);
 
-			MouseDelegate mPressed;
-			mPressed.bind(this,&Panel::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
-
-			MouseDelegate mReleased;
-			mReleased.bind(this,&Panel::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
-
-			MouseDelegate mEntered;
-			mEntered.bind(this,&Panel::mouseEntered);
-			mouseEnteredHandlerList.push_back(mEntered);
-			
-			MouseDelegate mExited;
-			mExited.bind(this,&Panel::mouseExited);
-			mouseExitedHandlerList.push_back(mExited);
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(Panel::mousePressed));
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(Panel::mouseReleased));
+            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(Panel::mouseEntered));
+            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(Panel::mouseExited));
 
 			pack();
 		}
@@ -41,12 +30,11 @@ namespace AssortedWidgets
 		{
 		}
 
-
-				void Panel::mouseEntered(const Event::MouseEvent &e)
+        void Panel::mouseEntered(const Event::MouseEvent &e)
 		{
 			isHover=true;
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			std::vector<Element*>::iterator iter;
 			for(iter=childList.begin();iter<childList.end();++iter)
 			{
@@ -62,8 +50,8 @@ namespace AssortedWidgets
 		void Panel::mouseExited(const Event::MouseEvent &e)
 		{
 			isHover=false;
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			std::vector<Element*>::iterator iter;
 			for(iter=childList.begin();iter<childList.end();++iter)
 			{
@@ -78,8 +66,8 @@ namespace AssortedWidgets
 
 		void Panel::mouseMoved(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			std::vector<Element*>::iterator iter;
 			for(iter=childList.begin();iter<childList.end();++iter)
 			{
@@ -112,8 +100,8 @@ namespace AssortedWidgets
 
 		void Panel::mousePressed(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			
 			std::vector<Element*>::iterator iter;
 			for(iter=childList.begin();iter<childList.end();++iter)
@@ -129,8 +117,8 @@ namespace AssortedWidgets
 
 		void Panel::mouseReleased(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			std::vector<Element*>::iterator iter;
 			for(iter=childList.begin();iter<childList.end();++iter)
 			{
@@ -146,7 +134,7 @@ namespace AssortedWidgets
 		void Panel::pack()
 		{
             contentPosition=Util::Position(m_left, m_top);
-            contentSize=Util::Size(size.width-m_left-m_right,size.height-m_top-m_bottom);
+            contentSize=Util::Size(m_size.width-m_left-m_right,m_size.height-m_top-m_bottom);
 
 			if(layout)
 			{

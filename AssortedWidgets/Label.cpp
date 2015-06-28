@@ -15,7 +15,7 @@ namespace AssortedWidgets
 		{
 			horizontalStyle=Element::Fit;
 			verticalStyle=Element::Fit;
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 		}
 
         Label::Label(char *_text)
@@ -28,7 +28,7 @@ namespace AssortedWidgets
 		{
 			horizontalStyle=Element::Fit;
 			verticalStyle=Element::Fit;
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 		}
 
 		Label::~Label(void)

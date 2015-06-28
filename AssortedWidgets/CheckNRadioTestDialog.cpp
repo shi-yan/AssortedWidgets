@@ -55,10 +55,8 @@ namespace AssortedWidgets
 			setLayout(girdLayout);
 			pack();
 
-			
-			MouseDelegate onClose;
-			onClose.bind(this,&CheckNRadioTestDialog::onClose);
-			closeButton->mouseReleasedHandlerList.push_back(onClose);
+
+            closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(CheckNRadioTestDialog::onClose));
 		}
 
 		void CheckNRadioTestDialog::onClose(const Event::MouseEvent &e)

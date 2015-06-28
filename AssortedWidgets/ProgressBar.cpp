@@ -6,7 +6,7 @@ namespace AssortedWidgets
 	{
 		ProgressBar::ProgressBar(void):type(Horizontal),min(0.0f),max(100.0f),value(0.0f),POfSlider(0)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 			if(type==Horizontal)
 			{
 				horizontalStyle=Element::Stretch;
@@ -22,7 +22,7 @@ namespace AssortedWidgets
 
 		ProgressBar::ProgressBar(int _type):type(_type),min(0.0f),max(100.0f),value(0.0f),POfSlider(0)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 			if(type==Horizontal)
 			{
 				horizontalStyle=Element::Stretch;
@@ -38,7 +38,7 @@ namespace AssortedWidgets
 
 		ProgressBar::ProgressBar(float _min,float _max,int _type):type(_type),min(_min),max(_max),value(0.0f),POfSlider(0)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 			if(type==Horizontal)
 			{
 				horizontalStyle=Element::Stretch;
@@ -55,7 +55,7 @@ namespace AssortedWidgets
 		ProgressBar::ProgressBar(float _min,float _max,float _value,int _type):type(_type),min(_min),max(_max),value(0),POfSlider(0)
 		{
 			setValue(_value);
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 			if(type==Horizontal)
 			{
 				horizontalStyle=Element::Stretch;
@@ -77,11 +77,11 @@ namespace AssortedWidgets
 		{
 			if(type==Horizontal)
 			{
-				POfSlider=static_cast<int>(value*size.width);
+                POfSlider=static_cast<int>(value*m_size.width);
 			}
 			else if(type==Vertical)
 			{
-				POfSlider=static_cast<int>(value*size.height);
+                POfSlider=static_cast<int>(value*m_size.height);
 			}			
 		}
 	}

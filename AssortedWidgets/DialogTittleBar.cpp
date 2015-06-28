@@ -34,8 +34,8 @@ namespace AssortedWidgets
 
 		void DialogTittleBar::dragMoved(int offsetX,int offsetY)
 		{
-            m_parent->position.x+=offsetX;
-            m_parent->position.y+=offsetY;
+            m_parent->m_position.x+=offsetX;
+            m_parent->m_position.y+=offsetY;
 		}
 	}
 }

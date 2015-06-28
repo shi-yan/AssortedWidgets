@@ -12,10 +12,10 @@ namespace AssortedWidgets
 
 		void SelectionManager::registerComponent(Widgets::Component *component)
 		{
-			int hSIndex(static_cast<int>(static_cast<float>(component->position.x)/static_cast<float>(girdSize)));
-			int vSIndex(static_cast<int>(static_cast<float>(component->position.y)/static_cast<float>(girdSize)));
-			int hEIndex(static_cast<int>(static_cast<float>(component->position.x+component->size.width)/static_cast<float>(girdSize)));
-			int vEIndex(static_cast<int>(static_cast<float>(component->position.y+component->size.height)/static_cast<float>(girdSize)));
+            int hSIndex(static_cast<int>(static_cast<float>(component->m_position.x)/static_cast<float>(girdSize)));
+            int vSIndex(static_cast<int>(static_cast<float>(component->m_position.y)/static_cast<float>(girdSize)));
+            int hEIndex(static_cast<int>(static_cast<float>(component->m_position.x+component->m_size.width)/static_cast<float>(girdSize)));
+            int vEIndex(static_cast<int>(static_cast<float>(component->m_position.y+component->m_size.height)/static_cast<float>(girdSize)));
 			hSIndex=std::max<int>(hSIndex,0);
 			vSIndex=std::max<int>(vSIndex,0);
 			hEIndex=std::min<int>(hEIndex,horizonalCount-1);
@@ -49,10 +49,10 @@ namespace AssortedWidgets
 				}
 			}
 
-			int hSIndex(static_cast<int>(static_cast<float>(component->position.x)/static_cast<float>(girdSize)));
-			int vSIndex(static_cast<int>(static_cast<float>(component->position.y)/static_cast<float>(girdSize)));
-			int hEIndex(static_cast<int>(static_cast<float>(component->position.x+component->size.width)/static_cast<float>(girdSize)));
-			int vEIndex(static_cast<int>(static_cast<float>(component->position.y+component->size.height)/static_cast<float>(girdSize)));
+            int hSIndex(static_cast<int>(static_cast<float>(component->m_position.x)/static_cast<float>(girdSize)));
+            int vSIndex(static_cast<int>(static_cast<float>(component->m_position.y)/static_cast<float>(girdSize)));
+            int hEIndex(static_cast<int>(static_cast<float>(component->m_position.x+component->m_size.width)/static_cast<float>(girdSize)));
+            int vEIndex(static_cast<int>(static_cast<float>(component->m_position.y+component->m_size.height)/static_cast<float>(girdSize)));
 			hSIndex=std::max<int>(hSIndex,0);
 			vSIndex=std::max<int>(vSIndex,0);
 			hEIndex=std::min<int>(hEIndex,horizonalCount-1);

@@ -4,16 +4,16 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-		Button::Button(std::string &_text):text(_text),AbstractButton(4,4,8,8)
+        Button::Button(std::string &text):m_text(text),AbstractButton(4,4,8,8)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 			horizontalStyle=Element::Fit;
 			verticalStyle=Element::Fit;
 		}
 
-		Button::Button(char *_text):text(_text),AbstractButton(4,4,8,8)
+        Button::Button(char *text):m_text(text),AbstractButton(4,4,8,8)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 			horizontalStyle=Element::Fit;
 			verticalStyle=Element::Fit;
 		}

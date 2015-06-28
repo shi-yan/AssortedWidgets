@@ -7,10 +7,10 @@ namespace AssortedWidgets
 	{
 		DialogUp::DialogUp(int x,int y,unsigned int width,unsigned int height)
 		{
-			position.x=x;
-			position.y=y;
-			size.width=width;
-			size.height=height;
+            m_position.x=x;
+            m_position.y=y;
+            m_size.width=width;
+            m_size.height=height;
 		}
 
 		DialogUp::~DialogUp(void)
@@ -24,10 +24,10 @@ namespace AssortedWidgets
 		{
 			Util::Size minimize=parent->getPreferedSize();
 			
-			if((parent->size.height-offsetY)>minimize.height)
+            if((parent->m_size.height-offsetY)>minimize.height)
 			{
-				parent->position.y+=offsetY;
-				parent->size.height-=offsetY;
+                parent->m_position.y+=offsetY;
+                parent->m_size.height-=offsetY;
 			}
 			
 			parent->pack();

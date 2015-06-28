@@ -45,10 +45,7 @@ namespace AssortedWidgets
             add(m_centerLabel);
 
 			pack();
-
-            MouseDelegate onClose;
-			onClose.bind(this,&BorderLayoutTestDialog::onClose);
-            m_closeButton->mouseReleasedHandlerList.push_back(onClose);
+            m_closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(BorderLayoutTestDialog::onClose));
 		}
 
 				void BorderLayoutTestDialog::onClose(const Event::MouseEvent &e)

@@ -41,11 +41,7 @@ namespace AssortedWidgets
 
 			pack();
 
-			MouseDelegate onClose;
-			onClose.bind(this,&TextNDropTestDialog::onClose);
-            m_closeButton->mouseReleasedHandlerList.push_back(onClose);
-
-
+            m_closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(TextNDropTestDialog::onClose));
 		}
 
 		void TextNDropTestDialog::onClose(const Event::MouseEvent &e)

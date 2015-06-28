@@ -6,8 +6,8 @@ namespace AssortedWidgets
 	{
 		ScrollBarButton::ScrollBarButton(int _type):type(_type),AbstractButton(0,0,0,0)
 		{
-			size.width=15;
-			size.height=15;
+            m_size.width=15;
+            m_size.height=15;
 		}
 
 		ScrollBarButton::~ScrollBarButton(void)

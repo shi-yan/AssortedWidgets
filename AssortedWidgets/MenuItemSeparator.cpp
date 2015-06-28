@@ -6,8 +6,8 @@ namespace AssortedWidgets
 	{
 		MenuItemSeparator::MenuItemSeparator(void)
 		{
-			size.width=10;
-			size.height=3;
+            m_size.width=10;
+            m_size.height=3;
 		}
 
 		MenuItemSeparator::~MenuItemSeparator(void)

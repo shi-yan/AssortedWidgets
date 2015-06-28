@@ -46,18 +46,9 @@ namespace AssortedWidgets
 
 			pack();
 
-			MouseDelegate onClose;
-			onClose.bind(this,&ProgressNSliderTestDialog::onClose);
-			closeButton->mouseReleasedHandlerList.push_back(onClose);
-
-			MouseDelegate onHSlider;
-			onHSlider.bind(this,&ProgressNSliderTestDialog::onHSlider);
-			horizontalSBar->mouseReleasedHandlerList.push_back(onHSlider);
-
-			MouseDelegate onVSlider;
-			onVSlider.bind(this,&ProgressNSliderTestDialog::onVSlider);
-			verticalSBar->mouseReleasedHandlerList.push_back(onVSlider);
-
+            closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ProgressNSliderTestDialog::onClose));
+            horizontalSBar->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ProgressNSliderTestDialog::onHSlider));
+            verticalSBar->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ProgressNSliderTestDialog::onVSlider));
 		}
 
 		void ProgressNSliderTestDialog::onHSlider(const Event::MouseEvent &e)

@@ -6,24 +6,18 @@ namespace AssortedWidgets
 	namespace Widgets
 	{
         TypeAble::TypeAble(void):m_active(false)
-		{
-			MouseDelegate mPressed;
-			mPressed.bind(this,&TypeAble::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
+        {
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(TypeAble::mousePressed));
 		}
 
         TypeAble::TypeAble(char *_text):m_text(_text),m_active(false)
-		{
-			MouseDelegate mPressed;
-			mPressed.bind(this,&TypeAble::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
+        {
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(TypeAble::mousePressed));
 		}
 
         TypeAble::TypeAble(std::string &_text):m_text(_text),m_active(false)
-		{
-			MouseDelegate mPressed;
-			mPressed.bind(this,&TypeAble::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
+        {
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(TypeAble::mousePressed));
 		}
 
 		TypeAble::~TypeAble(void)

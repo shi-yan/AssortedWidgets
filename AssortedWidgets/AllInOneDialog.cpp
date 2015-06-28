@@ -24,8 +24,8 @@ namespace AssortedWidgets
             add(m_textField);
 
             m_labelInScroll=new Widgets::Label("I am a Label in a Scroll Panel.");
-            m_labelInScroll->size.width=500;
-            m_labelInScroll->size.height=500;
+            m_labelInScroll->m_size.width=500;
+            m_labelInScroll->m_size.height=500;
             m_labelInScroll->setDrawBackground(true);
             m_scrollPanel=new Widgets::ScrollPanel();
             m_scrollPanel->setContent(m_labelInScroll);
@@ -75,10 +75,8 @@ namespace AssortedWidgets
             add(m_dropList2);
 
             setLayout(m_girdLayout);
-			pack();
-            MouseDelegate onClose;
-			onClose.bind(this,&AllInOneDialog::onClose);
-            m_closeButton->mouseReleasedHandlerList.push_back(onClose);
+            pack();
+            m_closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(AllInOneDialog::onClose));
 		}
 
         void AllInOneDialog::onClose(const Event::MouseEvent &e)

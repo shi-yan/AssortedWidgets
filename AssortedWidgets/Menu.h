@@ -83,7 +83,7 @@ namespace AssortedWidgets
 				Theme::ThemeEngine::getSingleton().getTheme().paintMenu(this);
 				if(expand && !menuList.getItemList().empty())
 				{
-                    Util::Position p(position.x,position.y);
+                    Util::Position p(m_position.x,m_position.y);
                     Util::Graphics::getSingleton().pushPosition(p);
 					menuList.paint();
 					Util::Graphics::getSingleton().popPosition();

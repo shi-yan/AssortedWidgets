@@ -17,25 +17,11 @@ namespace AssortedWidgets
 			horizontalBar->setScrollPanel(this);
 			verticalBar->setScrollPanel(this);
 
-			MouseDelegate mPressed;
-			mPressed.bind(this,&ScrollPanel::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
-
-			MouseDelegate mReleased;
-			mReleased.bind(this,&ScrollPanel::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
-
-			MouseDelegate mEntered;
-			mEntered.bind(this,&ScrollPanel::mouseEntered);
-			mouseEnteredHandlerList.push_back(mEntered);
-			
-			MouseDelegate mExited;
-			mExited.bind(this,&ScrollPanel::mouseExited);
-			mouseExitedHandlerList.push_back(mExited);
-
-			MouseDelegate mMoved;
-			mMoved.bind(this,&ScrollPanel::mouseMoved);
-			mouseMovedHandlerList.push_back(mMoved);
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(ScrollPanel::mousePressed));
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ScrollPanel::mouseReleased));
+            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(ScrollPanel::mouseEntered));
+            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(ScrollPanel::mouseExited));
+            mouseMovedHandlerList.push_back(MOUSE_DELEGATE(ScrollPanel::mouseMoved));
 
 			pack();
 		}
@@ -43,8 +29,8 @@ namespace AssortedWidgets
 		void ScrollPanel::mouseEntered(const Event::MouseEvent &e)
 		{
 			isHover=true;
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			if(verticalBar->isIn(mx,my))
 			{
 				Event::MouseEvent event(verticalBar,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
@@ -66,7 +52,7 @@ namespace AssortedWidgets
 				offsetX=static_cast<unsigned int>(offsetXMax*scrollBar->getValue());
 				if(content)
 				{
-					content->position.x=-static_cast<int>(offsetX);
+                    content->m_position.x=-static_cast<int>(offsetX);
 				}
 			}
 			else if(scrollBar==verticalBar)
@@ -74,15 +60,15 @@ namespace AssortedWidgets
 				offsetY=static_cast<unsigned int>(offsetYMax*scrollBar->getValue());
 				if(content)
 				{
-					content->position.y=-static_cast<int>(offsetY);
+                    content->m_position.y=-static_cast<int>(offsetY);
 				}
 			}
 		}
 
 		void ScrollPanel::mouseMoved(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			if(verticalBar->isIn(mx,my))
 			{
 				if(verticalBar->isHover)
@@ -137,8 +123,8 @@ namespace AssortedWidgets
 		void ScrollPanel::mouseExited(const Event::MouseEvent &e)
 		{
 			isHover=false;
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			if(verticalBar->isHover)
 			{
 				Event::MouseEvent event(verticalBar,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
@@ -155,8 +141,8 @@ namespace AssortedWidgets
 
 		void ScrollPanel::mouseReleased(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			if(verticalBar->isIn(mx,my))
 			{
 				Event::MouseEvent event(verticalBar,Event::MouseEvent::MOUSE_RELEASED,mx,my,0);
@@ -173,8 +159,8 @@ namespace AssortedWidgets
 
 		void ScrollPanel::mousePressed(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			if(verticalBar->isIn(mx,my))
 			{
 				Event::MouseEvent event(verticalBar,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
@@ -191,17 +177,17 @@ namespace AssortedWidgets
 
 		void ScrollPanel::pack()
 		{
-			scissorWidth=size.width-2;
-			scissorHeight=size.height-2;
+            scissorWidth=m_size.width-2;
+            scissorHeight=m_size.height-2;
 			if(content)
 			{
-				if(content->size.width>size.width-17 && horizontalScrollStyle==Auto)
+                if(content->m_size.width>m_size.width-17 && horizontalScrollStyle==Auto)
 				{
 					horizontalBarShow=true;
 					scissorWidth-=18;
-					horizontalBar->position.x=2;
-					horizontalBar->position.y=size.height-16;
-					horizontalBar->size.width=size.width-18;
+                    horizontalBar->m_position.x=2;
+                    horizontalBar->m_position.y=m_size.height-16;
+                    horizontalBar->m_size.width=m_size.width-18;
 					horizontalBar->pack();
 				}
 				else
@@ -210,13 +196,13 @@ namespace AssortedWidgets
 					horizontalBarShow=false;
 				}
 
-				if(content->size.height>size.height-17 && verticalScrollStyle==Auto)
+                if(content->m_size.height>m_size.height-17 && verticalScrollStyle==Auto)
 				{
 					verticalBarShow=true;
 					scissorHeight-=18;
-					verticalBar->position.x=size.width-16;
-					verticalBar->position.y=2;
-					verticalBar->size.height=size.height-18;
+                    verticalBar->m_position.x=m_size.width-16;
+                    verticalBar->m_position.y=2;
+                    verticalBar->m_size.height=m_size.height-18;
 					verticalBar->pack();
 				}
 				else
@@ -225,19 +211,19 @@ namespace AssortedWidgets
 					verticalBarShow=false;
 				}
 
-				offsetXMax=std::max<unsigned int>(content->size.width-(size.width-17),0);
-				offsetYMax=std::max<unsigned int>(content->size.height-(size.height-17),0);
+                offsetXMax=std::max<unsigned int>(content->m_size.width-(m_size.width-17),0);
+                offsetYMax=std::max<unsigned int>(content->m_size.height-(m_size.height-17),0);
 				offsetX=static_cast<unsigned int>(offsetXMax*horizontalBar->getValue());
-				content->position.x=-static_cast<int>(offsetX);
+                content->m_position.x=-static_cast<int>(offsetX);
 				offsetY=static_cast<int>(offsetYMax*verticalBar->getValue());
-				content->position.y=-static_cast<int>(offsetY);
+                content->m_position.y=-static_cast<int>(offsetY);
 			}
 		}
 
 		void ScrollPanel::paint()
 		{
 			Theme::ThemeEngine::getSingleton().getTheme().paintScrollPanel(this);
-            Util::Position p(position);
+            Util::Position p(m_position);
             Util::Graphics::getSingleton().pushPosition(p);
 
 			if(horizontalBarShow)

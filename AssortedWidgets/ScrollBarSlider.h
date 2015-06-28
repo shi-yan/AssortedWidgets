@@ -31,44 +31,44 @@ namespace AssortedWidgets
 			ScrollBarSlider(int _type);
 			Util::Size getPreferedSize()
 			{
-				return size;
-			};
+                return m_size;
+            }
 
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintScrollBarSlider(this);
-			};
+            }
 
 			void dragReleased(const Event::MouseEvent &e)
-			{};
+            {}
 
 			void dragMoved(int offsetX,int offsetY)
 			{
 				if(type==Horizontal)
 				{
-					position.x+=offsetX;
-					if(position.x<17)
+                    m_position.x+=offsetX;
+                    if(m_position.x<17)
 					{
-						position.x=17;
+                        m_position.x=17;
 					}
-					else if(position.x>static_cast<int>(parent->size.width-17-size.width))
+                    else if(m_position.x>static_cast<int>(parent->m_size.width-17-m_size.width))
 					{
-						position.x=parent->size.width-17-size.width;
+                        m_position.x=parent->m_size.width-17-m_size.width;
 					}
-					parent->setValue(static_cast<float>(position.x-17)/static_cast<float>(parent->size.width-34-size.width));
+                    parent->setValue(static_cast<float>(m_position.x-17)/static_cast<float>(parent->m_size.width-34-m_size.width));
 				}
 				else if(type==Vertical)
 				{
-					position.y+=offsetY;
-					if(position.y<17)
+                    m_position.y+=offsetY;
+                    if(m_position.y<17)
 					{
-						position.y=17;
+                        m_position.y=17;
 					}
-					else if(position.y>static_cast<int>(parent->size.height-17-size.height))
+                    else if(m_position.y>static_cast<int>(parent->m_size.height-17-m_size.height))
 					{
-						position.y=parent->size.height-17-size.height;
+                        m_position.y=parent->m_size.height-17-m_size.height;
 					}
-					parent->setValue(static_cast<float>(position.y-17)/static_cast<float>(parent->size.height-34-size.height));
+                    parent->setValue(static_cast<float>(m_position.y-17)/static_cast<float>(parent->m_size.height-34-m_size.height));
 				}
 				parent->onValueChanged();
 			};

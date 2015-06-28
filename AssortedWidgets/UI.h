@@ -299,9 +299,7 @@ namespace AssortedWidgets
 			menuFile->addItem(menuItemFileSeparator);
 			menuFile->addItem(menuItemFileExit);
 
-			Widgets::Component::MouseDelegate appExit;
-			appExit.bind(this,&UI::appExit);
-			menuItemFileExit->mousePressedHandlerList.push_back(appExit);
+            menuItemFileExit->mousePressedHandlerList.push_back(MOUSE_DELEGATE(UI::appExit));
 
 			menuEdit=new Widgets::Menu("Edit");
 			menuItemEditUndo=new Widgets::MenuItemButton("Undo");
@@ -407,66 +405,42 @@ namespace AssortedWidgets
 
 
 			labelNButtonTestDialog=new Test::LabelNButtonTestDialog();
-			Widgets::Component::MouseDelegate labelNButtonTest;
-			labelNButtonTest.bind(this,&UI::labelNButtonTest);
-			menuItemLabelNButtonTest->mouseReleasedHandlerList.push_back(labelNButtonTest);
+            menuItemLabelNButtonTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::labelNButtonTest));
 
 			checkNRadioTestDialog=new Test::CheckNRadioTestDialog();
-			Widgets::Component::MouseDelegate checkNRadioTest;
-			checkNRadioTest.bind(this,&UI::checkNRadioTest);
-			menuItemCheckNRadioTest->mouseReleasedHandlerList.push_back(checkNRadioTest);
+            menuItemCheckNRadioTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::checkNRadioTest));
 
 			progressNSliderTestDialog=new Test::ProgressNSliderTestDialog();
-			Widgets::Component::MouseDelegate progressNSliderTest;
-			progressNSliderTest.bind(this,&UI::progressNSliderTest);
-			menuItemProgressNSliderTest->mouseReleasedHandlerList.push_back(progressNSliderTest);
+            menuItemProgressNSliderTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::progressNSliderTest));
 
 			textNDropTestDialog=new Test::TextNDropTestDialog();
-			Widgets::Component::MouseDelegate textNDropTest;
-			textNDropTest.bind(this,&UI::textNDropTest);
-			menuItemTextNDropTest->mouseReleasedHandlerList.push_back(textNDropTest);
+            menuItemTextNDropTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::textNDropTest));
 
 			flowLayoutTestDialog=new Test::FlowLayoutTestDialog();
-			Widgets::Component::MouseDelegate flowLayoutTest;
-			flowLayoutTest.bind(this,&UI::flowLayoutTest);
-			menuItemFlowTest->mouseReleasedHandlerList.push_back(flowLayoutTest);
+            menuItemFlowTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::flowLayoutTest));
 		
-
-
 			borderLayoutTestDialog=new Test::BorderLayoutTestDialog();
-			Widgets::Component::MouseDelegate borderLayoutTest;
-			borderLayoutTest.bind(this,&UI::borderLayoutTest);
-			menuItemBorderTest->mouseReleasedHandlerList.push_back(borderLayoutTest);
+            menuItemBorderTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::borderLayoutTest));
 
 			girdLayoutTestDialog=new Test::GirdLayoutTestDialog();
-			Widgets::Component::MouseDelegate girdLayoutTest;
-			girdLayoutTest.bind(this,&UI::girdLayoutTest);
-			menuItemGirdTest->mouseReleasedHandlerList.push_back(girdLayoutTest);
+            menuItemGirdTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::girdLayoutTest));
 
 			multipleLayoutTestDialog=new Test::MultipleLayoutTestDialog();
-			Widgets::Component::MouseDelegate multipleLayoutTest;
-			multipleLayoutTest.bind(this,&UI::multipleLayoutTest);
-			menuItemMultipleTest->mouseReleasedHandlerList.push_back(multipleLayoutTest);
+            menuItemMultipleTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::multipleLayoutTest));
 
 		
 			panelTestDialog=new Test::PanelTestDialog();
-			Widgets::Component::MouseDelegate panelTest;
-			panelTest.bind(this,&UI::panelTest);
-			menuItemPanelTest->mouseReleasedHandlerList.push_back(panelTest);
+            menuItemPanelTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::panelTest));
 		
 			allInOneDialog=new Test::AllInOneDialog();
-			Widgets::Component::MouseDelegate allInOneTest;
-			allInOneTest.bind(this,&UI::allInOneTest);
-			menuItemAllInOneTest->mouseReleasedHandlerList.push_back(allInOneTest);
+            menuItemAllInOneTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::allInOneTest));
 		
 			dialogTestDialog=new Test::DialogTestDialog();
-			Widgets::Component::MouseDelegate dialogTest;
-			dialogTest.bind(this,&UI::dialogTest);
-			menuItemDialogTest->mouseReleasedHandlerList.push_back(dialogTest);
+            menuItemDialogTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::dialogTest));
 
 			logo=new Widgets::Logo();
-			logo->position.x=width-logo->size.width-20;
-			logo->position.y=height-logo->size.height-20;
+            logo->m_position.x=width-logo->m_size.width-20;
+            logo->m_position.y=height-logo->m_size.height-20;
 
 		//	selectionManager.registerComponent(labelTest);
 		//	selectionManager.registerComponent(buttonTest);

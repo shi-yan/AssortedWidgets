@@ -17,27 +17,12 @@ namespace AssortedWidgets
               m_bottom(16),
               m_expandSubMenu(0),
               m_expand(false)
-		{
-			MouseDelegate mEntered;
-			mEntered.bind(this,&MenuList::mouseEntered);
-			mouseEnteredHandlerList.push_back(mEntered);
-			
-			MouseDelegate mExited;
-			mExited.bind(this,&MenuList::mouseExited);
-			mouseExitedHandlerList.push_back(mExited);
-
-			MouseDelegate mPressed;
-			mPressed.bind(this,&MenuList::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
-
-			MouseDelegate mReleased;
-			mReleased.bind(this,&MenuList::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
-
-			MouseDelegate mMoved;
-			mMoved.bind(this,&MenuList::mouseMoved);
-			mouseMovedHandlerList.push_back(mMoved);
-
+        {
+            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(MenuList::mouseEntered));
+            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(MenuList::mouseExited));
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(MenuList::mousePressed));
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(MenuList::mouseReleased));
+            mouseMovedHandlerList.push_back(MOUSE_DELEGATE(MenuList::mouseMoved));
 		}
 
 		MenuList::~MenuList(void)
@@ -54,7 +39,7 @@ namespace AssortedWidgets
 		void MenuList::paint()
 		{
 			Theme::ThemeEngine::getSingleton().getTheme().paintMenuList(this);
-            Util::Position p(position);
+            Util::Position p(m_position);
             Util::Graphics::getSingleton().pushPosition(p);
 			std::vector<MenuItem *>::iterator iter;
             for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
@@ -68,30 +53,30 @@ namespace AssortedWidgets
 		{
             unsigned int tempX=m_left;
             unsigned int tempY=m_top;
-            size.width=m_minimizeSize;
-			size.height=0;
+            m_size.width=m_minimizeSize;
+            m_size.height=0;
 			std::vector<MenuItem*>::iterator iter;
             for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
 				Util::Size itemSize=(*iter)->getPreferedSize();
-                size.width=std::max(size.width,itemSize.width);
-                size.height+=itemSize.height+m_spacer;
-				(*iter)->position.x=tempX;
-				(*iter)->position.y=tempY;
+                m_size.width=std::max(m_size.width,itemSize.width);
+                m_size.height+=itemSize.height+m_spacer;
+                (*iter)->m_position.x=tempX;
+                (*iter)->m_position.y=tempY;
                 tempY+=m_spacer+itemSize.height;
 			}
             for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
-				(*iter)->size.width=size.width;
+                (*iter)->m_size.width=m_size.width;
 			}
-            size.width+=m_left+m_right;
-            size.height+=m_top+m_bottom-m_spacer;
+            m_size.width+=m_left+m_right;
+            m_size.height+=m_top+m_bottom-m_spacer;
 		}
 
 		void MenuList::mousePressed(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			std::vector<MenuItem*>::iterator iter;
             for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
@@ -111,8 +96,8 @@ namespace AssortedWidgets
 
 		void MenuList::mouseReleased(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			std::vector<MenuItem*>::iterator iter;
             for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{
@@ -126,8 +111,8 @@ namespace AssortedWidgets
 
 		void MenuList::mouseMoved(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			std::vector<MenuItem*>::iterator iter;
             for(iter=m_itemList.begin();iter<m_itemList.end();++iter)
 			{

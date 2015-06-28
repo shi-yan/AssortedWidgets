@@ -234,14 +234,14 @@ namespace AssortedWidgets
 								Util::Size perfectSize=(*iter)->getPreferedSize();
 								if((*iter)->getHorizontalStyle()==Widgets::Element::Fit)
 								{
-									(*iter)->position.x=tempX;
-									(*iter)->size.width=perfectSize.width;
+                                    (*iter)->m_position.x=tempX;
+                                    (*iter)->m_size.width=perfectSize.width;
                                     tempX+=m_spacer+perfectSize.width;
 								}
 								else if((*iter)->getHorizontalStyle()==Widgets::Element::Stretch)
 								{
-									(*iter)->position.x=tempX;
-									(*iter)->size.width=averageWidth;
+                                    (*iter)->m_position.x=tempX;
+                                    (*iter)->m_size.width=averageWidth;
                                     tempX+=m_spacer+averageWidth;
 								}
 							}
@@ -281,15 +281,15 @@ namespace AssortedWidgets
 								if(iter->getHorizontalStyle()==Widgets::Element::Fit)
 								{
 									tempX-=perfectSize.width;
-									iter->position.x=tempX;
-									iter->size.width=perfectSize.width;
+                                    iter->m_position.x=tempX;
+                                    iter->m_size.width=perfectSize.width;
                                     tempX-=m_spacer;
 								}
 								else if(iter->getHorizontalStyle()==Widgets::Element::Stretch)
 								{
 									tempX-=averageWidth;
-									iter->position.x=tempX;
-									iter->size.width=averageWidth;
+                                    iter->m_position.x=tempX;
+                                    iter->m_size.width=averageWidth;
                                     tempX-=m_spacer;
 								}
 							}
@@ -326,14 +326,14 @@ namespace AssortedWidgets
 									Util::Size perfectSize=(*iter)->getPreferedSize();
 									if((*iter)->getHorizontalStyle()==Widgets::Element::Fit)
 									{
-										(*iter)->position.x=tempX;
-										(*iter)->size.width=perfectSize.width;
+                                        (*iter)->m_position.x=tempX;
+                                        (*iter)->m_size.width=perfectSize.width;
                                         tempX+=m_spacer+perfectSize.width;
 									}
 									else if((*iter)->getHorizontalStyle()==Widgets::Element::Stretch)
 									{
-										(*iter)->position.x=tempX;
-										(*iter)->size.width=averageWidth;
+                                        (*iter)->m_position.x=tempX;
+                                        (*iter)->m_size.width=averageWidth;
                                         tempX+=m_spacer+averageWidth;
 									}
 								}
@@ -345,8 +345,8 @@ namespace AssortedWidgets
 								for(iter=list.begin();iter<list.end();++iter)
 								{
 									Util::Size perfectSize=(*iter)->getPreferedSize();
-									(*iter)->position.x=tempX;
-									(*iter)->size.width=perfectSize.width;
+                                    (*iter)->m_position.x=tempX;
+                                    (*iter)->m_size.width=perfectSize.width;
                                     tempX+=m_spacer+perfectSize.width;
 								}
 							}
@@ -365,13 +365,13 @@ namespace AssortedWidgets
 								Util::Size perfectSize=(*iter)->getPreferedSize();
 								if((*iter)->getVerticalStyle()==Widgets::Element::Stretch)
 								{
-									(*iter)->position.y=tempY;
-									(*iter)->size.height=area.height;
+                                    (*iter)->m_position.y=tempY;
+                                    (*iter)->m_size.height=area.height;
 								}
 								else if((*iter)->getVerticalStyle()==Widgets::Element::Fit)
 								{
-									(*iter)->position.y=tempY;
-									(*iter)->size.height=perfectSize.height;
+                                    (*iter)->m_position.y=tempY;
+                                    (*iter)->m_size.height=perfectSize.height;
 								}
 							}
 							break;
@@ -385,13 +385,13 @@ namespace AssortedWidgets
 								Util::Size perfectSize=(*iter)->getPreferedSize();
 								if((*iter)->getVerticalStyle()==Widgets::Element::Stretch)
 								{
-									(*iter)->position.y=tempY;
-									(*iter)->size.height=area.height;
+                                    (*iter)->m_position.y=tempY;
+                                    (*iter)->m_size.height=area.height;
 								}
 								else if((*iter)->getVerticalStyle()==Widgets::Element::Fit)
 								{
-									(*iter)->position.y=tempY+area.height-perfectSize.height;
-									(*iter)->size.height=perfectSize.height;
+                                    (*iter)->m_position.y=tempY+area.height-perfectSize.height;
+                                    (*iter)->m_size.height=perfectSize.height;
 								}
 							}
 							break;
@@ -405,13 +405,13 @@ namespace AssortedWidgets
 								Util::Size perfectSize=(*iter)->getPreferedSize();
 								if((*iter)->getVerticalStyle()==Widgets::Element::Stretch)
 								{
-									(*iter)->position.y=tempY;
-									(*iter)->size.height=area.height;
+                                    (*iter)->m_position.y=tempY;
+                                    (*iter)->m_size.height=area.height;
 								}
 								else if((*iter)->getVerticalStyle()==Widgets::Element::Fit)
 								{
-									(*iter)->position.y=static_cast<int>(tempY+area.height*0.5-perfectSize.height*0.5);
-									(*iter)->size.height=perfectSize.height;
+                                    (*iter)->m_position.y=static_cast<int>(tempY+area.height*0.5-perfectSize.height*0.5);
+                                    (*iter)->m_size.height=perfectSize.height;
 								}
 							}
 							break;

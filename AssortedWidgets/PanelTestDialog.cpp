@@ -17,7 +17,7 @@ namespace AssortedWidgets
 
 			closeButton=new Widgets::Button("Close");
 			label=new Widgets::Label("I am a very very big Label in a Scroll Panel.");
-			label->size.height=label->size.width=500;
+            label->m_size.height=label->m_size.width=500;
 			panel=new Widgets::ScrollPanel();
 			panel->setContent(label);
 
@@ -25,15 +25,12 @@ namespace AssortedWidgets
 			add(panel);
 			add(closeButton);
 
-			pack();
-								MouseDelegate onClose;
-			onClose.bind(this,&PanelTestDialog::onClose);
-			closeButton->mouseReleasedHandlerList.push_back(onClose);
+            pack();
 
-
+            closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(PanelTestDialog::onClose));
 		}
 
-								void PanelTestDialog::onClose(const Event::MouseEvent &e)
+        void PanelTestDialog::onClose(const Event::MouseEvent &e)
 		{
 			Close();
 		}

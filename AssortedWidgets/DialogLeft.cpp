@@ -7,10 +7,10 @@ namespace AssortedWidgets
 	{
 		DialogLeft::DialogLeft(int x,int y,unsigned int width,unsigned int height)
 		{
-			position.x=x;
-			position.y=y;
-			size.width=width;
-			size.height=height;
+            m_position.x=x;
+            m_position.y=y;
+            m_size.width=width;
+            m_size.height=height;
 		}
 
 		DialogLeft::~DialogLeft(void)
@@ -24,10 +24,10 @@ namespace AssortedWidgets
 		{
 			Util::Size minimize=parent->getPreferedSize();
 			
-			if((parent->size.width-offsetX)>minimize.width)
+            if((parent->m_size.width-offsetX)>minimize.width)
 			{
-				parent->position.x+=offsetX;
-				parent->size.width-=offsetX;			
+                parent->m_position.x+=offsetX;
+                parent->m_size.width-=offsetX;
 			}
 
 			parent->pack();

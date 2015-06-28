@@ -6,7 +6,7 @@ namespace AssortedWidgets
 	{
 		Logo::Logo(void)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 		}
 
 		Logo::~Logo(void)

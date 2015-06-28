@@ -6,12 +6,12 @@ namespace AssortedWidgets
 	{
 		DropListItem::DropListItem(char *_text):text(_text)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 		}
 
 		DropListItem::DropListItem(std::string &_text):text(_text)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 		}
 
 		DropListItem::~DropListItem(void)

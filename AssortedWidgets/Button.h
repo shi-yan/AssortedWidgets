@@ -10,11 +10,11 @@ namespace AssortedWidgets
 		class Button:public AbstractButton
 		{
 		private:
-			std::string text;
+            std::string m_text;
 		public:
             const std::string& getText() const
 			{
-				return text;
+                return m_text;
             }
 
 			Util::Size getPreferedSize()

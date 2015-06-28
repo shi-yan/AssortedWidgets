@@ -7,23 +7,19 @@ namespace AssortedWidgets
 	{			
 		CheckButton::CheckButton(std::string &_text,bool _check):text(_text),check(_check)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 			horizontalStyle=Element::Fit;
 			verticalStyle=Element::Fit;	
 
-			MouseDelegate mReleased;
-			mReleased.bind(this,&CheckButton::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(CheckButton::mouseReleased));
 		}
 		
 		CheckButton::CheckButton(char *_text,bool _check):text(_text),check(_check)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 			horizontalStyle=Element::Fit;
 			verticalStyle=Element::Fit;
-			MouseDelegate mReleased;
-			mReleased.bind(this,&CheckButton::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(CheckButton::mouseReleased));
 		}
 
 		void CheckButton::mouseReleased(const Event::MouseEvent &e)

@@ -37,7 +37,6 @@ HEADERS += \
     CheckNRadioTestDialog.h \
     Component.h \
     ContainerElement.h \
-    data.h \
     DefaultTheme.h \
     Dialog.h \
     DialogBottom.h \
@@ -58,8 +57,6 @@ HEADERS += \
     DropListItem.h \
     DropListManager.h \
     Event.h \
-    FastDelegate.h \
-    FastDelegateBind.h \
     FlowLayout.h \
     FlowLayoutTestDialog.h \
     Font.h \

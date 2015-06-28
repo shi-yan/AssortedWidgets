@@ -23,7 +23,7 @@ namespace AssortedWidgets
 
 			Util::Size getPreferedSize()
 			{
-				return size;
+                return m_size;
             }
 
 			void paint()
@@ -32,10 +32,10 @@ namespace AssortedWidgets
 				glDisable(GL_TEXTURE_2D);
 				glColor3ub(0,0,255);
 				glBegin(GL_QUADS);
-				glVertex2f(static_cast<GLfloat>(origin.x+position.x),static_cast<GLfloat>(origin.y+position.y));
-				glVertex2f(static_cast<GLfloat>(origin.x+position.x+size.width),static_cast<GLfloat>(origin.y+position.y));
-				glVertex2f(static_cast<GLfloat>(origin.x+position.x+size.width),static_cast<GLfloat>(origin.y+position.y+size.height));
-				glVertex2f(static_cast<GLfloat>(origin.x+position.x),static_cast<GLfloat>(origin.y+position.y+size.height));
+                glVertex2f(static_cast<GLfloat>(origin.x+m_position.x),static_cast<GLfloat>(origin.y+m_position.y));
+                glVertex2f(static_cast<GLfloat>(origin.x+m_position.x+m_size.width),static_cast<GLfloat>(origin.y+m_position.y));
+                glVertex2f(static_cast<GLfloat>(origin.x+m_position.x+m_size.width),static_cast<GLfloat>(origin.y+m_position.y+m_size.height));
+                glVertex2f(static_cast<GLfloat>(origin.x+m_position.x),static_cast<GLfloat>(origin.y+m_position.y+m_size.height));
 				glEnd();
             }
 			void dragReleased(const Event::MouseEvent &e);

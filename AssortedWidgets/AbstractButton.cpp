@@ -13,21 +13,11 @@ namespace AssortedWidgets
 		{
 			horizontalStyle=Element::Fit;
 			verticalStyle=Element::Fit;
-			MouseDelegate mEntered;
-			mEntered.bind(this,&AbstractButton::mouseEntered);
-			mouseEnteredHandlerList.push_back(mEntered);
-			
-			MouseDelegate mExited;
-			mExited.bind(this,&AbstractButton::mouseExited);
-			mouseExitedHandlerList.push_back(mExited);
 
-			MouseDelegate mPressed;
-			mPressed.bind(this,&AbstractButton::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
-
-			MouseDelegate mReleased;
-			mReleased.bind(this,&AbstractButton::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
+            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(AbstractButton::mouseEntered));
+            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(AbstractButton::mouseExited));
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(AbstractButton::mousePressed));
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(AbstractButton::mouseReleased));
 		}
 
 		void AbstractButton::mousePressed(const Event::MouseEvent &e)

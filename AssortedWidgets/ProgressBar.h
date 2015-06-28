@@ -44,11 +44,11 @@ namespace AssortedWidgets
 					value=(_value-min)/(max-min);
 					if(type==Horizontal)
 					{
-						POfSlider=static_cast<unsigned int>(value*size.width);
+                        POfSlider=static_cast<unsigned int>(value*m_size.width);
 					}
 					else if(type==Vertical)
 					{
-						POfSlider=static_cast<unsigned int>(value*size.height);
+                        POfSlider=static_cast<unsigned int>(value*m_size.height);
 					}
 				}
             }

@@ -47,9 +47,7 @@ namespace AssortedWidgets
 
 			pack();
 
-			MouseDelegate onClose;
-			onClose.bind(this,&FlowLayoutTestDialog::onClose);
-			closeButton->mouseReleasedHandlerList.push_back(onClose);
+            closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(FlowLayoutTestDialog::onClose));
 
 		}
 

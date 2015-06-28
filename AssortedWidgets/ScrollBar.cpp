@@ -18,12 +18,12 @@ namespace AssortedWidgets
 				slider=new ScrollBarSlider(ScrollBarSlider::Horizontal);
 				setHorizontalStyle(Element::Stretch);
 				setVerticalStyle(Element::Fit);
-				size.width=40;
-				size.height=15;
-				slider->size.width=std::max<unsigned int>(static_cast<unsigned int>((size.width-30)*0.1f),4);
-				slider->size.height=11;
-				slider->position.x=static_cast<int>(((size.width-34)-slider->size.width)*value+17);
-				slider->position.y=2;
+                m_size.width=40;
+                m_size.height=15;
+                slider->m_size.width=std::max<unsigned int>(static_cast<unsigned int>((m_size.width-30)*0.1f),4);
+                slider->m_size.height=11;
+                slider->m_position.x=static_cast<int>(((m_size.width-34)-slider->m_size.width)*value+17);
+                slider->m_position.y=2;
 				slider->setScrollBar(this);
 			}
 			else if(type==Vertical)
@@ -33,49 +33,28 @@ namespace AssortedWidgets
 				slider=new ScrollBarSlider(ScrollBarSlider::Vertical);
 				setHorizontalStyle(Element::Fit);
 				setVerticalStyle(Element::Stretch);
-				size.width=15;
-				size.height=40;
-				slider->size.width=11;
-				slider->size.height=std::max<unsigned int>(static_cast<unsigned int>((size.height-30)*0.1),4);
-				slider->position.x=2;
-				slider->position.y=static_cast<int>(((size.height-34)-slider->size.height)*value+17);
+                m_size.width=15;
+                m_size.height=40;
+                slider->m_size.width=11;
+                slider->m_size.height=std::max<unsigned int>(static_cast<unsigned int>((m_size.height-30)*0.1),4);
+                slider->m_position.x=2;
+                slider->m_position.y=static_cast<int>(((m_size.height-34)-slider->m_size.height)*value+17);
 				slider->setScrollBar(this);
 			}
 
-			MouseDelegate mPressed;
-			mPressed.bind(this,&ScrollBar::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
-
-			MouseDelegate mReleased;
-			mReleased.bind(this,&ScrollBar::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
-
-			MouseDelegate mEntered;
-			mEntered.bind(this,&ScrollBar::mouseEntered);
-			mouseEnteredHandlerList.push_back(mEntered);
-			
-			MouseDelegate mExited;
-			mExited.bind(this,&ScrollBar::mouseExited);
-			mouseExitedHandlerList.push_back(mExited);
-
-			MouseDelegate mMoved;
-			mMoved.bind(this,&ScrollBar::mouseMoved);
-			mouseMovedHandlerList.push_back(mMoved);
-			
-
-			MouseDelegate minReleased;
-			minReleased.bind(this,&ScrollBar::onMinReleased);
-			min->mouseReleasedHandlerList.push_back(minReleased);
-
-			MouseDelegate maxReleased;
-			maxReleased.bind(this,&ScrollBar::onMaxReleased);
-			max->mouseReleasedHandlerList.push_back(maxReleased);
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(ScrollBar::mousePressed));
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ScrollBar::mouseReleased));
+            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(ScrollBar::mouseEntered));
+            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(ScrollBar::mouseExited));
+            mouseMovedHandlerList.push_back(MOUSE_DELEGATE(ScrollBar::mouseMoved));
+            min->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ScrollBar::onMinReleased));
+            max->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(ScrollBar::onMaxReleased));
 		}
 
 		void ScrollBar::mouseMoved(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			if(min->isIn(mx,my))
 			{
 				if(!min->isHover)
@@ -114,8 +93,8 @@ namespace AssortedWidgets
 		void ScrollBar::mouseEntered(const Event::MouseEvent &e)
 		{
 			isHover=true;
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			if(min->isIn(mx,my))
 			{
 				Event::MouseEvent event(min,Event::MouseEvent::MOUSE_ENTERED,mx,my,0);
@@ -133,8 +112,8 @@ namespace AssortedWidgets
 		void ScrollBar::mouseExited(const Event::MouseEvent &e)
 		{
 			isHover=false;
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			if(min->isHover)
 			{
 				Event::MouseEvent event(min,Event::MouseEvent::MOUSE_EXITED,mx,my,0);
@@ -151,8 +130,8 @@ namespace AssortedWidgets
 
 		void ScrollBar::mouseReleased(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			if(min->isIn(mx,my))
 			{
 				Event::MouseEvent event(min,Event::MouseEvent::MOUSE_RELEASED,mx,my,0);
@@ -172,13 +151,13 @@ namespace AssortedWidgets
 			value=std::max<float>(value-0.1f,0.0f);
 			if(type==Horizontal)
 			{
-				slider->position.x=static_cast<int>(((size.width-34)-slider->size.width)*value+17);
-				slider->position.y=2;
+                slider->m_position.x=static_cast<int>(((m_size.width-34)-slider->m_size.width)*value+17);
+                slider->m_position.y=2;
 			}
 			else if(type==Vertical)
 			{
-				slider->position.x=2;
-				slider->position.y=static_cast<int>(((size.height-34)-slider->size.height)*value+17);
+                slider->m_position.x=2;
+                slider->m_position.y=static_cast<int>(((m_size.height-34)-slider->m_size.height)*value+17);
 			}
 			onValueChanged();
 		}
@@ -188,13 +167,13 @@ namespace AssortedWidgets
 			value=std::min<float>(value+0.1f,1.0f);
 			if(type==Horizontal)
 			{
-				slider->position.x=static_cast<int>(((size.width-34)-slider->size.width)*value+17);
-				slider->position.y=2;
+                slider->m_position.x=static_cast<int>(((m_size.width-34)-slider->m_size.width)*value+17);
+                slider->m_position.y=2;
 			}
 			else if(type==Vertical)
 			{
-				slider->position.x=2;
-				slider->position.y=static_cast<int>(((size.height-34)-slider->size.height)*value+17);
+                slider->m_position.x=2;
+                slider->m_position.y=static_cast<int>(((m_size.height-34)-slider->m_size.height)*value+17);
 			}
 			onValueChanged();
 		}
@@ -206,8 +185,8 @@ namespace AssortedWidgets
 
 		void ScrollBar::mousePressed(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			if(slider->isIn(mx,my))
 			{
 				Event::MouseEvent event(slider,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
@@ -231,7 +210,7 @@ namespace AssortedWidgets
 		void ScrollBar::paint()
 		{
 			Theme::ThemeEngine::getSingleton().getTheme().paintScrollBar(this);
-            Util::Position p(position);
+            Util::Position p(m_position);
             Util::Graphics::getSingleton().pushPosition(p);
 			min->paint();
 			max->paint();
@@ -243,25 +222,25 @@ namespace AssortedWidgets
 		{
 			if(type==Horizontal)
 			{
-				min->position.x=0;
-				min->position.y=0;
-				max->position.x=size.width-15;
-				max->position.y=0;
-				slider->size.width=std::max<unsigned int>(static_cast<unsigned int>((size.width-30)*0.1f),4);
-				slider->size.height=11;
-				slider->position.x=static_cast<int>(((size.width-34)-slider->size.width)*value+17);
-				slider->position.y=2;
+                min->m_position.x=0;
+                min->m_position.y=0;
+                max->m_position.x=m_size.width-15;
+                max->m_position.y=0;
+                slider->m_size.width=std::max<unsigned int>(static_cast<unsigned int>((m_size.width-30)*0.1f),4);
+                slider->m_size.height=11;
+                slider->m_position.x=static_cast<int>(((m_size.width-34)-slider->m_size.width)*value+17);
+                slider->m_position.y=2;
 			}
 			else if(type==Vertical)
 			{
-				min->position.x=0;
-				min->position.y=0;
-				max->position.x=0;
-				max->position.y=size.height-15;
-				slider->size.width=11;
-				slider->size.height=std::max<unsigned int>(static_cast<unsigned int>((size.height-30)*0.1f),4);
-				slider->position.x=2;
-				slider->position.y=static_cast<int>(((size.height-34)-slider->size.height)*value+17);		
+                min->m_position.x=0;
+                min->m_position.y=0;
+                max->m_position.x=0;
+                max->m_position.y=m_size.height-15;
+                slider->m_size.width=11;
+                slider->m_size.height=std::max<unsigned int>(static_cast<unsigned int>((m_size.height-30)*0.1f),4);
+                slider->m_position.x=2;
+                slider->m_position.y=static_cast<int>(((m_size.height-34)-slider->m_size.height)*value+17);
 			}
 		};
 

@@ -24,8 +24,8 @@ namespace AssortedWidgets
 			for(iter=itemList.begin();iter<itemList.end();++iter)
 			{
 				Util::Size perfectSize=(*iter)->getPreferedSize();
-				(*iter)->position.x=currentDropped->getLeft();
-				(*iter)->position.y=tempY;
+                (*iter)->m_position.x=currentDropped->getLeft();
+                (*iter)->m_position.y=tempY;
 				size.width=std::max<unsigned int>(perfectSize.width,size.width);
 				size.height+=spacer+perfectSize.height;
 				tempY+=perfectSize.height+spacer;
@@ -33,7 +33,7 @@ namespace AssortedWidgets
 
 			for(iter=itemList.begin();iter<itemList.end();++iter)
 			{
-				(*iter)->size.width=size.width;
+                (*iter)->m_size.width=size.width;
 			}
 
 			size.width+=currentDropped->getLeft()+currentDropped->getRight();

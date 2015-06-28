@@ -95,7 +95,7 @@ namespace AssortedWidgets
 			void add(DropListItem *item)
 			{
                 m_itemList.push_back(item);
-				size=getPreferedSize();
+                m_size=getPreferedSize();
             }
 
 			void setSelection(size_t index)

@@ -33,18 +33,9 @@ namespace AssortedWidgets
 
 			pack();
 
-			MouseDelegate onClose;
-			onClose.bind(this,&DialogTestDialog::onClose);
-			closeButton->mouseReleasedHandlerList.push_back(onClose);
-
-			MouseDelegate onDrag;
-			onDrag.bind(this,&DialogTestDialog::onDrag);
-			dragAble->mouseReleasedHandlerList.push_back(onDrag);
-
-			MouseDelegate onSize;
-			onSize.bind(this,&DialogTestDialog::onSize);
-			sizeAble->mouseReleasedHandlerList.push_back(onSize);
-
+            closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(DialogTestDialog::onClose));
+            dragAble->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(DialogTestDialog::onDrag));
+            sizeAble->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(DialogTestDialog::onSize));
 		}
 
 		void DialogTestDialog::onClose(const Event::MouseEvent &e)

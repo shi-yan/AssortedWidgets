@@ -20,8 +20,8 @@ namespace AssortedWidgets
                 unsigned int height=area.height-m_top-m_bottom;
 
 				Util::Size preferedSize=componentList[0]->getPreferedSize();
-				componentList[0]->position.x=tempX;
-				componentList[0]->position.y=tempY;
+                componentList[0]->m_position.x=tempX;
+                componentList[0]->m_position.y=tempY;
                 tempX+=preferedSize.width+m_spacer;
 				nextY=std::max<unsigned int>(nextY,preferedSize.height);
 				
@@ -33,15 +33,15 @@ namespace AssortedWidgets
                         tempX=origin.x+m_left;
                         tempY+=nextY+m_spacer;
 						nextY=0;
-						componentList[i]->position.x=tempX;
-						componentList[i]->position.y=tempY;
+                        componentList[i]->m_position.x=tempX;
+                        componentList[i]->m_position.y=tempY;
                         tempX+=preferedSize.width+m_spacer;
 						nextY=std::max<unsigned int>(nextY,preferedSize.height);
 					}
 					else
 					{
-						componentList[i]->position.x=tempX;
-						componentList[i]->position.y=tempY;
+                        componentList[i]->m_position.x=tempX;
+                        componentList[i]->m_position.y=tempY;
                         tempX+=preferedSize.width+m_spacer;
 						nextY=std::max<unsigned int>(nextY,preferedSize.height);
 					}

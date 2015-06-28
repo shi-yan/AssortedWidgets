@@ -108,7 +108,7 @@ namespace AssortedWidgets
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintDialog(this);
-                Util::Position p(position);
+                Util::Position p(m_position);
                 Util::Graphics::getSingleton().pushPosition(p);
                 m_tittleBar.paint();
 				//layout->testPaint();

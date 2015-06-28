@@ -130,8 +130,8 @@ namespace AssortedWidgets
 			int tempBegin=rightSpacer;
 			for(iter=menuList.begin();iter<menuList.end();++iter)
 			{
-				(*iter)->position.x=tempBegin;
-				(*iter)->position.y=topSpacer;
+                (*iter)->m_position.x=tempBegin;
+                (*iter)->m_position.y=topSpacer;
 				tempBegin+=spacer+(*iter)->getPreferedSize().width;
 			}
 		};

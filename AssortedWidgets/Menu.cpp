@@ -9,57 +9,36 @@ namespace AssortedWidgets
 	{
 		Menu::Menu(std::string &_text):text(_text),status(normal),expand(false),menuBar(0)
 		{
-			size=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(text);
-			size.width+=12;
-			size.height=20;
-			position.x=100;
-			position.y=100;
+            m_size=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(text);
+            m_size.width+=12;
+            m_size.height=20;
+            m_position.x=100;
+            m_position.y=100;
 
-			MouseDelegate mEntered;
-			mEntered.bind(this,&Menu::mouseEntered);
-			mouseEnteredHandlerList.push_back(mEntered);
-			
-			MouseDelegate mExited;
-			mExited.bind(this,&Menu::mouseExited);
-			mouseExitedHandlerList.push_back(mExited);
+            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(Menu::mouseEntered));
+            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(Menu::mouseExited));
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(Menu::mousePressed));
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(Menu::mouseReleased));
 
-			MouseDelegate mPressed;
-			mPressed.bind(this,&Menu::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
-
-			MouseDelegate mReleased;
-			mReleased.bind(this,&Menu::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
-
-			menuList.position.x=-9;
-			menuList.position.y=25;
+            menuList.m_position.x=-9;
+            menuList.m_position.y=25;
 		}
 
 		Menu::Menu(char *_text):text(_text),status(normal),expand(false),menuBar(0)
 		{
-			size=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(text);
-			size.width+=12;
-			size.height=20;
-			position.x=100;
-			position.y=100;
-			MouseDelegate mEntered;
-			mEntered.bind(this,&Menu::mouseEntered);
-			mouseEnteredHandlerList.push_back(mEntered);
+            m_size=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(text);
+            m_size.width+=12;
+            m_size.height=20;
+            m_position.x=100;
+            m_position.y=100;
 
-			MouseDelegate mExited;
-			mExited.bind(this,&Menu::mouseExited);
-			mouseExitedHandlerList.push_back(mExited);
+            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(Menu::mouseEntered));
+            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(Menu::mouseExited));
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(Menu::mousePressed));
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(Menu::mouseReleased));
 
-			MouseDelegate mPressed;
-			mPressed.bind(this,&Menu::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
-
-			MouseDelegate mReleased;
-			mReleased.bind(this,&Menu::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
-
-			menuList.position.x=-9;
-			menuList.position.y=25;
+            menuList.m_position.x=-9;
+            menuList.m_position.y=25;
 		}
 
 		void Menu::mouseReleased(const Event::MouseEvent &e)
@@ -79,8 +58,8 @@ namespace AssortedWidgets
 
 		void Menu::listMousePressed(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			if(expand && menuList.isIn(mx,my))
 			{
 				Event::MouseEvent event(&menuList,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
@@ -89,15 +68,15 @@ namespace AssortedWidgets
 
 			if(menuList.isExpand() && menuList.getExpandMenu())
 			{
-				Event::MouseEvent event(&menuList,Event::MouseEvent::MOUSE_PRESSED,mx-menuList.position.x,my-menuList.position.y,0);
+                Event::MouseEvent event(&menuList,Event::MouseEvent::MOUSE_PRESSED,mx-menuList.m_position.x,my-menuList.m_position.y,0);
 				menuList.getExpandMenu()->listMousePressed(event);
 			}
 		}
 
 		void Menu::listMouseReleased(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			if(expand && menuList.isIn(mx,my))
 			{
 				Event::MouseEvent event(&menuList,Event::MouseEvent::MOUSE_RELEASED,mx,my,0);
@@ -106,15 +85,15 @@ namespace AssortedWidgets
 
 			if(menuList.isExpand() && menuList.getExpandMenu())
 			{
-				Event::MouseEvent event(&menuList,Event::MouseEvent::MOUSE_RELEASED,mx-menuList.position.x,my-menuList.position.y,0);
+                Event::MouseEvent event(&menuList,Event::MouseEvent::MOUSE_RELEASED,mx-menuList.m_position.x,my-menuList.m_position.y,0);
 				menuList.getExpandMenu()->listMouseReleased(event);
 			}
 		}
 
 		void Menu::listMouseMotion(const Event::MouseEvent &e)
 		{
-			int mx=e.getX()-position.x;
-			int my=e.getY()-position.y;
+            int mx=e.getX()-m_position.x;
+            int my=e.getY()-m_position.y;
 			if(expand && menuList.isIn(mx,my))
 			{
 				if(menuList.isHover)
@@ -139,7 +118,7 @@ namespace AssortedWidgets
 
 			if(menuList.isExpand() && menuList.getExpandMenu())
 			{
-				Event::MouseEvent event(&menuList,Event::MouseEvent::MOUSE_MOTION,mx-menuList.position.x,my-menuList.position.y,0);
+                Event::MouseEvent event(&menuList,Event::MouseEvent::MOUSE_MOTION,mx-menuList.m_position.x,my-menuList.m_position.y,0);
 				menuList.getExpandMenu()->listMouseMotion(event);
 			}
 		}

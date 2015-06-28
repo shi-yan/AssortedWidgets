@@ -2,7 +2,9 @@
 
 #include <vector>
 #include "BoundingBox.h"
-#include "FastDelegate.h"
+#include <functional>
+
+#define MOUSE_DELEGATE(func) std::bind(&func, this, std::placeholders::_1)
 
 namespace AssortedWidgets
 {
@@ -45,14 +47,14 @@ namespace AssortedWidgets
 
 			void setLocation(int x,int y)
 			{
-				position.x=x;
-				position.y=y;
+                m_position.x=x;
+                m_position.y=y;
             }
 
 			void setSize(unsigned int width,unsigned int height)
 			{
-				size.width=width;
-				size.height=height;
+                m_size.width=width;
+                m_size.height=height;
             }
 
 			void processMouseClick(const Event::MouseEvent &e)
@@ -113,7 +115,7 @@ namespace AssortedWidgets
             virtual Util::Size getPreferedSize() = 0;
             virtual void pack(){}
 		public:
-			typedef fastdelegate::FastDelegate1<const Event::MouseEvent &> MouseDelegate;
+            typedef std::function<void(const Event::MouseEvent &)> MouseDelegate;
 			std::vector<MouseDelegate> mouseClickHandlerList;
 			std::vector<MouseDelegate> mousePressedHandlerList;
 			std::vector<MouseDelegate> mouseReleasedHandlerList;

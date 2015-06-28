@@ -179,8 +179,8 @@ namespace AssortedWidgets
 			{
 				if(component.HStyle==Widgets::Element::Stretch)
 				{
-					component.component->size.width=area.width;
-					component.component->position.x=origin.x;
+                    component.component->m_size.width=area.width;
+                    component.component->m_position.x=origin.x;
 				}
 				else
 				{
@@ -188,17 +188,17 @@ namespace AssortedWidgets
 					{
 						case HLeft:
 						{
-							component.component->position.x=origin.x;
+                            component.component->m_position.x=origin.x;
 							break;
 						}
 						case HCenter:
 						{
-							component.component->position.x=static_cast<int>(origin.x+(area.width-component.width)*0.5f);
+                            component.component->m_position.x=static_cast<int>(origin.x+(area.width-component.width)*0.5f);
 							break;
 						}
 						case HRight:
 						{
-							component.component->position.x=origin.x+(area.width-component.width);
+                            component.component->m_position.x=origin.x+(area.width-component.width);
 							break;
 						}
 					}
@@ -206,8 +206,8 @@ namespace AssortedWidgets
 
 				if(component.VStyle==Widgets::Element::Stretch)
 				{
-					component.component->size.height=area.height;	
-					component.component->position.y=origin.y;
+                    component.component->m_size.height=area.height;
+                    component.component->m_position.y=origin.y;
 
 				}
 				else
@@ -216,17 +216,17 @@ namespace AssortedWidgets
 					{
 						case VTop:
 						{
-							component.component->position.y=origin.y;
+                            component.component->m_position.y=origin.y;
 							break;
 						}
 						case VCenter:
 						{
-							component.component->position.y=static_cast<int>(origin.y+(area.height-component.height)*0.5f);
+                            component.component->m_position.y=static_cast<int>(origin.y+(area.height-component.height)*0.5f);
 							break;
 						}
 						case VBottom:
 						{
-							component.component->position.y=origin.y+(area.height-component.height);
+                            component.component->m_position.y=origin.y+(area.height-component.height);
 							break;
 						}
 					}

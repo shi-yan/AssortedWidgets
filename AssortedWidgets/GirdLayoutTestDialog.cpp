@@ -69,14 +69,11 @@ namespace AssortedWidgets
 
 			pack();
 
-
-									MouseDelegate onClose;
-			onClose.bind(this,&GirdLayoutTestDialog::onClose);
-			closeButton->mouseReleasedHandlerList.push_back(onClose);
+            closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(GirdLayoutTestDialog::onClose));
 
 		}
 
-						void GirdLayoutTestDialog::onClose(const Event::MouseEvent &e)
+        void GirdLayoutTestDialog::onClose(const Event::MouseEvent &e)
 		{
 			Close();
 		}

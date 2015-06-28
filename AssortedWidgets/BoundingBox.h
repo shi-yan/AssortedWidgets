@@ -10,33 +10,33 @@ namespace AssortedWidgets
 		class BoundingBox
 		{
 		public:
-			Position position;
-			Size size;
+            Position m_position;
+            Size m_size;
         public:
             BoundingBox(int x=0,int y=0,unsigned int width=0,unsigned int height=0)
-                :position(x,y),
-                  size(width,height)
+                :m_position(x,y),
+                  m_size(width,height)
             {}
 
             BoundingBox(const BoundingBox& in)
-                :position(in.position),
-                  size(in.size)
+                :m_position(in.m_position),
+                  m_size(in.m_size)
             {}
 
 			void operator=(const BoundingBox& in)
 			{
-				position=in.position;
-				size=in.size;
+                m_position=in.m_position;
+                m_size=in.m_size;
             }
 
 			bool operator==(const BoundingBox& in)
 			{
-				return ((position==(in.position))&&(size==in.size));
+                return ((m_position==(in.m_position))&&(m_size==in.m_size));
             }
 
 			bool isIn(int x,int y)
 			{
-				return ((position.x<x)&&(x<(position.x+static_cast<int>(size.width)))&&(position.y<y)&&(y<(position.y+static_cast<int>(size.height))));
+                return ((m_position.x<x)&&(x<(m_position.x+static_cast<int>(m_size.width)))&&(m_position.y<y)&&(y<(m_position.y+static_cast<int>(m_size.height))));
             }
 
 		public:

@@ -14,7 +14,7 @@ namespace AssortedWidgets
               m_status(normal),
               m_toggle(false)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 		}
 
         MenuItemToggleButton::MenuItemToggleButton(char *_text)
@@ -27,23 +27,12 @@ namespace AssortedWidgets
               m_status(normal),
               m_toggle(false)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 
-			MouseDelegate mEntered;
-			mEntered.bind(this,&MenuItemToggleButton::mouseEntered);
-			mouseEnteredHandlerList.push_back(mEntered);
-			
-			MouseDelegate mExited;
-			mExited.bind(this,&MenuItemToggleButton::mouseExited);
-			mouseExitedHandlerList.push_back(mExited);
-
-			MouseDelegate mPressed;
-			mPressed.bind(this,&MenuItemToggleButton::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
-
-			MouseDelegate mReleased;
-			mReleased.bind(this,&MenuItemToggleButton::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
+            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(MenuItemToggleButton::mouseEntered));
+            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(MenuItemToggleButton::mouseExited));
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(MenuItemToggleButton::mousePressed));
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(MenuItemToggleButton::mouseReleased));
 		}
 
 		MenuItemToggleButton::~MenuItemToggleButton(void)

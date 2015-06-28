@@ -14,7 +14,7 @@ namespace AssortedWidgets
               m_right(2),
               m_status(normal)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 		}
 
         MenuItemButton::MenuItemButton(char *_text)
@@ -26,23 +26,12 @@ namespace AssortedWidgets
               m_right(2),
               m_status(normal)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 
-			MouseDelegate mEntered;
-			mEntered.bind(this,&MenuItemButton::mouseEntered);
-			mouseEnteredHandlerList.push_back(mEntered);
-			
-			MouseDelegate mExited;
-			mExited.bind(this,&MenuItemButton::mouseExited);
-			mouseExitedHandlerList.push_back(mExited);
-
-			MouseDelegate mPressed;
-			mPressed.bind(this,&MenuItemButton::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
-
-			MouseDelegate mReleased;
-			mReleased.bind(this,&MenuItemButton::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
+            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(MenuItemButton::mouseEntered));
+            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(MenuItemButton::mouseExited));
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(MenuItemButton::mousePressed));
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(MenuItemButton::mouseReleased));
 		}
 
 		MenuItemButton::~MenuItemButton(void)

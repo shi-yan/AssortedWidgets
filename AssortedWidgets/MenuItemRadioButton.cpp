@@ -14,23 +14,12 @@ namespace AssortedWidgets
               m_status(normal),
               m_toggle(false)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 
-	MouseDelegate mEntered;
-			mEntered.bind(this,&MenuItemRadioButton::mouseEntered);
-			mouseEnteredHandlerList.push_back(mEntered);
-			
-			MouseDelegate mExited;
-			mExited.bind(this,&MenuItemRadioButton::mouseExited);
-			mouseExitedHandlerList.push_back(mExited);
-
-			MouseDelegate mPressed;
-			mPressed.bind(this,&MenuItemRadioButton::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
-
-			MouseDelegate mReleased;
-			mReleased.bind(this,&MenuItemRadioButton::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
+            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioButton::mouseEntered));
+            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioButton::mouseExited));
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioButton::mousePressed));
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioButton::mouseReleased));
 		}
 
         MenuItemRadioButton::MenuItemRadioButton(char *_text)
@@ -43,23 +32,12 @@ namespace AssortedWidgets
               m_status(normal),
               m_toggle(false)
 		{
-			size=getPreferedSize();
+            m_size=getPreferedSize();
 
-			MouseDelegate mEntered;
-			mEntered.bind(this,&MenuItemRadioButton::mouseEntered);
-			mouseEnteredHandlerList.push_back(mEntered);
-			
-			MouseDelegate mExited;
-			mExited.bind(this,&MenuItemRadioButton::mouseExited);
-			mouseExitedHandlerList.push_back(mExited);
-
-			MouseDelegate mPressed;
-			mPressed.bind(this,&MenuItemRadioButton::mousePressed);
-			mousePressedHandlerList.push_back(mPressed);
-
-			MouseDelegate mReleased;
-			mReleased.bind(this,&MenuItemRadioButton::mouseReleased);
-			mouseReleasedHandlerList.push_back(mReleased);
+            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioButton::mouseEntered));
+            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioButton::mouseExited));
+            mousePressedHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioButton::mousePressed));
+            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioButton::mouseReleased));
 		}
 
 		MenuItemRadioButton::~MenuItemRadioButton(void)

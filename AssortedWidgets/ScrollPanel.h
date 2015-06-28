@@ -67,8 +67,8 @@ namespace AssortedWidgets
 			void setContent(Element *_content)
 			{
 				content=_content;
-				offsetXMax=content->size.width-(size.width-17);
-				offsetYMax=content->size.height-(size.height-17);
+                offsetXMax=content->m_size.width-(m_size.width-17);
+                offsetYMax=content->m_size.height-(m_size.height-17);
 			}
 			void removeContent()
 			{
