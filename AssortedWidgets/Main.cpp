@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QDebug>
 #include "SDL2/SDL_image.h"
+#include "fontstash.h"
 
 //The window we'll be rendering to
 SDL_Window* window = NULL;

@@ -1,22 +1,27 @@
 #pragma once
 
+#include "SDL2/SDL_opengl.h"
 #include "Font.h"
-#include "OGLFT.h"
+
+#include <vector>
+
+extern "C"{
+#include "fontstash.h"
+}
 
 namespace AssortedWidgets
 {
 	namespace Font
 	{
-		class FreeTypeFont: public Font
+        class TrueTypeFont: public Font
 		{
 		private:
-            OGLFT::TranslucentTexture *m_ftfont;
-            std::vector<Util::Size> m_fontCache;
-            unsigned int m_width[256];
-            unsigned int m_height[256];
+            struct sth_stash* m_stash;
+            int m_font;
+            int m_size;
 
 		public:
-			FreeTypeFont(char* _fontName,size_t _size);
+            TrueTypeFont(char* _fontName,size_t _size);
 
 			Util::Size getStringBoundingBox(const std::string &text) const;
 
@@ -25,7 +30,7 @@ namespace AssortedWidgets
 			void printf(int x,int y,const char *fmt, ...) const;
 
 		public:
-			~FreeTypeFont(void);
+            ~TrueTypeFont(void);
 		};
 	}
 }

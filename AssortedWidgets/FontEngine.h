@@ -1,6 +1,6 @@
 #pragma once
 
-#include "FreeTypeFont.h"
+#include "TrueTypeFont.h"
 
 namespace AssortedWidgets
 {
@@ -9,9 +9,9 @@ namespace AssortedWidgets
 		class FontEngine
 		{
 		private:
-            FreeTypeFont m_freeTypeFont;
+            TrueTypeFont m_trueTypeFont;
             FontEngine(void)
-                :m_freeTypeFont("arial.ttf", 10)
+                :m_trueTypeFont("arial.ttf", 18)
             {}
 		public:
 			static FontEngine &getSingleton()
@@ -19,9 +19,9 @@ namespace AssortedWidgets
 				static FontEngine obj;
 				return obj;
 			}
-			FreeTypeFont &getFont()
+            TrueTypeFont &getFont()
 			{
-                return m_freeTypeFont;
+                return m_trueTypeFont;
             }
 		private:
 			~FontEngine(void);

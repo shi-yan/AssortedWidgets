@@ -61,7 +61,6 @@ HEADERS += \
     FlowLayoutTestDialog.h \
     Font.h \
     FontEngine.h \
-    FreeTypeFont.h \
     GirdLayout.h \
     GirdLayoutTestDialog.h \
     Graphics.h \
@@ -85,7 +84,6 @@ HEADERS += \
     MouseEvent.h \
     MouseListener.h \
     MultipleLayoutTestDialog.h \
-    OGLFT.h \
     Panel.h \
     PanelTestDialog.h \
     Position.h \
@@ -109,7 +107,10 @@ HEADERS += \
     ThemeEngine.h \
     TypeAble.h \
     TypeActiveManager.h \
-    UI.h
+    UI.h \
+    fontstash.h \
+    stb_truetype.h \
+    TrueTypeFont.h
 
 SOURCES += \
     AbstractButton.cpp \
@@ -142,7 +143,6 @@ SOURCES += \
     FlowLayoutTestDialog.cpp \
     Font.cpp \
     FontEngine.cpp \
-    FreeTypeFont.cpp \
     GirdLayout.cpp \
     GirdLayoutTestDialog.cpp \
     Label.cpp \
@@ -161,7 +161,6 @@ SOURCES += \
     MenuItemToggleButton.cpp \
     MenuList.cpp \
     MultipleLayoutTestDialog.cpp \
-    OGLFT.cpp \
     Panel.cpp \
     PanelTestDialog.cpp \
     ProgressBar.cpp \
@@ -180,4 +179,7 @@ SOURCES += \
     TextNDropTestDialog.cpp \
     TypeAble.cpp \
     TypeActiveManager.cpp \
-    UI.cpp
+    UI.cpp \
+    fontstash.c \
+    stb_truetype.c \
+    TrueTypeFont.cpp
