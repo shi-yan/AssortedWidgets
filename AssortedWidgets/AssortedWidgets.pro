@@ -21,10 +21,21 @@ CONFIG += C++14
 #        -lfreetype26d \
 #        -lSDL_image \
 #        -lqtmaind
+macx {
+INCLUDEPATH += /usr/local/Cellar/sdl2/2.0.4/include \
+               /usr/local/Cellar/sdl2_image/2.0.1_1/include \
+               /usr/local/Cellar/sdl2/2.0.4/include/SDL2
 
-INCLUDEPATH += /usr/include/freetype2 \
 
-LIBS += -lSDL2 -lGL -lGLU -lSDL2_image -lfreetype
+LIBS += -L/usr/local/Cellar/sdl2/2.0.4/lib \
+        -L/usr/local/Cellar/sdl2_image/2.0.1_1/lib
+LIBS += -framework OpenGL -lSDL2 -lSDL2_image
+
+}
+
+unix:!mac {
+LIBS += -lSDL2 -lGL -lGLU -lSDL2_image
+}
 
 HEADERS += \
     AbstractButton.h \
@@ -183,3 +194,12 @@ SOURCES += \
     fontstash.c \
     stb_truetype.c \
     TrueTypeFont.cpp
+
+macx {
+    RESOURCEFILE.files     = aw.png \
+                            arial.ttf
+
+    RESOURCEFILE.path      = Contents/MacOS
+
+    QMAKE_BUNDLE_DATA += RESOURCEFILE
+}

@@ -22,10 +22,9 @@
 #include <string.h>
 #include <math.h> /* @rlyeh: floorf() */
 
-#include <GL/glew.h>  /* @rlyeh: before including GL. doesnt hurt and makes life better */
-
-#ifdef __MACOSX__
+#ifdef __APPLE__
 #include <OpenGL/gl.h>
+#include <OpenGL/glu.h>
 #else
 #include <GL/gl.h>
 #endif

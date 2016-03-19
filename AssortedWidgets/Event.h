@@ -4,8 +4,9 @@
 
 namespace AssortedWidgets
 {
-	class Widgets::Component;
-
+namespace Widgets{
+    class Component;
+}
 	namespace Event
 	{
 		class Event

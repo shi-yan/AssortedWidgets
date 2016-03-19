@@ -587,7 +587,7 @@ namespace AssortedWidgets
 
         void appExit(const Event::MouseEvent &)
 		{
-			exit(0);
+//			exit(0);
         }
 
 		void mouseMotion(int mx,int my)
