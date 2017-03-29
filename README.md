@@ -20,7 +20,7 @@ I built it into webassembly. You can try it here:
 
 Because this code uses opengl 1.1, I used the old opengl emulation feature of emscripten. Some colors are not right due to bugs in that feature I believe. 
 
-
+[webassembly demo](http://shi-yan.github.io/AssortedWidgets/)
 
 How to build:
 
