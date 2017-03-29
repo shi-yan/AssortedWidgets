@@ -12,7 +12,7 @@ namespace AssortedWidgets
             std::string m_fontName;
             size_t m_size;
 		public:
-            Font(char* _fontName,size_t _size)
+            Font(const char* _fontName,size_t _size)
                 :m_fontName(_fontName),
                   m_size(_size)
             {}

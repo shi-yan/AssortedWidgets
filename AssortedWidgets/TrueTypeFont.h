@@ -2,12 +2,8 @@
 
 #include "SDL2/SDL_opengl.h"
 #include "Font.h"
-
 #include <vector>
-
-extern "C"{
 #include "fontstash.h"
-}
 
 namespace AssortedWidgets
 {
@@ -21,7 +17,7 @@ namespace AssortedWidgets
             int m_size;
 
 		public:
-            TrueTypeFont(char* _fontName,size_t _size);
+            TrueTypeFont(const char* _fontName,size_t _size);
 
 			Util::Size getStringBoundingBox(const std::string &text) const;
 

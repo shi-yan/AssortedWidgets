@@ -1,6 +1,6 @@
 #pragma once
 #include "ContainerElement.h"
-#include "DialogTittleBar.h"
+#include "DialogTitleBar.h"
 #include "DialogUpLeft.h"
 #include "DialogUpRight.h"
 #include "DialogUp.h"
@@ -27,7 +27,7 @@ namespace AssortedWidgets
 				Modeless
 			};
 		private:
-            DialogTittleBar m_tittleBar;
+            DialogTitleBar m_titleBar;
             DialogUpLeft m_borderUpLeft;
             DialogUpRight m_borderUpRight;
             DialogUp m_borderUp;
@@ -80,12 +80,12 @@ namespace AssortedWidgets
 			void Close();
 
 			void pack();
-			Dialog(std::string &tittle,int x,int y,unsigned int width,unsigned int height);
-			Dialog(char *tittle,int x,int y,unsigned int width,unsigned int height);
+            Dialog(const std::string &title,int x,int y,unsigned int width,unsigned int height);
+            Dialog(const char *title,int x,int y,unsigned int width,unsigned int height);
 			Util::Size getPreferedSize()
 			{
 				//return Theme::ThemeEngine::getSingleton().getTheme().getDialogPreferedSize(this);
-                Util::Size result(m_tittleBar.getPreferedSize());
+                Util::Size result(m_titleBar.getPreferedSize());
                 result.m_width+=m_left+m_right;
                 result.m_height+=m_top+m_bottom;
 				return result;
@@ -110,7 +110,7 @@ namespace AssortedWidgets
 				Theme::ThemeEngine::getSingleton().getTheme().paintDialog(this);
                 Util::Position p(m_position);
                 Util::Graphics::getSingleton().pushPosition(p);
-                m_tittleBar.paint();
+                m_titleBar.paint();
 				//layout->testPaint();
 				paintChild();
 				Util::Graphics::getSingleton().popPosition();

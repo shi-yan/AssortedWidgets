@@ -19,7 +19,7 @@ namespace AssortedWidgets
 		class Label;
 		class Button;
 		class Dialog;
-		class DialogTittleBar;
+        class DialogTitleBar;
 		class TextField;
 		class Logo;
 		class ScrollBarButton;
@@ -73,8 +73,8 @@ namespace AssortedWidgets
 			virtual void paintMenuItemRadioGroup(Widgets::MenuItemRadioGroup *component)=0;
 			virtual Util::Size getDialogPreferedSize(Widgets::Dialog *component)=0;
 			virtual void paintDialog(Widgets::Dialog *component)=0;
-            virtual Util::Size getDialogTittleBarPreferedSize(Widgets::DialogTittleBar *component) = 0;
-			virtual void paintDialogTittleBar(Widgets::DialogTittleBar *component)=0;
+            virtual Util::Size getDialogTitleBarPreferedSize(Widgets::DialogTitleBar *component) = 0;
+            virtual void paintDialogTitleBar(Widgets::DialogTitleBar *component)=0;
 			virtual Util::Size getTextFieldPreferedSize(Widgets::TextField *component)=0;
 			virtual void paintTextField(Widgets::TextField *component)=0;
 			virtual Util::Size getLogoPreferedSize(Widgets::Logo *component)=0;

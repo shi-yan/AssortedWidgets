@@ -5,7 +5,7 @@ namespace AssortedWidgets
 	namespace Widgets
 	{
 
-        RadioButton::RadioButton(std::string &_text,RadioGroup *_group)
+        RadioButton::RadioButton(const std::string &_text,RadioGroup *_group)
             :m_text(_text),
               m_group(_group),
               m_check(false)
@@ -17,7 +17,7 @@ namespace AssortedWidgets
             mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(RadioButton::mouseReleased));
 		}
 
-        RadioButton::RadioButton(char *_text,RadioGroup *_group)
+        RadioButton::RadioButton(const char *_text,RadioGroup *_group)
             :m_text(_text),
               m_group(_group),
               m_check(false)

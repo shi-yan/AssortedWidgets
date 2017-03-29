@@ -4,7 +4,7 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-        MenuItemRadioButton::MenuItemRadioButton(std::string &_text)
+        MenuItemRadioButton::MenuItemRadioButton(const std::string &_text)
             :m_text(_text),
               m_style(stretch),
               m_left(24),
@@ -22,7 +22,7 @@ namespace AssortedWidgets
             mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioButton::mouseReleased));
 		}
 
-        MenuItemRadioButton::MenuItemRadioButton(char *_text)
+        MenuItemRadioButton::MenuItemRadioButton(const char *_text)
             :m_text(_text),
               m_style(stretch),
               m_left(24),

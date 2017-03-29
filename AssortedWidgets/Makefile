@@ -1,0 +1,76 @@
+CC=emcc
+CFLAGS=-c -Wall
+LDFLAGS=
+SOURCES=stb_truetype.cpp \
+		fontstash.cpp \
+		TrueTypeFont.cpp \
+		Font.cpp \
+		FontEngine.cpp \
+		AbstractButton.cpp \
+		DialogManager.cpp \
+		MenuItemSeparator.cpp \
+		ScrollBarSlider.cpp \
+		AllInOneDialog.cpp \
+		DialogRight.cpp \
+		DefaultTheme.cpp \
+		MenuItemSpacer.cpp \
+		ScrollPanel.cpp \
+		BorderLayout.cpp \
+		DialogTestDialog.cpp \
+		GirdLayout.cpp \
+		MenuItemSubMenu.cpp \
+		SelectionManager.cpp \
+		BorderLayoutTestDialog.cpp \
+		DialogTitleBar.cpp \
+		GirdLayoutTestDialog.cpp \
+		MenuItemToggleButton.cpp \
+		SlideBar.cpp \
+		Button.cpp \
+		DialogUp.cpp \
+		Label.cpp \
+		MenuList.cpp \
+		SlideBarSlider.cpp \
+		CheckButton.cpp \
+		DialogUpLeft.cpp \
+		LabelNButtonTestDialog.cpp \
+		MultipleLayoutTestDialog.cpp \
+		Spacer.cpp \
+		CheckNRadioTestDialog.cpp \
+		DialogUpRight.cpp \
+		Logo.cpp \
+		Panel.cpp \
+		TextField.cpp \
+		Component.cpp \
+		DragAble.cpp \
+		PanelTestDialog.cpp \
+		TextNDropTestDialog.cpp \
+		DropListButton.cpp \
+		MenuBar.cpp \
+		ProgressBar.cpp \
+		DialogBottom.cpp \
+		DropList.cpp \
+		Menu.cpp \
+		ProgressNSliderTestDialog.cpp \
+		TypeAble.cpp \
+		DialogBottomLeft.cpp \
+		DropListItem.cpp \
+		MenuItemButton.cpp \
+		RadioButton.cpp \
+		TypeActiveManager.cpp \
+		DialogBottomRight.cpp \
+		DropListManager.cpp \
+		MenuItem.cpp \
+		RadioGroup.cpp \
+		UI.cpp \
+		Dialog.cpp \
+		FlowLayout.cpp \
+		MenuItemRadioButton.cpp \
+		ScrollBarButton.cpp \
+		DialogLeft.cpp \
+		FlowLayoutTestDialog.cpp \
+		MenuItemRadioGroup.cpp \
+		ScrollBar.cpp \
+		Main.cpp
+
+buildassortedwidget:
+	emcc $(SOURCES) -O3 -s USE_SDL=2 -s WASM=1 -std=c++11 -s USE_SDL_IMAGE=2 -s GL_UNSAFE_OPTS=1 -s SDL2_IMAGE_FORMATS='["png"]' -s LEGACY_GL_EMULATION=1 --preload-file assets -o index.html

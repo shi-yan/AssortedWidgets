@@ -57,7 +57,6 @@ HEADERS += \
     DialogManager.h \
     DialogRight.h \
     DialogTestDialog.h \
-    DialogTittleBar.h \
     DialogUp.h \
     DialogUpLeft.h \
     DialogUpRight.h \
@@ -121,7 +120,8 @@ HEADERS += \
     UI.h \
     fontstash.h \
     stb_truetype.h \
-    TrueTypeFont.h
+    TrueTypeFont.h \
+    DialogTitleBar.h
 
 SOURCES += \
     AbstractButton.cpp \
@@ -141,7 +141,6 @@ SOURCES += \
     DialogManager.cpp \
     DialogRight.cpp \
     DialogTestDialog.cpp \
-    DialogTittleBar.cpp \
     DialogUp.cpp \
     DialogUpLeft.cpp \
     DialogUpRight.cpp \
@@ -191,9 +190,10 @@ SOURCES += \
     TypeAble.cpp \
     TypeActiveManager.cpp \
     UI.cpp \
-    fontstash.c \
-    stb_truetype.c \
-    TrueTypeFont.cpp
+    fontstash.cpp \
+    stb_truetype.cpp \
+    TrueTypeFont.cpp \
+    DialogTitleBar.cpp
 
 macx {
     RESOURCEFILE.files     = aw.png \

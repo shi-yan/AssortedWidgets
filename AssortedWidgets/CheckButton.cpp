@@ -5,7 +5,7 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{			
-        CheckButton::CheckButton(std::string &_text,bool _check)
+        CheckButton::CheckButton(const std::string &_text,bool _check)
             :m_text(_text),
               m_check(_check)
 		{
@@ -16,7 +16,7 @@ namespace AssortedWidgets
             mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(CheckButton::mouseReleased));
 		}
 		
-        CheckButton::CheckButton(char *_text,bool _check)
+        CheckButton::CheckButton(const char *_text,bool _check)
             :m_text(_text),
               m_check(_check)
 		{

@@ -1,4 +1,5 @@
 #include "AbstractButton.h"
+#include <functional>
 
 namespace AssortedWidgets
 {

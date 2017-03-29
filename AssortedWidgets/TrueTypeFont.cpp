@@ -11,16 +11,18 @@ namespace AssortedWidgets
 {
 	namespace Font
 	{
-        TrueTypeFont::TrueTypeFont(char* _fontName,size_t _size):Font(_fontName,_size)
+        TrueTypeFont::TrueTypeFont(const char* _fontName,size_t _size):Font(_fontName,_size)
 		{
             m_stash = sth_create(512, 512);
+            //printf("font1\n");
             m_font = sth_add_font(m_stash, _fontName);
+            //printf("font2\n");
             m_size = _size;
 		}
 
         Util::Size TrueTypeFont::getStringBoundingBox(const std::string &text) const
 		{
-        /*	Util::Size result(0,0);
+            /*Util::Size result(0,0);
 
 			for(size_t i = 0; i < text.length(); ++i)
 			{
@@ -45,6 +47,7 @@ namespace AssortedWidgets
             glEnable(GL_TEXTURE_2D);
             glEnable( GL_BLEND );
             glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+            glColor3ub(137,155,145);
           //  glPushMatrix();
                // glTranslatef(static_cast<GLfloat>(x),static_cast<GLfloat>(y + getStringBoundingBox(text).m_height) ,0);
                // glScalef(1,-1,1);

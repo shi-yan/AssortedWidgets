@@ -16,7 +16,7 @@
 #include "MenuItemRadioButton.h"
 #include "MenuItemRadioGroup.h"
 #include "Dialog.h"
-#include "DialogTittleBar.h"
+#include "DialogTitleBar.h"
 #include "TextField.h"
 #include "Logo.h"
 #include "ScrollBarButton.h"
@@ -62,19 +62,18 @@ namespace AssortedWidgets
 
 		void DefaultTheme::setup()
 		{
-            SDL_RWops *io = SDL_RWFromFile("aw.png", "r+b");
+            SDL_RWops *io = SDL_RWFromFile("assets/aw.png", "r+b");
             SDL_Surface *img=IMG_LoadPNG_RW(io);
 		    SDL_LockSurface(img);   
 			glEnable(GL_TEXTURE_2D);
             glGenTextures(1,&m_textureID);
             glBindTexture(GL_TEXTURE_2D,m_textureID);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img->w, img->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, img->pixels);
-			
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,GL_NEAREST);
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
 			glDisable(GL_TEXTURE_2D);
-			SDL_UnlockSurface(img);
+            SDL_UnlockSurface(img);
 			SDL_FreeSurface(img);
 
             m_MenuLeft=new SubImage(1.0/256.0,1.0/256.0,7.0/256.0,21.0/256.0,m_textureID);
@@ -662,13 +661,13 @@ namespace AssortedWidgets
 				glEnd();
             }
 
-			Util::Size DefaultTheme::getDialogTittleBarPreferedSize(Widgets::DialogTittleBar *component)
+            Util::Size DefaultTheme::getDialogTitleBarPreferedSize(Widgets::DialogTitleBar *component)
 			{
 				Util::Size text=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(component->getText());
                 return Util::Size(20+text.m_width,20);
             }
 			
-			void DefaultTheme::paintDialogTittleBar(Widgets::DialogTittleBar *component)
+            void DefaultTheme::paintDialogTitleBar(Widgets::DialogTitleBar *component)
 			{
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
 				glColor3ub(31,31,31);

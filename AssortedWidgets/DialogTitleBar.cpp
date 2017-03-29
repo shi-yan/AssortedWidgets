@@ -1,11 +1,11 @@
-#include "DialogTittleBar.h"
+#include "DialogTitleBar.h"
 #include "Dialog.h"
 
 namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-        DialogTittleBar::DialogTittleBar(std::string &_text)
+        DialogTitleBar::DialogTitleBar(const std::string &_text)
             :m_text(_text),
               m_left(10),
               m_right(10),
@@ -14,7 +14,7 @@ namespace AssortedWidgets
 		{
 		}
 
-        DialogTittleBar::DialogTittleBar(char *_text)
+        DialogTitleBar::DialogTitleBar(const char *_text)
             :m_text(_text),
               m_left(10),
               m_right(10),
@@ -23,16 +23,16 @@ namespace AssortedWidgets
 		{
 		}
 
-		DialogTittleBar::~DialogTittleBar(void)
+        DialogTitleBar::~DialogTitleBar(void)
 		{
 		}
 
-		void DialogTittleBar::dragReleased(const Event::MouseEvent &e)
+        void DialogTitleBar::dragReleased(const Event::MouseEvent &e)
 		{
 
 		}
 
-		void DialogTittleBar::dragMoved(int offsetX,int offsetY)
+        void DialogTitleBar::dragMoved(int offsetX,int offsetY)
 		{
             m_parent->m_position.x+=offsetX;
             m_parent->m_position.y+=offsetY;

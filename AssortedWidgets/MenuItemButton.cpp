@@ -5,7 +5,7 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-        MenuItemButton::MenuItemButton(std::string &_text)
+        MenuItemButton::MenuItemButton(const std::string &_text)
             :m_text(_text),
               m_style(stretch),
               m_left(24),
@@ -17,7 +17,7 @@ namespace AssortedWidgets
             m_size=getPreferedSize();
 		}
 
-        MenuItemButton::MenuItemButton(char *_text)
+        MenuItemButton::MenuItemButton(const char *_text)
             :m_text(_text),
               m_style(stretch),
               m_left(24),

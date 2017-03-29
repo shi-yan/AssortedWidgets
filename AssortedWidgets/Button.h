@@ -27,8 +27,8 @@ namespace AssortedWidgets
 				Theme::ThemeEngine::getSingleton().getTheme().paintButton(this);
             }
 
-			Button(std::string &_text);
-			Button(char *_text);
+            Button(const std::string &_text);
+            Button(const char *_text);
 		public:
 			~Button(void);
 		};

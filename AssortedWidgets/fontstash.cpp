@@ -28,7 +28,7 @@
 #else
 #include <GL/gl.h>
 #endif
-
+// #define STB_TRUETYPE_IMPLENTATION
 /* @rlyeh: removed STB_TRUETYPE_IMPLENTATION. We link it externally */
 #include "stb_truetype.h"
 
@@ -164,7 +164,7 @@ struct sth_stash* sth_create(int cachew, int cacheh)
 	memset(stash,0,sizeof(struct sth_stash));
 
 	// Create data for clearing the textures
-	empty_data = malloc(cachew * cacheh);
+    empty_data = (GLubyte*)malloc(cachew * cacheh);
 	if (empty_data == NULL) goto error;
 	memset(empty_data, 0, cachew * cacheh);
 

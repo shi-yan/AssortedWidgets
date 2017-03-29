@@ -17,8 +17,8 @@ namespace AssortedWidgets
             unsigned int m_right;
 		public:
 			TextField(unsigned int _length);
-			TextField(unsigned int _length,char *_text);
-			TextField(unsigned int _length,std::string &_text);
+            TextField(unsigned int _length,const char *_text);
+            TextField(unsigned int _length,const std::string &_text);
 			unsigned int getLength()
 			{
                 return m_length;

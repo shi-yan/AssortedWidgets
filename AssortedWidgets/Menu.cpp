@@ -7,7 +7,7 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-        Menu::Menu(std::string &_text)
+        Menu::Menu(const std::string &_text)
             :m_text(_text),
               m_status(normal),
               m_expand(false),
@@ -28,7 +28,7 @@ namespace AssortedWidgets
             m_menuList.m_position.y=25;
 		}
 
-        Menu::Menu(char *_text)
+        Menu::Menu(const char *_text)
             :m_text(_text),
               m_status(normal),
               m_expand(false),

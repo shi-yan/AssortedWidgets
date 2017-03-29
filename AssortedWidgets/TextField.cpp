@@ -13,7 +13,7 @@ namespace AssortedWidgets
             m_size.m_height=20;
 		}
 			
-        TextField::TextField(unsigned int _length,char *_text)
+        TextField::TextField(unsigned int _length,const char *_text)
             :TypeAble(_text),
               m_length(_length),
               m_top(4)
@@ -22,7 +22,7 @@ namespace AssortedWidgets
             m_size.m_height=20;
 		}
 
-        TextField::TextField(unsigned int _length,std::string &_text)
+        TextField::TextField(unsigned int _length,const std::string &_text)
             :TypeAble(_text),
               m_length(_length),
               m_top(4)

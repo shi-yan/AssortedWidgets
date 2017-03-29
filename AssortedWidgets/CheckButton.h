@@ -31,8 +31,8 @@ namespace AssortedWidgets
                 m_text=_text;
             }
 
-			CheckButton(std::string &_text,bool _check=false);
-			CheckButton(char *_text,bool _check=false);
+            CheckButton(const std::string &_text,bool _check=false);
+            CheckButton(const char *_text,bool _check=false);
 			void mouseReleased(const Event::MouseEvent &e);
 			Util::Size getPreferedSize()
 			{

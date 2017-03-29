@@ -73,8 +73,8 @@ namespace AssortedWidgets
 				Theme::ThemeEngine::getSingleton().getTheme().paintLabel(this);
             }
 
-			Label(std::string &_text);
-			Label(char *_text);
+            Label(const std::string &_text);
+            Label(const char *_text);
 		public:
 			~Label(void);
 		};

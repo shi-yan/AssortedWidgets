@@ -10,7 +10,7 @@ namespace AssortedWidgets
 		private:
             std::string m_text;
 		public:
-			void setString(std::string &_text)
+            void setString(const std::string &_text)
 			{
                 m_text=_text;
             }
@@ -19,8 +19,8 @@ namespace AssortedWidgets
 			{
                 return m_text;
             }
-			DropListItem(char *_text);
-			DropListItem(std::string &_text);
+            DropListItem(const char *_text);
+            DropListItem(const std::string &_text);
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintDropListItem(this);

@@ -40,7 +40,9 @@ namespace AssortedWidgets
             }
 
 			void dragReleased(const Event::MouseEvent &e)
-            {}
+            {
+
+            }
 
 			void dragMoved(int offsetX,int offsetY)
 			{

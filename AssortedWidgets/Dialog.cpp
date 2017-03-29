@@ -5,8 +5,8 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-        Dialog::Dialog(std::string &tittle,int x,int y,unsigned int width,unsigned int height)
-            :m_tittleBar(tittle),
+        Dialog::Dialog(const std::string &title,int x,int y,unsigned int width,unsigned int height)
+            :m_titleBar(title),
               m_top(12),
               m_bottom(14),
               m_left(12),
@@ -27,7 +27,7 @@ namespace AssortedWidgets
             m_position.y=y;
             m_size.m_width=width;
             m_size.m_height=height;
-            m_tittleBar.setDialog(this);
+            m_titleBar.setDialog(this);
             m_borderUpLeft.setParent(this);
             m_borderUpRight.setParent(this);
             m_borderUp.setParent(this);
@@ -45,8 +45,8 @@ namespace AssortedWidgets
 			pack();
 		}
 
-        Dialog::Dialog(char *tittle,int x,int y,unsigned int width,unsigned int height)
-            :m_tittleBar(tittle),
+        Dialog::Dialog(const char *title,int x,int y,unsigned int width,unsigned int height)
+            :m_titleBar(title),
               m_top(12),
               m_bottom(14),
               m_left(12),
@@ -67,7 +67,7 @@ namespace AssortedWidgets
             m_position.y=y;
             m_size.m_width=width;
             m_size.m_height=height;
-            m_tittleBar.setDialog(this);
+            m_titleBar.setDialog(this);
             m_borderUpLeft.setParent(this);
             m_borderUpRight.setParent(this);
             m_borderUp.setParent(this);
@@ -172,10 +172,10 @@ namespace AssortedWidgets
             int my=e.getY()-m_position.y;
             if(m_dragable)
 			{
-                if(m_tittleBar.isIn(mx,my))
+                if(m_titleBar.isIn(mx,my))
 				{
-                    Event::MouseEvent event(&m_tittleBar,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
-                    m_tittleBar.processMousePressed(event);
+                    Event::MouseEvent event(&m_titleBar,Event::MouseEvent::MOUSE_PRESSED,mx,my,0);
+                    m_titleBar.processMousePressed(event);
 					return;
 				}
 			}
@@ -261,10 +261,10 @@ namespace AssortedWidgets
 
 		void Dialog::pack()
 		{
-            m_tittleBar.m_position.x=m_left;
-            m_tittleBar.m_position.y=m_top;
-            m_tittleBar.m_size.m_width=m_size.m_width-m_left-m_right;
-            m_tittleBar.m_size.m_height=20;
+            m_titleBar.m_position.x=m_left;
+            m_titleBar.m_position.y=m_top;
+            m_titleBar.m_size.m_width=m_size.m_width-m_left-m_right;
+            m_titleBar.m_size.m_height=20;
 
             m_borderUpRight.m_position.x=m_size.m_width-13;
             m_borderUp.m_size.m_width=m_size.m_width-26;
@@ -280,8 +280,8 @@ namespace AssortedWidgets
             m_borderBottomRight.m_position.x=m_size.m_width-13;
             m_borderBottomRight.m_position.y=m_size.m_height-15;
 
-            m_contentPosition=Util::Position(m_left,(m_top+m_tittleBar.m_size.m_height+2));
-            m_contentSize=Util::Size(m_size.m_width-m_left-m_right,m_size.m_height-m_top-m_bottom-2-m_tittleBar.m_size.m_height);
+            m_contentPosition=Util::Position(m_left,(m_top+m_titleBar.m_size.m_height+2));
+            m_contentSize=Util::Size(m_size.m_width-m_left-m_right,m_size.m_height-m_top-m_bottom-2-m_titleBar.m_size.m_height);
 
 
 			//contentSize=Util::Size(100,100);

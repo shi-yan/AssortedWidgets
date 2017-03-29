@@ -263,13 +263,19 @@ namespace AssortedWidgets
 		{
 			width=_width;
 			height=_height;
+            printf("haha1\n");
 			Theme::DefaultTheme *theme=new Theme::DefaultTheme(_width,_height);
+            printf("haha2\n");
 			theme->setup();
+            printf("haha3\n");
 			selectionManager.setup(width,height);
+            printf("haha4\n");
 			Theme::ThemeEngine::getSingleton().setupTheme(theme);
+            printf("haha5\n");
 			Widgets::MenuBar::getSingleton().init(width);
-
+            printf("haha6\n");
 			menuFile=new Widgets::Menu("File");
+            printf("haha7\n");
 			menuItemFileOpen=new Widgets::MenuItemButton("Open");
 			menuItemFileSave=new Widgets::MenuItemButton("Save");
 			menuItemFileSaveAs=new Widgets::MenuItemButton("Save As");
@@ -283,6 +289,7 @@ namespace AssortedWidgets
 			menuItemFileJPEG=new Widgets::MenuItemButton("JPEG Image");
 			menuItemFileExport->addItem(menuItemFilePNG);
 			menuItemFileExport->addItem(menuItemFileJPEG);
+            printf("haha8\n");
 			menuItemFileImport=new Widgets::MenuItemSubMenu("Import");
 			menuItemFile3DS=new Widgets::MenuItemButton("3DS Model");
 			menuItemFileOBJ=new Widgets::MenuItemButton("OBJ Model");
@@ -298,7 +305,7 @@ namespace AssortedWidgets
 			menuFile->addItem(menuItemFileImport);
 			menuFile->addItem(menuItemFileSeparator);
 			menuFile->addItem(menuItemFileExit);
-
+            printf("haha7");
             menuItemFileExit->mousePressedHandlerList.push_back(MOUSE_DELEGATE(UI::appExit));
 
 			menuEdit=new Widgets::Menu("Edit");
@@ -402,7 +409,7 @@ namespace AssortedWidgets
 			Widgets::MenuBar::getSingleton().addMenu(menuDisplay);
 			Widgets::MenuBar::getSingleton().addMenu(menuHelp);
 			Widgets::MenuBar::getSingleton().addMenu(menuAssortedWidgetsTest);
-
+            printf("haha8");
 
 			labelNButtonTestDialog=new Test::LabelNButtonTestDialog();
             menuItemLabelNButtonTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::labelNButtonTest));

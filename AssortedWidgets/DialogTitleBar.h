@@ -9,7 +9,7 @@ namespace AssortedWidgets
 	{
 		class Dialog;
 
-        class DialogTittleBar: public DragAble
+        class DialogTitleBar: public DragAble
 		{
 		private:
             std::string m_text;
@@ -43,20 +43,20 @@ namespace AssortedWidgets
 			{
                 m_parent=_parent;
             }
-			DialogTittleBar(std::string &_text);
-			DialogTittleBar(char *_text);
+            DialogTitleBar(const std::string &_text);
+            DialogTitleBar(const char *_text);
             Util::Size getPreferedSize()
 			{
-				return Theme::ThemeEngine::getSingleton().getTheme().getDialogTittleBarPreferedSize(this);
+                return Theme::ThemeEngine::getSingleton().getTheme().getDialogTitleBarPreferedSize(this);
             }
 			void paint()
 			{
-				Theme::ThemeEngine::getSingleton().getTheme().paintDialogTittleBar(this);
+                Theme::ThemeEngine::getSingleton().getTheme().paintDialogTitleBar(this);
             }
 			void dragReleased(const Event::MouseEvent &e);
 			void dragMoved(int offsetX,int offsetY);
 		public:
-			~DialogTittleBar(void);
+            ~DialogTitleBar(void);
 		};
 	}
 }

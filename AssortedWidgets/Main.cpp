@@ -1,12 +1,11 @@
+#include "UI.h"
 #include "SDL2/SDL.h"
 #include "SDL2/SDL_opengl.h"
-#include "UI.h"
 #include <string>
-#include <QApplication>
-#include <QDebug>
 #include "SDL2/SDL_image.h"
-#include "fontstash.h"
-
+#ifdef __EMSCRIPTEN__
+#include "emscripten.h"
+#endif
 //The window we'll be rendering to
 SDL_Window* window = NULL;
 
@@ -44,21 +43,21 @@ void init(int width,int height)
     window = SDL_CreateWindow( "Assorted Widgets", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN );
             if( window == NULL )
             {
-                qDebug() << "Window could not be created! SDL_Error: "<< SDL_GetError() ;
+                //qDebug() << "Window could not be created! SDL_Error: "<< SDL_GetError() ;
             }
 
             else{
                 int imgFlags = IMG_INIT_PNG;
                         if( !( IMG_Init( imgFlags ) & imgFlags ) )
                         {
-                            qDebug() <<  "SDL_image could not initialize! SDL_image Error: "<< IMG_GetError() ;
+                            //qDebug() <<  "SDL_image could not initialize! SDL_image Error: "<< IMG_GetError() ;
                             //success = false;
                         }
 
                 SDL_GLContext gContext = SDL_GL_CreateContext( window );
                             if( gContext == NULL )
                             {
-                                qDebug() <<  "OpenGL context could not be created! SDL Error: "<< SDL_GetError() ;
+                                //qDebug() <<  "OpenGL context could not be created! SDL Error: "<< SDL_GetError() ;
                                 //success = false;
                             }
                             else
@@ -105,8 +104,10 @@ void stop()
 
 void loop()
 {
-	bool out=false;
-	while(!out)
+#ifndef __EMSCRIPTEN__
+    bool out=false;
+    while(!out)
+#endif
 	{
 			int mx, my;
 			SDL_GetMouseState(&mx,&my);
@@ -156,10 +157,20 @@ int main(int argc, char* argv [])
  //   QApplication application(argc, argv);
     int width=800;
     int height=600;
-	init(width,height);
-	AssortedWidgets::UI::getSingleton().init(width,height);
+    printf("step1\n");
+    init(width,height);
+    printf("step2\n");
+    AssortedWidgets::UI::getSingleton().init(width,height);
+    printf("step3\n");
 	//AssortedWidgets::UI::getSingleton().setQuitFunction(&stop);
-	loop();
-	stop();
+#ifndef __EMSCRIPTEN__
+    loop();
+#else
+    emscripten_set_main_loop(loop, 60, 1);
+#endif
+
+    printf("step4\n");
+    //stop();
+    printf("step5\n");
 	return 0;
 }

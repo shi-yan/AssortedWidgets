@@ -34,13 +34,13 @@ namespace AssortedWidgets
                 return m_text;
             }
 
-			void setText(std::string &_text)
+            void setText(const std::string &_text)
 			{
                 m_text=_text;
             }
 
-			RadioButton(std::string &_text,RadioGroup *_group);
-			RadioButton(char *_text,RadioGroup *_group);
+            RadioButton(const std::string &_text,RadioGroup *_group);
+            RadioButton(const char *_text,RadioGroup *_group);
 
 			Util::Size getPreferedSize()
 			{

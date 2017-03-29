@@ -5,7 +5,7 @@ namespace AssortedWidgets
 	namespace Widgets
 	{
 
-        Label::Label(std::string &_text)
+        Label::Label(const std::string &_text)
             :m_text(_text),
               m_top(4),
               m_right(10),
@@ -18,7 +18,7 @@ namespace AssortedWidgets
             m_size=getPreferedSize();
 		}
 
-        Label::Label(char *_text)
+        Label::Label(const char *_text)
             :m_text(_text),
               m_top(4),
               m_right(6),

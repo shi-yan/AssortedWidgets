@@ -90,8 +90,8 @@ namespace AssortedWidgets
 				}
             }
 
-			Menu(std::string &_text);
-			Menu(char *_text);
+            Menu(const std::string &_text);
+            Menu(const char *_text);
 		public:
 			~Menu(void);
 		};

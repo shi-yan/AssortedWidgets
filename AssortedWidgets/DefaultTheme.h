@@ -163,9 +163,9 @@ namespace AssortedWidgets
 
 			void paintDialog(Widgets::Dialog *component);
 
-			Util::Size getDialogTittleBarPreferedSize(Widgets::DialogTittleBar *component);
+            Util::Size getDialogTitleBarPreferedSize(Widgets::DialogTitleBar *component);
 			
-			void paintDialogTittleBar(Widgets::DialogTittleBar *component);
+            void paintDialogTitleBar(Widgets::DialogTitleBar *component);
 
 			Util::Size getTextFieldPreferedSize(Widgets::TextField *component);
 
