@@ -11,12 +11,16 @@ For the past 8 years, I totally ignored this project, I can't even remember the 
 
 I wanted to give this project some updates if I have time. Here is my current plan:
 
-1. ~~Upgrade to SDL2 from SDL1.2.~~ (DONE)
-2. ~~Replace the [C++ delegate code](http://www.codeproject.com/cpp/FastDelegate.asp) with C++11 functional features.~~ (DONE)
-3. Or even implement a signal-slot system similar to that of Qt.
-4. Modernize the old OpenGL code with OpenGL ES 2.
-5. Build it with EMScripten to make it web.
-6. Give it a flexible platform plugin system, so that not only SDL is supported, but it can be easily embedded into other OpenGL environments.
+1. Modernize the old OpenGL code with OpenGL ES 2.
+2. Give it a flexible platform plugin system, so that not only SDL is supported, but it can be easily embedded into other OpenGL environments.
+
+Demo:
+
+I built it into webassembly. You can try it here:
+
+Because this code uses opengl 1.1, I used the old opengl emulation feature of emscripten. Some colors are not right due to bugs in that feature I believe. 
+
+
 
 How to build:
 

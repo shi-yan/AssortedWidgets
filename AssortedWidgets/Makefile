@@ -73,4 +73,4 @@ SOURCES=stb_truetype.cpp \
 		Main.cpp
 
 buildassortedwidget:
-	emcc $(SOURCES) -O3 -s USE_SDL=2 -s WASM=1 -std=c++11 -s USE_SDL_IMAGE=2 -s GL_UNSAFE_OPTS=1 -s SDL2_IMAGE_FORMATS='["png"]' -s LEGACY_GL_EMULATION=1 --preload-file assets -o index.html
+	emcc $(SOURCES) -O3 -s USE_SDL=2 --shell-file shell_minimal.html --profiling -s WASM=1 -std=c++11 -s USE_SDL_IMAGE=2 -s SDL2_IMAGE_FORMATS='["png"]' -s LEGACY_GL_EMULATION=1 --preload-file assets -o index.html

@@ -26,7 +26,7 @@ namespace AssortedWidgets
                 return m_text;
             }
 
-			void setText(std::string &_text)
+            void setText(const std::string &_text)
 			{
                 m_text=_text;
             }
