@@ -167,7 +167,7 @@ Module.expectedDataFileDownloads++;
    "filename": "/assets/arial.ttf"
   } ],
   "remote_package_size": 385090,
-  "package_uuid": "866fec94-8587-47ae-a913-52dfffe0e3c4"
+  "package_uuid": "2414c8a6-c269-46c9-8341-cc62070a3ac8"
  });
 }))();
 var Module;
