@@ -3,8 +3,8 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
 #else
-#include <GL/gl.h>
-#include <GL/glu.h>
+#include <GLES2/gl2.h>
+
 #endif
 
 namespace AssortedWidgets
@@ -19,6 +19,13 @@ namespace AssortedWidgets
             GLfloat m_BottomRightX;
             GLfloat m_BottomRightY;
             GLuint m_textureID;
+
+            static GLuint m_vertShader;
+            static GLuint m_fragShader;
+            static GLuint m_shaderProgram;
+            static GLint m_screenSizeUniform;
+            static GLint m_textureUniform;
+
 		public:
             SubImage(GLfloat _UpLeftX, GLfloat _UpLeftY, GLfloat _BottomRightX, GLfloat _BottomRightY, GLuint _textureID)
                 :m_UpLeftX(_UpLeftX),
@@ -26,27 +33,17 @@ namespace AssortedWidgets
                   m_BottomRightX(_BottomRightX),
                   m_BottomRightY(_BottomRightY),
                   m_textureID(_textureID)
-            {}
-			void paint(const float x1,const float y1,const float x2,const float y2) const
-			{
-				glColor3ub(255,255,255);
-                glBindTexture(GL_TEXTURE_2D, m_textureID);
-				glBegin(GL_QUADS);
-                glTexCoord2f(m_UpLeftX, m_UpLeftY);
-				glVertex2f(x1,y1);
-                glTexCoord2f(m_UpLeftX, m_BottomRightY);
-				glVertex2f(x1,y2);
-                glTexCoord2f(m_BottomRightX, m_BottomRightY);
-				glVertex2f(x2,y2);
-                glTexCoord2f(m_BottomRightX, m_UpLeftY);
-				glVertex2f(x2,y1);
-				glEnd();
+            {
+
             }
+            void paint(const float x1,const float y1,const float x2,const float y2) const;
+
+            static void init(unsigned int width, unsigned int height);
 		public:
 			~SubImage(void)
 			{
-                glDeleteTextures(1,&m_textureID);
-			};
+                //glDeleteTextures(1,&m_textureID);
+            }
 		};
 	}
 }

@@ -3,8 +3,8 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
 #else
-#include <GL/gl.h>
-#include <GL/glu.h>
+#include <GLES2/gl2.h>
+
 #endif
 #include "Graphics.h"
 #include "Layout.h"
@@ -72,7 +72,7 @@ namespace AssortedWidgets
 		public:
 			void testPaint()
 			{
-                Util::Position origin = Util::Graphics::getSingleton().getOrigin();
+                /*Util::Position origin = Util::Graphics::getSingleton().getOrigin();
 				glDisable(GL_TEXTURE_2D);
 				glColor3ub(0,0,255);
 				glBegin(GL_QUADS);
@@ -80,7 +80,7 @@ namespace AssortedWidgets
                 glVertex2f(origin.x + m_testNorthX + m_testNorthWidth, origin.y + m_testNorthY);
                 glVertex2f(origin.x + m_testNorthX + m_testNorthWidth, origin.y + m_testNorthY + m_testNorthHeight);
                 glVertex2f(origin.x + m_testNorthX, origin.y + m_testNorthY + m_testNorthHeight);
-				glEnd();
+                glEnd();*/
             }
 
             void setEastHAlignment(int eastHAlignment)

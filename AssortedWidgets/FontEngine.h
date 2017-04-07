@@ -11,7 +11,7 @@ namespace AssortedWidgets
 		private:
             TrueTypeFont m_trueTypeFont;
             FontEngine(void)
-                :m_trueTypeFont("assets/arial.ttf", 18)
+                :m_trueTypeFont("assets/arial.ttf", 14)
             {}
 		public:
 			static FontEngine &getSingleton()

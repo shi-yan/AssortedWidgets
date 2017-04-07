@@ -2,66 +2,102 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
 #else
-#include <GL/gl.h>
-#include <GL/glu.h>
+#include <GLES2/gl2.h>
 #endif
 #include "TrueTypeFont.h"
 #include <stdarg.h>
+#define GLFONTSTASH_IMPLEMENTATION
+#import "glfontstash.h"
+
 namespace AssortedWidgets
 {
 	namespace Font
 	{
         TrueTypeFont::TrueTypeFont(const char* _fontName,size_t _size):Font(_fontName,_size)
 		{
-            m_stash = sth_create(512, 512);
-            //printf("font1\n");
-            m_font = sth_add_font(m_stash, _fontName);
-            //printf("font2\n");
+            GLFONSparams params;
+            params.useGLBackend = true; // if not set to true, you must provide your own gl backend
+            m_stash = glfonsCreate(512, 512, FONS_ZERO_TOPLEFT | FONS_NORMALIZE_TEX_COORDS, params, nullptr);
+
+            if ((m_fontNormal = fonsAddFont(m_stash, "Arial", _fontName)) == FONS_INVALID)
+            {
+               //printf("Can't load font\n");
+                   // return 0;
+            }
             m_size = _size;
 		}
 
-        Util::Size TrueTypeFont::getStringBoundingBox(const std::string &text) const
+        Util::Size TrueTypeFont::getStringBoundingBox(const std::string &text)
 		{
-            /*Util::Size result(0,0);
-
-			for(size_t i = 0; i < text.length(); ++i)
-			{
-				unsigned char c=text[i];
-                result.m_width+=m_width[static_cast<int>(c)];
-                result.m_height=std::max(result.m_height,m_height[static_cast<int>(c)]);
-			}
-            return result;*/
             float minx;
             float miny;
             float maxx;
             float maxy;
-            sth_dim_text(m_stash,
-                              m_font, m_size,
-                              text.c_str(),
-                              &minx, &miny, &maxx, &maxy);
+
+            bool isNew = false;
+            fsuint textID = 0;
+            fsuint buffer;
+
+            glfonsBufferCreate(m_stash, &buffer);
+            glfonsBindBuffer(m_stash, buffer);
+
+            glfonsGenText(m_stash, 1, &textID);
+
+            fonsSetSize(m_stash, m_size);
+            glfonsRasterize(m_stash, textID, text.c_str());
+            glfonsGetBBox(m_stash,  textID, &minx, &miny, &maxx, &maxy);
+            glfonsBufferDelete(m_stash, buffer);
+
             return Util::Size(maxx-minx, maxy-miny);
         }
 
-        void TrueTypeFont::drawString(int x, int y, const std::string &text) const
+        void TrueTypeFont::drawString(int x, int y, const std::string &text)
 		{   
-            glEnable(GL_TEXTURE_2D);
-            glEnable( GL_BLEND );
-            glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-            glColor3ub(137,155,145);
-          //  glPushMatrix();
-               // glTranslatef(static_cast<GLfloat>(x),static_cast<GLfloat>(y + getStringBoundingBox(text).m_height) ,0);
-               // glScalef(1,-1,1);
-            sth_begin_draw(m_stash);
-            float x2;
-            sth_draw_text(m_stash, m_font, m_size, x, y, text.c_str(), &x2);
+            glfonsScreenSize(m_stash, 800, 600);
+      /*      bool isNew = false;
+            fsuint textID = findTextID(text, isNew);
 
-            sth_end_draw(m_stash);
-          //  glPopMatrix();
+            if (isNew)
+            {
+                fonsSetSize(m_stash, m_size);
+                //glfonsRasterize(m_stash, textID, text.c_str());
+            }
+            fonsSetSize(m_stash, m_size);*/
 
-                        glDisable(GL_TEXTURE_2D);
+            //glfonsSetColor(m_stash, (137 << 24) | (155 << 16) | (145 << 8) | 255 );
+            //glfonsTransform(m_stash, textID, x, y, 0.0, 1.0);
+
+           // glfonsUpdateBuffer(m_stash);
+           // glfonsDraw(m_stash);
+          //  fonsDrawText(m_stash, x,y,"The big ", NULL,0);
+           // glfonsDraw(m_stash);
+
+            float dx = 10, dy = 10;
+           // unsigned int white = glfonsRGBA(255,255,255,255);
+           // unsigned int brown = glfonsRGBA(192,128,0,128);
+            fsuint textID = 0;
+            fsuint buffer;
+            fonsSetFont(m_stash, m_fontNormal);
+           // fonsSetSize(m_stash, 124.0f);
+           // fonsSetColor(m_stash, white);
+
+            glfonsBufferCreate(m_stash, &buffer);
+            glfonsBindBuffer(m_stash, buffer);
+
+            glfonsGenText(m_stash, 1, &textID);
+            glfonsSetColor(m_stash, m_color);
+
+            fonsSetSize(m_stash, m_size);
+            glfonsRasterize(m_stash, textID, text.c_str());
+            glfonsTransform(m_stash, textID, x, y+9, 0.0, 1.0);
+            glfonsUpdateBuffer(m_stash);
+            glfonsDraw(m_stash);
+            glfonsBufferDelete(m_stash, buffer);
+
+          //  int a = len;
         }
 
-        void TrueTypeFont::printf(int x,int y,const char *fmt, ...) const
+        void TrueTypeFont::printf(int x,int y,const char *fmt, ...)
 		{
 			char text[256];
 			va_list	ap;
@@ -74,25 +110,37 @@ namespace AssortedWidgets
 				va_end(ap);
 			}
 			
-
-            glEnable(GL_TEXTURE_2D);
-            glEnable( GL_BLEND );
-            glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-         //   glPushMatrix();
-               // glTranslatef(static_cast<GLfloat>(x),static_cast<GLfloat>(y + getStringBoundingBox(text).m_height) ,0);
-            //    glScalef(1,-1,1);
-            sth_begin_draw(m_stash);
-            float x2;
-            sth_draw_text(m_stash, m_font, m_size, x, y, text, &x2);
-            sth_end_draw(m_stash);
-           // glPopMatrix();
-            glDisable(GL_TEXTURE_2D);
+            drawString(x,y, text);
 
         }
 
         TrueTypeFont::~TrueTypeFont(void)
 		{
-            sth_delete(m_stash);
+            glfonsDelete(m_stash);
 		}
+
+        int TrueTypeFont::findTextID(const std::string &text, bool &isNew)
+        {
+            if (m_textIDs.find(text) != m_textIDs.end())
+            {
+                return m_textIDs[text];
+                isNew = false;
+            }
+            else
+            {
+                fsuint textID;
+                glfonsGenText(m_stash, 1, &textID);
+                isNew = true;
+                m_textIDs[text] = textID;
+                return textID;
+            }
+        }
+
+        void TrueTypeFont::setColor(int r, int g, int b)
+        {
+            m_color = glfonsRGBA(r,g,b,255);
+
+        }
+
 	}
 }

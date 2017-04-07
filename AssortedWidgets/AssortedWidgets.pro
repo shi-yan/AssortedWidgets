@@ -34,7 +34,7 @@ LIBS += -framework OpenGL -lSDL2 -lSDL2_image
 }
 
 unix:!mac {
-LIBS += -lSDL2 -lGL -lGLU -lSDL2_image
+LIBS += -lSDL2 -lGLESv2 -lSDL2_image
 }
 
 HEADERS += \
@@ -121,7 +121,8 @@ HEADERS += \
     fontstash.h \
     stb_truetype.h \
     TrueTypeFont.h \
-    DialogTitleBar.h
+    DialogTitleBar.h \
+    GraphicsBackend.h
 
 SOURCES += \
     AbstractButton.cpp \
@@ -190,10 +191,12 @@ SOURCES += \
     TypeAble.cpp \
     TypeActiveManager.cpp \
     UI.cpp \
-    fontstash.cpp \
-    stb_truetype.cpp \
     TrueTypeFont.cpp \
-    DialogTitleBar.cpp
+    DialogTitleBar.cpp \
+    SubImage.cpp \
+    GraphicsBackend.cpp
+
+INCLUDEPATH += /usr/include/freetype2
 
 macx {
     RESOURCEFILE.files     = aw.png \

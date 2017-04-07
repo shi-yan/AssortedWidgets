@@ -3,8 +3,8 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
 #else
-#include <GL/gl.h>
-#include <GL/glu.h>
+#include <GLES2/gl2.h>
+
 #endif
 #include "DragAble.h"
 #include "Graphics.h"
@@ -31,7 +31,7 @@ namespace AssortedWidgets
             }
 			void paint()
 			{
-				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
+                /*Util::Position origin=Util::Graphics::getSingleton().getOrigin();
 				glDisable(GL_TEXTURE_2D);
 				glColor3ub(0,0,255);
 				glBegin(GL_QUADS);
@@ -39,8 +39,8 @@ namespace AssortedWidgets
                 glVertex2f(static_cast<GLfloat>(origin.x+m_position.x+m_size.m_width),static_cast<GLfloat>(origin.y+m_position.y));
                 glVertex2f(static_cast<GLfloat>(origin.x+m_position.x+m_size.m_width),static_cast<GLfloat>(origin.y+m_position.y+m_size.m_height));
                 glVertex2f(static_cast<GLfloat>(origin.x+m_position.x),static_cast<GLfloat>(origin.y+m_position.y+m_size.m_height));
-				glEnd();
-			};
+                glEnd();*/
+            }
 			void dragReleased(const Event::MouseEvent &e);
 			void dragMoved(int offsetX,int offsetY);
 		public:

@@ -24,9 +24,9 @@ namespace AssortedWidgets
 			{
                 return m_size;
             }
-			virtual Util::Size getStringBoundingBox(const std::string &text) const = 0;
-			virtual void drawString(int x, int y, const std::string &text) const = 0;
-			virtual void printf(int x,int y,const char *fmt, ...) const =0;
+            virtual Util::Size getStringBoundingBox(const std::string &text)  = 0;
+            virtual void drawString(int x, int y, const std::string &text)  = 0;
+            virtual void printf(int x,int y,const char *fmt, ...)  =0;
 			virtual ~Font();
 		};
 	}

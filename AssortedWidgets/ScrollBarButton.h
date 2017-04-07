@@ -33,7 +33,7 @@ namespace AssortedWidgets
 			void paint()
 			{
 				Theme::ThemeEngine::getSingleton().getTheme().paintScrollBarButton(this);
-			};
+            }
 
 		public:
 			~ScrollBarButton(void);

@@ -2,8 +2,7 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
 #else
-#include <GL/gl.h>
-#include <GL/glu.h>
+#include <GLES2/gl2.h>
 #endif
 #include "UI.h"
 
@@ -15,21 +14,18 @@ namespace AssortedWidgets
 
 	void UI::begin2D()
 	{
+        glViewport(0, 0, width, height);
+        //glClearColor(1.0, 0.0, 0.0, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		glLoadIdentity();
-		glMatrixMode(GL_PROJECTION);
-		glPushMatrix();
-		glLoadIdentity();
-		gluOrtho2D(0,width,height,0);
-		glMatrixMode(GL_MODELVIEW);
+        glEnable( GL_BLEND );
+        glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
 	}
 
 	void UI::paint()
 	{
 		begin2D();
-		glColor3ub(255,255,255);
 		logo->paint();
-		std::vector<Widgets::Component*>::iterator iter;
+        std::vector<Widgets::Component*>::iterator iter;
 		for(iter=componentList.begin();iter<componentList.end();++iter)
 		{
 			(*iter)->paint();
@@ -38,16 +34,13 @@ namespace AssortedWidgets
 		if(Manager::DropListManager::getSingleton().isDropped())
 		{
 			Manager::DropListManager::getSingleton().paint();
-		}
-		Widgets::MenuBar::getSingleton().paint();
+        }
+        Widgets::MenuBar::getSingleton().paint();
 		end2D();
 	}
 
 	void UI::end2D()
 	{
-		glMatrixMode(GL_PROJECTION);
-		glPopMatrix();
-		glMatrixMode(GL_MODELVIEW);
 	}
 
 	UI::~UI(void)

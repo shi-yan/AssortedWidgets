@@ -1,9 +1,7 @@
 CC=emcc
 CFLAGS=-c -Wall
 LDFLAGS=
-SOURCES=stb_truetype.cpp \
-		fontstash.cpp \
-		TrueTypeFont.cpp \
+SOURCES=TrueTypeFont.cpp \
 		Font.cpp \
 		FontEngine.cpp \
 		AbstractButton.cpp \
@@ -70,7 +68,9 @@ SOURCES=stb_truetype.cpp \
 		FlowLayoutTestDialog.cpp \
 		MenuItemRadioGroup.cpp \
 		ScrollBar.cpp \
-		Main.cpp
+		Main.cpp \
+		GraphicsBackend.cpp \
+		SubImage.cpp
 
 buildassortedwidget:
-	emcc $(SOURCES) -O3 -s USE_SDL=2 --shell-file shell_minimal.html --profiling -s WASM=1 -std=c++11 -s USE_SDL_IMAGE=2 -s SDL2_IMAGE_FORMATS='["png"]' -s LEGACY_GL_EMULATION=1 --preload-file assets -o index.html
+	emcc $(SOURCES) -O3 -s USE_SDL=2 --shell-file shell_minimal.html --profiling -s WASM=1 -std=c++11 -s USE_SDL_IMAGE=2 -s FULL_ES2=1 -s SDL2_IMAGE_FORMATS='["png"]' --preload-file assets -o index.html

@@ -1,6 +1,5 @@
 #include "DefaultTheme.h"
 #include "SDL2/SDL.h"
-#include "SDL2/SDL_opengl.h"
 #include "SDL2/SDL_image.h"
 #include "FontEngine.h"
 #include "Menu.h"
@@ -31,6 +30,7 @@
 #include "DropListButton.h"
 #include "DropList.h"
 #include "DropListItem.h"
+#include "GraphicsBackend.h"
 
 namespace AssortedWidgets
 {
@@ -44,35 +44,21 @@ namespace AssortedWidgets
 
 		void DefaultTheme::test()
 		{
-			glEnable(GL_TEXTURE_2D);
-			glColor3ub(255,255,255);
-            glBindTexture(GL_TEXTURE_2D,m_textureID);
-			glBegin(GL_QUADS);
-			glTexCoord2f(0.0f,0.0f);
-			glVertex3f(0,0,0);
-			glTexCoord2f(1.0f,0.0f);
-			glVertex3f(256,0,0);
-			glTexCoord2f(1.0f,1.0f);
-			glVertex3f(256,256,0);
-			glTexCoord2f(0.0f,1.0f);
-			glVertex3f(0,256,0);
-			glEnd();
-			glDisable(GL_TEXTURE_2D);
-		}
+            GraphicsBackend::getSingleton().drawTexturedQuad(0.0f,0.0f,256.0f,256.0f,
+                                                             0.0f,0.0f,1.0f,1.0f,m_textureID);
+        }
 
 		void DefaultTheme::setup()
 		{
             SDL_RWops *io = SDL_RWFromFile("assets/aw.png", "r+b");
             SDL_Surface *img=IMG_LoadPNG_RW(io);
 		    SDL_LockSurface(img);   
-			glEnable(GL_TEXTURE_2D);
             glGenTextures(1,&m_textureID);
             glBindTexture(GL_TEXTURE_2D,m_textureID);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img->w, img->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, img->pixels);
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,GL_NEAREST);
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-			glDisable(GL_TEXTURE_2D);
             SDL_UnlockSurface(img);
 			SDL_FreeSurface(img);
 
@@ -148,20 +134,13 @@ namespace AssortedWidgets
                 float y1=static_cast<float>(component->m_position.y);
                 float x2=static_cast<float>(component->m_position.x+component->m_size.m_width);
                 float y2=static_cast<float>(component->m_position.y+component->m_size.m_height);
-				glDisable(GL_TEXTURE_2D);
-				glColor3ub(44,55,55);
-				glBegin(GL_QUADS);
-				glVertex2f(x1+6,y1);
-				glVertex2f(x2-6,y1);
-				glVertex2f(x2-6,y2);
-				glVertex2f(x1+6,y2);
-				glEnd();
-				glEnable(GL_TEXTURE_2D);
-				glColor3ub(255,255,255);
+
+                GraphicsBackend::getSingleton().drawSolidQuad(x1+6,y1,x2-6,y2,44,55,55);
+
                 m_MenuLeft->paint(x1,y1,x1+6,y2);
                 m_MenuRight->paint(x2-6,y1,x2,y2);
-				glColor3ub(150,155,161);
-				Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(x1+6),static_cast<int>(y1+6),component->getText());
+                Font::FontEngine::getSingleton().getFont().setColor(150,155,161);
+                Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(x1+6),static_cast<int>(y1+6),component->getText());
 			}
 			else
 			{
@@ -173,19 +152,11 @@ namespace AssortedWidgets
                         float y1=static_cast<float>(component->m_position.y);
                         float x2=static_cast<float>(component->m_position.x+component->m_size.m_width);
                         float y2=static_cast<float>(component->m_position.y+component->m_size.m_height);
-						glDisable(GL_TEXTURE_2D);
-						glColor3ub(44,55,55);
-						glBegin(GL_QUADS);
-						glVertex2f(x1+6,y1);
-						glVertex2f(x2-6,y1);
-						glVertex2f(x2-6,y2);
-						glVertex2f(x1+6,y2);
-						glEnd();
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
+
+                        GraphicsBackend::getSingleton().drawSolidQuad(x1+6,y1,x2-6,y2,44,55,55);
                         m_MenuLeft->paint(x1,y1,x1+6,y2);
                         m_MenuRight->paint(x2-6,y1,x2,y2);
-						glColor3ub(150,155,161);
+                        Font::FontEngine::getSingleton().getFont().setColor(150,155,161);
 						Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(x1+6),static_cast<int>(y1+6),component->getText());
 						break;
 					}
@@ -193,7 +164,7 @@ namespace AssortedWidgets
 					{
                         float x1=static_cast<float>(component->m_position.x);
                         float y1=static_cast<float>(component->m_position.y);
-						glColor3ub(150,155,161);
+                        Font::FontEngine::getSingleton().getFont().setColor(150,155,161);
 						Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(x1+6),static_cast<int>(y1+6),component->getText());
 						break;
 					}
@@ -201,7 +172,7 @@ namespace AssortedWidgets
 					{
                         float x1=static_cast<float>(component->m_position.x);
                         float y1=static_cast<float>(component->m_position.y);
-						glColor3ub(250,250,250);
+                        Font::FontEngine::getSingleton().getFont().setColor(250,250,250);
 						Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(x1+6),static_cast<int>(y1+6),component->getText());
 						break;
 					}
@@ -220,19 +191,9 @@ namespace AssortedWidgets
 			float y1=0.0f;
             float x2=static_cast<float>(component->m_size.m_width);
 			float y2=30.0f;
-			glDisable(GL_TEXTURE_2D);
-			glBegin(GL_QUADS);
-			glColor3ub(42,55,55);
-			glVertex2f(x1,y1);
-			glVertex2f(x1+40.0f,y1);
-			glVertex2f(x1+40.0f,y2);
-			glVertex2f(x1,y2);
-			glColor3ub(55,65,67);
-			glVertex2f(x1+40.0f,y1);
-			glVertex2f(x2,y1);
-			glVertex2f(x2,y2);
-			glVertex2f(x1+40.0f,y2);
-			glEnd();
+
+            GraphicsBackend::getSingleton().drawSolidQuad(x1, y1, x1 + 40.0f, y2, 42, 55, 55);
+            GraphicsBackend::getSingleton().drawSolidQuad(x1+40.0f,y1,x2,y2,55,65,67);
         }
 
 		Util::Size DefaultTheme::getMenuListPreferedSize(Widgets::MenuList *component)
@@ -259,8 +220,6 @@ namespace AssortedWidgets
             float y1=static_cast<float>(origin.y+component->m_position.y);
             float x2=static_cast<float>(x1+component->m_size.m_width);
             float y2=static_cast<float>(y1+component->m_size.m_height);
-			glEnable(GL_TEXTURE_2D);
-			glColor3ub(255,255,255);
             m_MenuListUpLeft->paint(x1,y1,x1+24.0f,y1+9.0f);
             m_MenuListUpRight->paint(x2-24.0f,y1,x2,y1+9.0f);
             m_MenuListUp->paint(x1+24.0f,y1,x2-24.0f,y1+9.0f);
@@ -269,14 +228,8 @@ namespace AssortedWidgets
             m_MenuListBottomLeft->paint(x1,y2-16.0f,x1+24.0f,y2);
             m_MenuListBottomRight->paint(x2-24.0f,y2-16.0f,x2,y2);
             m_MenuListBottom->paint(x1+24.0f,y2-16.0f,x2-24.0f,y2);
-			glDisable(GL_TEXTURE_2D);
-			glColor3ub(46,55,53);
-			glBegin(GL_QUADS);
-			glVertex2f(x1+24.0f,y1+9.0f);
-			glVertex2f(x2-24.0f,y1+9.0f);
-			glVertex2f(x2-24.0f,y2-16.0f);
-			glVertex2f(x1+24.0f,y2-16.0f);
-			glEnd();
+
+            GraphicsBackend::getSingleton().drawSolidQuad(x1+24.0f,y1+9.0f,x2-24.0f,y2-16.0f,46,55,53);
         }
 
 		Util::Size DefaultTheme::getMenuItemButtonPreferedSize(Widgets::MenuItemButton *component)
@@ -293,12 +246,10 @@ namespace AssortedWidgets
 		void DefaultTheme::paintMenuItemSeparator(Widgets::MenuItemSeparator *component)
 		{
 			Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-			glDisable(GL_TEXTURE_2D);
-			glColor3ub(79,91,84);
-			glBegin(GL_LINES);
-            glVertex2f(static_cast<float>(10+origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y+1));
-            glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-10),static_cast<float>(origin.y+component->m_position.y+1));
-			glEnd();
+
+            GraphicsBackend::getSingleton().drawLine(static_cast<float>(10+origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y+1),
+                                                     static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-10),static_cast<float>(origin.y+component->m_position.y+1),
+                                                     79,91,84);
         }
 
 		void DefaultTheme::paintMenuItemButton(Widgets::MenuItemButton *component)
@@ -308,27 +259,24 @@ namespace AssortedWidgets
 			{
 				case Widgets::MenuItemButton::normal:
 				{
-					glColor3ub(255,255,255);
+                    Font::FontEngine::getSingleton().getFont().setColor(255,255,255);
                     Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 					break;
 				};
 				case Widgets::MenuItemButton::pressed:
 				{
-					glColor3ub(200,200,200);
+                    Font::FontEngine::getSingleton().getFont().setColor(200,200,200);
                     Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 					break;
 				};
 				case Widgets::MenuItemButton::hover:
 				{
-					glDisable(GL_TEXTURE_2D);
-					glColor3ub(176,200,28);
-					glBegin(GL_QUADS);
-                    glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y));
-                    glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y));
-                    glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-                    glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-					glEnd();
-					glColor3ub(88,101,9);
+                    GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(component->m_position.x+origin.x), static_cast<float>(origin.y+component->m_position.y),
+                                                                  static_cast<float>(component->m_position.x+origin.x+component->m_size.m_width),
+                                                                  static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height),
+                                                                  176,200,28);
+
+                    Font::FontEngine::getSingleton().getFont().setColor(88,101,9);
                     Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 					break;
 				};
@@ -348,10 +296,9 @@ namespace AssortedWidgets
 			{
 				case Widgets::MenuItemSubMenu::normal:
 				{
-					glColor3ub(255,255,255);
+                    Font::FontEngine::getSingleton().getFont().setColor(255,255,255);
                     Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
-					glEnable(GL_TEXTURE_2D);
-					glColor3ub(255,255,255);
+
 					if(component->isExpand())
 					{
                         m_MenuItemSubMenuArrow->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-17),static_cast<float>(component->m_position.y+origin.y+5),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-12),static_cast<float>(component->m_position.y+origin.y+14));
@@ -364,24 +311,19 @@ namespace AssortedWidgets
 				};
 				case Widgets::MenuItemSubMenu::pressed:
 				{
-					glColor3ub(200,200,200);
+                    Font::FontEngine::getSingleton().getFont().setColor(200,200,200);
                     Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 					break;
 				};
 				case Widgets::MenuItemSubMenu::hover:
 				{
-					glDisable(GL_TEXTURE_2D);
-					glColor3ub(176,200,28);
-					glBegin(GL_QUADS);
-                    glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y));
-                    glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y));
-                    glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-                    glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-					glEnd();
-					glColor3ub(88,101,9);
+                    GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(component->m_position.x+origin.x), static_cast<float>(origin.y+component->m_position.y),
+                                                                  static_cast<float>(component->m_position.x+origin.x+component->m_size.m_width),
+                                                                  static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height),
+                                                                  176,200,28);
+
+                    Font::FontEngine::getSingleton().getFont().setColor(88,101,9);
                     Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
-					glEnable(GL_TEXTURE_2D);
-					glColor3ub(255,255,255);
 					if(component->isExpand())
 					{
                         m_MenuItemSubMenuArrow->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-17),static_cast<float>(component->m_position.y+origin.y+5),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-12),static_cast<float>(component->m_position.y+origin.y+14));
@@ -406,15 +348,13 @@ namespace AssortedWidgets
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
 				if(component->isDrawBackground())
 				{
-					glColor3ub(0,0,0);
-					glBegin(GL_QUADS);
-                    glVertex2f(static_cast<GLfloat>(origin.x+component->m_position.x),static_cast<GLfloat>(origin.y+component->m_position.y));
-                    glVertex2f(static_cast<GLfloat>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<GLfloat>(origin.y+component->m_position.y));
-                    glVertex2f(static_cast<GLfloat>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<GLfloat>(origin.y+component->m_position.y+component->m_size.m_height));
-                    glVertex2f(static_cast<GLfloat>(origin.x+component->m_position.x),static_cast<GLfloat>(origin.y+component->m_position.y+component->m_size.m_height));
-					glEnd();
+                    GraphicsBackend::getSingleton().drawSolidQuad(static_cast<GLfloat>(origin.x+component->m_position.x),
+                                                                  static_cast<GLfloat>(origin.y+component->m_position.y),
+                                                                  static_cast<GLfloat>(origin.x+component->m_position.x+component->m_size.m_width),
+                                                                  static_cast<GLfloat>(origin.y+component->m_position.y+component->m_size.m_height),
+                                                                  0,0,0);
 				}
-				glColor3ub(255,255,255);
+                Font::FontEngine::getSingleton().getFont().setColor(255,255,255);
                 Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft(),origin.y+component->m_position.y+component->getTop(),component->getText());
             }
 
@@ -431,57 +371,49 @@ namespace AssortedWidgets
 				{
 					case Widgets::Button::normal:
 					{
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
                         m_ButtonNormalLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
                         m_ButtonNormalRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+19));
-						glDisable(GL_TEXTURE_2D);
-						glColor3ub(55,67,65);
-						glBegin(GL_QUADS);
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y+19));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
-						glEnd();
-						glColor3ub(137,155,145);
+
+                        GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x+4),
+                                                                      static_cast<float>(origin.y+component->m_position.y),
+                                                                      static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),
+                                                                      static_cast<float>(origin.y+component->m_position.y+19),
+                                                                      55,67,65);
+
+
+                        Font::FontEngine::getSingleton().getFont().setColor(137,155,145);
                         Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft(),origin.y+component->m_position.y+component->getTop(),component->getText());
 						break;
 					};
 
 					case Widgets::Button::hover:
 					{
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
                         m_ButtonHoverLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
                         m_ButtonHoverRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+19));
-						glDisable(GL_TEXTURE_2D);
-						glColor3ub(175,200,28);
-						glBegin(GL_QUADS);
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y+19));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
-						glEnd();
-						glColor3ub(0,0,0);
+
+                        GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x+4),
+                                                                      static_cast<float>(origin.y+component->m_position.y),
+                                                                      static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),
+                                                                      static_cast<float>(origin.y+component->m_position.y+19),
+                                                                      175,200,28);
+
+                        Font::FontEngine::getSingleton().getFont().setColor(0,0,0);
                         Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft(),origin.y+component->m_position.y+component->getTop(),component->getText());
 						break;
 					};
 
 					case Widgets::Button::pressed:
 					{
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
                         m_ButtonNormalLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
                         m_ButtonNormalRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+19));
-						glDisable(GL_TEXTURE_2D);
-						glColor3ub(55,67,65);
-						glBegin(GL_QUADS);
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y+19));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
-						glEnd();
-						glColor3ub(0,0,0);
+
+                        GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x+4),
+                                                                      static_cast<float>(origin.y+component->m_position.y),
+                                                                      static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),
+                                                                      static_cast<float>(origin.y+component->m_position.y+19),
+                                                                      55,67,65);
+
+                        Font::FontEngine::getSingleton().getFont().setColor(0,0,0);
                         Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft(),origin.y+component->m_position.y+component->getTop(),component->getText());
 						break;
 					};
@@ -501,41 +433,36 @@ namespace AssortedWidgets
 				{
 					case Widgets::MenuItemToggleButton::normal:
 					{
-						glColor3ub(255,255,255);
+                        Font::FontEngine::getSingleton().getFont().setColor(255,255,255);
                         Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 						if(component->getToggle())
 						{
-							glEnable(GL_TEXTURE_2D);
                             m_RightHook->paint(static_cast<float>(component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y),static_cast<float>(8+component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y+9));
 						}
 						break;
 					};
 					case Widgets::MenuItemToggleButton::pressed:
 					{
-						glColor3ub(200,200,200);
+                        Font::FontEngine::getSingleton().getFont().setColor(200,200,200);
                         Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 						if(component->getToggle())
 						{
-							glEnable(GL_TEXTURE_2D);
                             m_RightHook->paint(static_cast<float>(component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y),static_cast<float>(8+component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y+9));
 						}
 						break;
 					};
 					case Widgets::MenuItemToggleButton::hover:
 					{
-						glDisable(GL_TEXTURE_2D);
-						glColor3ub(176,200,28);
-						glBegin(GL_QUADS);
-                        glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-                        glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-						glEnd();
-						glColor3ub(88,101,9);
+                        GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(component->m_position.x+origin.x),
+                                                                      static_cast<float>(origin.y+component->m_position.y),
+                                                                      static_cast<float>(component->m_position.x+origin.x+component->m_size.m_width),
+                                                                      static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height),
+                                                                      176,200,28);
+
+                        Font::FontEngine::getSingleton().getFont().setColor(88,101,9);
                         Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 						if(component->getToggle())
 						{
-							glEnable(GL_TEXTURE_2D);
                             m_RightHook->paint(static_cast<float>(component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y),static_cast<float>(8+component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y+9));
 						}
 						break;
@@ -556,41 +483,37 @@ namespace AssortedWidgets
 				{
 					case Widgets::MenuItemRadioButton::normal:
 					{
-						glColor3ub(255,255,255);
+                        Font::FontEngine::getSingleton().getFont().setColor(255,255,255);
                         Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 						if(component->getToggle())
 						{
-							glEnable(GL_TEXTURE_2D);
                             m_RadioDot->paint(static_cast<float>(component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y),static_cast<float>(8+component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y+9));
 						}
 						break;
 					};
 					case Widgets::MenuItemRadioButton::pressed:
 					{
-						glColor3ub(200,200,200);
+                        Font::FontEngine::getSingleton().getFont().setColor(200,200,200);
                         Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 						if(component->getToggle())
 						{
-							glEnable(GL_TEXTURE_2D);
                             m_RadioDot->paint(static_cast<float>(component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y),static_cast<float>(8+component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y+9));
 						}
 						break;
 					};
 					case Widgets::MenuItemRadioButton::hover:
 					{
-						glDisable(GL_TEXTURE_2D);
-						glColor3ub(176,200,28);
-						glBegin(GL_QUADS);
-                        glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(component->m_position.x+origin.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-                        glVertex2f(static_cast<float>(component->m_position.x+origin.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-						glEnd();
-						glColor3ub(88,101,9);
+
+                        GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(component->m_position.x+origin.x),
+                                                                      static_cast<float>(origin.y+component->m_position.y),
+                                                                      static_cast<float>(component->m_position.x+origin.x+component->m_size.m_width),
+                                                                      static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height),
+                                                                      176,200,28);
+
+                        Font::FontEngine::getSingleton().getFont().setColor(88,101,9);
                         Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(10+component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
 						if(component->getToggle())
 						{
-							glEnable(GL_TEXTURE_2D);
                             m_RadioDot->paint(static_cast<float>(component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y),static_cast<float>(8+component->m_position.x+component->getLeft()+origin.x),static_cast<float>(component->getTop()+origin.y+component->m_position.y+9));
 						}
 						break;
@@ -630,9 +553,6 @@ namespace AssortedWidgets
                 float y1=static_cast<float>(component->m_position.y+component->m_size.m_height-16);
                 float y2=static_cast<float>(component->m_position.y+component->m_size.m_height);
 
-				glEnable(GL_TEXTURE_2D);
-				glColor3ub(255,255,255);
-
 				if(component->isActive())
 				{
                     m_DialogUpLeftActive->paint(static_cast<float>(component->m_position.x),static_cast<float>(component->m_position.y),static_cast<float>(x1),static_cast<float>(component->m_position.y+16));
@@ -651,14 +571,9 @@ namespace AssortedWidgets
                 m_DialogBottomLeft->paint(static_cast<float>(component->m_position.x),static_cast<float>(y1),static_cast<float>(x1),static_cast<float>(y2));
                 m_DialogBottom->paint(static_cast<float>(x1),static_cast<float>(y1),static_cast<float>(x2),static_cast<float>(y2));
                 m_DialogBottomRight->paint(static_cast<float>(x2),static_cast<float>(y1),static_cast<float>(component->m_position.x+component->m_size.m_width),static_cast<float>(y2));
-				glDisable(GL_TEXTURE_2D);
-				glColor3ub(46,55,53);
-				glBegin(GL_QUADS);
-                glVertex2f(static_cast<float>(x1),static_cast<float>(component->m_position.y+16));
-                glVertex2f(static_cast<float>(x2),static_cast<float>(component->m_position.y+16));
-				glVertex2f(static_cast<float>(x2),static_cast<float>(y1));
-				glVertex2f(static_cast<float>(x1),static_cast<float>(y1));
-				glEnd();
+
+                GraphicsBackend::getSingleton().drawSolidQuad(x1,component->m_position.y+16,x2,y1,
+                                                              46,55,53);
             }
 
             Util::Size DefaultTheme::getDialogTitleBarPreferedSize(Widgets::DialogTitleBar *component)
@@ -670,14 +585,14 @@ namespace AssortedWidgets
             void DefaultTheme::paintDialogTitleBar(Widgets::DialogTitleBar *component)
 			{
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-				glColor3ub(31,31,31);
-				glBegin(GL_QUADS);
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y));
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y));
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-				glEnd();
-				glColor3ub(255,255,255);
+
+                GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x),
+                                                              static_cast<float>(origin.y+component->m_position.y),
+                                                              static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),
+                                                              static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height),
+                                                              31,31,31);
+
+                Font::FontEngine::getSingleton().getFont().setColor(255,255,255);
                 Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(component->m_position.x+component->getLeft()+origin.x),static_cast<int>(component->getTop()+origin.y+component->m_position.y),component->getText());
             }
 
@@ -696,34 +611,20 @@ namespace AssortedWidgets
                 float y1=static_cast<float>(origin.y+component->m_position.y);
                 float y2=static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height);
 
-				glEnable(GL_TEXTURE_2D);
-				glColor3ub(255,255,255);
                 m_TextFieldLeft->paint(x1,y1,x2,y2);
                 m_TextFieldRight->paint(x3,y1,x4,y2);
-				glDisable(GL_TEXTURE_2D);
-				glColor3ub(79,91,84);
-				glBegin(GL_QUADS);
-				glVertex2f(x2,y1);
-				glVertex2f(x3,y1);
-				glVertex2f(x3,y2);
-				glVertex2f(x2,y2);
-				glEnd();
-				glColor3ub(0,0,0);
+
+                GraphicsBackend::getSingleton().drawSolidQuad(x2,y1,x3,y2,79,91,84);
+
 				if(component->isActive())
 				{
-					glBegin(GL_QUADS);
-					glVertex2f(x3+2,y1+4);
-					glVertex2f(x3+3,y1+4);
-					glVertex2f(x3+3,y2-4);
-					glVertex2f(x3+2,y2-4);
-					glEnd();
+                    GraphicsBackend::getSingleton().drawSolidQuad(x3+2,y1+4,x3+3,y2-4,0,0,0);
 				}
-				glEnable(GL_TEXTURE_2D);
 				Util::Size textSize=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(component->getText());
-				glEnable(GL_SCISSOR_TEST);
+                glEnable(GL_SCISSOR_TEST);
                 glScissor(static_cast<GLint>(x1),static_cast<GLint>(m_screenHeight-y2),static_cast<GLint>(component->m_size.m_width),static_cast<GLint>(component->m_size.m_height));
                 Font::FontEngine::getSingleton().getFont().drawString(static_cast<int>(x3-4-textSize.m_width),static_cast<int>(component->getTop()+y1),component->getText());
-				glDisable(GL_SCISSOR_TEST);
+                glDisable(GL_SCISSOR_TEST);
             }
 
 			Util::Size DefaultTheme::getLogoPreferedSize(Widgets::Logo *component)
@@ -733,8 +634,7 @@ namespace AssortedWidgets
 
 			void DefaultTheme::paintLogo(Widgets::Logo *component)
 			{
-				glEnable(GL_TEXTURE_2D);
-				glColor3ub(255,255,255);
+                Font::FontEngine::getSingleton().getFont().setColor(255,255,255);
                 m_Logo->paint(static_cast<float>(component->m_position.x),static_cast<float>(component->m_position.y),static_cast<float>(component->m_position.x+component->m_size.m_width),static_cast<float>(component->m_position.y+component->m_size.m_height));
             }
 
@@ -814,8 +714,6 @@ namespace AssortedWidgets
 					}
 				}
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-				glEnable(GL_TEXTURE_2D);
-				glColor3ub(255,255,255);
                 button->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
             }
 
@@ -827,14 +725,12 @@ namespace AssortedWidgets
 			void DefaultTheme::paintScrollBarSlider(Widgets::ScrollBarSlider *component)
 			{
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-				glDisable(GL_TEXTURE_2D);
-				glColor3ub(46,55,53);
-				glBegin(GL_QUADS);
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y));
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y));
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-				glEnd();
+
+                GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x),
+                                                              static_cast<float>(origin.y+component->m_position.y),
+                                                              static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),
+                                                              static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height),
+                                                              46,55,53);
             }
 
             Util::Size DefaultTheme::getScrollBarPreferedSize(Widgets::ScrollBar *)
@@ -845,8 +741,7 @@ namespace AssortedWidgets
 			void DefaultTheme::paintScrollBar(Widgets::ScrollBar *component)
 			{
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-				glEnable(GL_TEXTURE_2D);
-				glColor3ub(255,255,255);
+
 				if(component->getType()==Widgets::ScrollBar::Horizontal)
 				{
                     m_ScrollBarHorizontalBackground->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
@@ -865,37 +760,28 @@ namespace AssortedWidgets
 			void DefaultTheme::paintScrollPanel(Widgets::ScrollPanel *component)
 			{
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-				glDisable(GL_TEXTURE_2D);
-				glColor3ub(79,91,84);
-				glBegin(GL_QUADS);
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y));
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y));
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-				glEnd();
+
+                GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x),
+                                                              static_cast<float>(origin.y+component->m_position.y),
+                                                              static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),
+                                                              static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height),
+                                                              79,91,84);
 
 				if(component->isHorizontalBarShow()||component->isVerticalBarShow())
 				{
-					glColor3ub(46,55,53);
-					glBegin(GL_QUADS);
-                    glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-15),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height-15));
-                    glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-1),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height-15));
-                    glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-1),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height-1));
-                    glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-15),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height-1));
-					glEnd();
+
+                    GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-15),
+                                                                  static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height-15),
+                                                                  static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-1),
+                                                                  static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height-1),
+                                                                  46,55,53);
 				}
             }
 
 			void DefaultTheme::scissorBegin(Util::Position &position,Util::Size &area)
 			{
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-				/*glColor3ub(0,0,255);
-				glBegin(GL_QUADS);
-				glVertex2f(origin.x+position.x,origin.y+position.y);
-				glVertex2f(origin.x+position.x+area.width,origin.y+position.y);
-				glVertex2f(origin.x+position.x+area.width,origin.y+position.y+area.height);
-				glVertex2f(origin.x+position.x,origin.y+position.y+area.height);
-				glEnd();*/
+
 				glEnable(GL_SCISSOR_TEST);
                 glScissor(origin.x+position.x,m_screenHeight-origin.y-area.m_height-position.y,area.m_width,area.m_height);
 
@@ -928,66 +814,55 @@ namespace AssortedWidgets
 				{
 					case Widgets::CheckButton::normal:
 					{
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
+
                         m_ButtonNormalLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
                         m_ButtonNormalRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+19));
-						glDisable(GL_TEXTURE_2D);
-						glColor3ub(55,67,65);
-						glBegin(GL_QUADS);
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y+19));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
-						glEnd();
-						glColor3ub(137,155,145);
+
+                        GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x+4),
+                                                                      static_cast<float>(origin.y+component->m_position.y),
+                                                                      static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),
+                                                                      static_cast<float>(origin.y+component->m_position.y+19),
+                                                                      55,67,65);
+
+                        Font::FontEngine::getSingleton().getFont().setColor(137,155,145);
                         Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft()+15,origin.y+component->m_position.y+component->getTop(),component->getText());
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
+
                         checkStatus->paint(static_cast<float>(origin.x+component->m_position.x+component->getLeft()),static_cast<float>(origin.y+component->m_position.y+component->getTop()),static_cast<float>(origin.x+component->m_position.x+component->getLeft()+11),static_cast<float>(origin.y+component->m_position.y+component->getTop()+11));
 						break;
 					};
 
 					case Widgets::CheckButton::hover:
 					{
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
                         m_ButtonHoverLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
                         m_ButtonHoverRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+19));
-						glDisable(GL_TEXTURE_2D);
-						glColor3ub(175,200,28);
-						glBegin(GL_QUADS);
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y+19));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
-						glEnd();
-						glColor3ub(0,0,0);
+
+                        GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x+4),
+                                                                      static_cast<float>(origin.y+component->m_position.y),
+                                                                      static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),
+                                                                      static_cast<float>(origin.y+component->m_position.y+19),
+                                                                      175,200,28);
+
+                        Font::FontEngine::getSingleton().getFont().setColor(0,0,0);
                         Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft()+15,origin.y+component->m_position.y+component->getTop(),component->getText());
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
+
                         checkStatus->paint(static_cast<float>(origin.x+component->m_position.x+component->getLeft()),static_cast<float>(origin.y+component->m_position.y+component->getTop()),static_cast<float>(origin.x+component->m_position.x+component->getLeft()+11),static_cast<float>(origin.y+component->m_position.y+component->getTop()+11));
 						break;
 					};
 
 					case Widgets::CheckButton::pressed:
 					{
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
                         m_ButtonNormalLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
                         m_ButtonNormalRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+19));
-						glDisable(GL_TEXTURE_2D);
-						glColor3ub(55,67,65);
-						glBegin(GL_QUADS);
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y+19));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
-						glEnd();
-						glColor3ub(0,0,0);
+
+                        GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x+4),
+                                                                      static_cast<float>(origin.y+component->m_position.y),
+                                                                      static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),
+                                                                      static_cast<float>(origin.y+component->m_position.y+19),
+                                                                      55,67,65);
+
+                        Font::FontEngine::getSingleton().getFont().setColor(0,0,0);
                         Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft()+15,origin.y+component->m_position.y+component->getTop(),component->getText());
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
+
                         checkStatus->paint(static_cast<float>(origin.x+component->m_position.x+component->getLeft()),static_cast<float>(origin.y+component->m_position.y+component->getTop()),static_cast<float>(origin.x+component->m_position.x+component->getLeft()+11),static_cast<float>(origin.y+component->m_position.y+component->getTop()+11));
 						break;
 					};
@@ -1016,66 +891,54 @@ namespace AssortedWidgets
 				{
 					case Widgets::CheckButton::normal:
 					{
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
                         m_ButtonNormalLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
                         m_ButtonNormalRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+19));
-						glDisable(GL_TEXTURE_2D);
-						glColor3ub(55,67,65);
-						glBegin(GL_QUADS);
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y+19));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
-						glEnd();
-						glColor3ub(137,155,145);
+
+                        GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x+4),
+                                                                      static_cast<float>(origin.y+component->m_position.y),
+                                                                      static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),
+                                                                      static_cast<float>(origin.y+component->m_position.y+19),
+                                                                      55,67,65);
+
+                        Font::FontEngine::getSingleton().getFont().setColor(137,155,145);
                         Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft()+15,origin.y+component->m_position.y+component->getTop(),component->getText());
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
+
                         checkStatus->paint(static_cast<float>(origin.x+component->m_position.x+component->getLeft()),static_cast<float>(origin.y+component->m_position.y+component->getTop()),static_cast<float>(origin.x+component->m_position.x+component->getLeft()+11),static_cast<float>(origin.y+component->m_position.y+component->getTop()+11));
 						break;
 					};
 
 					case Widgets::CheckButton::hover:
 					{
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
                         m_ButtonHoverLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
                         m_ButtonHoverRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+19));
-						glDisable(GL_TEXTURE_2D);
-						glColor3ub(175,200,28);
-						glBegin(GL_QUADS);
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y+19));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
-						glEnd();
-						glColor3ub(0,0,0);
+
+                        GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x+4),
+                                                                      static_cast<float>(origin.y+component->m_position.y),
+                                                                      static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),
+                                                                      static_cast<float>(origin.y+component->m_position.y+19),
+                                                                      175,200,28);
+
+                        Font::FontEngine::getSingleton().getFont().setColor(0,0,0);
                         Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft()+15,origin.y+component->m_position.y+component->getTop(),component->getText());
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
+
                         checkStatus->paint(static_cast<float>(origin.x+component->m_position.x+component->getLeft()),static_cast<float>(origin.y+component->m_position.y+component->getTop()),static_cast<float>(origin.x+component->m_position.x+component->getLeft()+11),static_cast<float>(origin.y+component->m_position.y+component->getTop()+11));
 						break;
 					};
 
 					case Widgets::CheckButton::pressed:
 					{
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
                         m_ButtonNormalLeft->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
                         m_ButtonNormalRight->paint(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+19));
-						glDisable(GL_TEXTURE_2D);
-						glColor3ub(55,67,65);
-						glBegin(GL_QUADS);
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),static_cast<float>(origin.y+component->m_position.y+19));
-                        glVertex2f(static_cast<float>(origin.x+component->m_position.x+4),static_cast<float>(origin.y+component->m_position.y+19));
-						glEnd();
-						glColor3ub(0,0,0);
+
+                        GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x+4),
+                                                                      static_cast<float>(origin.y+component->m_position.y),
+                                                                      static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width-4),
+                                                                      static_cast<float>(origin.y+component->m_position.y+19),
+                                                                      55,67,65);
+
+                        Font::FontEngine::getSingleton().getFont().setColor(0,0,0);
                         Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft()+15,origin.y+component->m_position.y+component->getTop(),component->getText());
-						glEnable(GL_TEXTURE_2D);
-						glColor3ub(255,255,255);
+
                         checkStatus->paint(static_cast<float>(origin.x+component->m_position.x+component->getLeft()),static_cast<float>(origin.y+component->m_position.y+component->getTop()),static_cast<float>(origin.x+component->m_position.x+component->getLeft()+11),static_cast<float>(origin.y+component->m_position.y+component->getTop()+11));
 						break;
 					};
@@ -1100,31 +963,15 @@ namespace AssortedWidgets
                     float y1=static_cast<float>(origin.y+component->m_position.y);
                     float y2=static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height);
 
-					glEnable(GL_TEXTURE_2D);
-					glColor3ub(255,255,255);
                     m_ProgressBarLeft->paint(x1,y1,x2,y2);
                     m_ProgressBarRight->paint(x3,y1,x4,y2);
-					glDisable(GL_TEXTURE_2D);
-					glColor3ub(79,91,84);
-					glBegin(GL_QUADS);
-					glVertex2f(x2,y1);
-					glVertex2f(x3,y1);
-					glVertex2f(x3,y2);
-					glVertex2f(x2,y2);
-					glEnd();
 
-					glColor3ub(46,55,53);
-					glBegin(GL_QUADS);
-					glVertex2f(x1+2,y1+2);
-					glVertex2f(x1+2+component->getPOfSlider(),y1+2);
-					glVertex2f(x1+2+component->getPOfSlider(),y2-2);
-					glVertex2f(x1+2,y2-2);
-					glEnd();
+                    GraphicsBackend::getSingleton().drawSolidQuad(x2,y1,x3,y2,79,91,84);
+                    GraphicsBackend::getSingleton().drawSolidQuad(x1+2,y1+2,x1+2+component->getPOfSlider(),y2-2,46,55,53);
 				}
 				else if(component->getType()==Widgets::ProgressBar::Vertical)
 				{
-					glEnable(GL_TEXTURE_2D);
-					glColor3ub(255,255,255);
+
                     float x1=static_cast<float>(origin.x+component->m_position.x);
                     float x2=static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width);
                     float y1=static_cast<float>(origin.y+component->m_position.y);
@@ -1134,21 +981,10 @@ namespace AssortedWidgets
 
                     m_ProgressBarTop->paint(x1,y1,x2,y2);
                     m_ProgressBarBottom->paint(x1,y3,x2,y4);
-					glDisable(GL_TEXTURE_2D);
-					glColor3ub(79,91,84);
-					glBegin(GL_QUADS);
-					glVertex2f(x1,y2);
-					glVertex2f(x2,y2);
-					glVertex2f(x2,y3);
-					glVertex2f(x1,y3);
-					glEnd();
-					glColor3ub(46,55,53);
-					glBegin(GL_QUADS);
-					glVertex2f(x1+2,y4-2-component->getPOfSlider());
-					glVertex2f(x2-2,y4-2-component->getPOfSlider());
-					glVertex2f(x2-2,y4-2);
-					glVertex2f(x1+2,y4-2);
-					glEnd();
+
+                    GraphicsBackend::getSingleton().drawSolidQuad(x1,y2,x2,y3,79,91,84);
+
+                    GraphicsBackend::getSingleton().drawSolidQuad(x1+2,y4-2-component->getPOfSlider(),x2-2,y4-2,46,55,53);
 				}
             }
 
@@ -1160,14 +996,12 @@ namespace AssortedWidgets
 			void DefaultTheme::paintSlideBarSlider(Widgets::SlideBarSlider *component)
 			{
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-				glDisable(GL_TEXTURE_2D);
-				glColor3ub(46,55,53);
-				glBegin(GL_QUADS);
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y));
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y));
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-                glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-				glEnd();
+
+                GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x),
+                                                              static_cast<float>(origin.y+component->m_position.y),
+                                                              static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),
+                                                              static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height),
+                                                              46,55,53);
             }
 
 			Util::Size DefaultTheme::getSlideBarPreferedSize(Widgets::SlideBar *component)
@@ -1188,23 +1022,14 @@ namespace AssortedWidgets
                     float y1=static_cast<float>(origin.y+component->m_position.y);
                     float y2=static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height);
 
-					glEnable(GL_TEXTURE_2D);
-					glColor3ub(255,255,255);
                     m_ProgressBarLeft->paint(x1,y1,x2,y2);
                     m_ProgressBarRight->paint(x3,y1,x4,y2);
-					glDisable(GL_TEXTURE_2D);
-					glColor3ub(79,91,84);
-					glBegin(GL_QUADS);
-					glVertex2f(x2,y1);
-					glVertex2f(x3,y1);
-					glVertex2f(x3,y2);
-					glVertex2f(x2,y2);
-					glEnd();
+
+                    GraphicsBackend::getSingleton().drawSolidQuad(x2,y1,x3,y2,79,91,84);
+
 				}
 				else if(component->getType()==Widgets::SlideBar::Vertical)
 				{
-					glEnable(GL_TEXTURE_2D);
-					glColor3ub(255,255,255);
                     float x1=static_cast<float>(origin.x+component->m_position.x);
                     float x2=static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width);
                     float y1=static_cast<float>(origin.y+component->m_position.y);
@@ -1214,14 +1039,8 @@ namespace AssortedWidgets
 
                     m_ProgressBarTop->paint(x1,y1,x2,y2);
                     m_ProgressBarBottom->paint(x1,y3,x2,y4);
-					glDisable(GL_TEXTURE_2D);
-					glColor3ub(79,91,84);
-					glBegin(GL_QUADS);
-					glVertex2f(x1,y2);
-					glVertex2f(x2,y2);
-					glVertex2f(x2,y3);
-					glVertex2f(x1,y3);
-					glEnd();
+
+                    GraphicsBackend::getSingleton().drawSolidQuad(x1,y2,x2,y3,79,91,84);
 				}
             }
 
@@ -1251,9 +1070,9 @@ namespace AssortedWidgets
 						break;
 					}
 				}
-				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
-				glEnable(GL_TEXTURE_2D);
-				glColor3ub(255,255,255);
+
+                Util::Position origin=Util::Graphics::getSingleton().getOrigin();
+
                 button->paint(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y),static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
             }
 
@@ -1272,23 +1091,15 @@ namespace AssortedWidgets
                 float y1=static_cast<float>(origin.y+component->m_position.y);
                 float y2=static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height);
 
-				glEnable(GL_TEXTURE_2D);
-				glColor3ub(255,255,255);
                 m_ProgressBarLeft->paint(x1,y1,x2,y2);
                 m_ProgressBarRight->paint(x3,y1,x4,y2);
-				glDisable(GL_TEXTURE_2D);
-				glColor3ub(79,91,84);
-				glBegin(GL_QUADS);
-				glVertex2f(x2,y1);
-				glVertex2f(x3,y1);
-				glVertex2f(x3,y2);
-				glVertex2f(x2,y2);
-				glEnd();
+
+                GraphicsBackend::getSingleton().drawSolidQuad(x2,y1,x3,y2,79,91,84);
 
 				Widgets::DropListItem *selected(component->getSelectedItem());
 				if(selected)
 				{
-					glColor3ub(0,0,0);
+                    Font::FontEngine::getSingleton().getFont().setColor(0,0,0);
                     Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft(),origin.y+component->m_position.y+component->getTop(),selected->getText());
 				}
             }
@@ -1304,37 +1115,37 @@ namespace AssortedWidgets
 				Util::Position origin=Util::Graphics::getSingleton().getOrigin();
 				if(component->getStatus()==Widgets::DropListItem::hover)
 				{
-					glColor3ub(175,200,28);
-					glBegin(GL_QUADS);
-                    glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y));
-                    glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y));
-                    glVertex2f(static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-                    glVertex2f(static_cast<float>(origin.x+component->m_position.x),static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height));
-					glEnd();
+
+                    GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(origin.x+component->m_position.x),
+                                                                  static_cast<float>(origin.y+component->m_position.y),
+                                                                  static_cast<float>(origin.x+component->m_position.x+component->m_size.m_width),
+                                                                  static_cast<float>(origin.y+component->m_position.y+component->m_size.m_height),
+                                                                  175,200,28);
 				}
-				glColor3ub(0,0,0);
+                Font::FontEngine::getSingleton().getFont().setColor(0,0,0);
                 Font::FontEngine::getSingleton().getFont().drawString(origin.x+component->m_position.x+component->getLeft(),origin.y+component->m_position.y+component->getTop(),component->getText());
             }
 
 			void DefaultTheme::paintDropDown(Util::Position &position,Util::Size &area)
 			{
-				glDisable(GL_TEXTURE_2D);
-				glColor3ub(79,91,84);
-				glBegin(GL_QUADS);
-				glVertex2f(static_cast<float>(position.x),static_cast<float>(position.y));
-                glVertex2f(static_cast<float>(position.x+area.m_width),static_cast<float>(position.y));
-                glVertex2f(static_cast<float>(position.x+area.m_width),static_cast<float>(position.y+area.m_height));
-                glVertex2f(static_cast<float>(position.x),static_cast<float>(position.y+area.m_height));
-				glEnd();
 
-				glColor3ub(46,55,53);
-				glBegin(GL_LINE_STRIP);
-				glVertex2f(static_cast<float>(position.x),static_cast<float>(position.y));
-                glVertex2f(static_cast<float>(position.x+area.m_width),static_cast<float>(position.y));
-                glVertex2f(static_cast<float>(position.x+area.m_width),static_cast<float>(position.y+area.m_height));
-                glVertex2f(static_cast<float>(position.x),static_cast<float>(position.y+area.m_height));
-				glVertex2f(static_cast<float>(position.x),static_cast<float>(position.y));
-				glEnd();
+                GraphicsBackend::getSingleton().drawSolidQuad(static_cast<float>(position.x),
+                                                              static_cast<float>(position.y),
+                                                              static_cast<float>(position.x+area.m_width),
+                                                              static_cast<float>(position.y+area.m_height),
+                                                              79,91,84);
+
+
+                std::vector<float> points = {static_cast<float>(position.x),static_cast<float>(position.y),
+                                      static_cast<float>(position.x+area.m_width),static_cast<float>(position.y),
+                                      static_cast<float>(position.x+area.m_width),static_cast<float>(position.y+area.m_height),
+                                      static_cast<float>(position.x),static_cast<float>(position.y+area.m_height),
+                                      static_cast<float>(position.x),static_cast<float>(position.y)};
+
+
+                GraphicsBackend::getSingleton().drawLineStrip(points, 46,55,53);
+
+
             }
 
 		DefaultTheme::~DefaultTheme(void)

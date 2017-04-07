@@ -1,8 +1,12 @@
 #include "UI.h"
-#include "SDL2/SDL.h"
-#include "SDL2/SDL_opengl.h"
-#include <string>
-#include "SDL2/SDL_image.h"
+
+
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#define GL_GLEXT_PROTOTYPES 1
+#include <SDL2/SDL_opengles2.h>
+
+
 #ifdef __EMSCRIPTEN__
 #include "emscripten.h"
 #endif
@@ -22,9 +26,9 @@ void init(int width,int height)
 		printf("Video initialization failed: %s\n", SDL_GetError());
 	}
 
-    //Use OpenGL 2.1
-    SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 2 );
-    SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 1 );
+    //Use OpenGL ES 2.0
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
     //if(!fullscreen)
     //	flags = SDL_OPENGL;
@@ -78,17 +82,17 @@ void init(int width,int height)
 
             }
 
-	glShadeModel(GL_SMOOTH);
+    //glShadeModel(GL_SMOOTH);
 	glClearColor(118.0f/255.0f,130.0f/255.0f,123.0f/255.0f, 1.0f);
-	glClearDepth(1.0f);
-	glDepthFunc(GL_LEQUAL);
-	glEnable(GL_DEPTH_TEST);
-	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+    //glClearDepth(1.0f);
+    //glDepthFunc(GL_LEQUAL);
+    //glEnable(GL_DEPTH_TEST);
+    //glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 
-	glViewport(0,0,width,height);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glMatrixMode(GL_MODELVIEW);
+    //glViewport(0,0,width,height);
+    //glMatrixMode(GL_PROJECTION);
+    //glLoadIdentity();
+    //glMatrixMode(GL_MODELVIEW);
 }
 
 void stop()
@@ -157,20 +161,15 @@ int main(int argc, char* argv [])
  //   QApplication application(argc, argv);
     int width=800;
     int height=600;
-    printf("step1\n");
     init(width,height);
-    printf("step2\n");
     AssortedWidgets::UI::getSingleton().init(width,height);
-    printf("step3\n");
 	//AssortedWidgets::UI::getSingleton().setQuitFunction(&stop);
 #ifndef __EMSCRIPTEN__
     loop();
 #else
-    emscripten_set_main_loop(loop, 60, 1);
+    emscripten_set_main_loop(loop, 0, 1);
 #endif
 
-    printf("step4\n");
     //stop();
-    printf("step5\n");
 	return 0;
 }

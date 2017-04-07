@@ -114,8 +114,8 @@ namespace AssortedWidgets
 		private:
 			Theme *theme;
 		private:
-			ThemeEngine():theme(0)
-			{};
+            ThemeEngine():theme(nullptr)
+            {}
 		public:
 			void setupTheme(Theme *_theme)
 			{
@@ -129,11 +129,11 @@ namespace AssortedWidgets
 			{
 				static ThemeEngine obj;
 				return obj;
-			};
+            }
 			Theme& getTheme() const
 			{
 				return *theme;
-			};
+            }
 		private:
 			~ThemeEngine()
 			{
@@ -141,7 +141,7 @@ namespace AssortedWidgets
 				{
 					delete theme;
 				}
-			};
+            }
 		};
 	}
 }
