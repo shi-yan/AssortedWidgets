@@ -9,8 +9,11 @@
     <meta name="twitter:title" content="AssortedWidgets">
     <meta name="twitter:description" content="AssortedWidgets, an OpenGL GUI in WebAssembly!">
     <meta name="twitter:image" content="https://github.com/shi-yan/AssortedWidgets/raw/master/docs/screenshot.png">
-    <link rel="stylesheet" href="./bootstrap.css" media="screen">
+    <link rel="stylesheet" href="css/bootstrap.css" media="screen">
     <link rel="stylesheet" href="css/blueimp-gallery.min.css">
+    <link rel="stylesheet" href="css/atelier-forest-dark.css">
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.10.0/highlight.min.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
 
     <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
     <!--[if lt IE 9]>
@@ -181,43 +184,34 @@
           <div class="col-lg-4">
             <div class="bs-component">
               <h2>WebAssembly</h2>
-              <p class="text-muted">Fusce dapibus, tellus ac cursus commodo, tortor mauris nibh.</p>
-              <p class="text-primary">Nullam id dolor id nibh ultricies vehicula ut id elit.</p>
-              <p class="text-warning">Etiam porta sem malesuada magna mollis euismod.</p>
-              <p class="text-danger">Donec ullamcorper nulla non metus auctor fringilla.</p>
-              <p class="text-success">Duis mollis, est non commodo luctus, nisi erat porttitor ligula.</p>
-              <p class="text-info">Maecenas sed diam eget risus varius blandit sit amet non magna.</p>
+              <p >1. Install <a href="http://webassembly.org/getting-started/developers-guide/">WebAssembly</a>.</p>
+              <p >2. cd into the <span class="text-warning">AssortedWidgets/AssortedWidgets</span> folder.</p>
+              <p >3. <span class="text-warning">make</span></p>
+              <p >4. <span class="text-warning">emrun --no_browser --port 8080 .</span> </p>
             </div>
 
           </div>
           <div class="col-lg-4">
             <div class="bs-component">
               <h2>Linux</h2>
-              <p class="text-muted">Fusce dapibus, tellus ac cursus commodo, tortor mauris nibh.</p>
-              <p class="text-primary">Nullam id dolor id nibh ultricies vehicula ut id elit.</p>
-              <p class="text-warning">Etiam porta sem malesuada magna mollis euismod.</p>
-              <p class="text-danger">Donec ullamcorper nulla non metus auctor fringilla.</p>
-              <p class="text-success">Duis mollis, est non commodo luctus, nisi erat porttitor ligula.</p>
-              <p class="text-info">Maecenas sed diam eget risus varius blandit sit amet non magna.</p>
+              <p>1. Install SDL2 and SDL2_image: <br/> <span class="text-warning">sudo apt-get install libsdl2-dev</span></p>
+              <p>2. Install qmake (the project is using qmake, this will be changed in the future.): <span>sudo apt-get install qtbase5-dev</span></p>
+              <p>3. under the AssortedWidgets folder, run <span class="text-warning">qmake</span>. </p>
+              <p>4. under the same folder, run <span class="text-warning">make</span>.</p>
             </div>
 
           </div>
           <div class="col-lg-4">
             <div class="bs-component">
               <h2>Mac OS</h2>
-              <p class="text-muted">Fusce dapibus, tellus ac cursus commodo, tortor mauris nibh.</p>
-              <p class="text-primary">Nullam id dolor id nibh ultricies vehicula ut id elit.</p>
-              <p class="text-warning">Etiam porta sem malesuada magna mollis euismod.</p>
-              <p class="text-danger">Donec ullamcorper nulla non metus auctor fringilla.</p>
-              <p class="text-success">Duis mollis, est non commodo luctus, nisi erat porttitor ligula.</p>
-              <p class="text-info">Maecenas sed diam eget risus varius blandit sit amet non magna.</p>
+              <p>1. Install SDL2 and SDL2_image via <a href="https://brew.sh/">homebrew</a>: <br/> <span class="text-warning">brew install sdl2 sdl2_image</span> </p>
+              <p>2. Install <a href="https://www.qt.io/">Qt5</a> (the project is using qmake, this will be changed in the future.)</p>
+              <p>3. under the AssortedWidgets folder, run <span class="text-warning">qmake</span>. </p>
+              <p>4. under the same folder, run <span class="text-warning">make</span>.</p>
             </div>
 
           </div>
-
         </div>
-
-
       </div>
 
 
@@ -235,40 +229,91 @@
         <!-- Headings -->
 
         <div class="row">
-          <div class="col-lg-4">
-            <div class="bs-component">
-              <h2>WebAssembly</h2>
-              <p class="text-muted">Fusce dapibus, tellus ac cursus commodo, tortor mauris nibh.</p>
-              <p class="text-primary">Nullam id dolor id nibh ultricies vehicula ut id elit.</p>
-              <p class="text-warning">Etiam porta sem malesuada magna mollis euismod.</p>
-              <p class="text-danger">Donec ullamcorper nulla non metus auctor fringilla.</p>
-              <p class="text-success">Duis mollis, est non commodo luctus, nisi erat porttitor ligula.</p>
-              <p class="text-info">Maecenas sed diam eget risus varius blandit sit amet non magna.</p>
-            </div>
+          <div class="col-lg-12">
+          <p> 
+          To use AssortedWidgets, first define a class inherits <span class="text-warning">AssortedWidgets::Widgets::Dialog</span>:
+          </p>
+          <pre style="background-color: #1b1918; border: 0px;"><code class="c++">
+          class DemoDialog: public AssortedWidgets::Widgets::Dialog
+          {
+          public:
+              DemoDialog(void);
+              ~DemoDialog(void);
+          };
+          </code></pre>
+          <p>Then, add desired UI elements and layouts to the dialog as private members:</p>
+          <pre style="background-color: #1b1918; border: 0px;"><code class="c++">
+          class DemoDialog: public AssortedWidgets::Widgets::Dialog //subclass the common base for all dialogs.
+          {
+          private:
+              Widgets::Button *m_closeButton;   //add a button
+              Widgets::Label *m_label;          //add a text label
+              Widgets::ScrollPanel *m_panel;    //add a scroll panel
+              Layout::GirdLayout *m_girdLayout; //a layout is a container of UI elements.
+          public:
+              DemoDialog(void);
+          public:
+              ~DemoDialog(void);
+          };
+          </code></pre>
+          <p>Initialize the dialog in its constructor:</p>
+          <pre style="background-color: #1b1918; border: 0px;"><code class="c++">
+          DemoDialog::DemoDialog(void)
+            :Dialog("Scroll Panel Test:",400,400,320,240) //provide dialog title and size.
+          {
+              m_girdLayout=new Layout::GirdLayout(2,1); //initialize the grid layout, set its margin
+              m_girdLayout->setRight(16);
+              m_girdLayout->setLeft(16);
+              m_girdLayout->setTop(8);
+              m_girdLayout->setBottom(8);
+              m_girdLayout->setSpacer(4);
 
-          </div>
-          <div class="col-lg-4">
-            <div class="bs-component">
-              <h2>Linux</h2>
-              <p class="text-muted">Fusce dapibus, tellus ac cursus commodo, tortor mauris nibh.</p>
-              <p class="text-primary">Nullam id dolor id nibh ultricies vehicula ut id elit.</p>
-              <p class="text-warning">Etiam porta sem malesuada magna mollis euismod.</p>
-              <p class="text-danger">Donec ullamcorper nulla non metus auctor fringilla.</p>
-              <p class="text-success">Duis mollis, est non commodo luctus, nisi erat porttitor ligula.</p>
-              <p class="text-info">Maecenas sed diam eget risus varius blandit sit amet non magna.</p>
-            </div>
+              m_girdLayout->setHorizontalAlignment(1,0,Layout::GirdLayout::HRight);
 
-          </div>
-          <div class="col-lg-4">
-            <div class="bs-component">
-              <h2>Mac OS</h2>
-              <p class="text-muted">Fusce dapibus, tellus ac cursus commodo, tortor mauris nibh.</p>
-              <p class="text-primary">Nullam id dolor id nibh ultricies vehicula ut id elit.</p>
-              <p class="text-warning">Etiam porta sem malesuada magna mollis euismod.</p>
-              <p class="text-danger">Donec ullamcorper nulla non metus auctor fringilla.</p>
-              <p class="text-success">Duis mollis, est non commodo luctus, nisi erat porttitor ligula.</p>
-              <p class="text-info">Maecenas sed diam eget risus varius blandit sit amet non magna.</p>
-            </div>
+              m_closeButton=new Widgets::Button("Close"); //initialize the UI elements on this dialog
+              m_label=new Widgets::Label("I am a very very big Label in a Scroll Panel.");
+              m_label->m_size.m_height=m_label->m_size.m_width=500;
+              m_panel=new Widgets::ScrollPanel();
+              m_panel->setContent(m_label); //add the label to the scroll panel
+
+              setLayout(m_girdLayout); //let this dialog to use this layout
+              add(m_panel); //add both the scroll panel and the close button to the dialog
+              add(m_closeButton);
+
+              pack(); //this function update the sizes and locations of internal UI elements
+          }
+          </code></pre>
+          <p>Go back to the class definition, add a <span class="text-warning">onClose()</span> function to handle the mouse release event of the close button:</p>
+          <pre style="background-color: #1b1918; border: 0px;"><code class="c++">
+          class DemoDialog: public AssortedWidgets::Widgets::Dialog
+          {
+          private:
+              Widgets::Button *m_closeButton;
+              Widgets::Label *m_label;
+              Widgets::ScrollPanel *m_panel;
+              Layout::GirdLayout *m_girdLayout;
+          public:
+              void onClose(const Event::MouseEvent &e);
+              DemoDialog(void);
+              ~DemoDialog(void);
+          };
+          </code></pre>
+          <p>Register the <span class="text-warning">onClose()</span> function as the handle of the mouse release event of the close button:</p>
+          <pre style="background-color: #1b1918; border: 0px;"><code class="c++">
+          DemoDialog::DemoDialog(void):Dialog("Scroll Panel Test:",400,400,320,240)
+          {
+              ...
+
+              //register the onClose function as the event handler of the close button's mouse release event
+              m_closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(DemoDialog::onClose));
+          }
+
+          void DemoDialog::onClose(const Event::MouseEvent &)
+          {
+              //this is the event handler, it calls a predefined function Close() to shut the dialog
+              Close();
+          }
+          </code></pre>
 
           </div>
 
@@ -356,8 +401,6 @@ blueimp.Gallery(
 
 
     </div>
-
-
     <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
-  <script>/* <![CDATA[ */(function(d,s,a,i,j,r,l,m,t){try{l=d.getElementsByTagName('a');t=d.createElement('textarea');for(i=0;l.length-i;i++){try{a=l[i].href;s=a.indexOf('/cdn-cgi/l/email-protection');m=a.length;if(a&&s>-1&&m>28){j=28+s;s='';if(j<m){r='0x'+a.substr(j,2)|0;for(j+=2;j<m&&a.charAt(j)!='X';j+=2)s+='%'+('0'+('0x'+a.substr(j,2)^r).toString(16)).slice(-2);j++;s=decodeURIComponent(s)+a.substr(j,m-j)}t.innerHTML=s.replace(/</g,'&lt;').replace(/\>/g,'&gt;');l[i].href='mailto:'+t.value}}catch(e){}}}catch(e){}})(document);/* ]]> */</script></body>
+  </body>
 </html>

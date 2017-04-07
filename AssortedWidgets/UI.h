@@ -446,6 +446,10 @@ namespace AssortedWidgets
 		//	selectionManager.registerComponent(labelTest);
 		//	selectionManager.registerComponent(buttonTest);
 
+            Manager::DialogManager::getSingleton().setModelessDialog(labelNButtonTestDialog);
+            Manager::DialogManager::getSingleton().setModelessDialog(checkNRadioTestDialog);
+            Manager::DialogManager::getSingleton().setModelessDialog(progressNSliderTestDialog);
+            Manager::DialogManager::getSingleton().setModelessDialog(textNDropTestDialog);
         }
 
 		static UI &getSingleton()

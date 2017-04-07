@@ -167,7 +167,7 @@ Module.expectedDataFileDownloads++;
    "filename": "/assets/arial.ttf"
   } ],
   "remote_package_size": 385090,
-  "package_uuid": "2414c8a6-c269-46c9-8341-cc62070a3ac8"
+  "package_uuid": "7c08d301-22f0-4a5b-a7a7-a12bdd9326d3"
  });
 }))();
 var Module;
@@ -1882,7 +1882,7 @@ function _emscripten_asm_const_iii(code, a0, a1) {
  return ASM_CONSTS[code](a0, a1);
 }
 STATIC_BASE = 1024;
-STATICTOP = STATIC_BASE + 124208;
+STATICTOP = STATIC_BASE + 124224;
 __ATINIT__.push({
  func: (function() {
   __GLOBAL__I_000101();
@@ -1893,7 +1893,7 @@ __ATINIT__.push({
  })
 });
 memoryInitializer = Module["wasmJSMethod"].indexOf("asmjs") >= 0 || Module["wasmJSMethod"].indexOf("interpret-asm2wasm") >= 0 ? "index.html.mem" : null;
-var STATIC_BUMP = 124208;
+var STATIC_BUMP = 124224;
 Module["STATIC_BASE"] = STATIC_BASE;
 Module["STATIC_BUMP"] = STATIC_BUMP;
 var tempDoublePtr = STATICTOP;

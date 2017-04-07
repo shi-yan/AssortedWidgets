@@ -53,7 +53,7 @@ namespace AssortedWidgets
 
         void TrueTypeFont::drawString(int x, int y, const std::string &text)
 		{   
-            glfonsScreenSize(m_stash, 800, 600);
+            glfonsScreenSize(m_stash, m_width, m_height);
       /*      bool isNew = false;
             fsuint textID = findTextID(text, isNew);
 
@@ -140,6 +140,12 @@ namespace AssortedWidgets
         {
             m_color = glfonsRGBA(r,g,b,255);
 
+        }
+
+        void TrueTypeFont::setScreenSize(unsigned int width, unsigned int height)
+        {
+            m_width = width;
+            m_height = height;
         }
 
 	}

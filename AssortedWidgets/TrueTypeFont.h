@@ -19,6 +19,8 @@ namespace AssortedWidgets
             unsigned int  m_textBuffer;
             int m_fontNormal;
             unsigned int m_color;
+            unsigned int m_width;
+            unsigned int m_height;
 
             std::map<std::string, int> m_textIDs;
 
@@ -34,6 +36,8 @@ namespace AssortedWidgets
             int findTextID(const std::string &text, bool &isNew);
 
             void setColor(int r, int g, int b);
+
+            void setScreenSize(unsigned int width, unsigned int height);
 
 		public:
             ~TrueTypeFont(void);
