@@ -6,7 +6,7 @@ namespace AssortedWidgets
 {
 	namespace Layout
 	{
-		class GirdLayout:public Layout
+        class GridLayout:public Layout
 		{
 		public:
 			enum HorizontalAlignment
@@ -39,7 +39,7 @@ namespace AssortedWidgets
             unsigned int m_columnCount;
 
 		public:
-            GirdLayout(unsigned int _rowCount,unsigned int _columnCount)
+            GridLayout(unsigned int _rowCount,unsigned int _columnCount)
                 :Layout(),
                   m_rowCount(_rowCount),
                   m_columnCount(_columnCount)
@@ -78,7 +78,7 @@ namespace AssortedWidgets
 		private:
 			void orderComponent(unsigned int row,unsigned int column,Util::Position &origin,Util::Size &size);
 		public:
-			~GirdLayout(void);
+            ~GridLayout(void);
 		};
 	}
 }

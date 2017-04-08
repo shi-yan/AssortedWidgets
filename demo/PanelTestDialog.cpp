@@ -6,14 +6,14 @@ namespace AssortedWidgets
 	{
 		PanelTestDialog::PanelTestDialog(void):Dialog("Scroll Panel Test:",400,400,320,240)
 		{
-            m_girdLayout=new Layout::GirdLayout(2,1);
-            m_girdLayout->setRight(16);
-            m_girdLayout->setLeft(16);
-            m_girdLayout->setTop(8);
-            m_girdLayout->setBottom(8);
-            m_girdLayout->setSpacer(4);
+            m_gridLayout=new Layout::GridLayout(2,1);
+            m_gridLayout->setRight(16);
+            m_gridLayout->setLeft(16);
+            m_gridLayout->setTop(8);
+            m_gridLayout->setBottom(8);
+            m_gridLayout->setSpacer(4);
 
-            m_girdLayout->setHorizontalAlignment(1,0,Layout::GirdLayout::HRight);
+            m_gridLayout->setHorizontalAlignment(1,0,Layout::GridLayout::HRight);
 
             m_closeButton=new Widgets::Button("Close");
             m_label=new Widgets::Label("I am a very very big Label in a Scroll Panel.");
@@ -21,7 +21,7 @@ namespace AssortedWidgets
             m_panel=new Widgets::ScrollPanel();
             m_panel->setContent(m_label);
 
-            setLayout(m_girdLayout);
+            setLayout(m_gridLayout);
             add(m_panel);
             add(m_closeButton);
 
@@ -40,7 +40,7 @@ namespace AssortedWidgets
             delete m_closeButton;
             delete m_label;
             delete m_panel;
-            delete m_girdLayout;
+            delete m_gridLayout;
 		}
 	}
 }

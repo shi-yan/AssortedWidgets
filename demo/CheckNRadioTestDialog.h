@@ -1,6 +1,6 @@
 #pragma once
 #include "Dialog.h"
-#include "GirdLayout.h"
+#include "GridLayout.h"
 #include "Button.h"
 #include "CheckButton.h"
 #include "RadioButton.h"
@@ -14,7 +14,7 @@ namespace AssortedWidgets
 		class CheckNRadioTestDialog:public Widgets::Dialog
 		{
 		private:
-            Layout::GirdLayout *m_girdLayout;
+            Layout::GridLayout *m_gridLayout;
             Widgets::Button *m_closeButton;
             Widgets::CheckButton *m_checkButton1;
             Widgets::CheckButton *m_checkButton2;

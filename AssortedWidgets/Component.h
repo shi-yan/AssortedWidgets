@@ -26,9 +26,9 @@ namespace AssortedWidgets
             int m_layoutProperty;
 		public:
             Component(void)
-                :m_isEnable(true),
+                :m_isHover(false),
+                  m_isEnable(true),
                   m_isVisible(true),
-                  m_isHover(false),
                   m_layoutProperty(0)
             {}
 

@@ -3,7 +3,7 @@
 #include "BorderLayout.h"
 #include "Panel.h"
 #include "FlowLayout.h"
-#include "GirdLayout.h"
+#include "GridLayout.h"
 #include "Button.h"
 #include "Label.h"
 
@@ -14,7 +14,7 @@ namespace AssortedWidgets
 		class MultipleLayoutTestDialog:public Widgets::Dialog
 		{
 		private:
-            Layout::GirdLayout *m_girdLayout;
+            Layout::GridLayout *m_gridLayout;
             Layout::FlowLayout *m_flowLayout;
             Widgets::Button *m_closeButton;
 

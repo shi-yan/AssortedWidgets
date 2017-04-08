@@ -1,6 +1,6 @@
 #pragma once
 #include "Dialog.h"
-#include "GirdLayout.h"
+#include "GridLayout.h"
 #include "Button.h"
 #include "Label.h"
 #include "ScrollPanel.h"
@@ -15,7 +15,7 @@ namespace AssortedWidgets
             Widgets::Button *m_closeButton;
             Widgets::Label *m_label;
             Widgets::ScrollPanel *m_panel;
-            Layout::GirdLayout *m_girdLayout;
+            Layout::GridLayout *m_gridLayout;
 		public:
 			void onClose(const Event::MouseEvent &e);
 			PanelTestDialog(void);

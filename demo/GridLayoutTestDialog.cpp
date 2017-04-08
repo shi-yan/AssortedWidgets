@@ -1,19 +1,19 @@
-#include "GirdLayoutTestDialog.h"
+#include "GridLayoutTestDialog.h"
 
 namespace AssortedWidgets
 {
 	namespace Test
 	{
-		GirdLayoutTestDialog::GirdLayoutTestDialog(void):Dialog("GirdLayout Test:",300,300,320,160)
+        GridLayoutTestDialog::GridLayoutTestDialog(void):Dialog("GridLayout Test:",300,300,320,160)
 		{
-            m_girdLayout=new Layout::GirdLayout(3,3);
-            m_girdLayout->setRight(16);
-            m_girdLayout->setLeft(16);
-            m_girdLayout->setTop(8);
-            m_girdLayout->setBottom(8);
-            m_girdLayout->setSpacer(4);
+            m_gridLayout=new Layout::GridLayout(3,3);
+            m_gridLayout->setRight(16);
+            m_gridLayout->setLeft(16);
+            m_gridLayout->setTop(8);
+            m_gridLayout->setBottom(8);
+            m_gridLayout->setSpacer(4);
 
-            m_girdLayout->setHorizontalAlignment(2,2,Layout::GirdLayout::HCenter);
+            m_gridLayout->setHorizontalAlignment(2,2,Layout::GridLayout::HCenter);
             m_closeButton=new Widgets::Button("Close");
 
             m_label1=new Widgets::Label("1");
@@ -56,7 +56,7 @@ namespace AssortedWidgets
             m_label8->setVerticalStyle(Widgets::Label::Stretch);
             m_label8->setDrawBackground(true);
 
-            setLayout(m_girdLayout);
+            setLayout(m_gridLayout);
             add(m_label1);
             add(m_label2);
             add(m_label3);
@@ -69,17 +69,17 @@ namespace AssortedWidgets
 
 			pack();
 
-            m_closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(GirdLayoutTestDialog::onClose));
+            m_closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(GridLayoutTestDialog::onClose));
 		}
 
-        void GirdLayoutTestDialog::onClose(const Event::MouseEvent &e)
+        void GridLayoutTestDialog::onClose(const Event::MouseEvent &e)
 		{
 			Close();
 		}
 
-		GirdLayoutTestDialog::~GirdLayoutTestDialog(void)
+        GridLayoutTestDialog::~GridLayoutTestDialog(void)
 		{
-            delete m_girdLayout;
+            delete m_gridLayout;
             delete m_closeButton;
             delete m_label1;
             delete m_label2;

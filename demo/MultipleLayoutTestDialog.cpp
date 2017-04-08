@@ -6,12 +6,12 @@ namespace AssortedWidgets
 	{
 		MultipleLayoutTestDialog::MultipleLayoutTestDialog(void):Dialog("MultipleLayout Test:",350,350,400,180)
 		{
-            m_girdLayout=new Layout::GirdLayout(1,2);
-            m_girdLayout->setRight(16);
-            m_girdLayout->setLeft(16);
-            m_girdLayout->setTop(8);
-            m_girdLayout->setBottom(8);
-            m_girdLayout->setSpacer(4);
+            m_gridLayout=new Layout::GridLayout(1,2);
+            m_gridLayout->setRight(16);
+            m_gridLayout->setLeft(16);
+            m_gridLayout->setTop(8);
+            m_gridLayout->setBottom(8);
+            m_gridLayout->setSpacer(4);
 
             m_flowLayout=new Layout::FlowLayout(2,2,2,2,4);
 			
@@ -95,7 +95,7 @@ namespace AssortedWidgets
 
             m_borderPanel->pack();
 			
-            setLayout(m_girdLayout);
+            setLayout(m_gridLayout);
             add(m_flowPanel);
             add(m_borderPanel);
 			pack();
@@ -126,7 +126,7 @@ namespace AssortedWidgets
             delete m_overLabel;
             delete m_aLabel;
             delete m_lazyDogLabel;
-            delete m_girdLayout;
+            delete m_gridLayout;
             delete m_flowPanel;
             delete m_borderPanel;
 		}

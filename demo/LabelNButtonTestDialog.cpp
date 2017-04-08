@@ -7,22 +7,22 @@ namespace AssortedWidgets
 	{
 		LabelNButtonTestDialog::LabelNButtonTestDialog(void):Dialog("Label and Button Test:",50,50,320,140)
 		{
-            m_girdLayout=new Layout::GirdLayout(3,1);
-            m_girdLayout->setHorizontalAlignment(0,0,Layout::GirdLayout::HLeft);
-            m_girdLayout->setHorizontalAlignment(1,0,Layout::GirdLayout::HCenter);
-            m_girdLayout->setHorizontalAlignment(2,0,Layout::GirdLayout::HRight);
-            m_girdLayout->setRight(16);
-            m_girdLayout->setLeft(16);
-            m_girdLayout->setTop(8);
-            m_girdLayout->setBottom(8);
-            m_girdLayout->setSpacer(4);
+            m_gridLayout=new Layout::GridLayout(3,1);
+            m_gridLayout->setHorizontalAlignment(0,0,Layout::GridLayout::HLeft);
+            m_gridLayout->setHorizontalAlignment(1,0,Layout::GridLayout::HCenter);
+            m_gridLayout->setHorizontalAlignment(2,0,Layout::GridLayout::HRight);
+            m_gridLayout->setRight(16);
+            m_gridLayout->setLeft(16);
+            m_gridLayout->setTop(8);
+            m_gridLayout->setBottom(8);
+            m_gridLayout->setSpacer(4);
             m_testLabel=new Widgets::Label("This is a Label test.");
             m_testButton=new Widgets::Button("This is a Button test.");
             m_closeButton=new Widgets::Button("Close");
             add(m_testLabel);
             add(m_testButton);
             add(m_closeButton);
-            setLayout(m_girdLayout);
+            setLayout(m_gridLayout);
 			
 			pack();
 
@@ -39,7 +39,7 @@ namespace AssortedWidgets
             delete m_testLabel;
             delete m_closeButton;
             delete m_testButton;
-            delete m_girdLayout;
+            delete m_gridLayout;
 		}
 	}
 }

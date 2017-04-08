@@ -2,7 +2,7 @@
 #include "Dialog.h"
 #include "TextField.h"
 #include "DropList.h"
-#include "GirdLayout.h"
+#include "GridLayout.h"
 #include "Button.h"
 #include "DropListItem.h"
 #include "Label.h"
@@ -20,7 +20,7 @@ namespace AssortedWidgets
             Widgets::DropListItem *m_option1;
             Widgets::DropListItem *m_option2;
             Widgets::DropListItem *m_option3;
-            Layout::GirdLayout *m_girdLayout;
+            Layout::GridLayout *m_gridLayout;
             Widgets::Label *m_optionLabel;
             Widgets::Label *m_textLabel;
 		public:

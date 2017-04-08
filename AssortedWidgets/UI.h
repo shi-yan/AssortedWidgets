@@ -19,7 +19,7 @@
 #include "Dialog.h"
 #include "FlowLayout.h"
 #include "BorderLayout.h"
-#include "GirdLayout.h"
+#include "GridLayout.h"
 #include "TextField.h"
 #include "TypeActiveManager.h"
 #include "Logo.h"
@@ -33,17 +33,17 @@
 #include "DropList.h"
 #include "DropListManager.h"
 #include "DialogManager.h"
-#include "LabelNButtonTestDialog.h"
-#include "CheckNRadioTestDialog.h"
-#include "ProgressNSliderTestDialog.h"
-#include "TextNDropTestDialog.h"
-#include "FlowLayoutTestDialog.h"
-#include "BorderLayoutTestDialog.h"
-#include "GirdLayoutTestDialog.h"
-#include "MultipleLayoutTestDialog.h"
-#include "PanelTestDialog.h"
-#include "AllInOneDialog.h"
-#include "DialogTestDialog.h"
+#include "../demo/LabelNButtonTestDialog.h"
+#include "../demo/CheckNRadioTestDialog.h"
+#include "../demo/ProgressNSliderTestDialog.h"
+#include "../demo/TextNDropTestDialog.h"
+#include "../demo/FlowLayoutTestDialog.h"
+#include "../demo/BorderLayoutTestDialog.h"
+#include "../demo/GridLayoutTestDialog.h"
+#include "../demo/MultipleLayoutTestDialog.h"
+#include "../demo/PanelTestDialog.h"
+#include "../demo/AllInOneDialog.h"
+#include "../demo/DialogTestDialog.h"
 #include "SubImage.h"
 #include "GraphicsBackend.h"
 
@@ -126,8 +126,8 @@ namespace AssortedWidgets
 		Widgets::MenuItemButton *menuItemBorderTest;
 		Test::BorderLayoutTestDialog *borderLayoutTestDialog;
 
-		Widgets::MenuItemButton *menuItemGirdTest;
-		Test::GirdLayoutTestDialog *girdLayoutTestDialog;
+        Widgets::MenuItemButton *menuItemGridTest;
+        Test::GridLayoutTestDialog *gridLayoutTestDialog;
 
 		Widgets::MenuItemButton *menuItemMultipleTest;
 		Test::MultipleLayoutTestDialog *multipleLayoutTestDialog;
@@ -382,8 +382,8 @@ namespace AssortedWidgets
 			menuItemLayoutTest->addItem(menuItemFlowTest);
 			menuItemBorderTest=new Widgets::MenuItemButton("BorderLayout Test");
 			menuItemLayoutTest->addItem(menuItemBorderTest);
-			menuItemGirdTest=new Widgets::MenuItemButton("GirdLayout Test");
-			menuItemLayoutTest->addItem(menuItemGirdTest);
+            menuItemGridTest=new Widgets::MenuItemButton("GridLayout Test");
+            menuItemLayoutTest->addItem(menuItemGridTest);
 			menuItemMultipleTest=new Widgets::MenuItemButton("MultipleLayout Test");
 			menuItemLayoutTest->addItem(menuItemMultipleTest);
 			menuAssortedWidgetsTest->addItem(menuItemLayoutTest);
@@ -423,8 +423,8 @@ namespace AssortedWidgets
 			borderLayoutTestDialog=new Test::BorderLayoutTestDialog();
             menuItemBorderTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::borderLayoutTest));
 
-			girdLayoutTestDialog=new Test::GirdLayoutTestDialog();
-            menuItemGirdTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::girdLayoutTest));
+            gridLayoutTestDialog=new Test::GridLayoutTestDialog();
+            menuItemGridTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::gridLayoutTest));
 
 			multipleLayoutTestDialog=new Test::MultipleLayoutTestDialog();
             menuItemMultipleTest->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(UI::multipleLayoutTest));
@@ -506,15 +506,15 @@ namespace AssortedWidgets
 			}
         }
 
-        void girdLayoutTest(const Event::MouseEvent &)
+        void gridLayoutTest(const Event::MouseEvent &)
 		{
-			if(girdLayoutTestDialog->getShowType()==Widgets::Dialog::None)
+            if(gridLayoutTestDialog->getShowType()==Widgets::Dialog::None)
 			{
-				Manager::DialogManager::getSingleton().setModelessDialog(girdLayoutTestDialog);
+                Manager::DialogManager::getSingleton().setModelessDialog(gridLayoutTestDialog);
 			}
 			else
 			{
-				girdLayoutTestDialog->Close();
+                gridLayoutTestDialog->Close();
 			}
         }
 

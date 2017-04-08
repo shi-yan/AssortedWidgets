@@ -6,7 +6,7 @@
 #include "Button.h"
 #include "Label.h"
 #include "Panel.h"
-#include "GirdLayout.h"
+#include "GridLayout.h"
 
 namespace AssortedWidgets
 {
@@ -23,7 +23,7 @@ namespace AssortedWidgets
             Widgets::SlideBar *m_verticalSBar;
             Layout::BorderLayout *m_borderLayout;
             Widgets::Panel *m_centerPanel;
-            Layout::GirdLayout *m_centerGirdLayout;
+            Layout::GridLayout *m_centerGridLayout;
 		public:
 			void onClose(const Event::MouseEvent &e);
 			void onHSlider(const Event::MouseEvent &e);

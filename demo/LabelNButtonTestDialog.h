@@ -1,6 +1,6 @@
 #pragma once
 #include "Dialog.h"
-#include "GirdLayout.h"
+#include "GridLayout.h"
 #include "Label.h"
 #include "Button.h"
 
@@ -11,7 +11,7 @@ namespace AssortedWidgets
 		class LabelNButtonTestDialog:public Widgets::Dialog
 		{
 		private:
-            Layout::GirdLayout *m_girdLayout;
+            Layout::GridLayout *m_gridLayout;
             Widgets::Button *m_testButton;
             Widgets::Button *m_closeButton;
             Widgets::Label *m_testLabel;

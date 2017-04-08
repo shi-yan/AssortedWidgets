@@ -1,6 +1,6 @@
 #pragma once
 #include "Dialog.h"
-#include "GirdLayout.h"
+#include "GridLayout.h"
 #include "Label.h"
 #include "Button.h"
 
@@ -8,10 +8,10 @@ namespace AssortedWidgets
 {
 	namespace Test
 	{
-		class GirdLayoutTestDialog:public Widgets::Dialog
+        class GridLayoutTestDialog:public Widgets::Dialog
 		{
 		private:
-            Layout::GirdLayout *m_girdLayout;
+            Layout::GridLayout *m_gridLayout;
             Widgets::Button *m_closeButton;
             Widgets::Label *m_label1;
             Widgets::Label *m_label2;
@@ -23,9 +23,9 @@ namespace AssortedWidgets
             Widgets::Label *m_label8;
 		public:
 			void onClose(const Event::MouseEvent &e);
-			GirdLayoutTestDialog(void);
+            GridLayoutTestDialog(void);
 		public:
-			~GirdLayoutTestDialog(void);
+            ~GridLayoutTestDialog(void);
 		};
 	}
 }

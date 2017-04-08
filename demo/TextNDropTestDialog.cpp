@@ -7,16 +7,16 @@ namespace AssortedWidgets
         TextNDropTestDialog::TextNDropTestDialog(void)
             :Dialog("TextField and DropList Test:",200,200,320,200)
 		{
-            m_girdLayout=new Layout::GirdLayout(5,1);
-            m_girdLayout->setRight(16);
-            m_girdLayout->setLeft(16);
-            m_girdLayout->setTop(8);
-            m_girdLayout->setBottom(8);
-            m_girdLayout->setSpacer(4);
+            m_gridLayout=new Layout::GridLayout(5,1);
+            m_gridLayout->setRight(16);
+            m_gridLayout->setLeft(16);
+            m_gridLayout->setTop(8);
+            m_gridLayout->setBottom(8);
+            m_gridLayout->setSpacer(4);
 
-            m_girdLayout->setHorizontalAlignment(1,0,Layout::GirdLayout::HCenter);
-            m_girdLayout->setHorizontalAlignment(3,0,Layout::GirdLayout::HCenter);
-            m_girdLayout->setHorizontalAlignment(4,0,Layout::GirdLayout::HRight);
+            m_gridLayout->setHorizontalAlignment(1,0,Layout::GridLayout::HCenter);
+            m_gridLayout->setHorizontalAlignment(3,0,Layout::GridLayout::HCenter);
+            m_gridLayout->setHorizontalAlignment(4,0,Layout::GridLayout::HRight);
 
             m_closeButton=new Widgets::Button("Close");
             m_textField=new Widgets::TextField(160);
@@ -31,7 +31,7 @@ namespace AssortedWidgets
             m_textLabel=new Widgets::Label("Text input here:");
             m_optionLabel=new Widgets::Label("Drop List test:");
 
-            setLayout(m_girdLayout);
+            setLayout(m_gridLayout);
 
             add(m_textLabel);
             add(m_textField);
@@ -57,7 +57,7 @@ namespace AssortedWidgets
             delete m_option1;
             delete m_option2;
             delete m_option3;
-            delete m_girdLayout;
+            delete m_gridLayout;
             delete m_optionLabel;
             delete m_textLabel;
 		}

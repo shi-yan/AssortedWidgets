@@ -1,18 +1,18 @@
-#include "GirdLayout.h"
+#include "GridLayout.h"
 #include "ContainerElement.h"
 
 namespace AssortedWidgets
 {
 	namespace Layout
 	{
-		GirdLayout::~GirdLayout(void)
+        GridLayout::~GridLayout(void)
 		{
             for (size_t i = 0; i < m_rowCount; ++i)
                 delete [] m_alignment[i];
             delete [] m_alignment;
 		}
 
-		void GirdLayout::updateLayout(std::vector<Widgets::Element *> &componentList,Util::Position &origin,Util::Size &area)
+        void GridLayout::updateLayout(std::vector<Widgets::Element *> &componentList,Util::Position &origin,Util::Size &area)
 		{
 			std::vector<Widgets::Element*>::iterator iter(componentList.begin());
             for(size_t i=0;i<m_rowCount;++i)
@@ -172,7 +172,7 @@ namespace AssortedWidgets
 			delete [] rowInfo;
 		}
 
-		void GirdLayout::orderComponent(unsigned int row,unsigned int column,Util::Position &origin,Util::Size &area)
+        void GridLayout::orderComponent(unsigned int row,unsigned int column,Util::Position &origin,Util::Size &area)
 		{
             struct Alignment component=m_alignment[row][column];
             if(component.m_component)
@@ -235,7 +235,7 @@ namespace AssortedWidgets
 			}
 		}
 
-        Util::Size GirdLayout::getPreferedSize() const
+        Util::Size GridLayout::getPreferedSize() const
 		{
 			return Util::Size();
 		}

@@ -1,6 +1,6 @@
 #pragma once
 #include "Dialog.h"
-#include "GirdLayout.h"
+#include "GridLayout.h"
 #include "Label.h"
 #include "Button.h"
 #include "TextField.h"
@@ -41,7 +41,7 @@ namespace AssortedWidgets
             Widgets::DropListItem *m_option4;
             Widgets::DropListItem *m_option5;
             Widgets::DropListItem *m_option6;
-            Layout::GirdLayout *m_girdLayout;
+            Layout::GridLayout *m_gridLayout;
 
 		public:
 			void onClose(const Event::MouseEvent &e);

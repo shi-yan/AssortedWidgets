@@ -28,7 +28,6 @@ namespace AssortedWidgets
             }
 
             Button(const std::string &_text);
-            Button(const char *_text);
 		public:
 			~Button(void);
 		};

@@ -7,12 +7,12 @@ namespace AssortedWidgets
         AllInOneDialog::AllInOneDialog(void)
             :Dialog("All In One:", 450, 450, 450, 280)
 		{
-            m_girdLayout=new Layout::GirdLayout(4,4);
-            m_girdLayout->setRight(16);
-            m_girdLayout->setLeft(16);
-            m_girdLayout->setTop(8);
-            m_girdLayout->setBottom(8);
-            m_girdLayout->setSpacer(4);
+            m_gridLayout=new Layout::GridLayout(4,4);
+            m_gridLayout->setRight(16);
+            m_gridLayout->setLeft(16);
+            m_gridLayout->setTop(8);
+            m_gridLayout->setBottom(8);
+            m_gridLayout->setSpacer(4);
 
             m_label=new Widgets::Label("Widget Gallery");
             add(m_label);
@@ -74,7 +74,7 @@ namespace AssortedWidgets
             m_dropList2->add(m_option6);
             add(m_dropList2);
 
-            setLayout(m_girdLayout);
+            setLayout(m_gridLayout);
             pack();
             m_closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(AllInOneDialog::onClose));
 		}
@@ -110,7 +110,7 @@ namespace AssortedWidgets
             delete m_option5;
             delete m_option6;
 
-            delete m_girdLayout;
+            delete m_gridLayout;
 		}
 	}
 }

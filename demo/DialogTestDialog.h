@@ -1,6 +1,6 @@
 #pragma once
 #include "Dialog.h"
-#include "GirdLayout.h"
+#include "GridLayout.h"
 #include "Button.h"
 #include "CheckButton.h"
 #include "Label.h"
@@ -13,7 +13,7 @@ namespace AssortedWidgets
 		{
 		private:
             Widgets::Button *m_closeButton;
-            Layout::GirdLayout *m_girdLayout;
+            Layout::GridLayout *m_gridLayout;
             Widgets::CheckButton *m_dragAble;
             Widgets::CheckButton *m_sizeAble;
             Widgets::Label *m_label;

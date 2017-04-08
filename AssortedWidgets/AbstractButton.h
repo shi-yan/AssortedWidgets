@@ -21,8 +21,8 @@ namespace AssortedWidgets
 		private:
             unsigned int m_top;
             unsigned int m_bottom;
-            unsigned int m_right;
             unsigned int m_left;
+            unsigned int m_right;
             enum Status m_status;
 
 		public:

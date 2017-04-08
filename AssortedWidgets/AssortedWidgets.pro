@@ -39,13 +39,10 @@ LIBS += -lSDL2 -lGLESv2 -lSDL2_image
 
 HEADERS += \
     AbstractButton.h \
-    AllInOneDialog.h \
     BorderLayout.h \
-    BorderLayoutTestDialog.h \
     BoundingBox.h \
     Button.h \
     CheckButton.h \
-    CheckNRadioTestDialog.h \
     Component.h \
     ContainerElement.h \
     DefaultTheme.h \
@@ -56,7 +53,6 @@ HEADERS += \
     DialogLeft.h \
     DialogManager.h \
     DialogRight.h \
-    DialogTestDialog.h \
     DialogUp.h \
     DialogUpLeft.h \
     DialogUpRight.h \
@@ -68,15 +64,12 @@ HEADERS += \
     DropListManager.h \
     Event.h \
     FlowLayout.h \
-    FlowLayoutTestDialog.h \
     Font.h \
     FontEngine.h \
-    GirdLayout.h \
-    GirdLayoutTestDialog.h \
+    GridLayout.h \
     Graphics.h \
     KeyEvent.h \
     Label.h \
-    LabelNButtonTestDialog.h \
     Layout.h \
     Logo.h \
     Menu.h \
@@ -93,12 +86,9 @@ HEADERS += \
     MenuTheme.h \
     MouseEvent.h \
     MouseListener.h \
-    MultipleLayoutTestDialog.h \
     Panel.h \
-    PanelTestDialog.h \
     Position.h \
     ProgressBar.h \
-    ProgressNSliderTestDialog.h \
     RadioButton.h \
     RadioGroup.h \
     ScrollBar.h \
@@ -112,7 +102,6 @@ HEADERS += \
     Spacer.h \
     SubImage.h \
     TextField.h \
-    TextNDropTestDialog.h \
     Theme.h \
     ThemeEngine.h \
     TypeAble.h \
@@ -122,16 +111,24 @@ HEADERS += \
     stb_truetype.h \
     TrueTypeFont.h \
     DialogTitleBar.h \
-    GraphicsBackend.h
+    GraphicsBackend.h \
+    ../demo/AllInOneDialog.h \
+    ../demo/BorderLayoutTestDialog.h \
+    ../demo/CheckNRadioTestDialog.h \
+    ../demo/DialogTestDialog.h \
+    ../demo/FlowLayoutTestDialog.h \
+    ../demo/GridLayoutTestDialog.h \
+    ../demo/LabelNButtonTestDialog.h \
+    ../demo/MultipleLayoutTestDialog.h \
+    ../demo/PanelTestDialog.h \
+    ../demo/ProgressNSliderTestDialog.h \
+    ../demo/TextNDropTestDialog.h
 
 SOURCES += \
     AbstractButton.cpp \
-    AllInOneDialog.cpp \
     BorderLayout.cpp \
-    BorderLayoutTestDialog.cpp \
     Button.cpp \
     CheckButton.cpp \
-    CheckNRadioTestDialog.cpp \
     Component.cpp \
     DefaultTheme.cpp \
     Dialog.cpp \
@@ -141,7 +138,6 @@ SOURCES += \
     DialogLeft.cpp \
     DialogManager.cpp \
     DialogRight.cpp \
-    DialogTestDialog.cpp \
     DialogUp.cpp \
     DialogUpLeft.cpp \
     DialogUpRight.cpp \
@@ -151,13 +147,10 @@ SOURCES += \
     DropListItem.cpp \
     DropListManager.cpp \
     FlowLayout.cpp \
-    FlowLayoutTestDialog.cpp \
     Font.cpp \
     FontEngine.cpp \
-    GirdLayout.cpp \
-    GirdLayoutTestDialog.cpp \
+    GridLayout.cpp \
     Label.cpp \
-    LabelNButtonTestDialog.cpp \
     Logo.cpp \
     Main.cpp \
     Menu.cpp \
@@ -171,11 +164,8 @@ SOURCES += \
     MenuItemSubMenu.cpp \
     MenuItemToggleButton.cpp \
     MenuList.cpp \
-    MultipleLayoutTestDialog.cpp \
     Panel.cpp \
-    PanelTestDialog.cpp \
     ProgressBar.cpp \
-    ProgressNSliderTestDialog.cpp \
     RadioButton.cpp \
     RadioGroup.cpp \
     ScrollBar.cpp \
@@ -187,14 +177,25 @@ SOURCES += \
     SlideBarSlider.cpp \
     Spacer.cpp \
     TextField.cpp \
-    TextNDropTestDialog.cpp \
     TypeAble.cpp \
     TypeActiveManager.cpp \
     UI.cpp \
     TrueTypeFont.cpp \
     DialogTitleBar.cpp \
     SubImage.cpp \
-    GraphicsBackend.cpp
+    GraphicsBackend.cpp \
+    ../demo/AllInOneDialog.cpp \
+    ../demo/BorderLayoutTestDialog.cpp \
+    ../demo/CheckNRadioTestDialog.cpp \
+    ../demo/DialogTestDialog.cpp \
+    ../demo/FlowLayoutTestDialog.cpp \
+    ../demo/GridLayoutTestDialog.cpp \
+    ../demo/LabelNButtonTestDialog.cpp \
+    ../demo/MultipleLayoutTestDialog.cpp \
+    ../demo/PanelTestDialog.cpp \
+    ../demo/ProgressNSliderTestDialog.cpp \
+    ../demo/TextNDropTestDialog.cpp
+
 
 INCLUDEPATH += /usr/include/freetype2
 

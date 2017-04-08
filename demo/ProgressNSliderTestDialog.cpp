@@ -19,8 +19,8 @@ namespace AssortedWidgets
             m_valueLabel->setLayoutProperty(Layout::BorderLayout::North);
 
             m_centerPanel=new Widgets::Panel();
-            m_centerGirdLayout=new Layout::GirdLayout(2,1);
-            m_centerPanel->setLayout(m_centerGirdLayout);
+            m_centerGridLayout=new Layout::GridLayout(2,1);
+            m_centerPanel->setLayout(m_centerGridLayout);
 
             m_horizontalPBar=new Widgets::ProgressBar(0.0f,100.0f,0.0f);
             m_horizontalSBar=new Widgets::SlideBar(0.0f,100.0f,0.0f);
@@ -79,7 +79,7 @@ namespace AssortedWidgets
             delete m_verticalSBar;
             delete m_borderLayout;
             delete m_centerPanel;
-            delete m_centerGirdLayout;
+            delete m_centerGridLayout;
 		}
 	}
 }

@@ -116,8 +116,8 @@ namespace AssortedWidgets
 		delete menuItemBorderTest;
 		delete borderLayoutTestDialog;
 
-		delete menuItemGirdTest;
-		delete girdLayoutTestDialog;
+        delete menuItemGridTest;
+        delete gridLayoutTestDialog;
 
 		delete menuItemMultipleTest;
 		delete multipleLayoutTestDialog;

@@ -6,16 +6,16 @@ namespace AssortedWidgets
 	{
 		DialogTestDialog::DialogTestDialog(void):Dialog("Dialog Test:",500,500,260,180)
 		{
-            m_girdLayout=new Layout::GirdLayout(4,1);
-            m_girdLayout->setRight(16);
-            m_girdLayout->setLeft(16);
-            m_girdLayout->setTop(8);
-            m_girdLayout->setBottom(8);
-            m_girdLayout->setSpacer(4);
+            m_gridLayout=new Layout::GridLayout(4,1);
+            m_gridLayout->setRight(16);
+            m_gridLayout->setLeft(16);
+            m_gridLayout->setTop(8);
+            m_gridLayout->setBottom(8);
+            m_gridLayout->setSpacer(4);
 
-            m_girdLayout->setHorizontalAlignment(1,0,Layout::GirdLayout::HCenter);
-            m_girdLayout->setHorizontalAlignment(2,0,Layout::GirdLayout::HCenter);
-            m_girdLayout->setHorizontalAlignment(3,0,Layout::GirdLayout::HRight);
+            m_gridLayout->setHorizontalAlignment(1,0,Layout::GridLayout::HCenter);
+            m_gridLayout->setHorizontalAlignment(2,0,Layout::GridLayout::HCenter);
+            m_gridLayout->setHorizontalAlignment(3,0,Layout::GridLayout::HRight);
 
             m_closeButton=new Widgets::Button("Close");
 
@@ -24,7 +24,7 @@ namespace AssortedWidgets
 
             m_label=new Widgets::Label("This is a modal dialog.");
 
-            setLayout(m_girdLayout);
+            setLayout(m_gridLayout);
 
             add(m_label);
             add(m_dragAble);
@@ -71,7 +71,7 @@ namespace AssortedWidgets
 		{
             delete m_label;
             delete m_closeButton;
-            delete m_girdLayout;
+            delete m_gridLayout;
             delete m_dragAble;
             delete m_sizeAble;
 		}
