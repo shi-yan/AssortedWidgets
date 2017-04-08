@@ -7,20 +7,8 @@ namespace AssortedWidgets
 
         RadioButton::RadioButton(const std::string &_text,RadioGroup *_group)
             :m_text(_text),
-              m_group(_group),
-              m_check(false)
-		{
-            m_size=getPreferedSize();
-            m_horizontalStyle=Element::Fit;
-            m_verticalStyle=Element::Fit;
-
-            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(RadioButton::mouseReleased));
-		}
-
-        RadioButton::RadioButton(const char *_text,RadioGroup *_group)
-            :m_text(_text),
-              m_group(_group),
-              m_check(false)
+              m_check(false),
+              m_group(_group)
 		{
             m_size=getPreferedSize();
             m_horizontalStyle=Element::Fit;

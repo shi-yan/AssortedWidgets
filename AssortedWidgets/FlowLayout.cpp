@@ -18,6 +18,7 @@ namespace AssortedWidgets
 				unsigned nextY=0;
                 unsigned int width=area.m_width-m_left;
                 unsigned int height=area.m_height-m_top-m_bottom;
+                (void) height;
 
 				Util::Size preferedSize=componentList[0]->getPreferedSize();
                 componentList[0]->m_position.x=tempX;

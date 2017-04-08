@@ -199,6 +199,7 @@ namespace AssortedWidgets
 		Util::Size DefaultTheme::getMenuListPreferedSize(Widgets::MenuList *component)
 		{
 			unsigned int miniSize(component->getMinimizeSize());
+            (void) miniSize;
 			unsigned int width(0);
 			unsigned int height(0);
 
@@ -524,6 +525,7 @@ namespace AssortedWidgets
 			Util::Size DefaultTheme::getMenuItemRadioGroupPreferedSize(Widgets::MenuItemRadioGroup *component)
 			{
 				unsigned int miniSize(component->getMinimizeSize());
+                (void) miniSize;
 				unsigned int width(0);
 				unsigned int height(0);
 
@@ -539,6 +541,7 @@ namespace AssortedWidgets
 			
 			void DefaultTheme::paintMenuItemRadioGroup(Widgets::MenuItemRadioGroup *component)
 			{
+                (void) component;
             }
 
 			Util::Size DefaultTheme::getDialogPreferedSize(Widgets::Dialog *component)
@@ -629,6 +632,7 @@ namespace AssortedWidgets
 
 			Util::Size DefaultTheme::getLogoPreferedSize(Widgets::Logo *component)
 			{
+                (void) component;
 				return Util::Size();
             }
 
@@ -640,6 +644,7 @@ namespace AssortedWidgets
 
 			Util::Size DefaultTheme::getScrollBarButtonPreferedSize(Widgets::ScrollBarButton *component)
 			{
+                (void) component;
 				return Util::Size();
             }
 
@@ -719,6 +724,7 @@ namespace AssortedWidgets
 
 			Util::Size DefaultTheme::getScrollBarSliderPreferedSize(Widgets::ScrollBarSlider *component)
 			{
+                (void) component;
 				return Util::Size();
             }
 
@@ -947,6 +953,7 @@ namespace AssortedWidgets
 
 			Util::Size DefaultTheme::getProgressBarPreferedSize(Widgets::ProgressBar *component)
 			{
+                (void) component;
 				return Util::Size();
             }
 
@@ -990,6 +997,7 @@ namespace AssortedWidgets
 
 			Util::Size DefaultTheme::getSlideBarSliderPreferedSize(Widgets::SlideBarSlider *component)
 			{
+                (void) component;
 				return Util::Size();
             }
 
@@ -1006,6 +1014,7 @@ namespace AssortedWidgets
 
 			Util::Size DefaultTheme::getSlideBarPreferedSize(Widgets::SlideBar *component)
 			{
+                (void) component;
 				return Util::Size();
             }
 
@@ -1046,6 +1055,7 @@ namespace AssortedWidgets
 
 			Util::Size DefaultTheme::getDropListButtonPreferedSize(Widgets::DropListButton *component)
 			{
+                (void) component;
 				return Util::Size();
 			}
 

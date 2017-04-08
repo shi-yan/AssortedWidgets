@@ -74,6 +74,7 @@ namespace AssortedWidgets
 
         void GridLayoutTestDialog::onClose(const Event::MouseEvent &e)
 		{
+            (void) e;
 			Close();
 		}
 

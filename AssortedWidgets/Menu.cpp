@@ -8,30 +8,10 @@ namespace AssortedWidgets
 	namespace Widgets
 	{
         Menu::Menu(const std::string &_text)
-            :m_text(_text),
+            : m_expand(false),
+              m_text(_text),
               m_status(normal),
-              m_expand(false),
-              m_menuBar(0)
-		{
-            m_size=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(m_text);
-            m_size.m_width+=12;
-            m_size.m_height=20;
-            m_position.x=100;
-            m_position.y=100;
-
-            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(Menu::mouseEntered));
-            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(Menu::mouseExited));
-            mousePressedHandlerList.push_back(MOUSE_DELEGATE(Menu::mousePressed));
-            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(Menu::mouseReleased));
-
-            m_menuList.m_position.x=-9;
-            m_menuList.m_position.y=25;
-		}
-
-        Menu::Menu(const char *_text)
-            :m_text(_text),
-              m_status(normal),
-              m_expand(false),
+              m_menuList(),
               m_menuBar(0)
 		{
             m_size=Font::FontEngine::getSingleton().getFont().getStringBoundingBox(m_text);
@@ -51,6 +31,7 @@ namespace AssortedWidgets
 
 		void Menu::mouseReleased(const Event::MouseEvent &e)
 		{
+            (void) e;
             m_status=hover;
             if(m_expand)
 			{

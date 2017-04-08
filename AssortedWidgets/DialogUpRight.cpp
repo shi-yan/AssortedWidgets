@@ -18,7 +18,9 @@ namespace AssortedWidgets
 		}
 		
 		void DialogUpRight::dragReleased(const Event::MouseEvent &e)
-		{}
+        {
+            (void) e;
+        }
 
 		void DialogUpRight::dragMoved(int offsetX,int offsetY)
 		{

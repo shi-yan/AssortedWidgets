@@ -23,12 +23,16 @@ namespace AssortedWidgets
 
 		private:
             MenuBar()
-                :m_leftSpacer(45),
+                :m_menuList(),
+                  m_inList(),
+                  m_spacer(0),
+                  m_leftSpacer(45),
                   m_topSpacer(5),
                   m_rightSpacer(45),
                   m_bottomSpacer(5),
-                  m_expand(false),
-                  m_expandMenu(0)
+                  m_expandMenu(nullptr),
+                  m_expand(false)
+
             {
                 mouseMovedHandlerList.push_back(MOUSE_DELEGATE(MenuBar::onMouseMove));
                 mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(MenuBar::onMouseEnter));
@@ -38,8 +42,9 @@ namespace AssortedWidgets
             }
 
 		public:
-			void init(unsigned int width,unsigned int height=30,int _spacer=5)
+            void init(unsigned int width, unsigned int height=30, int _spacer=5)
 			{
+                (void) height;
                 m_spacer=_spacer;
                 m_position.x=0;
                 m_position.y=0;

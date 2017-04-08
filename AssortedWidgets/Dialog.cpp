@@ -7,10 +7,6 @@ namespace AssortedWidgets
 	{
         Dialog::Dialog(const std::string &title,int x,int y,unsigned int width,unsigned int height)
             :m_titleBar(title),
-              m_top(12),
-              m_bottom(14),
-              m_left(12),
-              m_right(12),
               m_borderUpLeft(9,7,4,4),
               m_borderUpRight(width-9-4,7,4,4),
               m_borderUp(13,7,width-26,4),
@@ -21,7 +17,12 @@ namespace AssortedWidgets
               m_borderBottomRight(width-13,height-27,4,4),
               m_dragable(true),
               m_resizable(true),
-              m_showType(None)
+              m_active(true),
+              m_showType(None),
+              m_top(12),
+              m_bottom(14),
+              m_left(12),
+              m_right(12)
 		{
             m_position.x=x;
             m_position.y=y;
@@ -42,47 +43,6 @@ namespace AssortedWidgets
             mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(Dialog::mouseEntered));
             mouseExitedHandlerList.push_back(MOUSE_DELEGATE(Dialog::mouseEntered));
 
-			pack();
-		}
-
-        Dialog::Dialog(const char *title,int x,int y,unsigned int width,unsigned int height)
-            :m_titleBar(title),
-              m_top(12),
-              m_bottom(14),
-              m_left(12),
-              m_right(12),
-              m_borderUpLeft(9,7,4,4),
-              m_borderUpRight(width-9-4,7,4,4),
-              m_borderUp(13,7,width-26,4),
-              m_borderLeft(9,11,4,height-27),
-              m_borderRight(width-13,11,4,height-27),
-              m_borderBottomLeft(9,height-27,4,4),
-              m_borderBottom(13,height-27,width-26,4),
-              m_borderBottomRight(width-13,height-27,4,4),
-              m_dragable(true),
-              m_resizable(true),
-              m_showType(None)
-		{
-            m_position.x=x;
-            m_position.y=y;
-            m_size.m_width=width;
-            m_size.m_height=height;
-            m_titleBar.setDialog(this);
-            m_borderUpLeft.setParent(this);
-            m_borderUpRight.setParent(this);
-            m_borderUp.setParent(this);
-            m_borderLeft.setParent(this);
-            m_borderRight.setParent(this);
-            m_borderBottomLeft.setParent(this);
-            m_borderBottom.setParent(this);
-            m_borderBottomRight.setParent(this);
-
-            mousePressedHandlerList.push_back(MOUSE_DELEGATE(Dialog::mousePressed));
-            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(Dialog::mouseReleased));
-            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(Dialog::mouseEntered));
-            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(Dialog::mouseExited));
-            mouseMovedHandlerList.push_back(MOUSE_DELEGATE(Dialog::mouseMoved));
-		
 			pack();
 		}
 

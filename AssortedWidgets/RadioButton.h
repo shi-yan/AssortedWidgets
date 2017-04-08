@@ -40,7 +40,6 @@ namespace AssortedWidgets
             }
 
             RadioButton(const std::string &_text,RadioGroup *_group);
-            RadioButton(const char *_text,RadioGroup *_group);
 
 			Util::Size getPreferedSize()
 			{

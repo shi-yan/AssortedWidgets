@@ -17,9 +17,10 @@ SDL_Window* window = NULL;
 SDL_Surface* screenSurface = NULL;
 void init(int width,int height)
 {
-	bool fullscreen =true;
-	int bpp = 32;
-	int flags = 0;
+    //bool fullscreen =true;
+
+    //int bpp = 32;
+    //int flags = 0;
 
 	if(SDL_Init(SDL_INIT_VIDEO) < 0)
 	{
@@ -158,6 +159,8 @@ void loop()
 
 int main(int argc, char* argv [])
 {
+    (void) argc;
+    (void) argv;
  //   QApplication application(argc, argv);
     int width=800;
     int height=600;

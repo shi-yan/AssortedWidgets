@@ -5,34 +5,16 @@ namespace AssortedWidgets
 	namespace Widgets
 	{
         MenuItemToggleButton::MenuItemToggleButton(const std::string &_text)
-            :m_text(_text),
-              m_style(stretch),
-              m_left(24),
-              m_top(4),
-              m_bottom(2),
+            : m_left(24),
               m_right(2),
+              m_bottom(2),
+              m_top(4),
+              m_text(_text),
+              m_style(stretch),
               m_status(normal),
               m_toggle(false)
 		{
             m_size=getPreferedSize();
-		}
-
-        MenuItemToggleButton::MenuItemToggleButton(const char *_text)
-            :m_text(_text),
-              m_style(stretch),
-              m_left(24),
-              m_top(4),
-              m_bottom(2),
-              m_right(2),
-              m_status(normal),
-              m_toggle(false)
-		{
-            m_size=getPreferedSize();
-
-            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(MenuItemToggleButton::mouseEntered));
-            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(MenuItemToggleButton::mouseExited));
-            mousePressedHandlerList.push_back(MOUSE_DELEGATE(MenuItemToggleButton::mousePressed));
-            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(MenuItemToggleButton::mouseReleased));
 		}
 
 		MenuItemToggleButton::~MenuItemToggleButton(void)

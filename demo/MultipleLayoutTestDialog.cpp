@@ -105,6 +105,7 @@ namespace AssortedWidgets
 
 		void MultipleLayoutTestDialog::onClose(const Event::MouseEvent &e)
 		{
+            (void) e;
 			Close();
 		}
 

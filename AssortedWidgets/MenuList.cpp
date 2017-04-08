@@ -9,13 +9,14 @@ namespace AssortedWidgets
 	namespace Widgets
 	{
         MenuList::MenuList(void)
-            :m_minimizeSize(232),
-              m_spacer(2),
+            :m_itemList(),
+              m_minimizeSize(232),
               m_top(6),
+              m_bottom(16),
               m_left(9),
               m_right(9),
-              m_bottom(16),
-              m_expandSubMenu(0),
+              m_spacer(2),
+              m_expandSubMenu(nullptr),
               m_expand(false)
         {
             mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(MenuList::mouseEntered));

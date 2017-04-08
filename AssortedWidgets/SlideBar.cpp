@@ -9,7 +9,10 @@ namespace AssortedWidgets
 	namespace Widgets
 	{
 		SlideBar::SlideBar(int _type)
-            :m_type(_type),m_minV(0.0f),m_maxV(100.0f),m_value(0.0f)
+            :m_type(_type),
+              m_value(0.0f),
+              m_minV(0.0f),
+              m_maxV(100.0f)
 		{
             if(m_type==Horizontal)
 			{
@@ -42,10 +45,10 @@ namespace AssortedWidgets
 		}
 		
         SlideBar::SlideBar(float _minV,float _maxV,int _type)
-            :m_minV(_minV),
-              m_maxV(_maxV),
-              m_type(_type),
-              m_value(0)
+            : m_type(_type),
+              m_value(0),
+              m_minV(_minV),
+              m_maxV(_maxV)
 		{
             if(m_type==Horizontal)
 			{
@@ -78,7 +81,7 @@ namespace AssortedWidgets
 		}
 
         SlideBar::SlideBar(float _minV,float _maxV,float _value,int _type)
-            :m_minV(_minV),m_maxV(_maxV),m_type(_type),m_value(0)
+            :m_type(_type),m_value(0),m_minV(_minV),m_maxV(_maxV)
 		{
 			setValue(_value);
             if(m_type==Horizontal)

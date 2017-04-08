@@ -77,7 +77,6 @@ namespace AssortedWidgets
 			void mouseExited(const Event::MouseEvent &e);
 
             MenuItemRadioButton(const std::string &_text);
-            MenuItemRadioButton(const char *_text);
             const std::string& getText() const
 			{
                 return m_text;

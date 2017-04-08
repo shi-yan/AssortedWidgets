@@ -7,7 +7,7 @@
 #include "TrueTypeFont.h"
 #include <stdarg.h>
 #define GLFONTSTASH_IMPLEMENTATION
-#import "glfontstash.h"
+#include "glfontstash.h"
 
 namespace AssortedWidgets
 {
@@ -35,6 +35,7 @@ namespace AssortedWidgets
             float maxy;
 
             bool isNew = false;
+            (void) isNew;
             fsuint textID = 0;
             fsuint buffer;
 
@@ -73,6 +74,8 @@ namespace AssortedWidgets
            // glfonsDraw(m_stash);
 
             float dx = 10, dy = 10;
+            (void) dx;
+            (void) dy;
            // unsigned int white = glfonsRGBA(255,255,255,255);
            // unsigned int brown = glfonsRGBA(192,128,0,128);
             fsuint textID = 0;

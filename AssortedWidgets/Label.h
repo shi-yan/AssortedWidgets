@@ -12,9 +12,9 @@ namespace AssortedWidgets
 		private:
             std::string m_text;
             unsigned int m_top;
+            unsigned int m_bottom;
             unsigned int m_left;
             unsigned int m_right;
-            unsigned int m_bottom;
             bool m_drawBackground;
 
 		public:
@@ -74,7 +74,6 @@ namespace AssortedWidgets
             }
 
             Label(const std::string &_text);
-            Label(const char *_text);
 		public:
 			~Label(void);
 		};

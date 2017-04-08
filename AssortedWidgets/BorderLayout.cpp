@@ -82,6 +82,11 @@ namespace AssortedWidgets
             int tempX = origin.x + m_left;
             int tempY = origin.y + m_top;
 
+            (void) width;
+            (void) height;
+            (void) tempX;
+            (void) tempY;
+
             unsigned int westHeight(getPreferedHeight(west,m_westFormat));
             unsigned int centerHeight(getPreferedHeight(center,m_centerFormat));
             unsigned int eastHeight(getPreferedHeight(east,m_eastFormat));

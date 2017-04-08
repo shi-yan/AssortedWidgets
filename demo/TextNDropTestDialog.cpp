@@ -46,6 +46,7 @@ namespace AssortedWidgets
 
 		void TextNDropTestDialog::onClose(const Event::MouseEvent &e)
 		{
+            (void) e;
 			Close();
 		}
 

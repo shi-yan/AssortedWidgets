@@ -45,7 +45,6 @@ namespace AssortedWidgets
 			void mouseExited(const Event::MouseEvent &e);
 			
             MenuItemButton(const std::string &_text);
-            MenuItemButton(const char *_text);
             const std::string& getText() const
 			{
                 return m_text;

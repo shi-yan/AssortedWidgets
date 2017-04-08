@@ -48,8 +48,9 @@ namespace AssortedWidgets
             m_closeButton->mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(BorderLayoutTestDialog::onClose));
 		}
 
-				void BorderLayoutTestDialog::onClose(const Event::MouseEvent &e)
+        void BorderLayoutTestDialog::onClose(const Event::MouseEvent &e)
 		{
+            (void) e;
 			Close();
 		}
 

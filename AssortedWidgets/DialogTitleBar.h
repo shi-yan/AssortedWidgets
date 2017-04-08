@@ -44,7 +44,6 @@ namespace AssortedWidgets
                 m_parent=_parent;
             }
             DialogTitleBar(const std::string &_text);
-            DialogTitleBar(const char *_text);
             Util::Size getPreferedSize()
 			{
                 return Theme::ThemeEngine::getSingleton().getTheme().getDialogTitleBarPreferedSize(this);

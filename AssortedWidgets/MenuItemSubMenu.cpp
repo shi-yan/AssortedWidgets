@@ -5,35 +5,15 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-
         MenuItemSubMenu::MenuItemSubMenu(const std::string &_text)
-            :m_text(_text),
-              m_status(normal),
-              m_expand(false),
-              m_left(24),
-              m_top(4),
+            :m_left(24),
+              m_right(2),
               m_bottom(4),
-              m_right(2)
-		{
-            m_size=getPreferedSize();
-
-            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(MenuItemSubMenu::mouseEntered));
-            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(MenuItemSubMenu::mouseExited));
-            mousePressedHandlerList.push_back(MOUSE_DELEGATE(MenuItemSubMenu::mousePressed));
-            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(MenuItemSubMenu::mouseReleased));
-
-            m_menuList.m_position.x=232-9;
-            m_menuList.m_position.y=0;
-		}
-
-        MenuItemSubMenu::MenuItemSubMenu(const char *_text)
-            :m_text(_text),
-              m_status(normal),
-              m_expand(false),
-              m_left(24),
               m_top(4),
-              m_bottom(4),
-              m_right(2)
+              m_expand(false),
+              m_text(_text),
+              m_status(normal),
+              m_menuList()
 		{
             m_size=getPreferedSize();
 
@@ -52,6 +32,7 @@ namespace AssortedWidgets
 
 		void MenuItemSubMenu::mouseReleased(const Event::MouseEvent &e)
 		{
+            (void) e;
             if(m_expand)
 			{
                 m_parentMenuList->setShrink();

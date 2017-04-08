@@ -61,6 +61,7 @@ namespace AssortedWidgets
 
 		void CheckNRadioTestDialog::onClose(const Event::MouseEvent &e)
 		{
+            (void) e;
 			Close();
 		}
 

@@ -81,6 +81,7 @@ namespace AssortedWidgets
 
         void AllInOneDialog::onClose(const Event::MouseEvent &e)
 		{
+            (void) e;
 			Close();
 		}
 

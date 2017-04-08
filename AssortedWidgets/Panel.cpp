@@ -6,11 +6,13 @@ namespace AssortedWidgets
 	namespace Widgets
 	{
         Panel::Panel(void)
-            :m_left(2),
+            : m_top(2),
+              m_bottom(2),
+              m_left(2),
               m_right(2),
-              m_top(2),
-              m_bottom(2)
-		{
+              m_contentPosition(),
+              m_contentSize()
+        {
             m_position.x=0;
             m_position.y=0;
             m_size.m_width=50;

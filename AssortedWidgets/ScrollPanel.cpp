@@ -9,13 +9,17 @@ namespace AssortedWidgets
 	namespace Widgets
 	{
         ScrollPanel::ScrollPanel(void)
-            :m_content(0),
+            :m_content(nullptr),
               m_offsetX(0),
               m_offsetY(0),
-              m_horizontalScrollStyle(Auto),
-              m_verticalScrollStyle(Auto),
               m_offsetXMax(0),
               m_offsetYMax(0),
+              m_scissorWidth(0),
+              m_scissorHeight(0),
+              m_horizontalScrollStyle(Auto),
+              m_verticalScrollStyle(Auto),
+              m_horizontalBar(nullptr),
+              m_verticalBar(nullptr),
               m_horizontalBarShow(false),
               m_verticalBarShow(false)
 		{

@@ -20,12 +20,6 @@ namespace AssortedWidgets
             GLfloat m_BottomRightY;
             GLuint m_textureID;
 
-            static GLuint m_vertShader;
-            static GLuint m_fragShader;
-            static GLuint m_shaderProgram;
-            static GLint m_screenSizeUniform;
-            static GLint m_textureUniform;
-
 		public:
             SubImage(GLfloat _UpLeftX, GLfloat _UpLeftY, GLfloat _BottomRightX, GLfloat _BottomRightY, GLuint _textureID)
                 :m_UpLeftX(_UpLeftX),
@@ -38,11 +32,9 @@ namespace AssortedWidgets
             }
             void paint(const float x1,const float y1,const float x2,const float y2) const;
 
-            static void init(unsigned int width, unsigned int height);
 		public:
 			~SubImage(void)
 			{
-                //glDeleteTextures(1,&m_textureID);
             }
 		};
 	}

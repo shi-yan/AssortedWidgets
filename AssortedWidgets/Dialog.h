@@ -81,7 +81,6 @@ namespace AssortedWidgets
 
 			void pack();
             Dialog(const std::string &title,int x,int y,unsigned int width,unsigned int height);
-            Dialog(const char *title,int x,int y,unsigned int width,unsigned int height);
 			Util::Size getPreferedSize()
 			{
 				//return Theme::ThemeEngine::getSingleton().getTheme().getDialogPreferedSize(this);

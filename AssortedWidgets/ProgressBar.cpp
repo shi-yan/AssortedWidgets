@@ -3,12 +3,12 @@
 namespace AssortedWidgets
 {
 	namespace Widgets
-	{
+    {
         ProgressBar::ProgressBar(void)
             :m_type(Horizontal),
+              m_value(0.0f),
               m_min(0.0f),
               m_max(100.0f),
-              m_value(0.0f),
               m_POfSlider(0)
 		{
             m_size=getPreferedSize();
@@ -27,9 +27,9 @@ namespace AssortedWidgets
 
         ProgressBar::ProgressBar(int _type)
             :m_type(_type),
+              m_value(0.0f),
               m_min(0.0f),
               m_max(100.0f),
-              m_value(0.0f),
               m_POfSlider(0)
 		{
             m_size=getPreferedSize();
@@ -48,9 +48,9 @@ namespace AssortedWidgets
 
         ProgressBar::ProgressBar(float _min,float _max,int _type)
             :m_type(_type),
+              m_value(0.0f),
               m_min(_min),
               m_max(_max),
-              m_value(0.0f),
               m_POfSlider(0)
 		{
             m_size=getPreferedSize();
@@ -69,9 +69,9 @@ namespace AssortedWidgets
 
         ProgressBar::ProgressBar(float _min,float _max,float _value,int _type)
             :m_type(_type),
+              m_value(0),
               m_min(_min),
               m_max(_max),
-              m_value(0),
               m_POfSlider(0)
 		{
 			setValue(_value);

@@ -14,9 +14,7 @@ namespace AssortedWidgets
             std::string m_text;
             bool m_active;
 		public:
-            TypeAble(const char *_text);
-            TypeAble(const std::string &_text);
-			TypeAble(void);
+            TypeAble(const std::string &_text = std::string());
 			bool isActive()
 			{
                 return m_active;

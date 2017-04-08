@@ -10,10 +10,10 @@ namespace AssortedWidgets
         DropList::DropList(void)
             :m_selectedItem(0),
               m_spacer(2),
-              m_left(4),
-              m_right(4),
               m_top(4),
               m_bottom(4),
+              m_left(4),
+              m_right(4),
               m_dropped(false)
 		{
             m_size=getPreferedSize();

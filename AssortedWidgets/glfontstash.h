@@ -154,6 +154,9 @@ static int glfons__renderCreate(void* userPtr, int width, int height) {
 }
 
 static int glfons__renderResize(void* userPtr, int width, int height) {
+    (void) height;
+    (void) width;
+    (void) userPtr;
     return 1;
 }
 
@@ -166,6 +169,11 @@ static void glfons__renderUpdate(void* userPtr, int* rect, const unsigned char* 
 }
 
 static void glfons__renderDraw(void* userPtr, const float* verts, const float* tcoords, const unsigned int* colors, int nverts) {
+    (void) userPtr;
+    (void) verts;
+    (void) tcoords;
+    (void) colors;
+    (void) nverts;
     // called by fontstash, but has nothing to do
 }
 
@@ -365,6 +373,7 @@ void glfons__setDirty(GLFONSbuffer* buffer, GLintptr start, GLsizei size) {
 }
 
 void glfons__updateBuffer(void* usrPtr, GLintptr offset, GLsizei size, float* newData, void* owner) {
+    (void) owner;
     GLFONScontext* gl = (GLFONScontext*) usrPtr;
     GLFONSbuffer* buffer = glfons__bufferBound(gl);
 
@@ -405,6 +414,7 @@ void glfonsGenText(FONScontext* ctx, unsigned int nb, fsuint* textId) {
 }
 
 int glfonsRasterize(FONScontext* ctx, fsuint textId, const char* s, unsigned int color) {
+    (void) color;
     GLFONScontext* gl = (GLFONScontext*) ctx->params.userPtr;
     GLFONSbuffer* buffer = glfons__bufferBound(gl);
 

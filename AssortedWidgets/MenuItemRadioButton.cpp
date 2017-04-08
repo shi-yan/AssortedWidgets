@@ -5,32 +5,15 @@ namespace AssortedWidgets
 	namespace Widgets
 	{
         MenuItemRadioButton::MenuItemRadioButton(const std::string &_text)
-            :m_text(_text),
-              m_style(stretch),
-              m_left(24),
-              m_top(4),
-              m_bottom(2),
+            : m_left(24),
               m_right(2),
-              m_status(normal),
-              m_toggle(false)
-		{
-            m_size=getPreferedSize();
-
-            mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioButton::mouseEntered));
-            mouseExitedHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioButton::mouseExited));
-            mousePressedHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioButton::mousePressed));
-            mouseReleasedHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioButton::mouseReleased));
-		}
-
-        MenuItemRadioButton::MenuItemRadioButton(const char *_text)
-            :m_text(_text),
-              m_style(stretch),
-              m_left(24),
-              m_top(4),
               m_bottom(2),
-              m_right(2),
+              m_top(4),
+              m_text(_text),
+              m_style(stretch),
               m_status(normal),
-              m_toggle(false)
+              m_toggle(false),
+              m_group(nullptr)
 		{
             m_size=getPreferedSize();
 

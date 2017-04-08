@@ -19,7 +19,6 @@ namespace AssortedWidgets
 			{
                 return m_text;
             }
-            DropListItem(const char *_text);
             DropListItem(const std::string &_text);
 			void paint()
 			{

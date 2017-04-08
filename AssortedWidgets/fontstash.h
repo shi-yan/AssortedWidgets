@@ -365,6 +365,7 @@ float fons__tt_getPixelHeightScale(FONSttFontImpl *font, float size)
 
 int fons__tt_getGlyphIndex(FONSttFontImpl *font, int codepoint, int useShaping)
 {
+    (void) useShaping;
     return stbtt_FindGlyphIndex(&font->font, codepoint);
 }
 
@@ -634,6 +635,7 @@ void fons__hb_freeShapingResult(FONSshaping* shaping)
 
 void fons__hb_shape(FONScontext* stash, const char* text, FONSfont* font)
 {
+    (void) font;
     FONS_NOTUSED(stash);
     FONS_NOTUSED(text);
 }

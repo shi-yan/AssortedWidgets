@@ -40,6 +40,7 @@ namespace AssortedWidgets
 
 		void DialogTestDialog::onClose(const Event::MouseEvent &e)
 		{
+            (void) e;
 			Close();
 		}
 

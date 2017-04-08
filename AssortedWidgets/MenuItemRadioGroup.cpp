@@ -8,13 +8,14 @@ namespace AssortedWidgets
 	namespace Widgets
 	{
         MenuItemRadioGroup::MenuItemRadioGroup(void)
-            :m_left(0),
+            :m_top(0),
+              m_left(0),
               m_right(0),
-              m_top(0),
               m_bottom(4),
               m_spacer(2),
               m_minimizeSize(232),
-              m_currentSelection(0)
+              m_itemList(),
+              m_currentSelection(nullptr)
         {
             mouseEnteredHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioGroup::mouseEntered));
             mouseExitedHandlerList.push_back(MOUSE_DELEGATE(MenuItemRadioGroup::mouseExited));

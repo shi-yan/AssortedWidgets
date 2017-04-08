@@ -55,7 +55,6 @@ namespace AssortedWidgets
 			void mouseExited(const Event::MouseEvent &e);
 
             MenuItemToggleButton(const std::string &_text);
-            MenuItemToggleButton(const char *_text);
 
             const std::string& getText() const
 			{
