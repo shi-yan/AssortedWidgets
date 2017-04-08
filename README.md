@@ -25,7 +25,21 @@ brew install sdl2
 brew install sdl2_image
 ```
 
-2. open AssortedWidgets.pro with QtCreator and build
+2. Under AssortedWidgets folder, run 
+
+```
+mkdir build
+cd build
+cmake ..
+make
+
+```
+
+3. Once done, run
+
+```
+./AssortedWidgets
+```
 
 On Linux:
 
@@ -35,12 +49,44 @@ On Linux:
 sudo apt-get install libsdl2-dev libsdl2-image-dev
 ```
 
-2. open AssortedWidgets.pro with QtCreator and build
+2. Under AssortedWidgets folder, run 
+
+```
+mkdir build
+cd build
+cmake ..
+make
+
+```
+
+3. Once done, run
+
+```
+./AssortedWidgets
+```
 
 WebAssembly:
 
 1. Install [WebAssembly](http://webassembly.org/)
 
-2. Under AssortedWidgets/AssortedWidgets, run make
+2. Under the emsdk folder, run
 
-3. Under the same folder, run 
+```
+source ./emsdk_env.sh
+```
+
+3. Under AssortedWidgets folder, run 
+
+```
+mkdir build
+cd build
+cmake .. -DCMAKE_TOOLCHAIN_FILE=~/AssortedWidgets/cmake/Modules/Emscripten.cmake
+make
+
+```
+
+4. Once finished, run the following. You should be able to see AssortedWidgets in browser at http://localhost:8080
+
+```
+emrun --no_browser --port 8080 .
+```

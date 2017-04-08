@@ -160,7 +160,7 @@
           };
         };
         </script>
-        <script async type="text/javascript" src="index.js"></script>
+        <script async type="text/javascript" src="AssortedWidgets.js"></script>
         </div>
           </div>
         </div>
@@ -185,19 +185,30 @@
             <div class="bs-component">
               <h2>WebAssembly</h2>
               <p >1. Install <a href="http://webassembly.org/getting-started/developers-guide/">WebAssembly</a>.</p>
-              <p >2. cd into the <span class="text-warning">AssortedWidgets/AssortedWidgets</span> folder.</p>
-              <p >3. <span class="text-warning">make</span></p>
-              <p >4. <span class="text-warning">emrun --no_browser --port 8080 .</span> </p>
+              <p >2. Under the <span class="text-warning">emsdk</span> folder, run <br/>
+              <span class="text-warning">source ./emsdk_env.sh</span> </p>
+              <p >3. Under the <span class="text-warning">AssortedWidgets</span> folder, run<br/> 
+              <span class="text-warning">mkdir build<br/>
+              cd build<br/>
+              cmake .. -DCMAKE_TOOLCHAIN_FILE=~/AssortedWidgets/cmake/Modules/Emscripten.cmake<br/>
+              make</span></p>
+              <p >4. Once finished, run the following. You should be able to see AssortedWidgets in browser at <span class="text-warning">http://localhost:8080</span> <br/>
+              <span class="text-warning">emrun --no_browser --port 8080 .</span> </p>
             </div>
 
           </div>
           <div class="col-lg-4">
             <div class="bs-component">
               <h2>Linux</h2>
-              <p>1. Install SDL2 and SDL2_image: <br/> <span class="text-warning">sudo apt-get install libsdl2-dev</span></p>
-              <p>2. Install qmake (the project is using qmake, this will be changed in the future.): <span>sudo apt-get install qtbase5-dev</span></p>
-              <p>3. under the AssortedWidgets folder, run <span class="text-warning">qmake</span>. </p>
-              <p>4. under the same folder, run <span class="text-warning">make</span>.</p>
+              <p>1. Install SDL2 and SDL2_image: <br/> <span class="text-warning">sudo apt-get install libsdl2-dev ibsdl2-image-dev</span></p>
+              <p>2. 2. Under AssortedWidgets folder, run <br/>
+              <span class="text-warning">mkdir build<br/>
+              cd build<br/>
+              cmake ..<br/>
+              make</span></p>
+              <p>3. Once done, run<br/>
+              <span class="text-warning">./AssortedWidgets</span>
+              </p>
             </div>
 
           </div>
@@ -205,9 +216,14 @@
             <div class="bs-component">
               <h2>Mac OS</h2>
               <p>1. Install SDL2 and SDL2_image via <a href="https://brew.sh/">homebrew</a>: <br/> <span class="text-warning">brew install sdl2 sdl2_image</span> </p>
-              <p>2. Install <a href="https://www.qt.io/">Qt5</a> (the project is using qmake, this will be changed in the future.)</p>
-              <p>3. under the AssortedWidgets folder, run <span class="text-warning">qmake</span>. </p>
-              <p>4. under the same folder, run <span class="text-warning">make</span>.</p>
+              <p>2. 2. Under AssortedWidgets folder, run <br/>
+              <span class="text-warning">mkdir build<br/>
+              cd build<br/>
+              cmake ..<br/>
+              make</span></p>
+              <p>3. Once done, run<br/>
+              <span class="text-warning">./AssortedWidgets</span>
+              </p>
             </div>
 
           </div>
@@ -249,7 +265,7 @@
               Widgets::Button *m_closeButton;   //add a button
               Widgets::Label *m_label;          //add a text label
               Widgets::ScrollPanel *m_panel;    //add a scroll panel
-              Layout::GirdLayout *m_girdLayout; //a layout is a container of UI elements.
+              Layout::GridLayout *m_gridLayout; //a layout is a container of UI elements.
           public:
               DemoDialog(void);
           public:
@@ -261,14 +277,14 @@
           DemoDialog::DemoDialog(void)
             :Dialog("Scroll Panel Test:",400,400,320,240) //provide dialog title and size.
           {
-              m_girdLayout=new Layout::GirdLayout(2,1); //initialize the grid layout, set its margin
-              m_girdLayout->setRight(16);
-              m_girdLayout->setLeft(16);
-              m_girdLayout->setTop(8);
-              m_girdLayout->setBottom(8);
-              m_girdLayout->setSpacer(4);
+              m_gridLayout=new Layout::GridLayout(2,1); //initialize the grid layout, set its margin
+              m_gridLayout->setRight(16);
+              m_gridLayout->setLeft(16);
+              m_gridLayout->setTop(8);
+              m_gridLayout->setBottom(8);
+              m_gridLayout->setSpacer(4);
 
-              m_girdLayout->setHorizontalAlignment(1,0,Layout::GirdLayout::HRight);
+              m_gridLayout->setHorizontalAlignment(1,0,Layout::GridLayout::HRight);
 
               m_closeButton=new Widgets::Button("Close"); //initialize the UI elements on this dialog
               m_label=new Widgets::Label("I am a very very big Label in a Scroll Panel.");
@@ -276,7 +292,7 @@
               m_panel=new Widgets::ScrollPanel();
               m_panel->setContent(m_label); //add the label to the scroll panel
 
-              setLayout(m_girdLayout); //let this dialog to use this layout
+              setLayout(m_gridLayout); //let this dialog to use this layout
               add(m_panel); //add both the scroll panel and the close button to the dialog
               add(m_closeButton);
 
@@ -291,7 +307,7 @@
               Widgets::Button *m_closeButton;
               Widgets::Label *m_label;
               Widgets::ScrollPanel *m_panel;
-              Layout::GirdLayout *m_girdLayout;
+              Layout::GridLayout *m_gridLayout;
           public:
               void onClose(const Event::MouseEvent &e);
               DemoDialog(void);
