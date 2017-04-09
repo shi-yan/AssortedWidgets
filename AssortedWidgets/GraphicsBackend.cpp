@@ -29,7 +29,9 @@ namespace AssortedWidgets
            "}                           \n";
 
         const GLchar *fShaderStr =
+        #ifndef __APPLE__
            "precision mediump float;                   \n"
+        #endif
            "uniform sampler2D u_Texture;               \n"
            "varying vec2 v_TexCoordinate;              \n"
            "void main()                                \n"
@@ -71,7 +73,9 @@ namespace AssortedWidgets
            "}                           \n";
 
         const GLchar *fSolidShaderStr =
+        #ifndef __APPLE__
            "precision mediump float;                   \n"
+        #endif
            "uniform vec4 color;                        \n"
            "void main()                                \n"
            "{                                          \n"

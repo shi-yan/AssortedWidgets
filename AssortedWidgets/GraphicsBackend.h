@@ -1,7 +1,14 @@
 #ifndef GRAPHICSBACKEND_H
 #define GRAPHICSBACKEND_H
 
+#ifdef __APPLE__
+#include <OpenGL/gl.h>
+#include <OpenGL/glu.h>
+#else
 #include <GLES2/gl2.h>
+
+#endif
+
 #include <vector>
 
 namespace AssortedWidgets

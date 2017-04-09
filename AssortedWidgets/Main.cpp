@@ -1,11 +1,18 @@
 #include "UI.h"
 
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
-#define GL_GLEXT_PROTOTYPES 1
-#include <SDL2/SDL_opengles2.h>
+#include <SDL.h>
+#include <SDL_image.h>
 
+
+
+#ifdef __APPLE__
+#include <OpenGL/gl.h>
+#include <OpenGL/glu.h>
+#else
+#include <GLES2/gl2.h>
+
+#endif
 
 #ifdef __EMSCRIPTEN__
 #include "emscripten.h"

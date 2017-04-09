@@ -34,13 +34,22 @@ else()
 
 set(CMAKE_CXX_FLAGS "--std=gnu++11 ${CMAKE_CXX_FLAGS}")
 
+if("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
+find_package(OpenGL REQUIRED)
+set(OPENGLES2_gl_LIBRARY ${OPENGL_LIBRARIES})
+else()
 find_package(OpenGLES2 REQUIRED)
+endif()
+
 find_package(SDL2 REQUIRED)
 find_package(SDL2_image REQUIRED)
 
 include_directories(${OPENGLES2_INCLUDE_DIR})
 include_directories(${SDL2_INCLUDE_DIR})
 include_directories(${SDL2IMAGE_INCLUDE_DIR})
+
+message("sdl location: " ${SDL2_INCLUDE_DIR})
+message("opengl es location: " ${OPENGLES2_INCLUDE_DIR})
 
 add_executable (AssortedWidgets     
 				${SOURCES}
