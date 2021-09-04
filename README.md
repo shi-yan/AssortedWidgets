@@ -80,7 +80,10 @@ source ./emsdk_env.sh
 ```
 mkdir build
 cd build
-cmake .. -DCMAKE_TOOLCHAIN_FILE=~/AssortedWidgets/cmake/Modules/Emscripten.cmake
+# Path to the Emscripton cmake file
+# You can find it with your Emscription configured directory
+# In my case `/home/sajith/wasm/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake`
+cmake .. -DCMAKE_TOOLCHAIN_FILE=~/AssortedWidgets/cmake/Modules/Emscripten.cmake # Change here accodinly your emsdk installation path
 make
 
 ```
