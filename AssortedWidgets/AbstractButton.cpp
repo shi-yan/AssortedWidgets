@@ -5,7 +5,7 @@ namespace AssortedWidgets
 {
 	namespace Widgets
 	{
-        AbstractButton::AbstractButton(unsigned int top, unsigned int bottom, unsigned int left, unsigned int right, enum Status status)
+        AbstractButton::AbstractButton(size_t top, unsigned int bottom, unsigned int left, unsigned int right, enum Status status)
             :m_top(top),
               m_bottom(bottom),
               m_left(left),
