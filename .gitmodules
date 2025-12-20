@@ -1,0 +1,3 @@
+[submodule "zed"]
+	path = zed
+	url = https://github.com/zed-industries/zed.git
