@@ -1,5 +1,4 @@
 use crate::paint::primitives::{Color, RectInstance};
-use crate::render::RenderContext;
 use crate::types::{Point, Rect, Size};
 
 /// Calculate the intersection of two rectangles

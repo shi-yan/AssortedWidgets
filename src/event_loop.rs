@@ -161,8 +161,8 @@ impl GuiEventLoop {
     pub fn run(&mut self) -> ! {
         use cocoa::appkit::NSApp;
         use cocoa::base::{id, nil};
-        use cocoa::foundation::{NSDate, NSDefaultRunLoopMode, NSRunLoop};
-        use objc::runtime::Class;
+        use cocoa::foundation::NSDefaultRunLoopMode;
+        
         use objc::{class, msg_send, sel, sel_impl};
 
         println!("Starting manual event loop...");

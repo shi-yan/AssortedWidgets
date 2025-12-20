@@ -3,7 +3,6 @@ use assorted_widgets::elements::{Container, DebugRect, ClippedContainer};
 use assorted_widgets::layout::{Style, FlexDirection, Dimension, Display, JustifyContent, AlignItems};
 use assorted_widgets::paint::Color;
 use assorted_widgets::scene_graph::SceneNode;
-use assorted_widgets::types::WidgetId;
 
 fn main() {
     println!("AssortedWidgets - Clipping Test Demo");

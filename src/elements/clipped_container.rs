@@ -2,7 +2,7 @@ use std::any::Any;
 
 use crate::element::Element;
 use crate::event::OsEvent;
-use crate::layout::{Style, Dimension};
+use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
 use crate::types::{DeferredCommand, GuiMessage, Rect, WidgetId, Point, Size};
 

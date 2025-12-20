@@ -10,7 +10,7 @@
 //!
 //! Despite different event loop paradigms, all platforms implement the same traits.
 
-use crate::types::{point, rect, size, Point, Rect, Size, Vector};
+use crate::types::{rect, Point, Rect, Vector};
 
 #[cfg(target_os = "macos")]
 pub mod mac;
