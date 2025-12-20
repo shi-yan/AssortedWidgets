@@ -16,6 +16,8 @@ euclid = { version = "0.22", features = ["serde"] }
 wgpu = "23.0"
 pollster = "0.3"
 raw-window-handle = "0.6"
+taffy = "0.6"
+bytemuck = { version = "1.14", features = ["derive"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.25"

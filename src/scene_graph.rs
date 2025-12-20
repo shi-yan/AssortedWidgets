@@ -23,6 +23,17 @@ impl SceneNode {
         self.children.push(child);
     }
 
+    /// Traverse tree in pre-order (parent first, then children)
+    pub fn traverse<F>(&self, visitor: &mut F)
+    where
+        F: FnMut(WidgetId),
+    {
+        visitor(self.id);
+        for child in &self.children {
+            child.traverse(visitor);
+        }
+    }
+
     /// Traverse tree to find element at given position (hit testing)
     pub fn hit_test(&self, point: Point) -> Option<WidgetId> {
         // Traverse in reverse order (top to bottom in z-order)

@@ -1,8 +1,13 @@
 use assorted_widgets::{GuiEventLoop, WindowOptions};
+use assorted_widgets::elements::{Container, DebugRect, ClippedContainer};
+use assorted_widgets::layout::{Style, FlexDirection, Dimension, Display, JustifyContent, AlignItems};
+use assorted_widgets::paint::Color;
+use assorted_widgets::scene_graph::SceneNode;
+use assorted_widgets::types::WidgetId;
 
 fn main() {
-    println!("AssortedWidgets - WebGPU Triangle Demo");
-    println!("=======================================");
+    println!("AssortedWidgets - Clipping Test Demo");
+    println!("=====================================");
     println!();
 
     #[cfg(target_os = "macos")]
@@ -11,7 +16,7 @@ fn main() {
 
         let mut event_loop = pollster::block_on(async {
             GuiEventLoop::new_with_window(WindowOptions {
-                title: "AssortedWidgets - WebGPU Triangle".to_string(),
+                title: "AssortedWidgets - Clipping Test".to_string(),
                 ..Default::default()
             })
             .await
@@ -21,24 +26,24 @@ fn main() {
         println!("WebGPU initialized successfully!");
         println!();
 
-        // Create triangle pipeline
-        println!("Creating triangle render pipeline...");
-        let pipeline = create_triangle_pipeline(&event_loop);
-        println!("Pipeline created!");
+        // Create test scene: clipping demonstration
+        println!("Creating test scene...");
+        setup_test_scene(&mut event_loop);
+        println!("Scene created!");
         println!();
 
         println!("Starting continuous rendering...");
-        println!("You should see a colorful triangle (red, green, blue vertices)");
-        println!("The triangle will redraw continuously at 60fps");
+        println!("You should see:");
+        println!("  - Large red background (full window)");
+        println!("  - Blue square clipped to center 300x300 region");
+        println!("  - Green square extending beyond clip bounds (clipped)");
+        println!("The scene demonstrates shader-based clipping.");
+        println!("Try resizing the window - clipping will update!");
         println!("Press Cmd+Q to quit.");
         println!();
 
-        // Set up render function that captures the pipeline
-        event_loop.set_render_fn(move |renderer, ctx| {
-            render_triangle_frame(renderer, ctx, &pipeline);
-        });
-
         // Run event loop (never returns)
+        // Rendering is handled internally via render_frame_internal()
         event_loop.run();
     }
 
@@ -49,111 +54,85 @@ fn main() {
 }
 
 #[cfg(target_os = "macos")]
-fn create_triangle_pipeline(event_loop: &GuiEventLoop) -> wgpu::RenderPipeline {
-    let ctx = event_loop.render_context();
+fn setup_test_scene(event_loop: &mut GuiEventLoop) {
+    // Generate IDs
+    let root_id = event_loop.element_manager_mut().next_id();
+    let background_id = event_loop.element_manager_mut().next_id();
+    let clipped_id = event_loop.element_manager_mut().next_id();
 
-    // Load shader
-    let shader = ctx.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("Triangle Shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/triangle.wgsl").into()),
-    });
-
-    // Create pipeline layout
-    let pipeline_layout = ctx.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("Triangle Pipeline Layout"),
-        bind_group_layouts: &[],
-        push_constant_ranges: &[],
-    });
-
-    // Get surface format from renderer
-    let format = event_loop.renderer().unwrap().format;
-
-    // Create render pipeline
-    ctx.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Triangle Pipeline"),
-        layout: Some(&pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs_main"),
-            buffers: &[],
-            compilation_options: Default::default(),
+    // Create root container (centered layout)
+    let root_style = Style {
+        display: Display::Flex,
+        flex_direction: FlexDirection::Column,
+        justify_content: Some(JustifyContent::Center),
+        align_items: Some(AlignItems::Center),
+        size: taffy::Size {
+            width: Dimension::Percent(1.0),  // 100% width
+            height: Dimension::Percent(1.0), // 100% height
         },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs_main"),
-            targets: &[Some(wgpu::ColorTargetState {
-                format,
-                blend: Some(wgpu::BlendState::REPLACE),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-            compilation_options: Default::default(),
-        }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            ..Default::default()
-        },
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        multiview: None,
-        cache: None,
-    })
-}
-
-#[cfg(target_os = "macos")]
-fn render_triangle_frame(
-    renderer: &assorted_widgets::render::WindowRenderer,
-    ctx: &assorted_widgets::render::RenderContext,
-    pipeline: &wgpu::RenderPipeline,
-) {
-    // Get surface texture
-    let surface_texture = match renderer.get_current_texture() {
-        Ok(texture) => texture,
-        Err(e) => {
-            eprintln!("Failed to get surface texture: {:?}", e);
-            return;
-        }
+        ..Default::default()
     };
 
-    // Create texture view with sRGB format
-    let view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor {
-        format: Some(renderer.format.add_srgb_suffix()),
+    let root_container = Container::new(root_id, root_style.clone());
+
+    // Create background rect (red, full window)
+    let background_rect = DebugRect::new(background_id, Color::RED);
+
+    // Create clipped container (blue background with green overflow)
+    // The overflow content will be clipped to the container's bounds
+    let clipped_container = ClippedContainer::new(
+        clipped_id,
+        Color::rgba(0.0, 0.0, 1.0, 0.8),  // Blue background
+        Color::rgba(0.0, 1.0, 0.0, 0.8),  // Green overflow (will be clipped)
+    ).with_style(Style {
+        size: taffy::Size {
+            width: Dimension::Length(300.0),
+            height: Dimension::Length(300.0),
+        },
         ..Default::default()
     });
 
-    // Create command encoder
-    let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("Triangle Encoder"),
-    });
+    // Add elements to element manager
+    event_loop.element_manager_mut().add_element_with_id(root_id, Box::new(root_container));
+    event_loop.element_manager_mut().add_element_with_id(background_id, Box::new(background_rect));
+    event_loop.element_manager_mut().add_element_with_id(clipped_id, Box::new(clipped_container));
 
-    // Render pass
-    {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Triangle Render Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.1,
-                        g: 0.2,
-                        b: 0.3,
-                        a: 1.0,
-                    }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
+    // Build layout tree
+    event_loop.layout_manager_mut().create_node(root_id, root_style).unwrap();
+    event_loop.layout_manager_mut().create_node(background_id,
+        Style {
+            position: taffy::Position::Absolute,
+            inset: taffy::Rect {
+                left: taffy::LengthPercentageAuto::Length(0.0),
+                right: taffy::LengthPercentageAuto::Length(0.0),
+                top: taffy::LengthPercentageAuto::Length(0.0),
+                bottom: taffy::LengthPercentageAuto::Length(0.0),
+            },
+            ..Default::default()
+        }
+    ).unwrap();
+    event_loop.layout_manager_mut().create_node(clipped_id,
+        Style {
+            size: taffy::Size {
+                width: Dimension::Length(300.0),
+                height: Dimension::Length(300.0),
+            },
+            ..Default::default()
+        }
+    ).unwrap();
 
-        render_pass.set_pipeline(pipeline);
-        render_pass.draw(0..3, 0..1); // Draw 3 vertices (the triangle!)
-    }
+    // Set up layout hierarchy
+    event_loop.layout_manager_mut().add_child(root_id, background_id).unwrap();
+    event_loop.layout_manager_mut().add_child(root_id, clipped_id).unwrap();
+    event_loop.layout_manager_mut().set_root(root_id).unwrap();
 
-    // Submit commands
-    ctx.queue.submit([encoder.finish()]);
+    // Build scene graph (for render order)
+    // Background first, then clipped container on top
+    let mut root_node = SceneNode::new(root_id);
+    root_node.add_child(SceneNode::new(background_id));
+    root_node.add_child(SceneNode::new(clipped_id));
+    event_loop.scene_graph_mut().set_root(root_node);
 
-    // Present the frame
-    surface_texture.present();
+    // Mark layout as dirty
+    event_loop.mark_layout_dirty();
 }

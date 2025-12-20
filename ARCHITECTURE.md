@@ -200,9 +200,232 @@ loop {
 - Main loop has exclusive access when draining queue
 - No possibility of borrow conflicts
 
+### IME (Input Method Editor) Support
+
+**Question:** Does our polling-based event loop conflict with IME requirements?
+
+**Answer:** No! IME works perfectly with our architecture.
+
+**The Challenge:**
+
+IME on macOS requires implementing the `NSTextInputClient` protocol, which has:
+- **Event callbacks:** `insertText`, `setMarkedText`, `unmarkText` (composition events)
+- **Query callbacks:** `hasMarkedText`, `markedRange`, `firstRectForCharacterRange` (state queries)
+- **Internal state:** Composition text, cursor position, candidate window positioning
+
+**Our Solution:**
+
+```mermaid
+graph TB
+    subgraph "macOS NSTextInputClient Callbacks"
+        A[insertText]
+        B[setMarkedText]
+        C[unmarkText]
+        D[hasMarkedText]
+        E[firstRectForCharacterRange]
+    end
+
+    subgraph "Event Queue"
+        F[ImeCommit]
+        G[ImePreedit]
+        H[ImeEnd]
+    end
+
+    subgraph "Element State"
+        I[Focused Element]
+        J[IME State]
+        K[Cursor Position]
+    end
+
+    A -->|Push Event| F
+    B -->|Push Event| G
+    C -->|Push Event| H
+
+    D -->|Query| J
+    E -->|Query| K
+
+    F --> I
+    G --> I
+    H --> I
+```
+
+**Implementation Strategy:**
+
+1. **Event Callbacks → Queue** (Asynchronous, fine for IME)
+```rust
+impl NSTextInputClient for WindowView {
+    fn insertText(&mut self, text: NSString, range: NSRange) {
+        // IME composition committed (user selected candidate)
+        self.event_queue.lock().unwrap().push_back(
+            GuiEvent::Ime(ImeEvent::Commit {
+                text: text.to_string(),
+                replacement_range: Some(range),
+            })
+        );
+    }
+
+    fn setMarkedText(&mut self, text: NSString, selected: NSRange, replacement: NSRange) {
+        // IME composition in progress (showing candidates)
+        self.event_queue.lock().unwrap().push_back(
+            GuiEvent::Ime(ImeEvent::Preedit {
+                text: text.to_string(),
+                cursor_range: Some(selected),
+                replacement_range: Some(replacement),
+            })
+        );
+    }
+
+    fn unmarkText(&mut self) {
+        // IME composition ended
+        self.event_queue.lock().unwrap().push_back(
+            GuiEvent::Ime(ImeEvent::End)
+        );
+    }
+}
+```
+
+2. **Query Callbacks → Direct Access** (Synchronous, required by OS)
+```rust
+impl NSTextInputClient for WindowView {
+    fn hasMarkedText(&self) -> bool {
+        // OS queries if composition is active
+        // Must answer immediately (can't queue this!)
+        if let Some(focused_id) = self.focused_widget {
+            self.element_manager.get(focused_id)
+                .and_then(|e| e.ime_state())
+                .map(|state| state.has_marked_text)
+                .unwrap_or(false)
+        } else {
+            false
+        }
+    }
+
+    fn firstRectForCharacterRange(&self, range: NSRange) -> NSRect {
+        // OS needs cursor position to place candidate window
+        // Must answer immediately with screen coordinates
+        if let Some(focused_id) = self.focused_widget {
+            self.element_manager.get(focused_id)
+                .and_then(|e| e.ime_cursor_rect())
+                .map(|rect| rect.to_nsrect())
+                .unwrap_or_default()
+        } else {
+            NSRect::zero()
+        }
+    }
+
+    fn markedRange(&self) -> NSRange {
+        // OS queries the range of composition text
+        if let Some(focused_id) = self.focused_widget {
+            self.element_manager.get(focused_id)
+                .and_then(|e| e.ime_state())
+                .map(|state| state.marked_range)
+                .unwrap_or(NSRange::NOT_FOUND)
+        } else {
+            NSRange::NOT_FOUND
+        }
+    }
+}
+```
+
+3. **Element IME State** (Stored in focused element)
+```rust
+pub struct ImeState {
+    pub has_marked_text: bool,
+    pub preedit_text: String,  // Composition text (e.g., "zhong" before selecting "中")
+    pub preedit_cursor: usize,  // Cursor position in composition
+    pub marked_range: NSRange,  // Range being replaced
+}
+
+pub trait Element {
+    // ... existing methods ...
+
+    /// Get IME state (for query callbacks)
+    fn ime_state(&self) -> Option<&ImeState> {
+        None  // Default: no IME support
+    }
+
+    /// Get cursor rect for candidate window positioning
+    fn ime_cursor_rect(&self) -> Option<Rect> {
+        None
+    }
+
+    /// Handle IME events
+    fn on_ime_event(&mut self, event: &ImeEvent) -> Vec<DeferredCommand> {
+        Vec::new()  // Default: no IME support
+    }
+}
+
+impl Element for TextInput {
+    fn ime_state(&self) -> Option<&ImeState> {
+        Some(&self.ime_state)
+    }
+
+    fn ime_cursor_rect(&self) -> Option<Rect> {
+        // Calculate cursor position in screen coordinates
+        Some(self.cursor_screen_rect())
+    }
+
+    fn on_ime_event(&mut self, event: &ImeEvent) -> Vec<DeferredCommand> {
+        match event {
+            ImeEvent::Preedit { text, cursor_range, .. } => {
+                self.ime_state.has_marked_text = true;
+                self.ime_state.preedit_text = text.clone();
+                self.ime_state.preedit_cursor = cursor_range.location;
+                // Render preedit text with underline
+            }
+            ImeEvent::Commit { text, .. } => {
+                self.ime_state.has_marked_text = false;
+                self.insert_text(text);
+                // Insert final text into buffer
+            }
+            ImeEvent::End => {
+                self.ime_state.has_marked_text = false;
+                self.ime_state.preedit_text.clear();
+            }
+        }
+        vec![DeferredCommand::RequestRedraw]
+    }
+}
+```
+
+**Why This Works:**
+
+1. **Event flow is async**: IME composition events go through queue (microsecond delay is fine)
+2. **Queries are sync**: OS queries about state are answered immediately from element
+3. **State is local**: Each text input element maintains its own IME state
+4. **No conflict**: Polling model doesn't interfere with IME callbacks
+
+**Comparison with Winit:**
+
+Winit handles IME similarly and it works perfectly with polling:
+```rust
+// Winit's approach (also event-based)
+match event {
+    Event::WindowEvent { event: WindowEvent::Ime(ime), .. } => {
+        match ime {
+            Ime::Enabled => { /* IME activated */ }
+            Ime::Preedit(text, cursor) => { /* Show composition */ }
+            Ime::Commit(text) => { /* Insert final text */ }
+            Ime::Disabled => { /* IME deactivated */ }
+        }
+    }
+}
+```
+
+**Decision: Event Queue + Direct Query Access**
+- ✅ IME events → Queue (matches our architecture)
+- ✅ IME queries → Direct element access (synchronous, as required)
+- ✅ State management → Per-element IME state
+- ✅ No architectural changes needed
+- ✅ Polling model works perfectly for IME
+
+**Implementation Timeline:** Phase 4 (after text rendering is working)
+
 ---
 
 ## Layout System Design
+
+**Implementation Status:** ✅ Phase 1 Complete (Basic layout, no measure functions yet)
 
 ### Design: Taffy Integration with Flat Storage
 
@@ -216,22 +439,22 @@ graph LR
         B[SceneGraph<br/>parent/children refs]
     end
 
-    subgraph "Layout Engine"
-        C[Taffy<br/>HashMap NodeId Node]
+    subgraph "Layout Manager"
+        C[LayoutManager<br/>TaffyTree + WidgetId mapping]
     end
 
-    subgraph "Measure Functions"
+    subgraph "Measure Functions (Phase 3)"
         D[TextMeasure]
         E[ImageMeasure]
         F[CustomMeasure]
     end
 
-    A <-->|Sync| B
-    B <-->|Mirror| C
-    C --> D
-    C --> E
-    C --> F
-    C -->|Layout Results| A
+    A -->|element.layout| C
+    B -->|Mirrors| C
+    C -.->|Future| D
+    C -.->|Future| E
+    C -.->|Future| F
+    C -->|element.set_bounds| A
 ```
 
 ### Why Taffy?
@@ -250,6 +473,136 @@ graph LR
 2. **Web-standard:** Flexbox/Grid match CSS exactly
 3. **Performance:** Handles 10,000+ nodes efficiently
 4. **Maintenance:** Active development, good documentation
+
+### Measure Functions: Implementation Plan (Phase 3)
+
+**Current Status:** Phase 1 supports only static layouts. Measure functions are planned for Phase 3.
+
+**What Measure Functions Enable:**
+- Text elements that size to content
+- Images with intrinsic dimensions
+- Custom widgets with complex sizing logic
+- Parent containers that auto-size to children
+
+**Implementation Strategy:**
+
+When implementing measure functions, we'll need:
+
+1. **Element Trait Extension:**
+```rust
+pub trait Element {
+    // ... existing methods ...
+
+    /// Return intrinsic size given available space
+    /// None = use Style dimensions only
+    fn measure(&self, available: AvailableSpace) -> Option<Size> {
+        None  // Default: static sizing
+    }
+
+    /// Mark this element as needing layout recalculation
+    fn mark_needs_layout(&mut self) {
+        self.set_dirty(true);
+    }
+}
+```
+
+2. **Layout Manager Measure Integration:**
+```rust
+impl LayoutManager {
+    /// Set measure function for a node
+    pub fn set_measure_function<F>(&mut self, widget_id: WidgetId, measure_fn: F) -> Result<(), String>
+    where
+        F: Fn(Size, AvailableSpace) -> Size + 'static,
+    {
+        let node_id = self.nodes.get(&widget_id)
+            .ok_or_else(|| "Widget not found")?;
+
+        self.taffy.set_measure(*node_id, Some(measure_fn))?;
+        Ok(())
+    }
+
+    /// Mark a specific node dirty (for element content changes)
+    pub fn mark_dirty(&mut self, widget_id: WidgetId) -> Result<(), String> {
+        let node_id = self.nodes.get(&widget_id)
+            .ok_or_else(|| "Widget not found")?;
+
+        self.taffy.mark_dirty(*node_id)?;
+        Ok(())
+    }
+}
+```
+
+3. **Element Content Change Flow:**
+```rust
+// Example: Text element content changes
+impl TextLabel {
+    pub fn set_text(&mut self, new_text: String, layout_manager: &mut LayoutManager) {
+        if self.text != new_text {
+            self.text = new_text;
+
+            // Notify layout system this element needs remeasuring
+            layout_manager.mark_dirty(self.id).ok();
+        }
+    }
+}
+```
+
+4. **GuiEventLoop Integration:**
+```rust
+impl GuiEventLoop {
+    fn render_frame_internal(&mut self) {
+        if self.needs_layout {
+            // Set up measure functions before computing layout
+            for widget_id in self.element_manager.widget_ids() {
+                if let Some(element) = self.element_manager.get(widget_id) {
+                    if element.needs_measure() {
+                        let measure_fn = create_measure_closure(widget_id, &self.element_manager);
+                        self.layout_manager.set_measure_function(widget_id, measure_fn).ok();
+                    }
+                }
+            }
+
+            // Now compute layout (will call measure functions as needed)
+            self.layout_manager.compute_layout(self.window_size)?;
+            // ... rest of layout application
+        }
+    }
+}
+```
+
+**Challenge: Measure Function Ownership**
+
+The tricky part is that Taffy's measure function needs to access the element to measure it:
+
+```rust
+// Option A: Weak reference (complex, runtime overhead)
+let element_mgr = Arc::downgrade(&self.element_manager);
+let measure_fn = move |known, available| {
+    element_mgr.upgrade()?.borrow().get(widget_id)?.measure(available)
+};
+
+// Option B: Cache measurement data (simpler, what we'll use)
+pub struct MeasureCache {
+    text_cache: HashMap<WidgetId, (String, FontId, f32)>,  // (text, font, size)
+    image_cache: HashMap<WidgetId, Size>,  // intrinsic size
+}
+
+// Measure functions access cache instead of elements
+let cache = self.measure_cache.clone();
+let measure_fn = move |known, available| {
+    if let Some((text, font, size)) = cache.text_cache.get(&widget_id) {
+        text_shaper::measure(text, font, size, available)
+    } else {
+        Size::ZERO
+    }
+};
+```
+
+**Decision: Cache-Based Approach**
+- Elements update cache when content changes
+- Measure functions read from cache (no ownership issues)
+- Simple, fast, Rust-friendly
+- Similar to how browsers handle layout
 
 ### Constraint Solving: Bi-Directional Flow
 
@@ -328,63 +681,204 @@ Taffy resolves this using:
 - **Break cycles:** Percentage of Auto becomes 0
 - **Warnings:** Invalid layouts logged in debug mode
 
-### Integration Strategy
+### Integration Strategy (Phase 1 Implementation)
 
-**Syncing with ElementManager:**
+**LayoutManager Structure:**
 
 ```rust
-impl ElementManager {
-    pub fn add_element(&mut self, parent: WidgetId, element: Element) -> WidgetId {
-        let id = WidgetId::new();
+// src/layout/manager.rs
+pub struct LayoutManager {
+    /// The Taffy layout engine
+    taffy: TaffyTree,
 
-        // 1. Add to flat storage
-        self.elements.insert(id, element);
+    /// Mapping from our WidgetId to Taffy's NodeId
+    nodes: HashMap<WidgetId, NodeId>,
 
-        // 2. Add to scene graph
-        self.scene_graph.add_child(parent, id);
+    /// Reverse mapping for cleanup
+    widget_ids: HashMap<NodeId, WidgetId>,
 
-        // 3. Create Taffy node
-        let taffy_node = self.taffy.new_leaf(element.style()).unwrap();
-        self.taffy_nodes.insert(id, taffy_node);
+    /// Cached layout results (updated after compute_layout)
+    layouts: HashMap<WidgetId, Rect>,
 
-        // 4. Link in Taffy tree
-        let parent_taffy = self.taffy_nodes[&parent];
-        self.taffy.add_child(parent_taffy, taffy_node).unwrap();
+    /// Root node (represents the window)
+    root: Option<NodeId>,
+}
+```
 
-        id
+**Creating Layout Nodes:**
+
+```rust
+impl LayoutManager {
+    pub fn create_node(&mut self, widget_id: WidgetId, style: Style) -> Result<(), String> {
+        // Create Taffy leaf node
+        let node_id = self.taffy.new_leaf(style)
+            .map_err(|e| format!("Failed to create node: {:?}", e))?;
+
+        // Store bidirectional mapping
+        self.nodes.insert(widget_id, node_id);
+        self.widget_ids.insert(node_id, widget_id);
+
+        Ok(())
     }
 
-    pub fn compute_layout(&mut self, window_size: Size) {
-        // Compute layout for entire tree
-        self.taffy.compute_layout(
-            self.root_taffy_node,
-            taffy::Size {
-                width: AvailableSpace::Definite(window_size.width),
-                height: AvailableSpace::Definite(window_size.height),
-            }
-        ).unwrap();
+    pub fn add_child(&mut self, parent_id: WidgetId, child_id: WidgetId) -> Result<(), String> {
+        let parent_node = self.nodes.get(&parent_id)
+            .ok_or_else(|| format!("Parent widget {:?} not found", parent_id))?;
+        let child_node = self.nodes.get(&child_id)
+            .ok_or_else(|| format!("Child widget {:?} not found", child_id))?;
 
-        // Copy results back to elements
-        for (widget_id, taffy_node) in &self.taffy_nodes {
-            let layout = self.taffy.layout(*taffy_node).unwrap();
-            if let Some(element) = self.elements.get_mut(widget_id) {
-                element.set_bounds(Rect {
-                    origin: Point::new(layout.location.x, layout.location.y),
-                    size: Size::new(layout.size.width, layout.size.height),
+        // Link in Taffy tree
+        self.taffy.add_child(*parent_node, *child_node)
+            .map_err(|e| format!("Failed to add child: {:?}", e))?;
+
+        Ok(())
+    }
+
+    pub fn set_root(&mut self, widget_id: WidgetId) -> Result<(), String> {
+        let node = self.nodes.get(&widget_id)
+            .ok_or_else(|| format!("Widget {:?} not found", widget_id))?;
+        self.root = Some(*node);
+        Ok(())
+    }
+}
+```
+
+**Computing Layout:**
+
+```rust
+impl LayoutManager {
+    pub fn compute_layout(&mut self, available_size: Size) -> Result<(), String> {
+        let root = self.root
+            .ok_or_else(|| "No root node set".to_string())?;
+
+        // Compute layout starting from root (f64 → f32 conversion)
+        self.taffy.compute_layout(
+            root,
+            taffy::Size {
+                width: AvailableSpace::Definite(available_size.width as f32),
+                height: AvailableSpace::Definite(available_size.height as f32),
+            }
+        ).map_err(|e| format!("Failed to compute layout: {:?}", e))?;
+
+        // Cache results for fast lookup
+        self.cache_layouts();
+
+        Ok(())
+    }
+
+    /// Cache layout results from Taffy
+    fn cache_layouts(&mut self) {
+        self.layouts.clear();
+
+        for (widget_id, node_id) in &self.nodes {
+            if let Ok(layout) = self.taffy.layout(*node_id) {
+                // f32 → f64 conversion for our types
+                self.layouts.insert(*widget_id, Rect {
+                    origin: Point::new(layout.location.x as f64, layout.location.y as f64),
+                    size: Size::new(layout.size.width as f64, layout.size.height as f64),
                 });
             }
         }
     }
+
+    /// Get the cached layout for a widget
+    pub fn get_layout(&self, widget_id: WidgetId) -> Option<Rect> {
+        self.layouts.get(&widget_id).copied()
+    }
 }
+```
+
+**GuiEventLoop Integration:**
+
+The layout system integrates into the event loop's render cycle:
+
+```rust
+impl GuiEventLoop {
+    fn render_frame_internal(&mut self) {
+        // 1. Compute layout if needed
+        if self.needs_layout {
+            self.layout_manager.compute_layout(self.window_size).unwrap();
+
+            // Apply layout results to elements
+            // Note: Uses flat iteration (arbitrary order is fine for setting bounds)
+            let widget_ids: Vec<_> = self.element_manager.widget_ids().collect();
+            for widget_id in widget_ids {
+                if let Some(bounds) = self.layout_manager.get_layout(widget_id) {
+                    if let Some(element) = self.element_manager.get_mut(widget_id) {
+                        element.set_bounds(bounds);
+                    }
+                }
+            }
+
+            self.needs_layout = false;
+        }
+
+        // 2. Paint elements in tree order (collect draw commands)
+        // IMPORTANT: Uses scene graph traversal for correct rendering order
+        let mut paint_ctx = PaintContext::new(self.window_size);
+        if let Some(root) = self.scene_graph.root() {
+            root.traverse(&mut |widget_id| {
+                if let Some(element) = self.element_manager.get(widget_id) {
+                    element.paint(&mut paint_ctx);
+                }
+            });
+        }
+
+        // 3. Render batched primitives
+        self.rect_renderer.render(&self.render_context, &mut render_pass, paint_ctx.rect_instances());
+    }
+}
+```
+
+**Key Design Points:**
+
+1. **Separation of Concerns:** LayoutManager handles only layout computation, not element storage
+2. **Caching:** Layout results are cached for O(1) lookup after computation
+3. **Type Conversions:** Careful f32 ↔ f64 conversions between Taffy (f32) and our types (f64)
+4. **Error Handling:** All Taffy operations return `Result` for robustness
+5. **No Duplication:** ElementManager stores elements, LayoutManager stores only layout state
+6. **Two Tree Structures:**
+   - **LayoutManager** (Taffy tree): Computes element positions via Flexbox/Grid
+   - **SceneGraph** (our tree): Determines rendering order via depth-first traversal
+   - Both mirror the same hierarchy but serve different purposes
+
+**Layout Invalidation Flow:**
+
+```rust
+// 1. Event triggers layout invalidation
+GuiEvent::Resize(bounds) => {
+    self.window_size = bounds.size;
+    self.needs_layout = true;  // Mark dirty
+}
+
+// 2. Next frame checks flag
+if self.needs_layout {
+    // Recompute all positions
+    self.layout_manager.compute_layout(self.window_size)?;
+
+    // Apply to elements (order doesn't matter)
+    for widget_id in self.element_manager.widget_ids() {
+        element.set_bounds(layout_manager.get_layout(widget_id));
+    }
+}
+
+// 3. Paint uses scene graph traversal (order matters!)
+self.scene_graph.root().traverse(|widget_id| {
+    element_manager.get(widget_id).paint(&mut ctx);
+});
 ```
 
 ---
 
 ## Rendering Architecture
 
+**Implementation Status:** ✅ Phase 1 Complete (Rectangle batching, no theme system or text yet)
+
 ### Design: Multi-Tiered Context
 
 The core innovation of AssortedWidgets is the **multi-tiered rendering system** that supports both themed UI and custom graphics.
+
+**Phase 1 Implementation:** Basic batched rectangle rendering with instancing. Theme system and text rendering are planned for future phases.
 
 ```mermaid
 graph TB
@@ -447,7 +941,193 @@ graph TB
     E --> R
 ```
 
-### Tier 1: High-Level Primitives
+### Phase 1: Basic Batched Rendering
+
+**Current Implementation:**
+
+Phase 1 implements a simplified version of the multi-tiered system focusing on batched rectangle rendering:
+
+```rust
+// src/paint/context.rs
+pub struct PaintContext {
+    rects: Vec<RectInstance>,
+    window_size: Size,
+}
+
+impl PaintContext {
+    pub fn new(window_size: Size) -> Self {
+        PaintContext {
+            rects: Vec::new(),
+            window_size,
+        }
+    }
+
+    /// Collect rectangle draw command
+    pub fn draw_rect(&mut self, rect: Rect, color: Color) {
+        self.rects.push(RectInstance::new(rect, color));
+    }
+
+    /// Get all collected rectangles for rendering
+    pub fn rect_instances(&self) -> &[RectInstance] {
+        &self.rects
+    }
+
+    pub fn clear(&mut self) {
+        self.rects.clear();
+    }
+}
+```
+
+**RectRenderer: GPU Instanced Rendering**
+
+```rust
+// src/paint/rect_renderer.rs
+pub struct RectRenderer {
+    pipeline: wgpu::RenderPipeline,
+    uniform_buffer: wgpu::Buffer,
+    uniform_bind_group: wgpu::BindGroup,
+    instance_buffer: Option<wgpu::Buffer>,
+    instance_capacity: usize,
+}
+
+impl RectRenderer {
+    pub fn render(
+        &mut self,
+        context: &RenderContext,
+        render_pass: &mut wgpu::RenderPass,
+        instances: &[RectInstance],
+    ) {
+        if instances.is_empty() {
+            return;
+        }
+
+        // Create or resize instance buffer if needed
+        let needed_capacity = instances.len();
+        if self.instance_buffer.is_none() || needed_capacity > self.instance_capacity {
+            self.instance_capacity = needed_capacity.max(128);
+            self.instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Rect Instance Buffer"),
+                size: (self.instance_capacity * std::mem::size_of::<RectInstance>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }));
+        }
+
+        // Upload instance data
+        let instance_buffer = self.instance_buffer.as_ref().unwrap();
+        context.queue().write_buffer(
+            instance_buffer,
+            0,
+            bytemuck::cast_slice(instances),
+        );
+
+        // Render all rectangles in one draw call
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, instance_buffer.slice(..));
+        render_pass.draw(0..4, 0..instances.len() as u32);  // 4 vertices per quad, N instances
+    }
+}
+```
+
+**GPU Shader (WGSL):**
+
+```wgsl
+// shaders/rect.wgsl
+struct VertexInput {
+    @builtin(vertex_index) vertex_idx: u32,
+    @location(0) rect: vec4<f32>,     // x, y, width, height (per instance)
+    @location(1) color: vec4<f32>,    // r, g, b, a (per instance)
+}
+
+@vertex
+fn vs_main(in: VertexInput) -> VertexOutput {
+    // Generate quad corners from vertex index (0, 1, 2, 3)
+    let positions = array<vec2<f32>, 4>(
+        vec2(0.0, 0.0),  // Top-left
+        vec2(1.0, 0.0),  // Top-right
+        vec2(0.0, 1.0),  // Bottom-left
+        vec2(1.0, 1.0),  // Bottom-right
+    );
+
+    let local_pos = positions[in.vertex_idx];
+
+    // Transform to world space using instance data
+    let world_pos = vec2(
+        in.rect.x + local_pos.x * in.rect.z,
+        in.rect.y + local_pos.y * in.rect.w,
+    );
+
+    // Convert to clip space (-1 to 1)
+    let clip_pos = vec2(
+        (world_pos.x / uniforms.screen_size.x) * 2.0 - 1.0,
+        1.0 - (world_pos.y / uniforms.screen_size.y) * 2.0,  // Y-flip
+    );
+
+    var out: VertexOutput;
+    out.position = vec4(clip_pos, 0.0, 1.0);
+    out.color = in.color;
+    return out;
+}
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    return in.color;
+}
+```
+
+**Performance Benefits:**
+
+- ✅ **Instancing:** All rectangles rendered in single draw call
+- ✅ **GPU-side quad generation:** No vertex buffer needed, 4 vertices generated per instance in shader
+- ✅ **Dynamic buffer resizing:** Grows capacity as needed (starts at 128, doubles when full)
+- ✅ **Minimal CPU overhead:** Simple Vec collection during paint pass
+- ✅ **Alpha blending:** Built-in support for transparent rectangles
+
+**Rendering Order Implementation:**
+
+To ensure proper parent→child rendering order, we traverse the scene graph instead of iterating the flat HashMap:
+
+```rust
+// ❌ WRONG: Arbitrary HashMap iteration order
+for widget_id in element_manager.widget_ids() {
+    element_manager.get(widget_id).paint(&mut ctx);  // Random order!
+}
+
+// ✅ CORRECT: Scene graph depth-first traversal
+scene_graph.root().traverse(&mut |widget_id| {
+    element_manager.get(widget_id).paint(&mut ctx);  // Tree order!
+});
+```
+
+**ElementManager API Design:**
+
+Early iterations attempted to expose iterators over `(&WidgetId, &mut dyn Element)` but hit Rust lifetime issues with trait objects. The final design uses simple ID-based lookup:
+
+```rust
+// Simplified API (no lifetime hell)
+impl ElementManager {
+    pub fn get(&self, id: WidgetId) -> Option<&dyn Element>;
+    pub fn get_mut(&mut self, id: WidgetId) -> Option<&mut (dyn Element + '_)>;
+    pub fn widget_ids(&self) -> impl Iterator<Item = WidgetId> + '_;
+}
+
+// Usage pattern: iterate IDs, lookup elements
+for widget_id in element_manager.widget_ids() {
+    if let Some(element) = element_manager.get_mut(widget_id) {
+        element.set_bounds(bounds);
+    }
+}
+```
+
+**Limitations (To be addressed in Phase 2):**
+
+- ❌ No clipping support (scrollable areas not yet possible)
+- ❌ No explicit z-ordering (relies on tree traversal order)
+- ❌ Only rectangles (no circles, rounded rects, lines, text)
+- ❌ No theme system integration
+
+### Tier 1: High-Level Primitives (Future Design)
 
 **Design Goals:**
 - Simple API for common operations
@@ -870,18 +1550,27 @@ impl GlyphAtlas {
 
 ## Memory Management
 
-### Element Storage: Flat Hash Table
+### Element Storage: Flat Hash Table + Separate Trees
+
+AssortedWidgets uses a **data-oriented design** with three separate structures:
 
 ```rust
 pub struct ElementManager {
     /// Flat storage: O(1) lookup
     elements: HashMap<WidgetId, Box<dyn Element>>,
+    // ...
+}
 
-    /// Tree structure: parent/child relationships
-    scene_graph: SceneGraph,
+pub struct SceneGraph {
+    /// Tree for rendering order
+    root: Option<SceneNode>,
+}
 
-    /// Reverse mapping: Taffy node to widget
-    taffy_nodes: HashMap<WidgetId, taffy::NodeId>,
+pub struct LayoutManager {
+    /// Taffy tree for layout computation
+    taffy: TaffyTree,
+    nodes: HashMap<WidgetId, NodeId>,
+    // ...
 }
 ```
 
@@ -904,7 +1593,30 @@ HashMap<WidgetId, Element>
 // ✅ O(1) lookup by ID
 // ✅ Easy to iterate all elements
 // ✅ No recursive traversal needed for many operations
+// ✅ Multiple tree structures can reference same elements
 ```
+
+**Why Separate Trees?**
+
+Each tree serves a different purpose:
+
+1. **ElementManager** (flat HashMap): Element storage and state
+   - Fast lookup: `O(1)` by WidgetId
+   - Used for: Message dispatch, property updates, bounds setting
+
+2. **SceneGraph** (lightweight tree): Rendering order
+   - Pre-order traversal: Parent → Children
+   - Used for: Painting in correct z-order
+
+3. **LayoutManager** (Taffy tree): Position computation
+   - Flexbox/Grid constraint solving
+   - Used for: Computing element bounds
+
+**Benefits:**
+- ✅ Each system optimized for its use case
+- ✅ No need to store redundant data in tree nodes
+- ✅ Easy to add new tree structures (e.g., accessibility tree)
+- ✅ Separation of concerns
 
 ### Memory Budget
 

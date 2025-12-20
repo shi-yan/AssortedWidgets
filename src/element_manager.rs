@@ -163,4 +163,27 @@ impl ElementManager {
             self.pending_messages.extend(commands);
         }
     }
+
+    /// Get element by ID (immutable) - simpler API without lifetime issues
+    pub fn get(&self, id: WidgetId) -> Option<&dyn Element> {
+        self.elements.get(&id).map(|e| &**e)
+    }
+
+    /// Get element by ID (mutable)
+    pub fn get_mut(&mut self, id: WidgetId) -> Option<&mut (dyn Element + '_)> {
+        match self.elements.get_mut(&id) {
+            Some(e) => Some(&mut **e),
+            None => None,
+        }
+    }
+
+    /// Iterate over all widget IDs (for when you need to visit all elements)
+    pub fn widget_ids(&self) -> impl Iterator<Item = WidgetId> + '_ {
+        self.elements.keys().copied()
+    }
+
+    /// Add an element with a specific ID (for layout system)
+    pub fn add_element_with_id(&mut self, id: WidgetId, element: Box<dyn Element>) {
+        self.elements.insert(id, element);
+    }
 }

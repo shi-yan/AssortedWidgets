@@ -25,9 +25,12 @@
 pub mod connection;
 pub mod element;
 pub mod element_manager;
+pub mod elements;
 pub mod event;
 pub mod event_loop;
 pub mod handle;
+pub mod layout;
+pub mod paint;
 pub mod platform;
 pub mod render;
 pub mod scene_graph;

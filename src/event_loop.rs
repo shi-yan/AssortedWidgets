@@ -1,8 +1,11 @@
 use crate::element_manager::ElementManager;
 use crate::event::GuiEvent;
 use crate::handle::GuiHandle;
+use crate::layout::LayoutManager;
+use crate::paint::{PaintContext, RectRenderer};
 use crate::render::{RenderContext, WindowRenderer};
 use crate::scene_graph::SceneGraph;
+use crate::types::Size;
 
 #[cfg(target_os = "macos")]
 use crate::platform::{PlatformInput, PlatformWindow, PlatformWindowImpl, WindowCallbacks, WindowOptions};
@@ -17,6 +20,10 @@ use std::sync::{Arc, Mutex};
 pub struct GuiEventLoop {
     element_manager: ElementManager,
     scene_graph: SceneGraph,
+    layout_manager: LayoutManager,
+    rect_renderer: Option<RectRenderer>,
+    window_size: Size,
+    needs_layout: bool,
     render_context: Arc<RenderContext>,
     event_queue: Arc<Mutex<VecDeque<GuiEvent>>>,
     render_fn: Option<Box<dyn FnMut(&WindowRenderer, &RenderContext)>>,
@@ -37,6 +44,10 @@ impl GuiEventLoop {
         Ok(GuiEventLoop {
             element_manager: ElementManager::new(),
             scene_graph: SceneGraph::new(),
+            layout_manager: LayoutManager::new(),
+            rect_renderer: None,  // Created when window is created
+            window_size: Size::new(800.0, 600.0),  // Default size
+            needs_layout: true,
             render_context: Arc::new(render_context),
             event_queue: Arc::new(Mutex::new(VecDeque::new())),
             render_fn: None,
@@ -62,6 +73,19 @@ impl GuiEventLoop {
 
         // Create window renderer
         let renderer = WindowRenderer::new(&self.render_context, &window)?;
+
+        // Initialize window size
+        let bounds = window.bounds();
+        self.window_size = bounds.size;
+
+        // Create rectangle renderer with the surface format
+        self.rect_renderer = Some(RectRenderer::new(
+            &self.render_context,
+            renderer.format,
+        ));
+
+        // Mark that we need to compute layout
+        self.needs_layout = true;
 
         // Clone event queue Arc for callbacks to use
         let event_queue_input = self.event_queue.clone();
@@ -184,9 +208,21 @@ impl GuiEventLoop {
                     }
                     Some(GuiEvent::Resize(bounds)) => {
                         println!("Window resized to {:.0}x{:.0}", bounds.size.width, bounds.size.height);
+
+                        // Update window size and mark layout as dirty
+                        self.window_size = bounds.size;
+                        self.needs_layout = true;
+
+                        // Update renderer surface
                         if let Some(renderer) = self.renderer.as_mut() {
                             renderer.resize(&self.render_context, bounds);
                         }
+
+                        // Update rect renderer screen size
+                        if let Some(rect_renderer) = self.rect_renderer.as_mut() {
+                            rect_renderer.update_screen_size(&self.render_context, bounds.size);
+                        }
+
                         // Request redraw after resize
                         if let Some(window) = self.window.as_mut() {
                             window.invalidate();
@@ -216,13 +252,105 @@ impl GuiEventLoop {
             // Process element manager messages (signal/slot system)
             self.element_manager.process_messages();
 
-            // Render frame if we have a renderer and render function
-            // This happens every loop iteration (immediate mode rendering)
-            if let (Some(renderer), Some(ref mut render_fn)) =
+            // Render frame using built-in layout → paint → render flow
+            if self.renderer.is_some() && self.rect_renderer.is_some() {
+                self.render_frame_internal();
+            } else if let (Some(renderer), Some(ref mut render_fn)) =
                 (self.renderer.as_ref(), self.render_fn.as_mut()) {
+                // Fallback to external render function if no rect_renderer
                 render_fn(renderer, &self.render_context);
             }
         }
+    }
+
+    /// Internal frame rendering with layout → paint → render flow
+    #[cfg(target_os = "macos")]
+    fn render_frame_internal(&mut self) {
+        let renderer = self.renderer.as_ref().unwrap();
+
+        // Get surface texture
+        let surface_texture = match renderer.get_current_texture() {
+            Ok(texture) => texture,
+            Err(e) => {
+                eprintln!("Failed to get surface texture: {:?}", e);
+                return;
+            }
+        };
+
+        // Create texture view with sRGB format
+        let view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor {
+            format: Some(renderer.format.add_srgb_suffix()),
+            ..Default::default()
+        });
+
+        // 1. Compute layout if needed
+        if self.needs_layout {
+            if let Err(e) = self.layout_manager.compute_layout(self.window_size) {
+                eprintln!("Layout computation failed: {}", e);
+                return;
+            }
+
+            // Apply layout results to elements
+            // Collect IDs first to avoid borrow checker issues
+            let widget_ids: Vec<_> = self.element_manager.widget_ids().collect();
+            for widget_id in widget_ids {
+                if let Some(bounds) = self.layout_manager.get_layout(widget_id) {
+                    if let Some(element) = self.element_manager.get_mut(widget_id) {
+                        element.set_bounds(bounds);
+                    }
+                }
+            }
+
+            self.needs_layout = false;
+        }
+
+        // 2. Paint elements in tree order (collect draw commands)
+        let mut paint_ctx = PaintContext::new(self.window_size);
+        if let Some(root) = self.scene_graph.root() {
+            root.traverse(&mut |widget_id| {
+                if let Some(element) = self.element_manager.get(widget_id) {
+                    element.paint(&mut paint_ctx);
+                }
+            });
+        }
+
+        // 3. Render batched primitives
+        let mut encoder = self.render_context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Scene Encoder"),
+        });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Scene Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            g: 0.1,
+                            b: 0.1,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            // Render all rectangles
+            if let Some(rect_renderer) = self.rect_renderer.as_mut() {
+                rect_renderer.render(&self.render_context, &mut render_pass, paint_ctx.rect_instances());
+            }
+        }
+
+        // Submit commands
+        self.render_context.queue.submit([encoder.finish()]);
+
+        // Present the frame
+        surface_texture.present();
     }
 
     pub fn get_handle(&self) -> GuiHandle {
@@ -231,6 +359,34 @@ impl GuiEventLoop {
 
     pub fn render_context(&self) -> &RenderContext {
         &self.render_context
+    }
+
+    pub fn layout_manager(&self) -> &LayoutManager {
+        &self.layout_manager
+    }
+
+    pub fn layout_manager_mut(&mut self) -> &mut LayoutManager {
+        &mut self.layout_manager
+    }
+
+    pub fn element_manager(&self) -> &ElementManager {
+        &self.element_manager
+    }
+
+    pub fn element_manager_mut(&mut self) -> &mut ElementManager {
+        &mut self.element_manager
+    }
+
+    pub fn scene_graph(&self) -> &SceneGraph {
+        &self.scene_graph
+    }
+
+    pub fn scene_graph_mut(&mut self) -> &mut SceneGraph {
+        &mut self.scene_graph
+    }
+
+    pub fn mark_layout_dirty(&mut self) {
+        self.needs_layout = true;
     }
 
     #[cfg(target_os = "macos")]

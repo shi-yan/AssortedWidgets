@@ -23,7 +23,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Run cloc and capture output in markdown format
-          cloc frontend/src src \
+          cloc src shaders \
             --exclude-dir=node_modules,target,.github \
             --md > cloc_output.md
 
