@@ -37,7 +37,7 @@ pub mod types;
 pub use connection::{Connection, ConnectionTable};
 pub use element::Element;
 pub use element_manager::ElementManager;
-pub use event::OsEvent;
+pub use event::{GuiEvent, OsEvent};
 pub use event_loop::GuiEventLoop;
 pub use handle::GuiHandle;
 pub use platform::{

@@ -1,0 +1,38 @@
+name: Lines of Code
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  count-loc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install cloc
+        run: sudo apt-get update && sudo apt-get install -y cloc
+
+      - name: Count Lines of Code
+        run: |
+          echo "# Lines of Code Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Run cloc and capture output in markdown format
+          cloc frontend/src src \
+            --exclude-dir=node_modules,target,.github \
+            --md > cloc_output.md
+
+          # Add to step summary
+          cat cloc_output.md >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+
+          # Also show totals in a nice format
+          TOTAL_LINES=$(cloc frontend/src src --exclude-dir=node_modules,target,.github --quiet --json | jq '.SUM.code')
+          echo "**Total Lines of Code: $TOTAL_LINES**" >> $GITHUB_STEP_SUMMARY

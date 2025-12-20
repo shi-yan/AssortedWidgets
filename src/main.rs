@@ -19,7 +19,6 @@ fn main() {
         .expect("Failed to initialize rendering");
 
         println!("WebGPU initialized successfully!");
-        println!("Using GPU: Apple M2 (Metal)");
         println!();
 
         // Create triangle pipeline
@@ -28,15 +27,18 @@ fn main() {
         println!("Pipeline created!");
         println!();
 
-        println!("Rendering triangle...");
+        println!("Starting continuous rendering...");
         println!("You should see a colorful triangle (red, green, blue vertices)");
+        println!("The triangle will redraw continuously at 60fps");
         println!("Press Cmd+Q to quit.");
         println!();
 
-        // Render one frame to show the triangle
-        render_triangle_frame(&mut event_loop, &pipeline);
+        // Set up render function that captures the pipeline
+        event_loop.set_render_fn(move |renderer, ctx| {
+            render_triangle_frame(renderer, ctx, &pipeline);
+        });
 
-        // Run event loop
+        // Run event loop (never returns)
         event_loop.run();
     }
 
@@ -98,10 +100,11 @@ fn create_triangle_pipeline(event_loop: &GuiEventLoop) -> wgpu::RenderPipeline {
 }
 
 #[cfg(target_os = "macos")]
-fn render_triangle_frame(event_loop: &mut GuiEventLoop, pipeline: &wgpu::RenderPipeline) {
-    let ctx = event_loop.render_context();
-    let renderer = event_loop.renderer().unwrap();
-
+fn render_triangle_frame(
+    renderer: &assorted_widgets::render::WindowRenderer,
+    ctx: &assorted_widgets::render::RenderContext,
+    pipeline: &wgpu::RenderPipeline,
+) {
     // Get surface texture
     let surface_texture = match renderer.get_current_texture() {
         Ok(texture) => texture,
@@ -153,6 +156,4 @@ fn render_triangle_frame(event_loop: &mut GuiEventLoop, pipeline: &wgpu::RenderP
 
     // Present the frame
     surface_texture.present();
-
-    println!("Frame rendered!");
 }
