@@ -43,7 +43,7 @@ impl ConnectionTable {
     /// Disconnect a specific connection
     pub fn disconnect(&mut self, source: WidgetId, signal_type: &str, target: WidgetId) {
         if let Some(connections) = self.connections.get_mut(&source) {
-            connections.retain(|c| !(c.signal_type == signal_type && c.target == target));
+            connections.retain(|c: &Connection| !(c.signal_type == signal_type && c.target == target));
         }
     }
 
@@ -51,7 +51,7 @@ impl ConnectionTable {
     pub fn get_targets(&self, source: WidgetId, signal_type: &str) -> Vec<WidgetId> {
         self.connections
             .get(&source)
-            .map(|connections| {
+            .map(|connections: &Vec<Connection>| {
                 connections
                     .iter()
                     .filter(|c| c.signal_type == signal_type)
@@ -66,7 +66,7 @@ impl ConnectionTable {
         self.connections.remove(&id);
         // Also remove this widget as a target from all connections
         for connections in self.connections.values_mut() {
-            connections.retain(|c| c.target != id);
+            connections.retain(|c: &Connection| c.target != id);
         }
     }
 }

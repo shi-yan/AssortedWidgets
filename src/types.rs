@@ -1,7 +1,7 @@
 use std::any::Any;
 
 // ============================================================================
-// Core Types
+// Core Framework Types
 // ============================================================================
 
 /// Unique identifier for each widget/element
@@ -15,7 +15,6 @@ impl WidgetId {
 }
 
 /// Generic message type for signal/slot communication
-/// Uses manual serialization - can be JSON, binary, or Any
 #[derive(Debug)]
 pub enum GuiMessage {
     /// Widget was clicked
@@ -66,41 +65,27 @@ pub struct DeferredCommand {
 }
 
 // ============================================================================
-// Geometry Types (using euclid)
+// Geometry Type Re-exports (using euclid for SIMD benefits)
 // ============================================================================
 
 /// Unit type for screen coordinates
-///
-/// We use euclid's unit system to provide type safety for different
-/// coordinate spaces. This can be extended to support:
-/// - `ScreenPixels` - Physical screen pixels
-/// - `LogicalPixels` - Logical pixels (DPI-independent)
-/// - `LayoutPixels` - Layout coordinates
-///
-/// For now, we use a single unit type for simplicity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ScreenPixels;
 
-/// 2D point in screen coordinates
-///
-/// Uses euclid::Point2D with SIMD acceleration.
-/// Supports HiDPI scaling and coordinate space transformations.
+/// 2D point in screen coordinates (uses euclid for SIMD acceleration)
 pub type Point = euclid::Point2D<f64, ScreenPixels>;
 
-/// 2D rectangle in screen coordinates
-///
-/// Uses euclid::Rect with SIMD acceleration.
-/// Provides methods like `contains()`, `intersects()`, etc.
+/// 2D rectangle in screen coordinates (uses euclid for SIMD acceleration)
 pub type Rect = euclid::Rect<f64, ScreenPixels>;
 
-/// 2D size in screen coordinates
+/// 2D size in screen coordinates (uses euclid for SIMD acceleration)
 pub type Size = euclid::Size2D<f64, ScreenPixels>;
 
-/// 2D vector in screen coordinates
+/// 2D vector in screen coordinates (uses euclid for SIMD acceleration)
 pub type Vector = euclid::Vector2D<f64, ScreenPixels>;
 
 // ============================================================================
-// Convenience constructors
+// Convenience Constructors
 // ============================================================================
 
 /// Create a point from x, y coordinates

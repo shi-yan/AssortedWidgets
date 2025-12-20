@@ -74,25 +74,25 @@ impl Element for ClippedContainer {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
-        // Draw background (within bounds, no clipping needed)
+        // Draw blue background (within bounds, no clipping needed)
         ctx.draw_rect(self.bounds, self.bg_color);
 
         // Push clip rect to clip to our bounds
         ctx.push_clip(self.bounds);
 
-        // Draw overflow content - a larger rectangle that extends beyond our bounds
-        // This will be clipped by the shader
-        let overflow_rect = Rect::new(
-            Point::new(
-                self.bounds.origin.x - 50.0,
-                self.bounds.origin.y - 50.0,
-            ),
-            Size::new(
-                self.bounds.size.width + 100.0,
-                self.bounds.size.height + 100.0,
-            ),
-        );
-        ctx.draw_rect(overflow_rect, self.overflow_color);
+        // Draw a pattern that extends beyond bounds to demonstrate clipping
+        // Draw stripes that extend past the clip boundary
+        let stripe_width = 60.0;
+        let num_stripes = 8;
+
+        for i in 0..num_stripes {
+            let x = self.bounds.origin.x - 100.0 + (i as f64 * stripe_width);
+            let stripe_rect = Rect::new(
+                Point::new(x, self.bounds.origin.y - 100.0),
+                Size::new(40.0, self.bounds.size.height + 200.0),
+            );
+            ctx.draw_rect(stripe_rect, self.overflow_color);
+        }
 
         // Pop clip rect
         ctx.pop_clip();

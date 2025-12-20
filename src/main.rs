@@ -35,9 +35,9 @@ fn main() {
         println!("Starting continuous rendering...");
         println!("You should see:");
         println!("  - Large red background (full window)");
-        println!("  - Blue square clipped to center 300x300 region");
-        println!("  - Green square extending beyond clip bounds (clipped)");
-        println!("The scene demonstrates shader-based clipping.");
+        println!("  - Blue square in center (300x300)");
+        println!("  - Green vertical stripes clipped to blue square bounds");
+        println!("The stripes extend beyond the blue square but are clipped by the shader.");
         println!("Try resizing the window - clipping will update!");
         println!("Press Cmd+Q to quit.");
         println!();

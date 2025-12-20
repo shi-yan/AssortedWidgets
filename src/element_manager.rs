@@ -62,7 +62,7 @@ impl ElementManager {
 
     /// Get immutable reference to an element
     pub fn get_element(&self, id: WidgetId) -> Option<&dyn Element> {
-        self.elements.get(&id).map(|e| e.as_ref())
+        self.elements.get(&id).map(|e: &Box<dyn Element>| e.as_ref())
     }
 
     /// Alter a child element using a closure (the core mutation pattern)
