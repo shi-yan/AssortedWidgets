@@ -750,60 +750,143 @@ See [ARCHITECTURE.md § Text Rendering](ARCHITECTURE.md#text-rendering) for deta
 - ✅ Complex script support (Arabic, Indic)
 - ✅ Bidirectional text rendering
 - ✅ Automatic font fallback for multi-language text
-- ✅ Truncation with ellipsis support
+- ✅ **Text wrapping works automatically** (cosmic-text handles it via max_width)
+- ✅ **Multi-line text rendering works** (cosmic-text Buffer supports it)
 - ✅ Test scenes demonstrating both APIs
-- ✅ Hit-testing APIs for editor support
+- ✅ Hit-testing APIs stubbed for Phase 4
 
-**Still Missing (Intentional):**
-- ❌ Text wrapping (deferred to Phase 3.3)
-- ❌ Measurement for layout system (deferred to Phase 3.3)
-- ❌ Multi-line support (deferred to Phase 3.3)
+**Phase 3.2 Status: ✅ COMPLETE**
+
+**Known Limitations (To be addressed in Phase 3.3):**
+- ⚠️ Ellipsis truncation stubbed (lines 223-230 in [src/text/engine.rs](src/text/engine.rs))
+- ⚠️ API has too many parameters (needs bundle struct refactoring)
+- ⚠️ No TextLabel element with full measure integration yet
+- ⚠️ No performance benchmarking or optimization
 
 ---
 
-#### Phase 3.3: Measurement, Wrapping & Layout Integration (Week 4)
+#### Phase 3.3: Polish, Performance & Layout Integration (Week 4)
 
-**Goal:** Integrate text rendering with Taffy layout system via measure functions
+**Status:** 🚧 CURRENT PHASE
 
-**Why Last:** Requires working TextLayout object and two-tier API from Phase 3.2
+**Goal:** Complete the text rendering system with ellipsis truncation, API cleanup, and full Taffy integration
+
+**Why Now:** Phase 3.2 proved that wrapping and multi-line text already work. Now we need to polish the rough edges and integrate with the layout system.
+
+**Key Realizations from Phase 3.2:**
+- ✅ Text wrapping ALREADY works (cosmic-text handles it when you pass `max_width`)
+- ✅ Multi-line text ALREADY works (cosmic-text Buffer supports it natively)
+- ⚠️ The API is functional but needs cleanup (too many parameters)
+- ⚠️ Ellipsis truncation is stubbed but not implemented
+- ⚠️ No actual TextLabel element using the measure system yet
 
 **Implementation Steps:**
 
-1. **Enhanced TextLayout with Wrapping** ([src/text/layout.rs](src/text/layout.rs)):
+1. **Implement Ellipsis Truncation** ([src/text/engine.rs](src/text/engine.rs)):
+
+   **Current State (lines 223-230):**
    ```rust
-   impl TextLayout {
-       /// Create a wrapped layout (multi-line)
-       pub fn new_wrapped(
-           font_system: &mut FontSystem,
-           text: &str,
-           style: &TextStyle,
-           max_width: f32,
-       ) -> Self {
-           let mut buffer = Buffer::new(font_system, Metrics::new(style.font_size, style.line_height));
-           buffer.set_size(font_system, max_width, f32::MAX);
-           buffer.set_text(font_system, text, Attrs::new(), Shaping::Advanced);
-           buffer.shape_until_scroll(font_system);
-
-           let size = Self::compute_size(&buffer);
-           TextLayout { buffer, size, truncate: None }
-       }
-
-       /// Compute intrinsic size from shaped buffer
-       fn compute_size(buffer: &Buffer) -> Size<f32> {
-           let mut max_width = 0.0;
-           let mut max_height = 0.0;
-
-           for run in buffer.layout_runs() {
-               max_width = max_width.max(run.line_w);
-               max_height = run.line_y + run.line_height;
-           }
-
-           Size::new(max_width, max_height)
+   // Apply truncation if requested
+   if truncate == Truncate::End {
+       if let Some(width) = max_width {
+           // cosmic-text doesn't have built-in ellipsis truncation,
+           // so we'll implement it manually in a later phase
+           // For now, just wrap
+           buffer.set_size(font_system, Some(width), None);
        }
    }
    ```
 
-2. **TextLabel Element with Measure Support** ([src/elements/text_label.rs](src/elements/text_label.rs)):
+   **Implementation:**
+   ```rust
+   // Apply truncation with ellipsis
+   if truncate == Truncate::End {
+       if let Some(width) = max_width {
+           // Strategy: Shape full text, measure width, truncate if needed
+           let full_width = buffer.layout_runs()
+               .map(|run| run.line_w)
+               .max_by(|a, b| a.partial_cmp(b).unwrap())
+               .unwrap_or(0.0);
+
+           if full_width > width {
+               // Binary search to find max chars that fit with "..."
+               let ellipsis = "…";
+               let ellipsis_width = measure_text(font_system, ellipsis, style);
+               let available = width - ellipsis_width;
+
+               // Find longest prefix that fits
+               let truncated = find_truncation_point(
+                   font_system, text, style, available
+               );
+
+               // Re-shape with ellipsis
+               let truncated_text = format!("{}{}", truncated, ellipsis);
+               buffer.set_text(font_system, &truncated_text, &attrs, Shaping::Advanced, None);
+               buffer.shape_until_scroll(font_system, false);
+           }
+       }
+   }
+   ```
+
+2. **Bundle Struct API Cleanup** ([src/paint/context.rs](src/paint/context.rs)):
+
+   **Current Problem:**
+   ```rust
+   // Too many parameters! (6 parameters)
+   pub fn draw_layout(
+       &mut self,
+       layout: &TextLayout,
+       position: Point,
+       color: Color,
+       atlas: &mut GlyphAtlas,
+       font_system: &mut FontSystemWrapper,
+       queue: &wgpu::Queue,
+   )
+   ```
+
+   **Proposed Solution:**
+   ```rust
+   // Bundle rendering resources
+   pub struct RenderBundle<'a> {
+       pub atlas: &'a mut GlyphAtlas,
+       pub font_system: &'a mut FontSystemWrapper,
+       pub queue: &'a wgpu::Queue,
+       pub device: &'a wgpu::Device,
+   }
+
+   // Cleaner API with only 4 parameters
+   pub fn draw_layout(
+       &mut self,
+       layout: &TextLayout,
+       position: Point,
+       color: Color,
+       bundle: &mut RenderBundle,
+   )
+
+   // Or even better: embed bundle in PaintContext
+   pub struct PaintContext<'a> {
+       rects: Vec<RectInstance>,
+       window_size: Size,
+       clip_stack: Vec<Rect>,
+
+       // Rendering resources (owned by PaintContext)
+       render_bundle: RenderBundle<'a>,
+   }
+
+   // Ultimate goal: Just 3 parameters!
+   impl PaintContext<'_> {
+       pub fn draw_layout(
+           &mut self,
+           layout: &TextLayout,
+           position: Point,
+           color: Color,
+       ) {
+           // Access atlas/font_system/queue from self.render_bundle
+       }
+   }
+   ```
+
+3. **TextLabel Element with Measure Support** ([src/elements/text_label.rs](src/elements/text_label.rs)):
    ```rust
    pub struct TextLabel {
        id: WidgetId,
@@ -873,43 +956,37 @@ See [ARCHITECTURE.md § Text Rendering](ARCHITECTURE.md#text-rendering) for deta
    }
    ```
 
-3. **TextEngine Integration with Measure Functions:**
+4. **Performance Benchmarking & Optimization:**
+
+   **Metrics to Track:**
+   - Glyph atlas utilization (pages used vs. wasted space)
+   - Cache hit rate (managed API)
+   - Frame time breakdown (shaping vs. rasterization vs. rendering)
+   - Memory usage (cache size, atlas size)
+
+   **Optimization Targets:**
+   - Ensure <16ms frame time with 1000+ unique glyphs
+   - Cache hit rate >95% for typical UI (buttons, labels, menus)
+   - Atlas growth strategy (when to add pages vs. evict old glyphs)
+
+   **Tools:**
    ```rust
+   // Add performance tracking to TextEngine
+   pub struct TextEngineStats {
+       pub cache_hits: u64,
+       pub cache_misses: u64,
+       pub shapes_this_frame: u64,
+       pub rasterizations_this_frame: u64,
+       pub managed_cache_size: usize,
+   }
+
    impl TextEngine {
-       /// Create layout with optional wrapping
-       pub fn create_layout(
-           &mut self,
-           text: &str,
-           style: &TextStyle,
-           max_width: Option<f32>,
-           truncate: Option<Truncate>,
-       ) -> TextLayout {
-           let mut buffer = Buffer::new(
-               &mut self.font_system,
-               Metrics::new(style.font_size, style.line_height)
-           );
-
-           // Set wrapping width if provided
-           if let Some(width) = max_width {
-               buffer.set_size(&mut self.font_system, width, f32::MAX);
-           }
-
-           buffer.set_text(&mut self.font_system, text, Attrs::new(), Shaping::Advanced);
-
-           // Apply truncation if requested
-           if let Some(mode) = truncate {
-               buffer.set_truncate(&mut self.font_system, max_width.unwrap_or(f32::MAX), mode);
-           }
-
-           buffer.shape_until_scroll(&mut self.font_system);
-
-           let size = TextLayout::compute_size(&buffer);
-           TextLayout { buffer, size, truncate }
-       }
+       pub fn stats(&self) -> TextEngineStats { ... }
+       pub fn reset_frame_stats(&mut self) { ... }
    }
    ```
 
-4. **GuiEventLoop Integration:**
+5. **GuiEventLoop Integration with Measure:**
    ```rust
    impl GuiEventLoop {
        fn render_frame_internal(&mut self) {
@@ -952,61 +1029,64 @@ See [ARCHITECTURE.md § Text Rendering](ARCHITECTURE.md#text-rendering) for deta
    }
    ```
 
-5. **Test Scenes:**
+6. **Test Scenes for Phase 3.3:**
 
-   **Scene A: Auto-Sizing Label**
+   **Scene A: Ellipsis Truncation**
+   ```rust
+   // Single-line label with ellipsis when text overflows
+   // Container { width: 150px, height: 24px }
+   //   Label { text: "This is very long text that needs truncation", truncate: End }
+   //   →  Displays: "This is very long te…"
+   ```
+
+   **Scene B: TextLabel with Auto-Sizing**
    ```rust
    // Label with auto width - parent grows to fit
    // Container { width: auto, height: auto }
-   //   Label { text: "Short" }  →  Container: 50px wide
-   //   Label { text: "Very long text" }  →  Container: 150px wide
+   //   TextLabel { text: "Short" }  →  Container: 50px wide
+   //   TextLabel { text: "Very long text" }  →  Container: 150px wide
    ```
 
-   **Scene B: Fixed-Width Label with Wrapping**
+   **Scene C: TextLabel with Wrapping**
    ```rust
    // Label with constrained width - text wraps to multiple lines
    // Container { width: 200px, height: auto }
-   //   Label { text: "This is a long paragraph that will wrap" }
-   //   →  Label: 200px wide, 60px tall (3 lines)
+   //   TextLabel { text: "This is a long paragraph that will wrap" }
+   //   →  TextLabel: 200px wide, 60px tall (3 lines)
    ```
 
-   **Scene C: Truncation with Ellipsis**
+   **Scene D: Performance Test**
    ```rust
-   // Label with fixed size - text truncates
-   // Container { width: 100px, height: 20px }
-   //   Label { text: "Very long text that won't fit", truncate: End }
-   //   →  Displays: "Very long te..."
+   // 1000 unique labels (no cache hits)
+   // Measure time to shape, rasterize, and render
+   // Target: <16ms total frame time
    ```
 
-   **Scene D: Bidirectional Layout Flow**
-   ```rust
-   // Window resize → text reflows
-   // User types → parent container resizes
-   ```
-
-**Deliverables:**
-- ✅ `TextLayout` with wrapping support
-- ✅ `TextLabel` element with `measure()` implementation
-- ✅ Cached layout invalidation on text/width change
-- ✅ Text wrapping based on available width
-- ✅ Multi-line text rendering
-- ✅ Text truncation with ellipsis via `Truncate::End`
-- ✅ `TextEngine` integration with measure functions
-- ✅ Bidirectional layout works:
-  - Window resize → text reflows
+**Phase 3.3 Deliverables:**
+- ⬜ Ellipsis truncation fully implemented (not just stubbed)
+- ⬜ Bundle struct API cleanup (reduce parameter count from 6 to 3)
+- ⬜ `TextLabel` element with `measure()` implementation
+- ⬜ Cached layout invalidation on text/width change
+- ⬜ `TextEngine` performance stats and monitoring
+- ⬜ Performance benchmarks and optimization
+- ⬜ Bidirectional layout integration:
+  - Window resize → text reflows (via measure)
   - Text change → parent resizes via `mark_dirty`
-- ✅ Test scenes covering all layout modes
-- ✅ Performance validation: <16ms for 1000+ glyphs
+- ⬜ Test scenes covering all features
+- ⬜ Performance validation: <16ms for 1000+ unique glyphs
+- ⬜ Documentation update with clean API examples
 
 **Phase 3 Complete When:**
-- ✅ Can render text with shaping, wrapping, measurement
-- ✅ Text elements integrate with Taffy layout
-- ✅ Font fallback and multi-language support works
-- ✅ Emoji rendering works
-- ✅ Both high-level and low-level APIs functional
-- ✅ Frame-based cache eviction working
-- ✅ Performance: <16ms frame time with 1000+ glyphs
-- ✅ Documentation updated with API examples
+- ✅ Can render text with shaping, wrapping, multi-language (Phase 3.2 ✅)
+- ✅ Text elements integrate with Taffy layout (Phase 3.3 target)
+- ✅ Font fallback and multi-language support works (Phase 3.2 ✅)
+- ✅ Emoji rendering works (Phase 3.2 ✅)
+- ✅ Both high-level and low-level APIs functional (Phase 3.2 ✅)
+- ✅ Frame-based cache eviction working (Phase 3.2 ✅)
+- ⬜ Ellipsis truncation works (Phase 3.3 target)
+- ⬜ Clean API with bundle struct (Phase 3.3 target)
+- ⬜ Performance: <16ms frame time with 1000+ glyphs (Phase 3.3 target)
+- ⬜ Documentation updated with API examples (Phase 3.3 target)
 
 ---
 

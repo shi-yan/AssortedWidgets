@@ -31,6 +31,9 @@ pub struct GuiEventLoop {
     // Demo state for text rendering test
     demo_layouts: Option<DemoTextLayouts>,
     demo_start_time: std::time::Instant,
+    // Demo frame counter (replaces static mut for Rust 2024 compatibility)
+    demo_frame_count: u64,
+    demo_atlas_dumped: bool,
     window_size: Size,
     needs_layout: bool,
     render_context: Arc<RenderContext>,
@@ -68,6 +71,8 @@ impl GuiEventLoop {
             text_engine: TextEngine::new(),
             demo_layouts: None,  // Will be initialized after window is created
             demo_start_time: std::time::Instant::now(),
+            demo_frame_count: 0,
+            demo_atlas_dumped: false,
             window_size: Size::new(800.0, 600.0),  // Default size
             needs_layout: true,
             render_context: Arc::new(render_context),
@@ -335,8 +340,8 @@ impl GuiEventLoop {
             ..Default::default()
         });
 
-        // 1. Compute layout if needed
-        if self.needs_layout {
+        // 1. Compute layout if needed (skip if no scene graph)
+        if self.needs_layout && self.scene_graph.root().is_some() {
             println!("[EventLoop] Computing layout...");
 
             // Mark all elements that need measurement as dirty in Taffy
@@ -548,34 +553,31 @@ impl GuiEventLoop {
         glyph_atlas.begin_frame();
         self.text_engine.begin_frame();
 
-        // Log atlas stats at start of frame
+        // Log atlas stats at start of frame (using instance fields for Rust 2024 compatibility)
         let stats = glyph_atlas.stats();
-        static mut FRAME_COUNT: u64 = 0;
-        static mut ATLAS_DUMPED: bool = false;
-        unsafe {
-            if FRAME_COUNT % 60 == 0 {  // Log every 60 frames
-                println!("[ATLAS] Frame {}: {} pages, {} glyphs, current frame: {}",
-                    FRAME_COUNT, stats.page_count, stats.total_glyphs, stats.current_frame);
-            }
 
-            // Dump atlas once after we have some glyphs
-            if !ATLAS_DUMPED && stats.total_glyphs >= 6 {
-                println!("[DEBUG] Dumping atlas to PNG...");
-                if let Err(e) = glyph_atlas.dump_page_to_png(
-                    &self.render_context.device,
-                    &self.render_context.queue,
-                    0,  // First page
-                    "atlas_debug.png"
-                ) {
-                    eprintln!("Failed to dump atlas: {}", e);
-                } else {
-                    println!("[DEBUG] Atlas dumped successfully to atlas_debug.png");
-                }
-                ATLAS_DUMPED = true;
-            }
-
-            FRAME_COUNT += 1;
+        if self.demo_frame_count % 60 == 0 {  // Log every 60 frames
+            println!("[ATLAS] Frame {}: {} pages, {} glyphs, current frame: {}",
+                self.demo_frame_count, stats.page_count, stats.total_glyphs, stats.current_frame);
         }
+
+        // Dump atlas once after we have some glyphs
+        if !self.demo_atlas_dumped && stats.total_glyphs >= 6 {
+            println!("[DEBUG] Dumping atlas to PNG...");
+            if let Err(e) = glyph_atlas.dump_page_to_png(
+                &self.render_context.device,
+                &self.render_context.queue,
+                0,  // First page
+                "atlas_debug.png"
+            ) {
+                eprintln!("Failed to dump atlas: {}", e);
+            } else {
+                println!("[DEBUG] Atlas dumped successfully to atlas_debug.png");
+            }
+            self.demo_atlas_dumped = true;
+        }
+
+        self.demo_frame_count += 1;
 
         // ================================================================
         // Phase 3.2 Demo: Using TextEngine and draw_layout()
