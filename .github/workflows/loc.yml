@@ -34,5 +34,5 @@ jobs:
           echo "---" >> $GITHUB_STEP_SUMMARY
 
           # Also show totals in a nice format
-          TOTAL_LINES=$(cloc frontend/src src --exclude-dir=node_modules,target,.github --quiet --json | jq '.SUM.code')
+          TOTAL_LINES=$(cloc src --exclude-dir=node_modules,target,.github --quiet --json | jq '.SUM.code')
           echo "**Total Lines of Code: $TOTAL_LINES**" >> $GITHUB_STEP_SUMMARY
