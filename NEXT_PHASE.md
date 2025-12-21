@@ -527,28 +527,220 @@ Phase 3 will be considered complete when:
 
 Based on the current state (Phase 2 complete), here's the recommended order of implementation for Phase 3:
 
-### 1. **Text Rendering System** (Highest Priority)
+### 1. **Text Rendering System** (Highest Priority - Split into 3 Sub-Phases)
+
 **Status:** ✅ Measure system ready, need actual text implementation
 
-**Approach:** Glyph atlas + instanced quads (see ARCHITECTURE.md)
-- Font loading (cosmic-text recommended for comprehensive support)
-- Text shaping and layout
-- Glyph rasterization and atlas packing
-- GPU instanced quad rendering
-- Integration with measure functions
+**Overall Approach:** cosmic-text (brain) + multi-page glyph atlas (memory)
+
+See [ARCHITECTURE.md § Text Rendering](ARCHITECTURE.md#text-rendering) for detailed design decisions.
+
+---
+
+#### Phase 3.1: Character Sheet Foundation (Week 1-2)
+
+**Goal:** Build the GPU texture atlas system and render individual characters
+
+**Why First:** Establishes the rendering foundation before adding complexity
 
 **Implementation Steps:**
-1. Add cosmic-text or fontdue dependency
-2. Implement GlyphAtlas with dynamic growth
-3. Create TextRenderer for instanced quads
-4. Implement TextLabel element with measure()
-5. Test with measure function integration
 
-**Deliverable:** TextLabel element that:
-- Renders text using glyph atlas
-- Implements measure() for dynamic sizing
-- Wraps text based on available width
-- Stretches parent containers when text grows
+1. **Dependencies:**
+   ```toml
+   [dependencies]
+   cosmic-text = "0.15"  # Font discovery, rasterization
+   etagere = "0.2"       # 2D bin packing
+   ```
+
+2. **GlyphAtlas Implementation** ([src/text/atlas.rs](src/text/atlas.rs)):
+   - RGBA8 texture array (start with 1 page of 2048×2048)
+   - `etagere::BucketedAtlasAllocator` for bin packing
+   - `HashMap<GlyphKey, GlyphLocation>` for cache
+   - Simple "no eviction" strategy (grow pages as needed)
+   - Methods:
+     - `insert(key, pixels, width, height, is_color) -> UvRect`
+     - `get(key) -> Option<GlyphLocation>`
+     - `begin_frame()` for frame counter
+
+3. **cosmic-text Integration** ([src/text/font_system.rs](src/text/font_system.rs)):
+   - Initialize `FontSystem` (discovers system fonts)
+   - Initialize `SwashCache` for rasterization
+   - Font discovery works automatically
+
+4. **TextRenderer** ([src/text/renderer.rs](src/text/renderer.rs)):
+   - GPU pipeline for instanced quads
+   - Shader with glyph type flag (mono vs. color emoji)
+   - Instance buffer management (like RectRenderer)
+   - Methods:
+     - `draw_glyph(char, x, y, font_size, color)`
+     - `flush(render_pass)` to batch render
+
+5. **Shader** ([shaders/text.wgsl](shaders/text.wgsl)):
+   - Vertex shader: quad generation + UV mapping
+   - Fragment shader: sample atlas, handle mono vs. color
+   - Support clipping (reuse clip_rect pattern from RectRenderer)
+
+6. **Test Scene:**
+   - Draw individual characters: "H", "e", "l", "l", "o"
+   - Each at manual positions (no shaping/layout yet)
+   - Mix text and emoji: "Hello 👋"
+   - Verify atlas caching (subsequent frames reuse glyphs)
+
+**Deliverables:**
+- ✅ RGBA8 texture atlas with etagere packing
+- ✅ cosmic-text font system initialized
+- ✅ Can render individual glyphs with font fallback
+- ✅ Emoji support works
+- ✅ Atlas grows automatically when full
+- ✅ Simple test showing "Hello 👋" with manual positioning
+
+**Known Limitations (Intentional):**
+- ❌ No text shaping (ligatures, kerning don't work)
+- ❌ No automatic layout (must position each glyph manually)
+- ❌ No wrapping or measurement
+- ❌ Complex scripts (Arabic, Indic) won't render correctly
+
+---
+
+#### Phase 3.2: Text Shaping (Week 3)
+
+**Goal:** Use cosmic-text's Buffer/LayoutRun for proper text layout
+
+**Why Second:** Now that rendering works, add correct positioning/shaping
+
+**Implementation Steps:**
+
+1. **cosmic-text Buffer Integration:**
+   - Create `cosmic_text::Buffer` for text layout
+   - Use `buffer.set_text()` to set content
+   - Use `buffer.layout_runs()` to get shaped glyphs
+
+2. **Update TextRenderer:**
+   - New method: `draw_text(buffer: &Buffer, x, y, color)`
+   - Iterate `layout_runs()` and `run.glyphs`
+   - Use `glyph.x`, `glyph.y` for positions (cosmic-text provides these)
+   - Handle `glyph.cache_key` for rasterization
+
+3. **Shaping Features to Test:**
+   - **Ligatures:** "office" should render "ffi" as one glyph
+   - **Kerning:** "AV" should be closer than "AA"
+   - **Complex Scripts:** Arabic text joins correctly
+   - **Bidirectional:** Mix "Hello שלום مرحبا" (LTR + RTL)
+   - **Font Fallback:** "Hello 你好 👋" automatically uses 3+ fonts
+
+4. **Test Scene:**
+   - Draw shaped strings: "The office offers efficient service"
+   - Test Arabic: "مرحبا بك" (right-to-left, joining)
+   - Test mixed: "English עברית العربية 中文"
+   - Verify ligatures appear correctly
+
+**Deliverables:**
+- ✅ Shaped text with ligatures and kerning
+- ✅ Complex script support (Arabic, Indic)
+- ✅ Bidirectional text rendering
+- ✅ Automatic font fallback for multi-language text
+- ✅ Test scene with shaped text examples
+
+**Still Missing (Intentional):**
+- ❌ Text wrapping (all on one line)
+- ❌ Measurement for layout system
+- ❌ Multi-line support
+
+---
+
+#### Phase 3.3: Measurement & Wrapping (Week 4)
+
+**Goal:** Integrate with Taffy layout system via measure functions
+
+**Why Last:** Requires working rendering + shaping foundation
+
+**Implementation Steps:**
+
+1. **TextLabel Element** ([src/elements/text_label.rs](src/elements/text_label.rs)):
+   ```rust
+   pub struct TextLabel {
+       id: WidgetId,
+       bounds: Rect,
+       text: String,
+       font_size: f32,
+       color: Color,
+       buffer: cosmic_text::Buffer,  // Cached layout
+       needs_reshape: bool,
+   }
+   ```
+
+2. **Implement Element::measure():**
+   ```rust
+   fn measure(
+       &self,
+       known_dimensions: taffy::Size<Option<f32>>,
+       available_space: taffy::Size<AvailableSpace>,
+   ) -> Option<Size> {
+       // If width is known, wrap text to that width
+       if let Some(width) = known_dimensions.width {
+           self.buffer.set_size(width, f32::MAX);
+           self.buffer.shape_until_scroll();
+
+           // Return measured height after wrapping
+           let height = self.buffer.layout_runs()
+               .map(|run| run.line_y)
+               .max()
+               .unwrap_or(self.font_size);
+
+           return Some(Size::new(width, height));
+       }
+
+       // If width is auto, return intrinsic size (single line)
+       let width = self.buffer.layout_runs()
+           .map(|run| run.line_w)
+           .max()
+           .unwrap_or(0.0);
+
+       Some(Size::new(width, self.font_size))
+   }
+   ```
+
+3. **Text Wrapping:**
+   - Use `buffer.set_size(width, f32::MAX)` to set wrap width
+   - `buffer.shape_until_scroll()` performs wrapping
+   - Iterate `layout_runs()` for multi-line rendering
+
+4. **Text Truncation:**
+   - Detect when text exceeds available height
+   - Use `buffer.set_size(width, height)` to clip
+   - Optionally append "..." ellipsis
+
+5. **Integration with GuiEventLoop:**
+   - Update event loop to call `compute_layout_with_measure()`
+   - Dispatch to `element.measure()` for text elements
+   - Test bidirectional layout:
+     - Window resize → text wraps
+     - Text content change → parent resizes
+
+6. **Test Scenes:**
+   - Auto-sizing label: text grows, parent container grows
+   - Fixed-width label: text wraps to multiple lines
+   - Scrollable area: text truncates with ellipsis
+   - Mix with other elements: button with text label
+
+**Deliverables:**
+- ✅ TextLabel element with `measure()` implementation
+- ✅ Text wrapping based on available width
+- ✅ Multi-line text rendering
+- ✅ Text truncation with ellipsis
+- ✅ Bidirectional layout works:
+  - Window resize → text reflows
+  - Text change → parent resizes
+- ✅ Integration test: button with auto-sizing label
+
+**Phase 3 Complete When:**
+- ✅ Can render text with shaping, wrapping, measurement
+- ✅ Text elements integrate with Taffy layout
+- ✅ Font fallback and multi-language support works
+- ✅ Emoji rendering works
+- ✅ Performance: <16ms frame time with 1000+ glyphs
+
+---
 
 ### 2. **Complete Measure Function Integration** (High Priority)
 **Status:** ✅ API ready, need real usage

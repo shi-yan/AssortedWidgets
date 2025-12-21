@@ -1609,133 +1609,537 @@ fn fs_main() -> @location(0) vec4<f32> {
 
 ## Text Rendering
 
-### Design: Glyph Atlas + Instanced Rendering
+### Design Overview: cosmic-text + Multi-Page Glyph Atlas
+
+AssortedWidgets uses **cosmic-text** as the "brain" for text handling (font discovery, fallback, shaping, wrapping) and a custom **multi-page glyph atlas** as the "memory" (GPU texture cache).
 
 ```mermaid
 graph TB
-    A[Text Request<br/>draw_text pos Hello] --> B{Glyphs<br/>in Atlas?}
+    subgraph "cosmic-text (The Brain)"
+        A[Font Discovery<br/>fontdb]
+        B[Font Fallback<br/>Multi-script support]
+        C[Text Shaping<br/>rustybuzz/HarfBuzz]
+        D[Layout & Wrapping<br/>Line breaking, alignment]
+        E[Rasterization<br/>SwashCache]
+    end
 
-    B -->|Missing| C[Rasterize<br/>fontdue/cosmic-text]
-    C --> D[Upload<br/>to Atlas Texture]
-    D --> E[Update<br/>UV Coordinates]
+    subgraph "Glyph Atlas (The Memory)"
+        F[Multi-Page Atlas<br/>RGBA8 texture array]
+        G[etagere Bin Packing<br/>Shelf allocator]
+        H[LRU Eviction<br/>Frame-based cleanup]
+        I[GPU Upload<br/>write_texture]
+    end
 
-    B -->|Cached| E
+    subgraph "Rendering Pipeline"
+        J[TextInstance Buffer]
+        K[Instanced Quads<br/>1 draw call]
+    end
 
-    E --> F[Add Instance<br/>position uv color]
-    F --> G[Instance Buffer]
-
-    G --> H[Single Draw Call<br/>Instanced Quads]
-    H --> I[GPU Renders<br/>all text]
+    A --> B --> C --> D --> E
+    E --> F
+    F --> G --> H --> I
+    F --> J --> K
 ```
 
-**Atlas Structure:**
+**Division of Responsibilities:**
+
+| Component | Responsibility | Why |
+|-----------|---------------|-----|
+| **cosmic-text** | Font discovery, fallback, shaping, layout, rasterization | Headless library, works with any renderer |
+| **GlyphAtlas** | GPU texture management, bin packing, eviction | Renderer-specific (WebGPU in our case) |
+| **PaintContext** | Batching glyph instances for rendering | Part of our rendering tier system |
+
+---
+
+### Glyph Atlas Architecture
+
+#### Design Decision: RGBA8 for Both Text and Emoji
+
+**Question:** Should we use separate textures for monochrome text (R8) and color emoji (RGBA8)?
+
+**Answer:** Use a single **RGBA8 texture array** for both.
+
+**Rationale:**
+- **Uniformity:** To batch text and emoji in one draw call, they must share the same bind group
+- **Trade-off:** Monochrome glyphs waste 75% of channels (only use Alpha), but:
+  - Simplifies bin packing (no channel tracking)
+  - Simplifies shader (single texture sampler)
+  - VRAM is cheap (2048×2048 RGBA8 = 16MB)
+  - Future: Can use RGB channels for MSDF (multi-channel signed distance fields) for better quality
+
+**Alternative Considered (Rejected):**
+- **Channel Packing:** Store 4 monochrome glyphs in R, G, B, A channels
+  - ❌ Bin packing becomes 4D (x, y, width, height, channel)
+  - ❌ Shader must branch to select correct channel
+  - ❌ Can't mix with emoji
+
+**Texture Format:**
+```rust
+wgpu::TextureFormat::Rgba8Unorm
+```
+
+**Shader Handling:**
+```wgsl
+// Instance data includes glyph type flag
+struct TextInstance {
+    position: vec2<f32>,
+    uv_min: vec2<f32>,
+    uv_max: vec2<f32>,
+    color: vec4<f32>,
+    glyph_type: u32,  // 0 = monochrome, 1 = color emoji
+}
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let sampled = textureSample(atlas, atlas_sampler, in.uv);
+
+    if (in.glyph_type == 0u) {
+        // Monochrome text: use alpha channel, apply color
+        return vec4(in.color.rgb, in.color.a * sampled.a);
+    } else {
+        // Color emoji: use RGB directly, multiply alpha
+        return vec4(sampled.rgb, sampled.a * in.color.a);
+    }
+}
+```
+
+---
+
+#### Multi-Page Atlas with Generational Cleanup
+
+**Problem:** Single large texture wastes memory when fragmented and can't be evicted if one glyph is still in use.
+
+**Solution:** Multi-page atlas where each "page" is a texture layer in a `TEXTURE_2D_ARRAY`.
 
 ```rust
 pub struct GlyphAtlas {
-    /// GPU texture (e.g., 2048×2048 RGBA)
+    /// Texture array (each layer is 2048×2048 RGBA8)
     texture: wgpu::Texture,
     texture_view: wgpu::TextureView,
 
-    /// Current packing state
-    allocator: etagere::AtlasAllocator,
+    /// One allocator per page
+    pages: Vec<GlyphPage>,
 
-    /// Glyph cache (font, size, char) -> UV coords
-    cache: HashMap<GlyphKey, UvRect>,
+    /// Cache: (font, size, char) -> (page_index, uv_rect)
+    cache: HashMap<GlyphKey, GlyphLocation>,
 
-    /// Needs upload this frame
-    pending_uploads: Vec<(Rect, Vec<u8>)>,
+    /// Frame counter for LRU eviction
+    current_frame: u64,
+}
+
+pub struct GlyphPage {
+    /// Bin packer for this page
+    allocator: etagere::BucketedAtlasAllocator,
+
+    /// Page index in texture array
+    layer_index: u32,
+
+    /// Last frame any glyph on this page was used
+    last_used_frame: u64,
+
+    /// Number of active glyphs
+    active_glyph_count: usize,
 }
 
 #[derive(Hash, Eq, PartialEq)]
 pub struct GlyphKey {
     font_id: FontId,
-    size: u32,           // Fixed-point font size
+    size_bits: u32,      // Fixed-point font size (e.g., 16.0 = 16384)
     character: char,
-    subpixel_x: u8,      // Subpixel positioning
+    subpixel_offset: u8, // 0-3 for subpixel positioning
 }
 
-pub struct UvRect {
-    min: Vector,  // Top-left UV
-    max: Vector,  // Bottom-right UV
+pub struct GlyphLocation {
+    page_index: u32,
+    uv_rect: UvRect,
+    last_used_frame: u64,
 }
 ```
 
-**Rendering Pipeline:**
+**Why `etagere::BucketedAtlasAllocator`?**
+- Designed by Mozilla for WebRender (used in Firefox)
+- **Shelf packing algorithm:** Optimized for glyphs (similar heights)
+- Extremely fast (O(1) for typical cases)
+- Handles thousands of allocations efficiently
+
+**Page Lifecycle:**
+
+1. **Creation:** Start with Page 0 (2048×2048)
+2. **Filling:** As glyphs are added, `etagere` finds space
+3. **90% Full:** Create Page 1 (new layer in texture array)
+4. **Fragmentation:** If Page 0 has <10% active glyphs, mark for compaction
+5. **Compaction:** Copy active glyphs to newer page, update UVs
+6. **Eviction:** Delete old page entirely
+
+**Memory Budget:**
+- **Start:** 1 page × 2048×2048 × 4 bytes = 16 MB
+- **Typical:** 2-3 pages = 48 MB (supports thousands of glyphs)
+- **Max:** 8 pages = 128 MB (very large UIs with CJK text)
+
+---
+
+#### Eviction Strategy: Lazy LRU
+
+**Approach:** Track last-used frame per glyph, evict Least Recently Used when space is needed.
+
+**Why Not Ref Counting?**
+- Too expensive to increment/decrement for every glyph every frame
+- Doesn't handle "zombie" glyphs well (never freed if count never reaches 0)
+
+**Frame-Based Tracking:**
 
 ```rust
+impl GlyphAtlas {
+    /// Called every frame by event loop
+    pub fn begin_frame(&mut self) {
+        self.current_frame += 1;
+    }
+
+    /// Called when a glyph is actually used in rendering
+    pub fn mark_glyph_used(&mut self, key: &GlyphKey) {
+        if let Some(location) = self.cache.get_mut(key) {
+            location.last_used_frame = self.current_frame;
+
+            // Update page's last-used frame
+            if let Some(page) = self.pages.get_mut(location.page_index as usize) {
+                page.last_used_frame = self.current_frame;
+            }
+        }
+    }
+
+    /// Lazy cleanup: only when we need space
+    fn ensure_space(&mut self, needed: Size) -> Result<u32> {
+        // Try to find space in existing pages
+        for (i, page) in self.pages.iter_mut().enumerate() {
+            if let Some(allocation) = page.allocator.allocate(needed) {
+                return Ok(i as u32);
+            }
+        }
+
+        // All pages full - check if we can compact
+        if let Some(victim_page) = self.find_compactable_page() {
+            self.compact_page(victim_page)?;
+            return self.ensure_space(needed); // Retry
+        }
+
+        // Create new page
+        self.add_new_page()
+    }
+
+    fn find_compactable_page(&self) -> Option<usize> {
+        const MIN_AGE_FRAMES: u64 = 300; // ~5 seconds at 60fps
+        const MAX_UTILIZATION: f32 = 0.1; // <10% active
+
+        self.pages.iter()
+            .enumerate()
+            .filter(|(_, page)| {
+                let age = self.current_frame - page.last_used_frame;
+                let utilization = page.active_glyph_count as f32 / page.allocator.capacity() as f32;
+                age > MIN_AGE_FRAMES && utilization < MAX_UTILIZATION
+            })
+            .map(|(i, _)| i)
+            .next()
+    }
+
+    fn compact_page(&mut self, page_index: usize) {
+        // 1. Find all glyphs on this page
+        let glyphs_to_migrate: Vec<_> = self.cache.iter()
+            .filter(|(_, loc)| loc.page_index == page_index as u32)
+            .map(|(key, _)| key.clone())
+            .collect();
+
+        // 2. Migrate to newer pages
+        for key in glyphs_to_migrate {
+            // Re-rasterize and allocate on a different page
+            self.evict_glyph(&key);
+            // Next draw will re-cache it on a new page
+        }
+
+        // 3. Clear the old page (could reuse or delete)
+        self.pages[page_index].allocator.clear();
+        self.pages[page_index].active_glyph_count = 0;
+    }
+}
+```
+
+**Alternative Strategy (Simpler, Used in Phase 3.1):**
+For the initial implementation, we can use a simpler approach:
+- Start with one page
+- When full, create a new page
+- Never evict (rely on texture array growth)
+- Defer compaction to Phase 3.2+
+
+---
+
+### cosmic-text Integration
+
+**cosmic-text's Role:**
+
+1. **Font Discovery:** Uses `fontdb` to find system fonts
+2. **Font Fallback:** Automatically finds fonts for characters not in primary font
+3. **Text Shaping:** Uses `rustybuzz` (HarfBuzz) for complex scripts (Arabic, Indic, ligatures)
+4. **Layout:** Handles line breaking, word wrapping, alignment
+5. **Rasterization:** `SwashCache` converts vector fonts to bitmaps
+
+**What We Implement:**
+
+1. **Atlas Management:** GPU texture allocation via `etagere`
+2. **GPU Upload:** `wgpu::Queue::write_texture`
+3. **UV Mapping:** Store texture coordinates for each glyph
+4. **Batching:** Collect all glyphs into instance buffer
+5. **Rendering:** Single draw call for all text
+
+**The Bridge: SwashCache**
+
+```rust
+use cosmic_text::{FontSystem, SwashCache, Buffer, Attrs};
+
+pub struct TextRenderer {
+    /// cosmic-text systems
+    font_system: FontSystem,
+    swash_cache: SwashCache,
+
+    /// Our GPU atlas
+    glyph_atlas: GlyphAtlas,
+
+    /// Batched instances
+    instances: Vec<TextInstance>,
+}
+
+impl TextRenderer {
+    pub fn draw_text(&mut self, buffer: &Buffer, x: f32, y: f32, color: Color) {
+        // 1. Iterate through shaped glyphs from cosmic-text
+        for run in buffer.layout_runs() {
+            for glyph in run.glyphs {
+                let key = GlyphKey {
+                    font_id: glyph.font_id,
+                    size_bits: glyph.font_size.to_bits(),
+                    character: glyph.character,
+                    subpixel_offset: (glyph.x_offset.fract() * 4.0) as u8,
+                };
+
+                // 2. Check if glyph is in atlas
+                let location = match self.glyph_atlas.get(&key) {
+                    Some(loc) => {
+                        self.glyph_atlas.mark_glyph_used(&key);
+                        loc
+                    },
+                    None => {
+                        // 3. Rasterize using SwashCache
+                        let image = self.swash_cache.get_image(
+                            &self.font_system,
+                            glyph.cache_key
+                        )?;
+
+                        // 4. Upload to atlas
+                        let location = self.glyph_atlas.insert(
+                            &key,
+                            &image.data,
+                            image.placement.width,
+                            image.placement.height,
+                            image.content == SwashContent::Color, // emoji flag
+                        )?;
+
+                        location
+                    }
+                };
+
+                // 5. Add instance for rendering
+                self.instances.push(TextInstance {
+                    position: [x + glyph.x, y + glyph.y],
+                    uv_min: [location.uv_rect.min.x, location.uv_rect.min.y],
+                    uv_max: [location.uv_rect.max.x, location.uv_rect.max.y],
+                    color: color.to_array(),
+                    glyph_type: if location.is_color { 1 } else { 0 },
+                });
+            }
+        }
+    }
+
+    pub fn flush(&mut self, render_pass: &mut wgpu::RenderPass) {
+        // Upload instance buffer and draw all text in one call
+        // ... (similar to RectRenderer pattern)
+    }
+}
+```
+
+---
+
+### Rendering Pipeline
+
+**Instance Format:**
+
+```rust
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct TextInstance {
+    pub position: [f32; 2],      // World-space position
+    pub glyph_size: [f32; 2],    // Width and height in pixels
+    pub uv_min: [f32; 2],        // Top-left UV in atlas
+    pub uv_max: [f32; 2],        // Bottom-right UV in atlas
+    pub color: [f32; 4],         // RGBA color
+    pub page_index: u32,         // Which layer in texture array
+    pub glyph_type: u32,         // 0 = mono, 1 = color
+    pub clip_rect: [f32; 4],     // For clipping
+}
+```
+
+**Shader (WGSL):**
+
+```wgsl
 // Vertex shader
 struct VertexInput {
     @builtin(vertex_index) vertex_idx: u32,
-    @location(0) instance_pos: vec2<f32>,
-    @location(1) instance_uv_min: vec2<f32>,
-    @location(2) instance_uv_max: vec2<f32>,
-    @location(3) instance_color: vec4<f32>,
+    @location(0) position: vec2<f32>,
+    @location(1) glyph_size: vec2<f32>,
+    @location(2) uv_min: vec2<f32>,
+    @location(3) uv_max: vec2<f32>,
+    @location(4) color: vec4<f32>,
+    @location(5) page_index: u32,
+    @location(6) glyph_type: u32,
+    @location(7) clip_rect: vec4<f32>,
 }
+
+struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) color: vec4<f32>,
+    @location(2) page_index: u32,
+    @location(3) glyph_type: u32,
+    @location(4) world_pos: vec2<f32>,
+    @location(5) clip_rect: vec4<f32>,
+}
+
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
+@group(1) @binding(0) var atlas: texture_2d_array<f32>;
+@group(1) @binding(1) var atlas_sampler: sampler;
 
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
-    // Generate quad corners from vertex index
-    let positions = array<vec2<f32>, 4>(
+    // Generate quad (0,0), (1,0), (0,1), (1,1)
+    let corners = array<vec2<f32>, 4>(
         vec2(0.0, 0.0), vec2(1.0, 0.0),
         vec2(0.0, 1.0), vec2(1.0, 1.0),
     );
+    let corner = corners[in.vertex_idx];
 
-    let local_pos = positions[in.vertex_idx];
-    let world_pos = in.instance_pos + local_pos * glyph_size;
+    // World position
+    let world_pos = in.position + corner * in.glyph_size;
+
+    // Clip space
+    let clip_pos = vec2(
+        (world_pos.x / uniforms.screen_size.x) * 2.0 - 1.0,
+        1.0 - (world_pos.y / uniforms.screen_size.y) * 2.0,
+    );
 
     var out: VertexOutput;
-    out.position = projection * vec4(world_pos, 0.0, 1.0);
-    out.uv = mix(in.instance_uv_min, in.instance_uv_max, local_pos);
-    out.color = in.instance_color;
+    out.position = vec4(clip_pos, 0.0, 1.0);
+    out.uv = mix(in.uv_min, in.uv_max, corner);
+    out.color = in.color;
+    out.page_index = in.page_index;
+    out.glyph_type = in.glyph_type;
+    out.world_pos = world_pos;
+    out.clip_rect = in.clip_rect;
     return out;
 }
 
-// Fragment shader
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let alpha = textureSample(atlas, atlas_sampler, in.uv).r;
-    return vec4(in.color.rgb, in.color.a * alpha);
+    // Clipping test
+    let clip_min = in.clip_rect.xy;
+    let clip_max = in.clip_rect.xy + in.clip_rect.zw;
+    if (in.world_pos.x < clip_min.x || in.world_pos.x > clip_max.x ||
+        in.world_pos.y < clip_min.y || in.world_pos.y > clip_max.y) {
+        discard;
+    }
+
+    // Sample atlas (texture array layer = page_index)
+    let sampled = textureSample(atlas, atlas_sampler, in.uv, in.page_index);
+
+    // Different handling for monochrome vs color
+    if (in.glyph_type == 0u) {
+        // Monochrome: use alpha channel, apply color
+        return vec4(in.color.rgb, in.color.a * sampled.a);
+    } else {
+        // Color emoji: use RGB, multiply alpha
+        return vec4(sampled.rgb, sampled.a * in.color.a);
+    }
 }
 ```
 
 **Performance:**
-- All text in UI = 1 draw call
-- GPU instancing: 1 quad per glyph
-- Atlas caching: Rasterize once, use forever
-- Subpixel positioning for crisp text
+- ✅ All text in UI = 1 draw call (instanced rendering)
+- ✅ GPU-side quad generation (no vertex buffer)
+- ✅ Texture array allows text + emoji without rebinding
+- ✅ Atlas caching: rasterize once, reuse forever
+- ✅ Subpixel positioning for crisp rendering
 
-**Atlas Growth:**
+---
 
-```rust
-impl GlyphAtlas {
-    fn ensure_capacity(&mut self, needed: Size) -> Result<()> {
-        if !self.allocator.can_fit(needed) {
-            // Double atlas size (512 → 1024 → 2048 → 4096)
-            let new_size = self.texture.size().width * 2;
+### Implementation Phases
 
-            // Create new texture
-            let new_texture = device.create_texture(&wgpu::TextureDescriptor {
-                size: wgpu::Extent3d { width: new_size, height: new_size, depth_or_array_layers: 1 },
-                format: wgpu::TextureFormat::R8Unorm,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                ..Default::default()
-            });
+The text rendering system will be implemented in three phases:
 
-            // Copy old atlas to new (larger) atlas
-            encoder.copy_texture_to_texture(
-                self.texture.as_image_copy(),
-                new_texture.as_image_copy(),
-                self.texture.size(),
-            );
+#### Phase 3.1: Character Sheet Foundation (1-2 weeks)
+**Goal:** Render individual characters with font discovery and fallback
 
-            self.texture = new_texture;
-            self.allocator = etagere::AtlasAllocator::new(etagere::Size::new(new_size, new_size));
-        }
+**Deliverables:**
+- `GlyphAtlas` with single-page RGBA8 texture
+- `etagere` bin packing integration
+- `cosmic-text` font system setup
+- Simple glyph rasterization (no shaping yet)
+- TextRenderer with instanced quad rendering
+- Can draw "Hello" with each character positioned manually
 
-        Ok(())
-    }
-}
-```
+**No Layout/Shaping:** Just draw individual glyphs at specified positions
+
+#### Phase 3.2: Text Shaping (1 week)
+**Goal:** Proper text layout with ligatures, kerning, complex scripts
+
+**Deliverables:**
+- Integrate `cosmic-text` shaping (`Buffer` + `LayoutRun`)
+- Handle ligatures (e.g., "ff", "fi", "=>")
+- Support complex scripts (Arabic joining, Indic conjuncts)
+- Bidirectional text (mix LTR/RTL)
+- Multi-font fallback (automatic for emoji, CJK, etc.)
+
+**Result:** Can draw shaped text strings with proper rendering
+
+#### Phase 3.3: Text Measurement & Wrapping (1 week)
+**Goal:** Integrate with layout system, dynamic sizing
+
+**Deliverables:**
+- Implement `Element::measure()` for text elements
+- Text wrapping based on available width
+- Line breaking (word boundaries, hyphenation)
+- Text truncation with ellipsis
+- Multi-line text support
+- `TextLabel` element that auto-sizes
+
+**Result:** Text elements that properly integrate with Taffy layout
+
+---
+
+### Open Questions for Phase 3
+
+1. **MSDF (Multi-channel Signed Distance Fields)?**
+   - **Pro:** Scalable text (no blur at high DPI)
+   - **Con:** More complex shader, harder to debug
+   - **Decision:** Defer to Phase 4, use bitmap for Phase 3
+
+2. **Subpixel Antialiasing?**
+   - **Pro:** Crisper text on LCD screens
+   - **Con:** Platform-specific, doesn't work with transparency
+   - **Decision:** Support greyscale AA only, subpixel is Phase 4+
+
+3. **Font Hinting?**
+   - **Pro:** Better alignment to pixel grid at small sizes
+   - **Con:** Inconsistent across platforms
+   - **Decision:** Let `swash` handle it (default behavior)
+
+4. **Text Selection & Editing?**
+   - **Out of scope** for Phase 3 (rendering only)
+   - Phase 5+ will add `TextInput` element with editing
 
 ---
 
