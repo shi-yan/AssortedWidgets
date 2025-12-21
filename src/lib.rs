@@ -34,6 +34,7 @@ pub mod paint;
 pub mod platform;
 pub mod render;
 pub mod scene_graph;
+pub mod text;
 pub mod types;
 
 // Re-export public API

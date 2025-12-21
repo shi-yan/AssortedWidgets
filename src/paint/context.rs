@@ -1,4 +1,5 @@
 use crate::paint::primitives::{Color, RectInstance};
+use crate::text::TextInstance;
 use crate::types::{Point, Rect, Size};
 
 /// Calculate the intersection of two rectangles
@@ -22,6 +23,9 @@ pub struct PaintContext {
     /// Collected rectangle instances
     rects: Vec<RectInstance>,
 
+    /// Collected text glyph instances
+    text: Vec<TextInstance>,
+
     /// Window size (for projection matrix)
     window_size: Size,
 
@@ -34,6 +38,7 @@ impl PaintContext {
     pub fn new(window_size: Size) -> Self {
         PaintContext {
             rects: Vec::new(),
+            text: Vec::new(),
             window_size,
             clip_stack: Vec::new(),
         }
@@ -81,14 +86,68 @@ impl PaintContext {
         self.rects.push(instance);
     }
 
+    /// Draw a single text glyph
+    ///
+    /// For Phase 3.1, this is used to draw individual characters manually positioned.
+    /// Phase 3.2 will add higher-level text rendering with shaping.
+    pub fn draw_glyph(
+        &mut self,
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+        uv_min_x: f32,
+        uv_min_y: f32,
+        uv_max_x: f32,
+        uv_max_y: f32,
+        color: Color,
+        page_index: u32,
+        is_color: bool,
+    ) {
+        // Get current clip rect or use full window
+        let clip = self.current_clip_rect().unwrap_or_else(|| {
+            Rect::new(Point::new(0.0, 0.0), self.window_size)
+        });
+
+        let clip_rect = [
+            clip.origin.x as f32,
+            clip.origin.y as f32,
+            clip.size.width as f32,
+            clip.size.height as f32,
+        ];
+
+        let instance = TextInstance::new(
+            x,
+            y,
+            width,
+            height,
+            uv_min_x,
+            uv_min_y,
+            uv_max_x,
+            uv_max_y,
+            color,
+            page_index,
+            is_color,
+            clip_rect,
+        );
+
+        self.text.push(instance);
+    }
+
     /// Get the collected rectangle instances
     pub fn rect_instances(&self) -> &[RectInstance] {
         &self.rects
     }
 
+    /// Get the collected text glyph instances
+    pub fn text_instances(&self) -> &[TextInstance] {
+        &self.text
+    }
+
     /// Clear all collected primitives
     pub fn clear(&mut self) {
         self.rects.clear();
+        self.text.clear();
     }
 
     /// Get window size
