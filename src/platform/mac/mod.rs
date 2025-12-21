@@ -1,62 +1,69 @@
-//! macOS platform implementation using Cocoa/AppKit
+//! macOS platform implementation using objc2-app-kit
 
 mod window;
 
 pub use window::MacWindow;
 
-use cocoa::appkit::NSApplication;
-use cocoa::base::{id, nil, BOOL, YES};
-use objc::declare::ClassDecl;
-use objc::runtime::{Class, Object, Sel};
-use objc::{class, msg_send, sel, sel_impl};
+use objc2::rc::Retained;
+use objc2::runtime::ProtocolObject;
+use objc2::{define_class, msg_send, MainThreadOnly};
+use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
+use objc2_foundation::{MainThreadMarker, NSObject, NSObjectProtocol};
 use std::sync::Once;
 
 static INIT: Once = Once::new();
+
+// ============================================================================
+// Application Delegate
+// ============================================================================
+
+define_class!(
+    // SAFETY:
+    // - The superclass NSObject does not have any subclassing requirements.
+    // - `AppDelegate` does not implement `Drop`.
+    #[unsafe(super = NSObject)]
+    #[thread_kind = MainThreadOnly]
+    #[name = "AssortedWidgetsAppDelegate"]
+    struct AppDelegate;
+
+    // SAFETY: `NSObjectProtocol` has no safety requirements.
+    unsafe impl NSObjectProtocol for AppDelegate {}
+
+    // SAFETY: `NSApplicationDelegate` has no safety requirements.
+    unsafe impl NSApplicationDelegate for AppDelegate {
+        #[unsafe(method(applicationShouldTerminateAfterLastWindowClosed:))]
+        fn application_should_terminate_after_last_window_closed(
+            &self,
+            _sender: &NSApplication,
+        ) -> bool {
+            true
+        }
+    }
+);
+
+impl AppDelegate {
+    fn new(mtm: MainThreadMarker) -> Retained<Self> {
+        // SAFETY: The signature of `NSObject`'s `init` method is correct.
+        unsafe { msg_send![Self::alloc(mtm), init] }
+    }
+}
 
 /// Initialize macOS application
 /// Must be called before creating any windows
 pub fn init() {
     INIT.call_once(|| {
-        unsafe {
-            // Initialize NSApplication
-            let app = NSApplication::sharedApplication(nil);
-            app.setActivationPolicy_(
-                cocoa::appkit::NSApplicationActivationPolicy::NSApplicationActivationPolicyRegular,
-            );
+        let mtm = MainThreadMarker::new().expect("Must be called on main thread");
 
-            // Set up application delegate to quit when last window closes
-            let delegate = create_app_delegate();
-            let _: () = msg_send![app, setDelegate: delegate];
-        }
+        // Initialize NSApplication
+        let app = NSApplication::sharedApplication(mtm);
+        app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+
+        // Set up application delegate to quit when last window closes
+        let delegate = AppDelegate::new(mtm);
+        let delegate_obj = ProtocolObject::from_ref(&*delegate);
+        app.setDelegate(Some(delegate_obj));
+
+        // Keep delegate alive
+        std::mem::forget(delegate);
     });
-}
-
-/// Create NSApplicationDelegate that quits when all windows close
-unsafe fn create_app_delegate() -> id {
-    let delegate_class = get_app_delegate_class();
-    let delegate: id = msg_send![delegate_class, new];
-    delegate
-}
-
-fn get_app_delegate_class() -> &'static Class {
-    static mut DELEGATE_CLASS: Option<&'static Class> = None;
-    static INIT: Once = Once::new();
-
-    INIT.call_once(|| unsafe {
-        let superclass = class!(NSObject);
-        let mut decl = ClassDecl::new("AssortedWidgetsAppDelegate", superclass).unwrap();
-
-        decl.add_method(
-            sel!(applicationShouldTerminateAfterLastWindowClosed:),
-            app_should_terminate as extern "C" fn(&Object, Sel, id) -> BOOL,
-        );
-
-        DELEGATE_CLASS = Some(decl.register());
-    });
-
-    unsafe { DELEGATE_CLASS.unwrap() }
-}
-
-extern "C" fn app_should_terminate(_this: &Object, _sel: Sel, _sender: id) -> BOOL {
-    YES // Quit when all windows are closed
 }

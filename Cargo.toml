@@ -13,15 +13,17 @@ path = "src/main.rs"
 
 [dependencies]
 euclid = { version = "0.22", features = ["serde"] }
-wgpu = "23.0"
-pollster = "0.3"
+wgpu = "28.0"
+pollster = "0.4"
 raw-window-handle = "0.6"
 taffy = "0.9"
-bytemuck = { version = "1.14", features = ["derive"] }
+bytemuck = { version = "1.24", features = ["derive"] }
+cosmic-text = "0.15.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.25"
-objc = "0.2"
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSWindow", "NSView", "NSEvent", "NSScreen", "NSResponder"] }
+objc2-foundation = { version = "0.3", features = ["NSString", "NSDate", "NSRunLoop", "NSGeometry"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("cargo-clippy"))'] }

@@ -159,11 +159,9 @@ impl GuiEventLoop {
     /// This function never returns on macOS.
     #[cfg(target_os = "macos")]
     pub fn run(&mut self) -> ! {
-        use cocoa::appkit::NSApp;
-        use cocoa::base::{id, nil};
-        use cocoa::foundation::NSDefaultRunLoopMode;
-        
-        use objc::{class, msg_send, sel, sel_impl};
+        use objc2::rc::autoreleasepool;
+        use objc2_app_kit::{NSApplication, NSEventMask};
+        use objc2_foundation::{MainThreadMarker, NSDate, NSDefaultRunLoopMode, NSRunLoop};
 
         println!("Starting manual event loop...");
 
@@ -172,32 +170,36 @@ impl GuiEventLoop {
             window.invalidate();
         }
 
+        let mtm = MainThreadMarker::new().expect("Must be on main thread");
+
         loop {
-            unsafe {
-                // Process NSApplication events first
-                let app = NSApp();
-                let until_date: id = msg_send![class!(NSDate), distantPast];
+            autoreleasepool(|_| {
+                unsafe {
+                    // Process NSApplication events first
+                    let app = NSApplication::sharedApplication(mtm);
+                    let until_date = NSDate::distantPast();
 
-                loop {
-                    let event: id = msg_send![app,
-                        nextEventMatchingMask:0xffffffffu64
-                        untilDate:until_date
-                        inMode:NSDefaultRunLoopMode
-                        dequeue:1u8
-                    ];
+                    loop {
+                        let event = app.nextEventMatchingMask_untilDate_inMode_dequeue(
+                            NSEventMask::Any,
+                            Some(&until_date),
+                            NSDefaultRunLoopMode,
+                            true,
+                        );
 
-                    if event == nil {
-                        break;
+                        if event.is_none() {
+                            break;
+                        }
+
+                        app.sendEvent(&event.unwrap());
                     }
 
-                    let _: () = msg_send![app, sendEvent: event];
+                    // Now pump the runloop briefly to handle timers/sources
+                    let run_loop = NSRunLoop::currentRunLoop();
+                    let date = NSDate::dateWithTimeIntervalSinceNow(0.001);
+                    run_loop.runMode_beforeDate(NSDefaultRunLoopMode, &date);
                 }
-
-                // Now pump the runloop briefly to handle timers/sources
-                let run_loop: id = msg_send![class!(NSRunLoop), currentRunLoop];
-                let date: id = msg_send![class!(NSDate), dateWithTimeIntervalSinceNow: 0.001f64];
-                let _: () = msg_send![run_loop, runMode:NSDefaultRunLoopMode beforeDate:date];
-            }
+            });
 
             // Process all queued events posted by platform callbacks
             loop {
@@ -381,10 +383,12 @@ impl GuiEventLoop {
                         }),
                         store: wgpu::StoreOp::Store,
                     },
+                    depth_slice: None,
                 })],
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             // Render all rectangles

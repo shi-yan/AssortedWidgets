@@ -44,6 +44,19 @@ pub struct WindowCallbacks {
     pub active_status_change: Option<Box<dyn FnMut(bool) + Send>>,
 }
 
+impl std::fmt::Debug for WindowCallbacks {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WindowCallbacks")
+            .field("input", &self.input.as_ref().map(|_| "<callback>"))
+            .field("request_frame", &self.request_frame.as_ref().map(|_| "<callback>"))
+            .field("resize", &self.resize.as_ref().map(|_| "<callback>"))
+            .field("moved", &self.moved.as_ref().map(|_| "<callback>"))
+            .field("close", &self.close.as_ref().map(|_| "<callback>"))
+            .field("active_status_change", &self.active_status_change.as_ref().map(|_| "<callback>"))
+            .finish()
+    }
+}
+
 impl Default for WindowCallbacks {
     fn default() -> Self {
         Self {

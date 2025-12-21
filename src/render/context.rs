@@ -20,7 +20,7 @@ impl RenderContext {
     /// Use `pollster::block_on(RenderContext::new())` in main() for simple blocking init.
     pub async fn new() -> Result<Self, String> {
         // Create wgpu instance
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
@@ -33,6 +33,7 @@ impl RenderContext {
                 force_fallback_adapter: false,
             })
             .await
+            .ok()
             .ok_or_else(|| "Failed to find a suitable GPU adapter".to_string())?;
 
         // Log adapter info
@@ -41,15 +42,14 @@ impl RenderContext {
 
         // Request device and queue
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: Some("AssortedWidgets Device"),
-                    required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default(),
-                    memory_hints: Default::default(),
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("AssortedWidgets Device"),
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::default(),
+                memory_hints: Default::default(),
+                experimental_features: Default::default(),
+                trace: Default::default(),
+            })
             .await
             .map_err(|e| format!("Failed to create device: {}", e))?;
 
