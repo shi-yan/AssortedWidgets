@@ -7,6 +7,9 @@ use std::collections::HashMap;
 use etagere::BucketedAtlasAllocator;
 use wgpu;
 
+/// Padding around each glyph in pixels to prevent bleeding
+const GLYPH_PADDING: i32 = 2;
+
 /// UV rectangle in normalized coordinates (0.0 to 1.0)
 #[derive(Debug, Clone, Copy)]
 pub struct UvRect {
@@ -129,7 +132,7 @@ impl GlyphAtlas {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
 
@@ -212,8 +215,11 @@ impl GlyphAtlas {
             return Ok(*location);
         }
 
-        // Try to allocate space in existing pages
-        let allocation_size = etagere::Size::new(width as i32, height as i32);
+        // Try to allocate space in existing pages (with padding)
+        let allocation_size = etagere::Size::new(
+            width as i32 + GLYPH_PADDING * 2,
+            height as i32 + GLYPH_PADDING * 2,
+        );
         let mut allocation_result = None;
 
         for (page_idx, page) in self.pages.iter_mut().enumerate() {
@@ -254,15 +260,15 @@ impl GlyphAtlas {
             }
         };
 
-        // Upload texture data
+        // Upload texture data (offset by padding to leave border blank)
         let page = &mut self.pages[page_idx];
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d {
-                    x: allocation.rectangle.min.x as u32,
-                    y: allocation.rectangle.min.y as u32,
+                    x: (allocation.rectangle.min.x + GLYPH_PADDING) as u32,
+                    y: (allocation.rectangle.min.y + GLYPH_PADDING) as u32,
                     z: page.layer_index,
                 },
                 aspect: wgpu::TextureAspect::All,
@@ -280,15 +286,15 @@ impl GlyphAtlas {
             },
         );
 
-        // Calculate UV coordinates
+        // Calculate UV coordinates (excluding padding)
         let inv_width = 1.0 / self.page_size as f32;
         let inv_height = 1.0 / self.page_size as f32;
 
         let uv_rect = UvRect {
-            min_x: allocation.rectangle.min.x as f32 * inv_width,
-            min_y: allocation.rectangle.min.y as f32 * inv_height,
-            max_x: allocation.rectangle.max.x as f32 * inv_width,
-            max_y: allocation.rectangle.max.y as f32 * inv_height,
+            min_x: (allocation.rectangle.min.x + GLYPH_PADDING) as f32 * inv_width,
+            min_y: (allocation.rectangle.min.y + GLYPH_PADDING) as f32 * inv_height,
+            max_x: (allocation.rectangle.max.x - GLYPH_PADDING) as f32 * inv_width,
+            max_y: (allocation.rectangle.max.y - GLYPH_PADDING) as f32 * inv_height,
         };
 
         // Create glyph location
@@ -326,6 +332,125 @@ impl GlyphAtlas {
             page_size: self.page_size,
             current_frame: self.current_frame,
         }
+    }
+
+    /// Dump a specific page of the atlas to a PNG file for debugging
+    pub fn dump_page_to_png(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        page_index: u32,
+        path: &str,
+    ) -> Result<(), String> {
+        if page_index >= self.pages.len() as u32 {
+            return Err(format!(
+                "Page index {} out of range (have {} pages)",
+                page_index,
+                self.pages.len()
+            ));
+        }
+
+        let size = self.page_size as u32;
+        let bytes_per_row = 4 * size; // RGBA8
+        let padded_bytes_per_row = {
+            let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+            let padding = (align - (bytes_per_row % align)) % align;
+            bytes_per_row + padding
+        };
+
+        // Create a buffer to copy texture data to
+        let buffer_size = (padded_bytes_per_row * size) as u64;
+        let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Atlas Dump Buffer"),
+            size: buffer_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        // Create command encoder and copy texture to buffer
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Atlas Dump Encoder"),
+        });
+
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: page_index,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &output_buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_bytes_per_row),
+                    rows_per_image: Some(size),
+                },
+            },
+            wgpu::Extent3d {
+                width: size,
+                height: size,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        queue.submit(Some(encoder.finish()));
+
+        // Map the buffer and read the data
+        let buffer_slice = output_buffer.slice(..);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+            sender.send(result).unwrap();
+        });
+
+        // Poll device until buffer is ready
+        loop {
+            let _ = device.poll(wgpu::PollType::Poll);
+            match receiver.try_recv() {
+                Ok(result) => {
+                    result.map_err(|e| format!("Failed to map buffer: {:?}", e))?;
+                    break;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    // Not ready yet, sleep briefly
+                    std::thread::sleep(std::time::Duration::from_micros(100));
+                }
+                Err(e) => {
+                    return Err(format!("Failed to receive buffer map result: {}", e));
+                }
+            }
+        }
+
+        // Read the data
+        let data = buffer_slice.get_mapped_range();
+
+        // Convert to unpadded RGBA8 data
+        let mut image_data = Vec::with_capacity((size * size * 4) as usize);
+        for row in 0..size {
+            let row_start = (row * padded_bytes_per_row) as usize;
+            let row_end = row_start + bytes_per_row as usize;
+            image_data.extend_from_slice(&data[row_start..row_end]);
+        }
+
+        drop(data);
+        output_buffer.unmap();
+
+        // Save as PNG using the image crate
+        image::save_buffer(
+            path,
+            &image_data,
+            size,
+            size,
+            image::ColorType::Rgba8,
+        )
+        .map_err(|e| format!("Failed to save PNG: {}", e))?;
+
+        println!("Atlas page {} saved to {}", page_index, path);
+        Ok(())
     }
 }
 

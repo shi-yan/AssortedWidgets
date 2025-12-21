@@ -5,7 +5,8 @@ use crate::layout::LayoutManager;
 use crate::paint::{PaintContext, RectRenderer};
 use crate::render::{RenderContext, WindowRenderer};
 use crate::scene_graph::SceneGraph;
-use crate::types::Size;
+use crate::text::{GlyphAtlas, FontSystemWrapper, TextRenderer, TextEngine, TextLayout, TextStyle, Truncate};
+use crate::types::{Size, Point};
 
 #[cfg(target_os = "macos")]
 use crate::platform::{PlatformInput, PlatformWindow, PlatformWindowImpl, WindowCallbacks, WindowOptions};
@@ -22,6 +23,14 @@ pub struct GuiEventLoop {
     scene_graph: SceneGraph,
     layout_manager: LayoutManager,
     rect_renderer: Option<RectRenderer>,
+    text_renderer: Option<TextRenderer>,
+    glyph_atlas: Option<GlyphAtlas>,
+    font_system: FontSystemWrapper,
+    // Phase 3.2: Text engine with dual-mode caching
+    text_engine: TextEngine,
+    // Demo state for text rendering test
+    demo_layouts: Option<DemoTextLayouts>,
+    demo_start_time: std::time::Instant,
     window_size: Size,
     needs_layout: bool,
     render_context: Arc<RenderContext>,
@@ -31,6 +40,13 @@ pub struct GuiEventLoop {
     window: Option<PlatformWindowImpl>,
     #[cfg(target_os = "macos")]
     renderer: Option<WindowRenderer>,
+}
+
+/// Pre-shaped text layouts for demo (low-level API demonstration)
+struct DemoTextLayouts {
+    shaped_text: TextLayout,
+    bidirectional: TextLayout,
+    emoji: TextLayout,
 }
 
 impl GuiEventLoop {
@@ -46,6 +62,12 @@ impl GuiEventLoop {
             scene_graph: SceneGraph::new(),
             layout_manager: LayoutManager::new(),
             rect_renderer: None,  // Created when window is created
+            text_renderer: None,  // Created when window is created
+            glyph_atlas: None,    // Created when window is created
+            font_system: FontSystemWrapper::new(),
+            text_engine: TextEngine::new(),
+            demo_layouts: None,  // Will be initialized after window is created
+            demo_start_time: std::time::Instant::now(),
             window_size: Size::new(800.0, 600.0),  // Default size
             needs_layout: true,
             render_context: Arc::new(render_context),
@@ -80,6 +102,19 @@ impl GuiEventLoop {
 
         // Create rectangle renderer with the surface format
         self.rect_renderer = Some(RectRenderer::new(
+            &self.render_context,
+            renderer.format,
+        ));
+
+        // Create glyph atlas (2048x2048 pages, max 8 pages)
+        self.glyph_atlas = Some(GlyphAtlas::new(
+            &self.render_context.device,
+            2048,
+            8,
+        ));
+
+        // Create text renderer with the surface format
+        self.text_renderer = Some(TextRenderer::new(
             &self.render_context,
             renderer.format,
         ));
@@ -225,6 +260,11 @@ impl GuiEventLoop {
                             rect_renderer.update_screen_size(&self.render_context, bounds.size);
                         }
 
+                        // Update text renderer screen size
+                        if let Some(text_renderer) = self.text_renderer.as_mut() {
+                            text_renderer.update_screen_size(&self.render_context, bounds.size);
+                        }
+
                         // Request redraw after resize
                         if let Some(window) = self.window.as_mut() {
                             window.invalidate();
@@ -363,6 +403,10 @@ impl GuiEventLoop {
             });
         }
 
+        // 2.5. Phase 3.1 Test: Render text manually
+        // This demonstrates English, Chinese, and emoji rendering
+        self.render_test_text(&mut paint_ctx);
+
         // 3. Render batched primitives
         let mut encoder = self.render_context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Scene Encoder"),
@@ -394,6 +438,17 @@ impl GuiEventLoop {
             // Render all rectangles
             if let Some(rect_renderer) = self.rect_renderer.as_mut() {
                 rect_renderer.render(&self.render_context, &mut render_pass, paint_ctx.rect_instances());
+            }
+
+            // Render all text glyphs
+            if let (Some(text_renderer), Some(glyph_atlas)) =
+                (self.text_renderer.as_mut(), self.glyph_atlas.as_ref()) {
+                text_renderer.render(
+                    &self.render_context,
+                    &mut render_pass,
+                    paint_ctx.text_instances(),
+                    glyph_atlas.texture_view(),
+                );
             }
         }
 
@@ -458,5 +513,186 @@ impl GuiEventLoop {
     #[cfg(target_os = "macos")]
     pub fn renderer_mut(&mut self) -> Option<&mut WindowRenderer> {
         self.renderer.as_mut()
+    }
+
+    pub fn glyph_atlas(&self) -> Option<&GlyphAtlas> {
+        self.glyph_atlas.as_ref()
+    }
+
+    pub fn glyph_atlas_mut(&mut self) -> Option<&mut GlyphAtlas> {
+        self.glyph_atlas.as_mut()
+    }
+
+    pub fn font_system(&self) -> &FontSystemWrapper {
+        &self.font_system
+    }
+
+    pub fn font_system_mut(&mut self) -> &mut FontSystemWrapper {
+        &mut self.font_system
+    }
+
+    /// Phase 3.2 Test: Render text using TextEngine and draw_layout()
+    #[cfg(target_os = "macos")]
+    fn render_test_text(&mut self, paint_ctx: &mut PaintContext) {
+        use crate::paint::Color;
+        use crate::text::{TextStyle, Truncate};
+        use crate::types::Point;
+
+        // Early return if text systems aren't ready
+        let (glyph_atlas, queue) = match (self.glyph_atlas.as_mut(), Some(&self.render_context.queue)) {
+            (Some(atlas), Some(q)) => (atlas, q),
+            _ => return,
+        };
+
+        // Begin new frame for both atlas and text engine
+        glyph_atlas.begin_frame();
+        self.text_engine.begin_frame();
+
+        // Log atlas stats at start of frame
+        let stats = glyph_atlas.stats();
+        static mut FRAME_COUNT: u64 = 0;
+        static mut ATLAS_DUMPED: bool = false;
+        unsafe {
+            if FRAME_COUNT % 60 == 0 {  // Log every 60 frames
+                println!("[ATLAS] Frame {}: {} pages, {} glyphs, current frame: {}",
+                    FRAME_COUNT, stats.page_count, stats.total_glyphs, stats.current_frame);
+            }
+
+            // Dump atlas once after we have some glyphs
+            if !ATLAS_DUMPED && stats.total_glyphs >= 6 {
+                println!("[DEBUG] Dumping atlas to PNG...");
+                if let Err(e) = glyph_atlas.dump_page_to_png(
+                    &self.render_context.device,
+                    &self.render_context.queue,
+                    0,  // First page
+                    "atlas_debug.png"
+                ) {
+                    eprintln!("Failed to dump atlas: {}", e);
+                } else {
+                    println!("[DEBUG] Atlas dumped successfully to atlas_debug.png");
+                }
+                ATLAS_DUMPED = true;
+            }
+
+            FRAME_COUNT += 1;
+        }
+
+        // ================================================================
+        // Phase 3.2 Demo: Using TextEngine and draw_layout()
+        // ================================================================
+
+        // Test styles
+        let heading_style = TextStyle::new().size(32.0).bold();
+        let body_style = TextStyle::new().size(18.0);
+        let large_style = TextStyle::new().size(24.0);
+
+        let mut y = 50.0;
+
+        // 1. Basic text with ligatures (demonstrates shaping)
+        let shaped_layout = self.text_engine.create_layout(
+            "The office offers efficient service",  // Tests ligatures: ffi, ff
+            &body_style,
+            None,
+            Truncate::None,
+        );
+        paint_ctx.draw_layout(
+            &shaped_layout,
+            Point::new(40.0, y),
+            Color::WHITE,
+            glyph_atlas,
+            &mut self.font_system,
+            queue,
+        );
+        y += 50.0;
+
+        // 2. Bidirectional multi-language text (English + Hebrew + Arabic + Chinese + Emoji)
+        let bidi_layout = self.text_engine.create_layout(
+            "Hello שלום مرحبا 你好 👋",
+            &large_style,
+            None,
+            Truncate::None,
+        );
+        paint_ctx.draw_layout(
+            &bidi_layout,
+            Point::new(40.0, y),
+            Color { r: 0.5, g: 1.0, b: 0.5, a: 1.0 },
+            glyph_atlas,
+            &mut self.font_system,
+            queue,
+        );
+        y += 60.0;
+
+        // 3. Color emoji test
+        let emoji_layout = self.text_engine.create_layout(
+            "🚀 ⭐ 💡 🎨 🔥 ✨",
+            &heading_style,
+            None,
+            Truncate::None,
+        );
+        paint_ctx.draw_layout(
+            &emoji_layout,
+            Point::new(40.0, y),
+            Color { r: 1.0, g: 1.0, b: 0.5, a: 1.0 },
+            glyph_atlas,
+            &mut self.font_system,
+            queue,
+        );
+        y += 60.0;
+
+        // 4. Text truncation demo
+        let truncate_layout = self.text_engine.create_layout(
+            "This is a very long text that will be truncated",
+            &body_style,
+            Some(250.0),  // Constrained width
+            Truncate::End,
+        );
+        paint_ctx.draw_layout(
+            &truncate_layout,
+            Point::new(40.0, y),
+            Color { r: 1.0, g: 0.8, b: 0.5, a: 1.0 },
+            glyph_atlas,
+            &mut self.font_system,
+            queue,
+        );
+        y += 50.0;
+
+        // 5. Text wrapping (multi-line)
+        let wrap_layout = self.text_engine.create_layout(
+            "This is a longer paragraph that will wrap to multiple lines when it reaches the edge of the container.",
+            &body_style,
+            Some(350.0),  // Constrained width triggers wrapping
+            Truncate::None,
+        );
+        paint_ctx.draw_layout(
+            &wrap_layout,
+            Point::new(40.0, y),
+            Color { r: 0.5, g: 0.8, b: 1.0, a: 1.0 },
+            glyph_atlas,
+            &mut self.font_system,
+            queue,
+        );
+
+        // Display cache stats
+        let engine_stats = self.text_engine.cache_stats();
+        let atlas_stats = glyph_atlas.stats();
+        let stats_text = format!(
+            "TextEngine: {} entries, frame {} | Atlas: {} glyphs, {} pages",
+            engine_stats.entry_count, engine_stats.current_frame,
+            atlas_stats.total_glyphs, atlas_stats.page_count
+        );
+        let stats_layout = self.text_engine.create_layout(
+            &stats_text,
+            &TextStyle::new().size(12.0),
+            None,
+            Truncate::None,
+        );
+        paint_ctx.draw_layout(
+            &stats_layout,
+            Point::new(20.0, self.window_size.height - 30.0),
+            Color { r: 0.7, g: 0.7, b: 0.7, a: 1.0 },
+            glyph_atlas,
+            &mut self.font_system,
+            queue,
+        );
     }
 }

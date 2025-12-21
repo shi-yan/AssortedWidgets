@@ -1609,7 +1609,16 @@ fn fs_main() -> @location(0) vec4<f32> {
 
 ## Text Rendering
 
-### Design Overview: cosmic-text + Multi-Page Glyph Atlas
+### Design Overview: Two-Tier API Architecture
+
+AssortedWidgets provides **two complementary APIs** for text rendering to serve different use cases:
+
+1. **High-Level Managed API**: For simple widgets (buttons, labels) with automatic caching
+2. **Low-Level Manual API**: For advanced widgets (editors, terminals) with explicit control
+
+This dual-layer approach matches how professional graphics engines (Skia, DirectWrite, Core Text) are designed.
+
+#### cosmic-text + Multi-Page Glyph Atlas
 
 AssortedWidgets uses **cosmic-text** as the "brain" for text handling (font discovery, fallback, shaping, wrapping) and a custom **multi-page glyph atlas** as the "memory" (GPU texture cache).
 
@@ -1647,7 +1656,358 @@ graph TB
 |-----------|---------------|-----|
 | **cosmic-text** | Font discovery, fallback, shaping, layout, rasterization | Headless library, works with any renderer |
 | **GlyphAtlas** | GPU texture management, bin packing, eviction | Renderer-specific (WebGPU in our case) |
+| **TextEngine** | API dispatch, LRU cache management, TextLayout creation | Bridges cosmic-text and rendering |
 | **PaintContext** | Batching glyph instances for rendering | Part of our rendering tier system |
+
+---
+
+### Two-Tier API Design
+
+**The Problem:** Different widgets have fundamentally different text rendering needs:
+
+- **Simple Widgets** (buttons, checkboxes, tooltips): Display static text that rarely changes. Want convenience, don't care about caching details.
+- **Advanced Widgets** (editors, terminals): Display thousands of lines, most of which never change. Need precise control over when text is shaped.
+
+**The Solution:** Provide two levels of abstraction.
+
+---
+
+#### Tier 1: High-Level Managed API (For Simple Widgets)
+
+**Use Case:** Buttons, labels, menus, tooltips, status bars.
+
+**API:**
+```rust
+impl PaintContext<'_> {
+    /// Draw text with automatic caching (transparently managed)
+    pub fn draw_text(
+        &mut self,
+        text: &str,
+        style: &TextStyle,
+        position: Point,
+        max_width: Option<f32>
+    ) {
+        // 1. Generate cache key from (text, style, max_width)
+        // 2. Check global LRU cache
+        // 3. If miss: shape text, store in cache
+        // 4. Render the cached layout
+    }
+}
+```
+
+**Widget Developer Experience:**
+```rust
+impl Element for Button {
+    fn paint(&self, ctx: &mut PaintContext) {
+        // Zero concern for shaping or caching
+        ctx.draw_text(
+            &self.label,
+            &TextStyle::default().size(14.0),
+            self.bounds.origin,
+            Some(self.bounds.width())
+        );
+    }
+}
+```
+
+**How It Works Internally:**
+
+1. **Cache Key Generation:**
+   ```rust
+   #[derive(Hash, PartialEq, Eq)]
+   struct TextCacheKey {
+       text: String,
+       font_size_bits: u32,   // Fixed-point to avoid float hash issues
+       max_width_bits: u32,
+       // NOT widget ID - this allows deduplication!
+   }
+   ```
+
+2. **Transparent Caching:**
+   ```rust
+   pub struct TextEngine {
+       font_system: FontSystem,
+       swash_cache: SwashCache,
+
+       /// Global LRU cache shared by all simple widgets
+       managed_cache: HashMap<TextCacheKey, CachedTextLayout>,
+
+       /// Frame counter for generational eviction
+       current_frame: u64,
+   }
+
+   struct CachedTextLayout {
+       layout: TextLayout,
+       last_used_frame: u64,
+   }
+   ```
+
+3. **Generational Eviction:**
+   ```rust
+   impl TextEngine {
+       /// Called every frame by event loop
+       pub fn begin_frame(&mut self) {
+           self.current_frame += 1;
+
+           // Every 60 frames, clean up stale entries
+           if self.current_frame % 60 == 0 {
+               self.managed_cache.retain(|_, cached| {
+                   self.current_frame - cached.last_used_frame < 120
+               });
+           }
+       }
+
+       fn get_or_create_layout(&mut self, key: TextCacheKey, text: &str) -> &TextLayout {
+           self.managed_cache.entry(key)
+               .or_insert_with(|| CachedTextLayout {
+                   layout: self.shape_text_internal(text),
+                   last_used_frame: self.current_frame,
+               })
+               .last_used_frame = self.current_frame;
+
+           &self.managed_cache[&key].layout
+       }
+   }
+   ```
+
+**Benefits:**
+- ✅ **Deduplication**: If 100 folder icons all say "Folder", it's shaped once and cached once
+- ✅ **Automatic Memory Management**: Unused text disappears after 2 seconds (120 frames at 60fps)
+- ✅ **Zero Developer Overhead**: Widget authors don't think about caching at all
+- ✅ **Performance**: Most UI text is static, so 99% cache hits
+
+**Trade-offs:**
+- ❌ Not suitable for editors with 100,000 unique lines (would thrash the cache)
+- ❌ Small hashing overhead per frame (negligible for <1000 strings)
+
+---
+
+#### Tier 2: Low-Level Manual API (For Advanced Widgets)
+
+**Use Case:** Text editors, terminals, log viewers, file browsers with thousands of items.
+
+**API:**
+```rust
+impl TextEngine {
+    /// Shape text and return a layout object (widget owns it)
+    pub fn create_layout(
+        &mut self,
+        text: &str,
+        style: &TextStyle,
+        max_width: Option<f32>,
+        max_lines: Option<usize>,
+    ) -> TextLayout {
+        // Shapes the text and returns ownership to the caller
+        // No caching - widget manages the lifecycle
+    }
+}
+
+impl PaintContext<'_> {
+    /// Render a pre-shaped TextLayout object
+    pub fn draw_layout(
+        &mut self,
+        layout: &TextLayout,
+        position: Point,
+        color: Color,
+    ) {
+        // Just pushes existing glyphs to GPU batch
+        // Zero shaping cost
+    }
+}
+```
+
+**Widget Developer Experience:**
+```rust
+pub struct EditorLine {
+    text: String,
+    /// Widget owns the shaped layout
+    layout: TextLayout,
+}
+
+impl EditorWidget {
+    /// Called ONLY when text changes
+    pub fn update_line(&mut self, line_idx: usize, new_text: String, engine: &mut TextEngine) {
+        self.lines[line_idx].text = new_text;
+        self.lines[line_idx].layout = engine.create_layout(
+            &self.lines[line_idx].text,
+            &self.style,
+            Some(self.viewport_width),
+            None,
+        );
+    }
+}
+
+impl Element for EditorWidget {
+    fn paint(&self, ctx: &mut PaintContext) {
+        // Render pre-shaped layouts (zero shaping cost per frame)
+        for (idx, line) in self.visible_lines() {
+            ctx.draw_layout(
+                &line.layout,
+                Point::new(0.0, idx as f64 * self.line_height),
+                self.text_color,
+            );
+        }
+    }
+}
+```
+
+**How It Works:**
+
+1. **Widget-Owned Storage:**
+   - Editor stores `Vec<EditorLine>` where each line owns a `TextLayout`
+   - Terminal stores a ring buffer of `TerminalLine` with pre-shaped text
+   - File browser stores `Vec<FileItem>` with cached filename layouts
+
+2. **Precise Invalidation:**
+   - When user types on line 42, only line 42's `TextLayout` is recreated
+   - All other lines remain as GPU-ready primitives
+   - No cache lookup overhead (widget already has the pointer)
+
+3. **Virtualization Support:**
+   - Editor only creates `TextLayout` for visible lines + small buffer
+   - As user scrolls, drop off-screen layouts and create new ones
+   - Sublime Text uses this exact pattern for million-line files
+
+**Benefits:**
+- ✅ **Zero Cache Contention**: Editor's data doesn't pollute the UI cache
+- ✅ **Perfect Performance**: No hashing, no lookups, just render
+- ✅ **Precise Control**: Widget decides exactly when to re-shape
+- ✅ **Supports Virtualization**: Only shape what's visible
+
+**Trade-offs:**
+- ❌ More complex to use (widget must manage lifecycle)
+- ❌ Requires understanding of when to invalidate
+
+---
+
+#### The TextLayout Object
+
+**Definition:**
+```rust
+pub struct TextLayout {
+    /// The cosmic-text buffer (holds shaped glyphs)
+    buffer: cosmic_text::Buffer,
+
+    /// Cached size for Taffy integration
+    size: Size<f32>,
+
+    /// Truncation mode (None, Clip, Ellipsis)
+    truncate: Option<Truncate>,
+}
+
+impl TextLayout {
+    /// Get the intrinsic size of the shaped text
+    pub fn size(&self) -> Size<f32> {
+        self.size
+    }
+
+    /// Hit-test: Find character index at a pixel position
+    pub fn hit_test(&self, position: Point) -> Option<usize> {
+        // For editor cursor positioning
+    }
+
+    /// Get the pixel rectangle for a character index
+    pub fn cursor_rect(&self, index: usize) -> Option<Rect> {
+        // For rendering the blinking cursor
+    }
+
+    /// Get selection rectangles (can span multiple lines)
+    pub fn selection_rects(&self, start: usize, end: usize) -> Vec<Rect> {
+        // For highlighting selected text
+    }
+
+    /// Access the underlying cosmic-text buffer (for advanced use)
+    pub fn buffer(&self) -> &cosmic_text::Buffer {
+        &self.buffer
+    }
+}
+```
+
+**Why This Object Exists:**
+
+1. **Separates Shaping from Rendering**: Expensive work (shaping) happens once, cheap work (rendering) happens every frame.
+2. **Editor Support**: Provides geometric queries (hit-test, cursor position) needed for text editing.
+3. **Encapsulation**: The rest of the UI doesn't need to know about cosmic-text internals.
+
+---
+
+#### Truncation and Ellipsis
+
+cosmic-text has built-in support via `Buffer::set_truncate`:
+
+```rust
+pub enum Truncate {
+    /// Just clip the text
+    Clip,
+    /// Replace last visible characters with "..."
+    End,
+}
+
+impl TextEngine {
+    pub fn create_layout(&mut self, ..., truncate: Option<Truncate>) -> TextLayout {
+        let mut buffer = Buffer::new(...);
+        buffer.set_text(...);
+
+        if let Some(mode) = truncate {
+            buffer.set_truncate(&mut self.font_system, max_width, mode);
+        }
+
+        buffer.shape_until_scroll(&mut self.font_system);
+
+        TextLayout { buffer, ... }
+    }
+}
+```
+
+---
+
+#### Cache Eviction Strategy Comparison
+
+| Strategy | Use Case | Pros | Cons |
+|----------|----------|------|------|
+| **Generational (Frame-Based)** | High-level managed API | Automatic, invisible to developer | Stale entries linger for ~2 sec |
+| **Widget-Owned (Arc/Drop)** | Low-level manual API | Precise, immediate cleanup | Developer must manage lifecycle |
+| **Manual Clear** | Screen transitions | Simple for apps with distinct screens | Not suitable for scrolling UIs |
+
+**Recommendation:** Use both strategies for their respective tiers.
+
+---
+
+#### Why Not Just Use Widget IDs in Cache Keys?
+
+**Rejected Alternative:**
+```rust
+struct TextCacheKey {
+    widget_id: WidgetId,  // ❌ Bad idea
+    text: String,
+    style: TextStyle,
+}
+```
+
+**Why This Is Wrong:**
+
+If you have 1,000 folder icons in a file browser, and each has the label "Folder", using `widget_id` in the key means:
+- You shape the word "Folder" **1,000 times**
+- You store "Folder" **1,000 times** in memory
+
+With content-addressable caching (no `widget_id`):
+- You shape "Folder" **once**
+- Every folder widget points to the same cached layout
+- **999x less memory usage**
+
+**The Trade-off:** You can't eagerly delete cache entries when a widget dies. Solution: Use generational eviction (it disappears automatically when unused).
+
+---
+
+### Summary: When to Use Which API
+
+| Widget Type | API Tier | Caching Strategy | Example |
+|-------------|----------|------------------|---------|
+| **Button, Label, Menu** | High-Level Managed | Global LRU, frame-based eviction | `ctx.draw_text("Save", ...)` |
+| **Editor, Terminal** | Low-Level Manual | Widget owns `Vec<TextLayout>` | `ctx.draw_layout(&line.layout, ...)` |
+| **Tooltip, Status Bar** | High-Level Managed | Global LRU | `ctx.draw_text(&self.message, ...)` |
+| **File Browser (1000+ items)** | Low-Level Manual | `Vec<FileItem>` with cached layouts | Virtualize visible items |
+| **Log Viewer** | Low-Level Manual | Ring buffer of `TextLayout` | Drop old logs, keep recent |
 
 ---
 

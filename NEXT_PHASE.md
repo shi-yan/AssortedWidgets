@@ -602,143 +602,523 @@ See [ARCHITECTURE.md § Text Rendering](ARCHITECTURE.md#text-rendering) for deta
 
 ---
 
-#### Phase 3.2: Text Shaping (Week 3)
+#### Phase 3.2: Text Shaping & Two-Tier API (Week 3)
 
-**Goal:** Use cosmic-text's Buffer/LayoutRun for proper text layout
+**Goal:** Implement the TextLayout object and both high-level/low-level APIs
 
-**Why Second:** Now that rendering works, add correct positioning/shaping
+**Why Second:** Now that rendering works, build the professional two-tier API architecture
+
+**Architecture:** See [ARCHITECTURE.md § Two-Tier API Design](ARCHITECTURE.md#two-tier-api-design)
 
 **Implementation Steps:**
 
-1. **cosmic-text Buffer Integration:**
-   - Create `cosmic_text::Buffer` for text layout
-   - Use `buffer.set_text()` to set content
-   - Use `buffer.layout_runs()` to get shaped glyphs
+1. **TextLayout Object** ([src/text/layout.rs](src/text/layout.rs)):
+   ```rust
+   pub struct TextLayout {
+       buffer: cosmic_text::Buffer,
+       size: Size<f32>,
+       truncate: Option<Truncate>,
+   }
 
-2. **Update TextRenderer:**
-   - New method: `draw_text(buffer: &Buffer, x, y, color)`
-   - Iterate `layout_runs()` and `run.glyphs`
-   - Use `glyph.x`, `glyph.y` for positions (cosmic-text provides these)
-   - Handle `glyph.cache_key` for rasterization
+   impl TextLayout {
+       pub fn size(&self) -> Size<f32> { ... }
+       pub fn hit_test(&self, position: Point) -> Option<usize> { ... }
+       pub fn cursor_rect(&self, index: usize) -> Option<Rect> { ... }
+       pub fn selection_rects(&self, start: usize, end: usize) -> Vec<Rect> { ... }
+       pub fn buffer(&self) -> &cosmic_text::Buffer { ... }
+   }
+   ```
 
-3. **Shaping Features to Test:**
+2. **TextEngine with Dual Caching** ([src/text/engine.rs](src/text/engine.rs)):
+   ```rust
+   pub struct TextEngine {
+       font_system: FontSystem,
+       swash_cache: SwashCache,
+
+       // High-level: Global LRU cache
+       managed_cache: HashMap<TextCacheKey, CachedTextLayout>,
+       current_frame: u64,
+   }
+
+   #[derive(Hash, PartialEq, Eq)]
+   struct TextCacheKey {
+       text: String,
+       font_size_bits: u32,
+       max_width_bits: u32,
+   }
+
+   struct CachedTextLayout {
+       layout: TextLayout,
+       last_used_frame: u64,
+   }
+
+   impl TextEngine {
+       // Low-level API: Return owned TextLayout
+       pub fn create_layout(
+           &mut self,
+           text: &str,
+           style: &TextStyle,
+           max_width: Option<f32>,
+           truncate: Option<Truncate>,
+       ) -> TextLayout { ... }
+
+       // High-level API: Transparently cached
+       fn get_or_create_managed(
+           &mut self,
+           text: &str,
+           style: &TextStyle,
+           max_width: Option<f32>,
+       ) -> &TextLayout { ... }
+
+       pub fn begin_frame(&mut self) { ... }
+   }
+   ```
+
+3. **PaintContext High-Level API** ([src/paint/context.rs](src/paint/context.rs)):
+   ```rust
+   impl PaintContext<'_> {
+       /// High-level: Draw text with automatic caching
+       pub fn draw_text(
+           &mut self,
+           text: &str,
+           style: &TextStyle,
+           position: Point,
+           max_width: Option<f32>,
+       ) {
+           let layout = self.text_engine.get_or_create_managed(text, style, max_width);
+           self.draw_layout(layout, position, style.color);
+       }
+
+       /// Low-level: Render a pre-shaped TextLayout
+       pub fn draw_layout(
+           &mut self,
+           layout: &TextLayout,
+           position: Point,
+           color: Color,
+       ) {
+           // Iterate layout.buffer.layout_runs() and push glyphs
+       }
+   }
+   ```
+
+4. **Shaping Features to Test:**
    - **Ligatures:** "office" should render "ffi" as one glyph
    - **Kerning:** "AV" should be closer than "AA"
    - **Complex Scripts:** Arabic text joins correctly
    - **Bidirectional:** Mix "Hello שלום مرحبا" (LTR + RTL)
    - **Font Fallback:** "Hello 你好 👋" automatically uses 3+ fonts
+   - **Truncation:** "Very long text..." with ellipsis
 
-4. **Test Scene:**
+5. **Test Scenes:**
+
+   **Scene A: High-Level API (Simple Widgets)**
+   ```rust
+   // Button label - uses managed cache
+   ctx.draw_text("Save", &TextStyle::default(), Point::new(10, 10), None);
+   ```
+
+   **Scene B: Low-Level API (Manual Control)**
+   ```rust
+   // Editor line - widget owns the layout
+   struct EditorLine {
+       text: String,
+       layout: TextLayout,  // Cached by widget
+   }
+
+   impl Element for EditorWidget {
+       fn paint(&self, ctx: &mut PaintContext) {
+           for (idx, line) in self.visible_lines() {
+               ctx.draw_layout(&line.layout, Point::new(0, idx * 20), Color::BLACK);
+           }
+       }
+   }
+   ```
+
+   **Scene C: Shaping Validation**
    - Draw shaped strings: "The office offers efficient service"
    - Test Arabic: "مرحبا بك" (right-to-left, joining)
    - Test mixed: "English עברית العربية 中文"
    - Verify ligatures appear correctly
 
 **Deliverables:**
+- ✅ `TextLayout` object with cosmic-text Buffer
+- ✅ `TextEngine` with dual-mode caching (managed + manual)
+- ✅ High-level API: `ctx.draw_text()` with transparent LRU cache
+- ✅ Low-level API: `engine.create_layout()` + `ctx.draw_layout()`
+- ✅ Generational cache eviction (frame-based)
 - ✅ Shaped text with ligatures and kerning
 - ✅ Complex script support (Arabic, Indic)
 - ✅ Bidirectional text rendering
 - ✅ Automatic font fallback for multi-language text
-- ✅ Test scene with shaped text examples
+- ✅ Truncation with ellipsis support
+- ✅ Test scenes demonstrating both APIs
+- ✅ Hit-testing APIs for editor support
 
 **Still Missing (Intentional):**
-- ❌ Text wrapping (all on one line)
-- ❌ Measurement for layout system
-- ❌ Multi-line support
+- ❌ Text wrapping (deferred to Phase 3.3)
+- ❌ Measurement for layout system (deferred to Phase 3.3)
+- ❌ Multi-line support (deferred to Phase 3.3)
 
 ---
 
-#### Phase 3.3: Measurement & Wrapping (Week 4)
+#### Phase 3.3: Measurement, Wrapping & Layout Integration (Week 4)
 
-**Goal:** Integrate with Taffy layout system via measure functions
+**Goal:** Integrate text rendering with Taffy layout system via measure functions
 
-**Why Last:** Requires working rendering + shaping foundation
+**Why Last:** Requires working TextLayout object and two-tier API from Phase 3.2
 
 **Implementation Steps:**
 
-1. **TextLabel Element** ([src/elements/text_label.rs](src/elements/text_label.rs)):
+1. **Enhanced TextLayout with Wrapping** ([src/text/layout.rs](src/text/layout.rs)):
+   ```rust
+   impl TextLayout {
+       /// Create a wrapped layout (multi-line)
+       pub fn new_wrapped(
+           font_system: &mut FontSystem,
+           text: &str,
+           style: &TextStyle,
+           max_width: f32,
+       ) -> Self {
+           let mut buffer = Buffer::new(font_system, Metrics::new(style.font_size, style.line_height));
+           buffer.set_size(font_system, max_width, f32::MAX);
+           buffer.set_text(font_system, text, Attrs::new(), Shaping::Advanced);
+           buffer.shape_until_scroll(font_system);
+
+           let size = Self::compute_size(&buffer);
+           TextLayout { buffer, size, truncate: None }
+       }
+
+       /// Compute intrinsic size from shaped buffer
+       fn compute_size(buffer: &Buffer) -> Size<f32> {
+           let mut max_width = 0.0;
+           let mut max_height = 0.0;
+
+           for run in buffer.layout_runs() {
+               max_width = max_width.max(run.line_w);
+               max_height = run.line_y + run.line_height;
+           }
+
+           Size::new(max_width, max_height)
+       }
+   }
+   ```
+
+2. **TextLabel Element with Measure Support** ([src/elements/text_label.rs](src/elements/text_label.rs)):
    ```rust
    pub struct TextLabel {
        id: WidgetId,
        bounds: Rect,
        text: String,
-       font_size: f32,
+       style: TextStyle,
        color: Color,
-       buffer: cosmic_text::Buffer,  // Cached layout
-       needs_reshape: bool,
+
+       /// Cached layout (invalidated on text/width change)
+       cached_layout: Option<TextLayout>,
+       cached_width: Option<f32>,
    }
-   ```
 
-2. **Implement Element::measure():**
-   ```rust
-   fn measure(
-       &self,
-       known_dimensions: taffy::Size<Option<f32>>,
-       available_space: taffy::Size<AvailableSpace>,
-   ) -> Option<Size> {
-       // If width is known, wrap text to that width
-       if let Some(width) = known_dimensions.width {
-           self.buffer.set_size(width, f32::MAX);
-           self.buffer.shape_until_scroll();
-
-           // Return measured height after wrapping
-           let height = self.buffer.layout_runs()
-               .map(|run| run.line_y)
-               .max()
-               .unwrap_or(self.font_size);
-
-           return Some(Size::new(width, height));
+   impl TextLabel {
+       pub fn set_text(&mut self, text: String) {
+           if self.text != text {
+               self.text = text;
+               self.cached_layout = None;  // Invalidate
+               // Will trigger layout recalculation via mark_dirty
+           }
        }
 
-       // If width is auto, return intrinsic size (single line)
-       let width = self.buffer.layout_runs()
-           .map(|run| run.line_w)
-           .max()
-           .unwrap_or(0.0);
+       fn ensure_layout(&mut self, engine: &mut TextEngine, max_width: Option<f32>) {
+           // Only re-shape if text or width changed
+           let needs_reshape = self.cached_layout.is_none()
+               || self.cached_width != max_width;
 
-       Some(Size::new(width, self.font_size))
+           if needs_reshape {
+               self.cached_layout = Some(engine.create_layout(
+                   &self.text,
+                   &self.style,
+                   max_width,
+                   None,  // No truncation
+               ));
+               self.cached_width = max_width;
+           }
+       }
+   }
+
+   impl Element for TextLabel {
+       fn measure(
+           &mut self,
+           engine: &mut TextEngine,
+           known_dimensions: taffy::Size<Option<f32>>,
+           available_space: taffy::Size<AvailableSpace>,
+       ) -> Option<Size> {
+           // Case 1: Width is known → wrap to that width
+           if let Some(width) = known_dimensions.width {
+               self.ensure_layout(engine, Some(width));
+               return Some(Size::new(
+                   width as f64,
+                   self.cached_layout.as_ref()?.size().height as f64
+               ));
+           }
+
+           // Case 2: Width is auto → return intrinsic size (no wrapping)
+           self.ensure_layout(engine, None);
+           let size = self.cached_layout.as_ref()?.size();
+           Some(Size::new(size.width as f64, size.height as f64))
+       }
+
+       fn paint(&self, ctx: &mut PaintContext) {
+           if let Some(layout) = &self.cached_layout {
+               ctx.draw_layout(layout, self.bounds.origin, self.color);
+           }
+       }
    }
    ```
 
-3. **Text Wrapping:**
-   - Use `buffer.set_size(width, f32::MAX)` to set wrap width
-   - `buffer.shape_until_scroll()` performs wrapping
-   - Iterate `layout_runs()` for multi-line rendering
+3. **TextEngine Integration with Measure Functions:**
+   ```rust
+   impl TextEngine {
+       /// Create layout with optional wrapping
+       pub fn create_layout(
+           &mut self,
+           text: &str,
+           style: &TextStyle,
+           max_width: Option<f32>,
+           truncate: Option<Truncate>,
+       ) -> TextLayout {
+           let mut buffer = Buffer::new(
+               &mut self.font_system,
+               Metrics::new(style.font_size, style.line_height)
+           );
 
-4. **Text Truncation:**
-   - Detect when text exceeds available height
-   - Use `buffer.set_size(width, height)` to clip
-   - Optionally append "..." ellipsis
+           // Set wrapping width if provided
+           if let Some(width) = max_width {
+               buffer.set_size(&mut self.font_system, width, f32::MAX);
+           }
 
-5. **Integration with GuiEventLoop:**
-   - Update event loop to call `compute_layout_with_measure()`
-   - Dispatch to `element.measure()` for text elements
-   - Test bidirectional layout:
-     - Window resize → text wraps
-     - Text content change → parent resizes
+           buffer.set_text(&mut self.font_system, text, Attrs::new(), Shaping::Advanced);
 
-6. **Test Scenes:**
-   - Auto-sizing label: text grows, parent container grows
-   - Fixed-width label: text wraps to multiple lines
-   - Scrollable area: text truncates with ellipsis
-   - Mix with other elements: button with text label
+           // Apply truncation if requested
+           if let Some(mode) = truncate {
+               buffer.set_truncate(&mut self.font_system, max_width.unwrap_or(f32::MAX), mode);
+           }
+
+           buffer.shape_until_scroll(&mut self.font_system);
+
+           let size = TextLayout::compute_size(&buffer);
+           TextLayout { buffer, size, truncate }
+       }
+   }
+   ```
+
+4. **GuiEventLoop Integration:**
+   ```rust
+   impl GuiEventLoop {
+       fn render_frame_internal(&mut self) {
+           if self.needs_layout {
+               // Compute layout with measure function
+               self.layout_manager.compute_layout_with_measure(
+                   self.window_size,
+                   |known, available, _node_id, context, _style| {
+                       if let Some(ctx) = context {
+                           if ctx.needs_measure {
+                               if let Some(element) = self.element_manager.get_mut(ctx.widget_id) {
+                                   // Pass TextEngine for shaping during measurement
+                                   if let Some(size) = element.measure(
+                                       &mut self.text_engine,
+                                       known,
+                                       available
+                                   ) {
+                                       return taffy::Size {
+                                           width: size.width as f32,
+                                           height: size.height as f32,
+                                       };
+                                   }
+                               }
+                           }
+                       }
+                       taffy::Size::ZERO
+                   },
+               )?;
+
+               // Apply layout results
+               for widget_id in self.element_manager.widget_ids() {
+                   if let Some(bounds) = self.layout_manager.get_layout(widget_id) {
+                       if let Some(element) = self.element_manager.get_mut(widget_id) {
+                           element.set_bounds(bounds);
+                       }
+                   }
+               }
+           }
+       }
+   }
+   ```
+
+5. **Test Scenes:**
+
+   **Scene A: Auto-Sizing Label**
+   ```rust
+   // Label with auto width - parent grows to fit
+   // Container { width: auto, height: auto }
+   //   Label { text: "Short" }  →  Container: 50px wide
+   //   Label { text: "Very long text" }  →  Container: 150px wide
+   ```
+
+   **Scene B: Fixed-Width Label with Wrapping**
+   ```rust
+   // Label with constrained width - text wraps to multiple lines
+   // Container { width: 200px, height: auto }
+   //   Label { text: "This is a long paragraph that will wrap" }
+   //   →  Label: 200px wide, 60px tall (3 lines)
+   ```
+
+   **Scene C: Truncation with Ellipsis**
+   ```rust
+   // Label with fixed size - text truncates
+   // Container { width: 100px, height: 20px }
+   //   Label { text: "Very long text that won't fit", truncate: End }
+   //   →  Displays: "Very long te..."
+   ```
+
+   **Scene D: Bidirectional Layout Flow**
+   ```rust
+   // Window resize → text reflows
+   // User types → parent container resizes
+   ```
 
 **Deliverables:**
-- ✅ TextLabel element with `measure()` implementation
+- ✅ `TextLayout` with wrapping support
+- ✅ `TextLabel` element with `measure()` implementation
+- ✅ Cached layout invalidation on text/width change
 - ✅ Text wrapping based on available width
 - ✅ Multi-line text rendering
-- ✅ Text truncation with ellipsis
+- ✅ Text truncation with ellipsis via `Truncate::End`
+- ✅ `TextEngine` integration with measure functions
 - ✅ Bidirectional layout works:
   - Window resize → text reflows
-  - Text change → parent resizes
-- ✅ Integration test: button with auto-sizing label
+  - Text change → parent resizes via `mark_dirty`
+- ✅ Test scenes covering all layout modes
+- ✅ Performance validation: <16ms for 1000+ glyphs
 
 **Phase 3 Complete When:**
 - ✅ Can render text with shaping, wrapping, measurement
 - ✅ Text elements integrate with Taffy layout
 - ✅ Font fallback and multi-language support works
 - ✅ Emoji rendering works
+- ✅ Both high-level and low-level APIs functional
+- ✅ Frame-based cache eviction working
 - ✅ Performance: <16ms frame time with 1000+ glyphs
+- ✅ Documentation updated with API examples
+
+---
+
+### Phase 3 Summary: Two-Tier Text Rendering Architecture
+
+**Overview:** Phase 3 implements a professional-grade text rendering system with two complementary APIs designed to serve different use cases.
+
+#### Architecture Highlights
+
+**Two-Tier API:**
+- **High-Level Managed API**: `ctx.draw_text()` with automatic LRU caching for simple widgets
+- **Low-Level Manual API**: `engine.create_layout()` + `ctx.draw_layout()` for advanced widgets
+
+**Key Components:**
+- **TextLayout**: Wraps cosmic-text Buffer, provides hit-testing and geometric queries
+- **TextEngine**: Manages FontSystem, SwashCache, and dual-mode caching
+- **GlyphAtlas**: Multi-page RGBA8 texture array with etagere bin packing
+- **PaintContext**: Provides both high-level and low-level rendering APIs
+
+#### Implementation Order
+
+```
+Phase 3.1 (Week 1-2)
+  ↓
+  GlyphAtlas + TextRenderer + Basic glyph rendering
+  ↓
+Phase 3.2 (Week 3)
+  ↓
+  TextLayout object + Two-tier API + Shaping + Caching
+  ↓
+Phase 3.3 (Week 4)
+  ↓
+  Wrapping + Measurement + Taffy integration
+```
+
+#### API Quick Reference
+
+**For Simple Widgets (Buttons, Labels):**
+```rust
+impl Element for Button {
+    fn paint(&self, ctx: &mut PaintContext) {
+        // Automatically cached, zero hassle
+        ctx.draw_text(
+            &self.label,
+            &TextStyle::default().size(14.0),
+            self.bounds.origin,
+            Some(self.bounds.width())
+        );
+    }
+}
+```
+
+**For Advanced Widgets (Editors, Terminals):**
+```rust
+pub struct EditorLine {
+    text: String,
+    layout: TextLayout,  // Widget owns the layout
+}
+
+impl EditorWidget {
+    // Called ONLY when text changes
+    fn update_line(&mut self, idx: usize, new_text: String, engine: &mut TextEngine) {
+        self.lines[idx].layout = engine.create_layout(
+            &new_text,
+            &self.style,
+            Some(self.viewport_width),
+            None,
+        );
+    }
+}
+
+impl Element for EditorWidget {
+    fn paint(&self, ctx: &mut PaintContext) {
+        // Zero shaping cost - just render pre-computed layouts
+        for (idx, line) in self.visible_lines() {
+            ctx.draw_layout(&line.layout, Point::new(0, idx * 20), Color::BLACK);
+        }
+    }
+}
+```
+
+#### Performance Characteristics
+
+| Operation | High-Level API | Low-Level API |
+|-----------|----------------|---------------|
+| **First Draw** | Shape + Cache + Render | Shape + Render |
+| **Subsequent Draws (Same Text)** | Cache Hit (~0.1μs) + Render | Direct Render |
+| **Text Change** | Auto-invalidate + Re-shape | Widget re-shapes explicitly |
+| **Memory** | Global LRU (deduplicates) | Widget-owned (isolated) |
+| **Best For** | Static UI text (menus, buttons) | Dynamic content (editors, logs) |
+
+#### Cache Eviction Strategy
+
+**High-Level (Generational):**
+- Frame counter tracks usage
+- Stale entries (unused for 120 frames) purged every 60 frames
+- Automatic, invisible to developer
+
+**Low-Level (Widget-Owned):**
+- Widget explicitly manages lifecycle
+- Drop `TextLayout` when line goes off-screen
+- Perfect for virtualized UIs
+
+#### When to Use Which API
+
+| Widget Type | Recommended API | Why |
+|-------------|----------------|-----|
+| Button, Label, Menu | High-Level Managed | Static text, benefits from deduplication |
+| Editor, Terminal | Low-Level Manual | Thousands of unique lines, precise invalidation |
+| Tooltip, Status Bar | High-Level Managed | Transient text, LRU handles cleanup |
+| File Browser (1000+ items) | Low-Level Manual | Virtualization required |
+| Log Viewer | Low-Level Manual | Ring buffer pattern |
 
 ---
 
