@@ -5,7 +5,7 @@ use std::any::Any;
 // ============================================================================
 
 /// Unique identifier for each widget/element
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct WidgetId(u64);
 
 impl WidgetId {

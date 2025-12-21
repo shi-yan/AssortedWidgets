@@ -62,6 +62,10 @@ impl MacWindow {
             // Create NSWindow
             let native_window = create_window(&options);
 
+            // Create and set window delegate to handle close events
+            let delegate = create_window_delegate(Rc::clone(&state));
+            let _: () = msg_send![native_window, setDelegate: delegate];
+
             // Create custom NSView
             let native_view = create_view(Rc::clone(&state));
 
@@ -197,6 +201,65 @@ unsafe fn create_window(options: &WindowOptions) -> id {
     }
 
     window
+}
+
+// ============================================================================
+// Window Delegate (for handling window events like close)
+// ============================================================================
+
+unsafe fn create_window_delegate(state: Rc<RefCell<WindowState>>) -> id {
+    let delegate_class = get_window_delegate_class();
+    let delegate: id = msg_send![delegate_class, alloc];
+    let delegate: id = msg_send![delegate, init];
+
+    // Store state pointer in the delegate's associated object
+    let state_ptr = Rc::into_raw(state) as *const c_void;
+    (*delegate).set_ivar("_window_state", state_ptr as usize);
+
+    delegate
+}
+
+fn get_window_delegate_class() -> &'static Class {
+    static mut DELEGATE_CLASS: Option<&'static Class> = None;
+    static INIT: std::sync::Once = std::sync::Once::new();
+
+    INIT.call_once(|| unsafe {
+        let superclass = class!(NSObject);
+        let mut decl = ClassDecl::new("AssortedWidgetsWindowDelegate", superclass).unwrap();
+
+        // Add ivar for storing window state pointer
+        decl.add_ivar::<usize>("_window_state");
+
+        // Window close handler
+        decl.add_method(
+            sel!(windowShouldClose:),
+            window_should_close as extern "C" fn(&Object, Sel, id) -> BOOL,
+        );
+
+        DELEGATE_CLASS = Some(decl.register());
+    });
+
+    unsafe { DELEGATE_CLASS.unwrap() }
+}
+
+extern "C" fn window_should_close(this: &Object, _sel: Sel, _sender: id) -> BOOL {
+    unsafe {
+        // Get state pointer from ivar
+        let state_ptr: usize = *this.get_ivar("_window_state");
+        if state_ptr != 0 {
+            let state = Rc::from_raw(state_ptr as *const RefCell<WindowState>);
+
+            // Invoke close callback if set
+            if let Some(ref mut close_callback) = state.borrow_mut().callbacks.close {
+                close_callback();
+            }
+
+            // Don't consume the Rc - we still need it (prevent memory leak)
+            let _ = Rc::into_raw(state);
+        }
+    }
+
+    YES // Allow window to close
 }
 
 // ============================================================================

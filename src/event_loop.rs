@@ -252,6 +252,11 @@ impl GuiEventLoop {
             // Process element manager messages (signal/slot system)
             self.element_manager.process_messages();
 
+            // Mark layout dirty for continuous animation updates
+            // This triggers re-measurement each frame, allowing AnimatedRect's
+            // measure function to return updated width based on elapsed time
+            self.needs_layout = true;
+
             // Render frame using built-in layout → paint → render flow
             if self.renderer.is_some() && self.rect_renderer.is_some() {
                 self.render_frame_internal();
@@ -259,6 +264,11 @@ impl GuiEventLoop {
                 (self.renderer.as_ref(), self.render_fn.as_mut()) {
                 // Fallback to external render function if no rect_renderer
                 render_fn(renderer, &self.render_context);
+            }
+
+            // Request next frame for continuous animation
+            if let Some(window) = self.window.as_mut() {
+                window.invalidate();
             }
         }
     }
@@ -285,7 +295,44 @@ impl GuiEventLoop {
 
         // 1. Compute layout if needed
         if self.needs_layout {
-            if let Err(e) = self.layout_manager.compute_layout(self.window_size) {
+            println!("[EventLoop] Computing layout...");
+
+            // Mark all elements that need measurement as dirty in Taffy
+            // This forces Taffy to re-invoke their measure functions
+            let widget_ids: Vec<_> = self.element_manager.widget_ids().collect();
+            for widget_id in widget_ids {
+                if let Some(element) = self.element_manager.get(widget_id) {
+                    if element.needs_measure() {
+                        println!("[EventLoop] Marking widget {:?} as dirty for re-measurement", widget_id);
+                        if let Err(e) = self.layout_manager.mark_dirty(widget_id) {
+                            eprintln!("Failed to mark widget {:?} dirty: {}", widget_id, e);
+                        }
+                    }
+                }
+            }
+
+            // Use compute_layout_with_measure to support elements with dynamic sizing
+            if let Err(e) = self.layout_manager.compute_layout_with_measure(
+                self.window_size,
+                |known, available, _node_id, context, _style| {
+                    // Dispatch to element's measure method if needed
+                    if let Some(ctx) = context {
+                        if ctx.needs_measure {
+                            // Look up element and call its measure() method
+                            if let Some(element) = self.element_manager.get(ctx.widget_id) {
+                                if let Some(size) = element.measure(known, available) {
+                                    return taffy::Size {
+                                        width: size.width as f32,
+                                        height: size.height as f32,
+                                    };
+                                }
+                            }
+                        }
+                    }
+                    // Default: no intrinsic size
+                    taffy::Size::ZERO
+                },
+            ) {
                 eprintln!("Layout computation failed: {}", e);
                 return;
             }

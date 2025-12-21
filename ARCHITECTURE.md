@@ -425,9 +425,9 @@ match event {
 
 ## Layout System Design
 
-**Implementation Status:** ✅ Phase 1 Complete (Basic layout, no measure functions yet)
+**Implementation Status:** ✅ Phase 2 Complete (Taffy 0.9 with measure function support)
 
-### Design: Taffy Integration with Flat Storage
+### Design: Taffy 0.9 Integration with Measure Functions
 
 ```mermaid
 graph LR
@@ -474,9 +474,9 @@ graph LR
 3. **Performance:** Handles 10,000+ nodes efficiently
 4. **Maintenance:** Active development, good documentation
 
-### Measure Functions: Implementation Plan (Phase 3)
+### Measure Functions: Taffy 0.9 Implementation
 
-**Current Status:** Phase 1 supports only static layouts. Measure functions are planned for Phase 3.
+**Current Status:** ✅ Implemented with Taffy 0.9's context-based measure system
 
 **What Measure Functions Enable:**
 - Text elements that size to content
@@ -484,19 +484,32 @@ graph LR
 - Custom widgets with complex sizing logic
 - Parent containers that auto-size to children
 
-**Implementation Strategy:**
+**How Taffy 0.9 Measure Functions Work:**
 
-When implementing measure functions, we'll need:
+Taffy 0.9 uses a **context-based system** where:
+1. Each node stores a `MeasureContext` with the data needed for measurement
+2. A global measure function is provided to `compute_layout_with_measure()`
+3. The global function dispatches based on node context
 
-1. **Element Trait Extension:**
+**Implementation:**
+
+1. **Element Trait with Measure Method:**
 ```rust
 pub trait Element {
     // ... existing methods ...
 
-    /// Return intrinsic size given available space
-    /// None = use Style dimensions only
-    fn measure(&self, available: AvailableSpace) -> Option<Size> {
-        None  // Default: static sizing
+    /// Measure the element's intrinsic size given available space
+    fn measure(
+        &self,
+        known_dimensions: taffy::Size<Option<f32>>,
+        available_space: taffy::Size<AvailableSpace>,
+    ) -> Option<Size> {
+        None  // Default: no custom measurement
+    }
+
+    /// Check if this element needs a measure function
+    fn needs_measure(&self) -> bool {
+        false  // Default: static sizing
     }
 
     /// Mark this element as needing layout recalculation
@@ -506,103 +519,110 @@ pub trait Element {
 }
 ```
 
-2. **Layout Manager Measure Integration:**
+2. **Layout Manager with MeasureContext:**
 ```rust
-impl LayoutManager {
-    /// Set measure function for a node
-    pub fn set_measure_function<F>(&mut self, widget_id: WidgetId, measure_fn: F) -> Result<(), String>
-    where
-        F: Fn(Size, AvailableSpace) -> Size + 'static,
-    {
-        let node_id = self.nodes.get(&widget_id)
-            .ok_or_else(|| "Widget not found")?;
+/// Context data stored per-node for measure functions
+#[derive(Default, Clone)]
+pub struct MeasureContext {
+    pub widget_id: WidgetId,
+    pub needs_measure: bool,
+}
 
-        self.taffy.set_measure(*node_id, Some(measure_fn))?;
+impl LayoutManager {
+    /// Create a measurable node (for elements like text)
+    pub fn create_measurable_node(&mut self, widget_id: WidgetId, style: Style) -> Result<(), String> {
+        let context = MeasureContext { widget_id, needs_measure: true };
+        let node = self.taffy.new_leaf_with_context(style, context)?;
+        self.nodes.insert(widget_id, node);
         Ok(())
     }
 
-    /// Mark a specific node dirty (for element content changes)
-    pub fn mark_dirty(&mut self, widget_id: WidgetId) -> Result<(), String> {
-        let node_id = self.nodes.get(&widget_id)
-            .ok_or_else(|| "Widget not found")?;
+    /// Compute layout with a measure function
+    pub fn compute_layout_with_measure<F>(&mut self, available_size: Size, measure_fn: F) -> Result<(), String>
+    where
+        F: FnMut(taffy::Size<Option<f32>>, taffy::Size<AvailableSpace>, NodeId, Option<&mut MeasureContext>, &Style) -> taffy::Size<f32>,
+    {
+        self.taffy.compute_layout_with_measure(root, available_size, measure_fn)?;
+        self.cache_layouts();
+        Ok(())
+    }
 
-        self.taffy.mark_dirty(*node_id)?;
+    /// Mark a node dirty (for content changes)
+    pub fn mark_dirty(&mut self, widget_id: WidgetId) -> Result<(), String> {
+        let node = self.nodes.get(&widget_id)?;
+        self.taffy.mark_dirty(*node)?;
         Ok(())
     }
 }
 ```
 
-3. **Element Content Change Flow:**
+3. **Element Content Change Flow (Leaves → Root):**
 ```rust
 // Example: Text element content changes
 impl TextLabel {
-    pub fn set_text(&mut self, new_text: String, layout_manager: &mut LayoutManager) {
+    pub fn set_text(&mut self, new_text: String) {
         if self.text != new_text {
             self.text = new_text;
-
-            // Notify layout system this element needs remeasuring
-            layout_manager.mark_dirty(self.id).ok();
+            self.mark_needs_layout();  // Sets dirty flag
         }
     }
 }
+
+// In the event loop:
+// 1. Element content changes
+label.set_text("New longer text that needs more space");
+
+// 2. Element is marked dirty (via mark_needs_layout)
+layout_manager.mark_dirty(label.id())?;
+
+// 3. Next layout pass propagates changes upward
+// Taffy automatically recomputes from the dirty node up to root
 ```
 
-4. **GuiEventLoop Integration:**
+4. **GuiEventLoop Integration with Measure Function:**
 ```rust
 impl GuiEventLoop {
     fn render_frame_internal(&mut self) {
         if self.needs_layout {
-            // Set up measure functions before computing layout
+            // Compute layout with measure function
+            self.layout_manager.compute_layout_with_measure(
+                self.window_size,
+                |known, available, _node_id, context, _style| {
+                    // Dispatch to element's measure method
+                    if let Some(ctx) = context {
+                        if ctx.needs_measure {
+                            if let Some(element) = self.element_manager.get(ctx.widget_id) {
+                                if let Some(size) = element.measure(known, available) {
+                                    return taffy::Size {
+                                        width: size.width as f32,
+                                        height: size.height as f32,
+                                    };
+                                }
+                            }
+                        }
+                    }
+                    taffy::Size::ZERO
+                },
+            )?;
+
+            // Apply layout results to elements
             for widget_id in self.element_manager.widget_ids() {
-                if let Some(element) = self.element_manager.get(widget_id) {
-                    if element.needs_measure() {
-                        let measure_fn = create_measure_closure(widget_id, &self.element_manager);
-                        self.layout_manager.set_measure_function(widget_id, measure_fn).ok();
+                if let Some(bounds) = self.layout_manager.get_layout(widget_id) {
+                    if let Some(element) = self.element_manager.get_mut(widget_id) {
+                        element.set_bounds(bounds);
                     }
                 }
             }
-
-            // Now compute layout (will call measure functions as needed)
-            self.layout_manager.compute_layout(self.window_size)?;
-            // ... rest of layout application
         }
     }
 }
 ```
 
-**Challenge: Measure Function Ownership**
-
-The tricky part is that Taffy's measure function needs to access the element to measure it:
-
-```rust
-// Option A: Weak reference (complex, runtime overhead)
-let element_mgr = Arc::downgrade(&self.element_manager);
-let measure_fn = move |known, available| {
-    element_mgr.upgrade()?.borrow().get(widget_id)?.measure(available)
-};
-
-// Option B: Cache measurement data (simpler, what we'll use)
-pub struct MeasureCache {
-    text_cache: HashMap<WidgetId, (String, FontId, f32)>,  // (text, font, size)
-    image_cache: HashMap<WidgetId, Size>,  // intrinsic size
-}
-
-// Measure functions access cache instead of elements
-let cache = self.measure_cache.clone();
-let measure_fn = move |known, available| {
-    if let Some((text, font, size)) = cache.text_cache.get(&widget_id) {
-        text_shaper::measure(text, font, size, available)
-    } else {
-        Size::ZERO
-    }
-};
-```
-
-**Decision: Cache-Based Approach**
-- Elements update cache when content changes
-- Measure functions read from cache (no ownership issues)
-- Simple, fast, Rust-friendly
-- Similar to how browsers handle layout
+**Advantages of Taffy 0.9's Approach:**
+- ✅ No ownership issues - context is copyable data, not closures
+- ✅ Single global measure function - simple dispatch logic
+- ✅ Efficient - measure functions can borrow external resources (like font registries)
+- ✅ Flexible - easy to add new measurable types
 
 ### Constraint Solving: Bi-Directional Flow
 
@@ -681,7 +701,178 @@ Taffy resolves this using:
 - **Break cycles:** Percentage of Auto becomes 0
 - **Warnings:** Invalid layouts logged in debug mode
 
-### Integration Strategy (Phase 1 Implementation)
+---
+
+## Bidirectional Layout Flows
+
+The layout system handles two primary update flows: **window resizes** (root to leaves) and **content changes** (leaves to root).
+
+### Flow 1: Window Resize (Root → Leaves)
+
+When the window resizes, layout must be recalculated from the root downward.
+
+**Trigger:** User resizes the window or container
+
+**Flow:**
+```rust
+// 1. Window resize event
+GuiEvent::Resize(new_bounds) => {
+    self.window_size = new_bounds.size;
+    self.needs_layout = true;
+}
+
+// 2. Next frame: recompute layout from root
+if self.needs_layout {
+    // Root node gets new window size as constraint
+    self.layout_manager.compute_layout(self.window_size)?;
+
+    // Results propagate down: each element gets new bounds
+    for widget_id in self.element_manager.widget_ids() {
+        if let Some(bounds) = self.layout_manager.get_layout(widget_id) {
+            element.set_bounds(bounds);
+        }
+    }
+
+    self.needs_layout = false;
+}
+```
+
+**Process:**
+1. **Root receives new size** - Window dimensions become root constraints
+2. **Taffy DFS traversal** - Depth-first search computes each node
+3. **Parent constrains children** - Each parent passes `AvailableSpace` to children
+4. **Children calculate size** - Based on parent constraints and their Style
+5. **Results bubble up** - Final sizes are cached in LayoutManager
+6. **Bounds applied** - Each element gets updated bounds via `set_bounds()`
+
+**Example:**
+```rust
+// Window: 1024x768 → 1280x800
+// Root container: size = 100%
+// Child panels: 50% width each
+
+// Before resize:
+left_panel.bounds = Rect { x: 0, y: 0, width: 512, height: 768 }
+right_panel.bounds = Rect { x: 512, y: 0, width: 512, height: 768 }
+
+// After resize:
+left_panel.bounds = Rect { x: 0, y: 0, width: 640, height: 800 }
+right_panel.bounds = Rect { x: 640, y: 0, width: 640, height: 800 }
+```
+
+---
+
+### Flow 2: Content Change (Leaves → Root)
+
+When an element's content changes (like text growing), layout recalculates from that node upward.
+
+**Trigger:** Element content/data changes
+
+**Flow:**
+```rust
+// 1. Element content changes
+impl TextLabel {
+    pub fn set_text(&mut self, new_text: String) {
+        if self.text != new_text {
+            self.text = new_text;
+
+            // Mark this node as needing re-measurement
+            self.mark_needs_layout();
+        }
+    }
+}
+
+// 2. Mark node dirty in layout tree
+layout_manager.mark_dirty(label_id)?;
+
+// 3. Next frame: Taffy recomputes from dirty node
+// Taffy automatically propagates changes upward:
+// - Dirty node remeasured
+// - Parent resizes if needed (if parent is auto-sized)
+// - Grandparent resizes if needed
+// - Stops when fixed-size ancestor is reached
+self.layout_manager.compute_layout_with_measure(self.window_size, measure_fn)?;
+```
+
+**Process:**
+1. **Content changes** - Element modifies its data (text, image, etc.)
+2. **mark_dirty called** - Element calls `layout_manager.mark_dirty(id)`
+3. **Taffy marks node** - Node flagged for re-measurement
+4. **Next layout pass** - `compute_layout_with_measure()` called
+5. **Measure function runs** - Element's `measure()` method calculates new size
+6. **Parent recalculates** - If parent is auto-sized, it grows/shrinks to fit
+7. **Propagation stops** - When fixed-size ancestor is reached
+
+**Example:**
+```rust
+// Label with text: "Hi" → "Hello World, this is a very long text"
+// Parent container: width = auto (fits content)
+// Grandparent: width = 800px (fixed)
+
+// Before text change:
+label.measure() → Size { width: 20, height: 16 }
+parent.bounds → Rect { width: 24, height: 20 }  // 20 + 4px padding
+grandparent.bounds → Rect { width: 800, height: 600 }  // Fixed
+
+// After text change:
+label.mark_dirty()  // Mark for remeasurement
+// Next layout:
+label.measure() → Size { width: 300, height: 16 }  // Text wrapped
+parent.bounds → Rect { width: 304, height: 20 }  // Grows to fit
+grandparent.bounds → Rect { width: 800, height: 600 }  // Unchanged (fixed size)
+```
+
+---
+
+### When to Use Each Flow
+
+| Scenario | Flow | Method | Notes |
+|----------|------|--------|-------|
+| Window resize | Root → Leaves | `compute_layout()` | Entire tree recomputed |
+| Container resize | Root → Leaves | `compute_layout()` | Entire tree recomputed |
+| Text content change | Leaves → Root | `mark_dirty()` + `compute_layout_with_measure()` | Only dirty subtree recomputed |
+| Image loaded | Leaves → Root | `mark_dirty()` + `compute_layout_with_measure()` | Only dirty subtree recomputed |
+| Style change | Depends | `set_style()` + `mark_dirty()` | May affect parent or children |
+
+---
+
+### Optimization: Dirty Flag Propagation
+
+Taffy is smart about what to recompute:
+
+```rust
+// Scenario: 1000-element tree, one label text changes
+
+// Naive approach: Recompute entire tree
+// Cost: O(N) where N = 1000 elements
+
+// Taffy's approach: Only recompute dirty path
+// Cost: O(log N) where log N ≈ depth to root (typically 5-10 levels)
+
+// Example tree:
+//   Root (clean)
+//   ├─ Panel A (clean)
+//   │  ├─ Button 1 (clean)
+//   │  └─ Button 2 (clean)
+//   └─ Panel B (DIRTY - child changed)
+//      ├─ Label (DIRTY - text changed) ← Only this node marked dirty
+//      └─ Icon (clean)
+
+// Taffy recomputes:
+// 1. Label (dirty) - remeasures text
+// 2. Panel B (parent of dirty) - may resize to fit
+// 3. Root (grandparent of dirty) - may resize to fit
+// 4. Skips Panel A and its children (clean subtree)
+```
+
+**Performance Benefits:**
+- ✅ Text edits only recompute ~5-10 nodes (not 1000s)
+- ✅ Window resize still recomputes all (necessary)
+- ✅ Responsive UI even with complex trees
+
+---
+
+### Integration Strategy (Phase 2 Complete)
 
 **LayoutManager Structure:**
 

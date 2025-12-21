@@ -1,12 +1,12 @@
 use assorted_widgets::{GuiEventLoop, WindowOptions};
-use assorted_widgets::elements::{Container, DebugRect, ClippedContainer};
-use assorted_widgets::layout::{Style, FlexDirection, Dimension, Display, JustifyContent, AlignItems};
+use assorted_widgets::elements::{Container, DebugRect, AnimatedRect};
+use assorted_widgets::layout::{Style, FlexDirection, Dimension, Display};
 use assorted_widgets::paint::Color;
 use assorted_widgets::scene_graph::SceneNode;
 
 fn main() {
-    println!("AssortedWidgets - Clipping Test Demo");
-    println!("=====================================");
+    println!("AssortedWidgets - Layout Animation Demo");
+    println!("========================================");
     println!();
 
     #[cfg(target_os = "macos")]
@@ -15,7 +15,7 @@ fn main() {
 
         let mut event_loop = pollster::block_on(async {
             GuiEventLoop::new_with_window(WindowOptions {
-                title: "AssortedWidgets - Clipping Test".to_string(),
+                title: "AssortedWidgets - Layout Animation".to_string(),
                 ..Default::default()
             })
             .await
@@ -25,19 +25,22 @@ fn main() {
         println!("WebGPU initialized successfully!");
         println!();
 
-        // Create test scene: clipping demonstration
-        println!("Creating test scene...");
+        // Create test scene: animated layout demonstration
+        println!("Creating animated layout test scene...");
         setup_test_scene(&mut event_loop);
         println!("Scene created!");
         println!();
 
         println!("Starting continuous rendering...");
         println!("You should see:");
-        println!("  - Large red background (full window)");
-        println!("  - Blue square in center (300x300)");
-        println!("  - Green vertical stripes clipped to blue square bounds");
-        println!("The stripes extend beyond the blue square but are clipped by the shader.");
-        println!("Try resizing the window - clipping will update!");
+        println!("  - Red rectangle on the left (animated width using sin wave)");
+        println!("  - Green rectangle on the right (fills remaining space)");
+        println!();
+        println!("This demonstrates:");
+        println!("  - Leaves → Root: Red rect's intrinsic size changes trigger layout recalculation");
+        println!("  - Root → Leaves: Window resize redistributes space between both rects");
+        println!();
+        println!("Try resizing the window to see the layout system in action!");
         println!("Press Cmd+Q to quit.");
         println!();
 
@@ -56,82 +59,71 @@ fn main() {
 fn setup_test_scene(event_loop: &mut GuiEventLoop) {
     // Generate IDs
     let root_id = event_loop.element_manager_mut().next_id();
-    let background_id = event_loop.element_manager_mut().next_id();
-    let clipped_id = event_loop.element_manager_mut().next_id();
+    let red_rect_id = event_loop.element_manager_mut().next_id();
+    let green_rect_id = event_loop.element_manager_mut().next_id();
 
-    // Create root container (centered layout)
+    // Create root container with horizontal layout
     let root_style = Style {
         display: Display::Flex,
-        flex_direction: FlexDirection::Column,
-        justify_content: Some(JustifyContent::Center),
-        align_items: Some(AlignItems::Center),
+        flex_direction: FlexDirection::Row,  // Horizontal layout
         size: taffy::Size {
-            width: Dimension::Percent(1.0),  // 100% width
-            height: Dimension::Percent(1.0), // 100% height
+            width: Dimension::percent(1.0),  // 100% width
+            height: Dimension::percent(1.0), // 100% height
         },
         ..Default::default()
     };
 
     let root_container = Container::new(root_id, root_style.clone());
 
-    // Create background rect (red, full window)
-    let background_rect = DebugRect::new(background_id, Color::RED);
+    // Create animated red rectangle (left side)
+    // Width oscillates via sin wave: 200 ± 100px (range: 100-300px)
+    // This demonstrates measure functions and leaves → root layout flow
+    let red_rect = AnimatedRect::new(
+        red_rect_id,
+        Color::RED,
+        200.0,  // base_width (center of oscillation)
+        100.0,  // amplitude (oscillation range)
+    );
 
-    // Create clipped container (blue background with green overflow)
-    // The overflow content will be clipped to the container's bounds
-    let clipped_container = ClippedContainer::new(
-        clipped_id,
-        Color::rgba(0.0, 0.0, 1.0, 0.8),  // Blue background
-        Color::rgba(0.0, 1.0, 0.0, 0.8),  // Green overflow (will be clipped)
-    ).with_style(Style {
-        size: taffy::Size {
-            width: Dimension::Length(300.0),
-            height: Dimension::Length(300.0),
-        },
+    // Create static green rectangle (right side)
+    // Uses flex_grow to fill remaining space
+    // This demonstrates root → leaves layout flow (responds to window resize and red rect changes)
+    let green_rect = DebugRect::new(green_rect_id, Color::GREEN);
+
+    // Green rect style: fills remaining space
+    let green_style = Style {
+        flex_grow: 1.0,  // Fill remaining horizontal space
         ..Default::default()
-    });
+    };
 
     // Add elements to element manager
     event_loop.element_manager_mut().add_element_with_id(root_id, Box::new(root_container));
-    event_loop.element_manager_mut().add_element_with_id(background_id, Box::new(background_rect));
-    event_loop.element_manager_mut().add_element_with_id(clipped_id, Box::new(clipped_container));
+    event_loop.element_manager_mut().add_element_with_id(red_rect_id, Box::new(red_rect));
+    event_loop.element_manager_mut().add_element_with_id(green_rect_id, Box::new(green_rect));
 
     // Build layout tree
     event_loop.layout_manager_mut().create_node(root_id, root_style).unwrap();
-    event_loop.layout_manager_mut().create_node(background_id,
-        Style {
-            position: taffy::Position::Absolute,
-            inset: taffy::Rect {
-                left: taffy::LengthPercentageAuto::Length(0.0),
-                right: taffy::LengthPercentageAuto::Length(0.0),
-                top: taffy::LengthPercentageAuto::Length(0.0),
-                bottom: taffy::LengthPercentageAuto::Length(0.0),
-            },
-            ..Default::default()
-        }
-    ).unwrap();
-    event_loop.layout_manager_mut().create_node(clipped_id,
-        Style {
-            size: taffy::Size {
-                width: Dimension::Length(300.0),
-                height: Dimension::Length(300.0),
-            },
-            ..Default::default()
-        }
+
+    // Red rect uses measurable node (has dynamic intrinsic size via measure function)
+    event_loop.layout_manager_mut().create_measurable_node(
+        red_rect_id,
+        Style::default(),  // No fixed size - measure function provides it
     ).unwrap();
 
+    // Green rect uses regular node with flex_grow
+    event_loop.layout_manager_mut().create_node(green_rect_id, green_style).unwrap();
+
     // Set up layout hierarchy
-    event_loop.layout_manager_mut().add_child(root_id, background_id).unwrap();
-    event_loop.layout_manager_mut().add_child(root_id, clipped_id).unwrap();
+    event_loop.layout_manager_mut().add_child(root_id, red_rect_id).unwrap();
+    event_loop.layout_manager_mut().add_child(root_id, green_rect_id).unwrap();
     event_loop.layout_manager_mut().set_root(root_id).unwrap();
 
     // Build scene graph (for render order)
-    // Background first, then clipped container on top
     let mut root_node = SceneNode::new(root_id);
-    root_node.add_child(SceneNode::new(background_id));
-    root_node.add_child(SceneNode::new(clipped_id));
+    root_node.add_child(SceneNode::new(red_rect_id));
+    root_node.add_child(SceneNode::new(green_rect_id));
     event_loop.scene_graph_mut().set_root(root_node);
 
-    // Mark layout as dirty
+    // Mark layout as dirty for initial computation
     event_loop.mark_layout_dirty();
 }

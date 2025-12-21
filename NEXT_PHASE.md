@@ -1,11 +1,11 @@
-# Phase 2: Advanced Rendering Features
+# Phase 3: Text Rendering and Advanced Primitives
 
-This document outlines the next phase of development for AssortedWidgets' rendering system. Phase 1 (completed) implemented basic layout and batched rectangle rendering. Phase 2 will add clipping, depth ordering, and optimization for complex UIs.
+This document outlines the next phase of development for AssortedWidgets' rendering system. Phases 1-2 (completed) implemented basic layout, clipping, and the advanced layout system with measure function support. Phase 3 will add text rendering, additional primitives, and complete measure function integration.
 
-## Current State (Phase 1 Complete ✅)
+## Current State (Phase 2 Complete ✅)
 
-### Implemented Features
-- ✅ Taffy integration for Flexbox/Grid layout
+### Phase 1 Completed Features
+- ✅ Taffy 0.9 integration for Flexbox/Grid layout
 - ✅ PaintContext for collecting draw commands
 - ✅ RectRenderer with GPU instanced rendering
 - ✅ Basic Element trait with `layout()` and `paint()` methods
@@ -15,26 +15,42 @@ This document outlines the next phase of development for AssortedWidgets' render
 - ✅ **Layout invalidation on window resize**
 - ✅ **Working red/green split test scene**
 
+### Phase 2 Completed Features (NEW ✅)
+- ✅ **Shader-based clipping** with clip stack for nested clipping
+- ✅ **Taffy 0.9 upgrade** with context-based measure system
+- ✅ **Measure function support** in Element trait
+- ✅ **Layout system with measure functions** via `compute_layout_with_measure()`
+- ✅ **Bidirectional layout flows** documented:
+  - Root → Leaves (window resize)
+  - Leaves → Root (content changes via mark_dirty)
+- ✅ **MeasureContext** for storing measurement data per-node
+- ✅ **macOS app delegate** to quit when all windows closed
+
 ### Architecture Improvements Made
 1. **Rendering Order Fix**: Changed from arbitrary HashMap iteration to scene graph depth-first traversal
 2. **ElementManager API**: Simplified from complex iterators to simple ID-based lookup
 3. **Three-Tree Design**: ElementManager (storage) + SceneGraph (render order) + LayoutManager (positions)
 4. **Layout Pipeline**: Proper invalidation → Taffy computation → bounds application → paint → render
+5. **Clipping System**: Shader-based clipping with clip stack (push/pop API)
+6. **Measure System**: Context-based measure functions following Taffy 0.9 patterns
+7. **Layout Flows**: Clear bidirectional update paths for window resize and content changes
 
 ### Current Limitations
-1. **No Clipping**: Scrollable areas can't clip children
-2. **Simple Z-Ordering**: Relies on tree traversal order (no explicit z-index)
-3. **No Depth Testing**: Could have occlusion issues with overlapping elements
-4. **Limited Primitives**: Only rectangles implemented (no circles, rounded rects, lines)
-5. **No Text Rendering**: Critical for any real UI
+1. **No Text Rendering**: Critical for any real UI - needs glyph atlas and text shaping
+2. **Limited Primitives**: Only rectangles implemented (no circles, rounded rects, lines)
+3. **No Measure Implementation**: Measure functions defined but no real text/image elements using them
+4. **Simple Z-Ordering**: Relies on tree traversal order (no explicit z-index)
+5. **No Input Handling**: Mouse/keyboard events not routed to elements yet
 
 ---
 
-## Phase 2 Features
+## Phase 3 Features
 
-### 1. Clip Rect Implementation (High Priority)
+### 1. Text Rendering System (Highest Priority)
 
-**Goal:** Enable scrollable areas with proper clipping of child content.
+**Goal:** Implement a production-quality text rendering system with glyph atlas and text shaping.
+
+**Status:** Phase 2 laid the groundwork (measure functions, layout system), now we need actual text rendering.
 
 #### Design: Shader-Based Clipping
 
@@ -496,80 +512,119 @@ See [ARCHITECTURE.md § Text Rendering](#text-rendering) for detailed design.
 
 ## Success Criteria
 
-Phase 2 will be considered complete when:
+Phase 3 will be considered complete when:
 
-- ✅ ScrollArea element with proper clipping works
-- ✅ Nested scroll areas clip correctly
-- ✅ Depth buffer prevents occlusion issues
+- ✅ Text rendering with glyph atlas works
+- ✅ TextLabel element with measure function implemented
 - ✅ At least 3 primitive types (rect, circle, rounded rect)
-- ✅ All tests pass
+- ✅ All tests pass with text elements
 - ✅ Frame budget maintained (<16ms for 10k elements)
-- ✅ Documentation updated with new APIs
+- ✅ Documentation updated with text rendering APIs
 
 ---
 
 ## Recommended Next Steps
 
-Based on the current state, here's the recommended order of implementation:
+Based on the current state (Phase 2 complete), here's the recommended order of implementation for Phase 3:
 
-### 1. **Clipping Support** (Highest Priority)
-**Why First:** Essential for scrollable areas, which are critical for any real application.
+### 1. **Text Rendering System** (Highest Priority)
+**Status:** ✅ Measure system ready, need actual text implementation
 
-**Approach:** Shader-based clipping (Phase 2.1 design above)
-- Minimal state changes (perfect batching)
-- Nested clipping via clip stack
-- 1-2 days of work
+**Approach:** Glyph atlas + instanced quads (see ARCHITECTURE.md)
+- Font loading (cosmic-text recommended for comprehensive support)
+- Text shaping and layout
+- Glyph rasterization and atlas packing
+- GPU instanced quad rendering
+- Integration with measure functions
 
-**Deliverable:** Working ScrollArea element
+**Implementation Steps:**
+1. Add cosmic-text or fontdue dependency
+2. Implement GlyphAtlas with dynamic growth
+3. Create TextRenderer for instanced quads
+4. Implement TextLabel element with measure()
+5. Test with measure function integration
 
-### 2. **Additional Primitives** (High Priority)
-**Why Second:** Needed for realistic UI elements (buttons, badges, separators)
+**Deliverable:** TextLabel element that:
+- Renders text using glyph atlas
+- Implements measure() for dynamic sizing
+- Wraps text based on available width
+- Stretches parent containers when text grows
+
+### 2. **Complete Measure Function Integration** (High Priority)
+**Status:** ✅ API ready, need real usage
+
+**Approach:** Update GuiEventLoop to use compute_layout_with_measure()
+
+**Implementation:**
+```rust
+// Update event loop to use measure functions
+if self.needs_layout {
+    self.layout_manager.compute_layout_with_measure(
+        self.window_size,
+        |known, available, _node_id, context, _style| {
+            if let Some(ctx) = context {
+                if ctx.needs_measure {
+                    // Dispatch to element's measure method
+                    if let Some(element) = self.element_manager.get(ctx.widget_id) {
+                        if let Some(size) = element.measure(known, available) {
+                            return taffy::Size {
+                                width: size.width as f32,
+                                height: size.height as f32,
+                            };
+                        }
+                    }
+                }
+            }
+            taffy::Size::ZERO
+        },
+    )?;
+}
+```
+
+**Deliverable:** Fully working bidirectional layout with text elements
+
+### 3. **Additional Primitives** (Medium Priority)
+**Why Third:** Needed for realistic UI elements (buttons, badges, separators)
 
 **Approach:** Implement CircleRenderer and RoundedRectRenderer
 - Reuse instancing pattern from RectRenderer
-- Smooth anti-aliasing in shaders
-- 2-3 days of work
+- Smooth anti-aliasing in shaders using distance fields
+- Add to PaintContext API
 
 **Deliverable:** Circles, rounded rectangles, and lines
 
-### 3. **Text Rendering** (Critical but Complex)
-**Why Third:** Most complex feature, but required for any practical UI
-
-**Approach:** Glyph atlas + instanced quads (see ARCHITECTURE.md)
-- Font loading (fontdue or cosmic-text)
-- Text shaping (rustybuzz)
-- Atlas packing (etagere)
-- 2-3 weeks of focused work
-
-**Deliverable:** Text elements with proper shaping and kerning
-
-### 4. **Input Handling** (Medium Priority)
-**Why Fourth:** Needed for interactive elements, builds on existing work
+### 4. **Input Handling & Hit Testing** (Medium Priority)
+**Status:** Platform input events exist, need routing to elements
 
 **Approach:**
-- Convert PlatformInput to OsEvent
-- Implement hit testing via scene graph
-- Add event propagation (bubbling/capturing)
-- 1 week of work
+- Implement hit testing via scene graph traversal
+- Add event propagation (bubbling/capturing like DOM)
+- Route PlatformInput to elements via on_event()
+- Handle focus management
 
-**Deliverable:** Clickable buttons, text input, hover states
+**Deliverable:** Clickable buttons, hover states, keyboard focus
 
-### 5. **Depth Buffer** (Optional Optimization)
-**Why Later:** Current tree traversal order works fine for most cases
+### 5. **Test Elements & Examples** (Medium Priority)
+**Why:** Validate the entire system works end-to-end
 
-**Approach:** Add z-index field and depth testing
-- Only needed for complex overlapping UIs
-- Can be deferred until needed
+**Approach:**
+- Create TextLabel with dynamic sizing
+- Create Button with hover/press states
+- Create ScrollArea using clipping
+- Create example app demonstrating all features
 
-## Beyond Phase 2
+**Deliverable:** Working demo app with interactive UI
+
+## Beyond Phase 3
 
 Future phases will tackle:
 
-- **Phase 3:** Advanced input (drag & drop, gestures, IME)
-- **Phase 4:** Animation system (tweening, transitions)
-- **Phase 5:** Accessibility (screen readers, keyboard navigation)
-- **Phase 6:** Developer tools (inspector, performance profiler)
-- **Phase 7:** Advanced layout (measure functions, intrinsic sizing)
+- **Phase 4:** Advanced input (drag & drop, gestures, IME integration)
+- **Phase 5:** Animation system (tweening, transitions, layout animations)
+- **Phase 6:** Additional elements (TextInput, Checkbox, Slider, etc.)
+- **Phase 7:** Theme system (uniform buffer, style propagation)
+- **Phase 8:** Accessibility (screen readers, keyboard navigation)
+- **Phase 9:** Developer tools (inspector, performance profiler)
 
 Each phase builds on the previous, maintaining architectural consistency while adding capability.
 
