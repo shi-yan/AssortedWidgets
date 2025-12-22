@@ -1,5 +1,7 @@
 # AssortedWidgets
 
+<img width="256" height="256" alt="Assorted Widgets icon" src="https://github.com/user-attachments/assets/8bf32749-d666-4703-aed4-84c023a020dd" />
+
 A cross-platform GUI framework for Rust with first-class support for custom graphics and WebGPU rendering.
 
 ## Features
