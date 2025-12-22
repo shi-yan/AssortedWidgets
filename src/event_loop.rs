@@ -103,13 +103,24 @@ impl GuiEventLoop {
 
         // Initialize window size
         let bounds = window.bounds();
+        let scale_factor = window.scale_factor();
         self.window_size = bounds.size;
 
+        println!("Initializing renderers with scale factor: {}", scale_factor);
+
         // Create rectangle renderer with the surface format
-        self.rect_renderer = Some(RectRenderer::new(
+        let mut rect_renderer = RectRenderer::new(
             &self.render_context,
             renderer.format,
-        ));
+        );
+
+        // Set initial screen size (physical pixels for Retina)
+        let physical_size = Size::new(
+            bounds.size.width * scale_factor,
+            bounds.size.height * scale_factor
+        );
+        rect_renderer.update_screen_size(&self.render_context, physical_size);
+        self.rect_renderer = Some(rect_renderer);
 
         // Create glyph atlas (2048x2048 pages, max 8 pages)
         self.glyph_atlas = Some(GlyphAtlas::new(
@@ -119,10 +130,14 @@ impl GuiEventLoop {
         ));
 
         // Create text renderer with the surface format
-        self.text_renderer = Some(TextRenderer::new(
+        let mut text_renderer = TextRenderer::new(
             &self.render_context,
             renderer.format,
-        ));
+        );
+
+        // Set initial screen size (physical pixels for Retina)
+        text_renderer.update_screen_size(&self.render_context, physical_size);
+        self.text_renderer = Some(text_renderer);
 
         // Mark that we need to compute layout
         self.needs_layout = true;
@@ -255,19 +270,30 @@ impl GuiEventLoop {
                         self.window_size = bounds.size;
                         self.needs_layout = true;
 
-                        // Update renderer surface
+                        // Update renderer surface with scale factor for Retina displays
                         if let Some(renderer) = self.renderer.as_mut() {
-                            renderer.resize(&self.render_context, bounds);
+                            let scale_factor = self.window.as_ref().map(|w| w.scale_factor()).unwrap_or(1.0);
+                            renderer.resize(&self.render_context, bounds, scale_factor);
                         }
 
-                        // Update rect renderer screen size
+                        // Update rect renderer with physical pixel dimensions
                         if let Some(rect_renderer) = self.rect_renderer.as_mut() {
-                            rect_renderer.update_screen_size(&self.render_context, bounds.size);
+                            let scale_factor = self.window.as_ref().map(|w| w.scale_factor()).unwrap_or(1.0);
+                            let physical_size = Size::new(
+                                bounds.size.width * scale_factor,
+                                bounds.size.height * scale_factor
+                            );
+                            rect_renderer.update_screen_size(&self.render_context, physical_size);
                         }
 
-                        // Update text renderer screen size
+                        // Update text renderer with physical pixel dimensions
                         if let Some(text_renderer) = self.text_renderer.as_mut() {
-                            text_renderer.update_screen_size(&self.render_context, bounds.size);
+                            let scale_factor = self.window.as_ref().map(|w| w.scale_factor()).unwrap_or(1.0);
+                            let physical_size = Size::new(
+                                bounds.size.width * scale_factor,
+                                bounds.size.height * scale_factor
+                            );
+                            text_renderer.update_screen_size(&self.render_context, physical_size);
                         }
 
                         // Request redraw after resize
@@ -543,6 +569,9 @@ impl GuiEventLoop {
         use crate::text::{TextStyle, Truncate};
         use crate::types::Point;
 
+        // Get scale factor for Retina display support
+        let scale_factor = self.window.as_ref().map(|w| w.scale_factor()).unwrap_or(1.0) as f32;
+
         // Early return if text systems aren't ready
         let (glyph_atlas, queue) = match (self.glyph_atlas.as_mut(), Some(&self.render_context.queue)) {
             (Some(atlas), Some(q)) => (atlas, q),
@@ -556,13 +585,13 @@ impl GuiEventLoop {
         // Log atlas stats at start of frame (using instance fields for Rust 2024 compatibility)
         let stats = glyph_atlas.stats();
 
-        if self.demo_frame_count % 60 == 0 {  // Log every 60 frames
+        /*if self.demo_frame_count % 60 == 0 {  // Log every 60 frames
             println!("[ATLAS] Frame {}: {} pages, {} glyphs, current frame: {}",
                 self.demo_frame_count, stats.page_count, stats.total_glyphs, stats.current_frame);
-        }
+        }*/
 
         // Dump atlas once after we have some glyphs
-        if !self.demo_atlas_dumped && stats.total_glyphs >= 6 {
+       /*  if !self.demo_atlas_dumped && stats.total_glyphs >= 6 {
             println!("[DEBUG] Dumping atlas to PNG...");
             if let Err(e) = glyph_atlas.dump_page_to_png(
                 &self.render_context.device,
@@ -575,7 +604,7 @@ impl GuiEventLoop {
                 println!("[DEBUG] Atlas dumped successfully to atlas_debug.png");
             }
             self.demo_atlas_dumped = true;
-        }
+        }*/
 
         self.demo_frame_count += 1;
 
@@ -589,7 +618,7 @@ impl GuiEventLoop {
         let large_style = TextStyle::new().size(24.0);
 
         let mut y = 50.0;
-
+ 
         // 1. Basic text with ligatures (demonstrates shaping)
         let shaped_layout = self.text_engine.create_layout(
             "The office offers efficient service",  // Tests ligatures: ffi, ff
@@ -604,6 +633,7 @@ impl GuiEventLoop {
             glyph_atlas,
             &mut self.font_system,
             queue,
+            scale_factor,
         );
         y += 50.0;
 
@@ -621,6 +651,7 @@ impl GuiEventLoop {
             glyph_atlas,
             &mut self.font_system,
             queue,
+            scale_factor,
         );
         y += 60.0;
 
@@ -638,6 +669,7 @@ impl GuiEventLoop {
             glyph_atlas,
             &mut self.font_system,
             queue,
+            scale_factor,
         );
         y += 60.0;
 
@@ -655,6 +687,7 @@ impl GuiEventLoop {
             glyph_atlas,
             &mut self.font_system,
             queue,
+            scale_factor,
         );
         y += 50.0;
 
@@ -672,6 +705,7 @@ impl GuiEventLoop {
             glyph_atlas,
             &mut self.font_system,
             queue,
+            scale_factor,
         );
 
         // Display cache stats
@@ -695,6 +729,7 @@ impl GuiEventLoop {
             glyph_atlas,
             &mut self.font_system,
             queue,
+            scale_factor,
         );
     }
 }

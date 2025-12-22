@@ -167,6 +167,7 @@ impl PaintContext {
         atlas: &mut GlyphAtlas,
         font_system: &mut FontSystemWrapper,
         queue: &wgpu::Queue,
+        scale_factor: f32,
     ) {
         use crate::text::GlyphKey;
         use std::collections::hash_map::DefaultHasher;
@@ -186,18 +187,32 @@ impl PaintContext {
 
         // Extract text from buffer for character lookup
         let buffer = layout.buffer();
-        let text = buffer.lines.iter()
-            .flat_map(|line| line.text().chars())
-            .collect::<String>();
 
         // Iterate through shaped glyphs
         for run in buffer.layout_runs() {
-            for glyph in run.glyphs.iter() {
-                // Extract the character from the text using glyph's byte range
-                let glyph_char = text[glyph.start..glyph.end].chars().next().unwrap_or('?');
+            // Get the baseline Y for this line
+            let line_y = run.line_y;
 
-                // Convert to PhysicalGlyph to get the cache_key for rasterization
-                let physical_glyph = glyph.physical((position.x as f32, position.y as f32), 1.0);
+            // Get the text for this specific line
+            let line_text = buffer.lines[run.line_i].text();
+
+            println!("line_y: {} , {}", line_y, scale_factor);
+
+            for glyph in run.glyphs.iter() {
+                // Extract the character from the line's text using glyph's byte range
+                // IMPORTANT: glyph.start/glyph.end are byte indices into THIS line, not the whole buffer
+                let glyph_char = line_text[glyph.start..glyph.end].chars().next().unwrap_or('?');
+
+                // Convert to PhysicalGlyph with baseline Y offset
+                // The line_y is added to position.y to get the baseline for this line
+                let physical_glyph = glyph.physical(
+                    (position.x as f32, position.y as f32 + line_y),
+                    scale_factor
+                );
+
+                println!("position {} {}", position.x, position.y);
+                println!("physical_glyph x {} y {}", physical_glyph.x, physical_glyph.y);
+
                 let cache_key = physical_glyph.cache_key;
 
                 // Create glyph key for atlas (hash the font_id for consistent caching)
@@ -241,14 +256,29 @@ impl PaintContext {
                     }
                 };
 
-                // Calculate glyph position
-                let glyph_x = position.x as f32 + glyph.x + glyph.x_offset;
-                let glyph_y = position.y as f32 + run.line_y + glyph.y_offset;
+                // PhysicalGlyph.x/y represents the baseline position (pen position)
+                // We must add the rasterization offsets to get the bitmap's top-left corner
+                //
+                // COORDINATE SYSTEM: cosmic-text uses bottom-left origin (Y goes UP)
+                // but WebGPU uses top-left origin (Y goes DOWN), so we flip Y by subtracting
+                let glyph_x = (physical_glyph.x + location.offset_x) as f32;
+                let glyph_y = (physical_glyph.y - location.offset_y) as f32;
 
-                // Get metrics from cosmic-text
-                let glyph_width = glyph.w;
-                let glyph_height = run.line_height;
+                println!("glyph '{}' at x {} y {}", glyph_char, location.offset_x, location.offset_y);
 
+                // Use actual rasterized glyph dimensions from atlas
+                let glyph_width = location.width as f32;
+                let glyph_height = location.height as f32;
+
+                // Debug: compare glyph advance width vs bitmap width
+                if glyph_char == 'H' || glyph_char == 'e' {
+                    println!("Glyph '{}': advance_w={:.1}, bitmap_w={}, bitmap_h={}, offset_x={}, offset_y={}",
+                        glyph_char, glyph.w, location.width, location.height,
+                        location.offset_x, location.offset_y);
+                }
+
+                println!("glyph pos {} {}", glyph_x, glyph_y);
+                println!("glyph size {} {}", glyph_width, glyph_height);
                 // Push text instance
                 let instance = TextInstance::new(
                     glyph_x,
@@ -264,6 +294,7 @@ impl PaintContext {
                     location.is_color,
                     clip_rect,
                 );
+
 
                 self.text.push(instance);
             }

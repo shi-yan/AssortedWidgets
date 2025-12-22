@@ -158,14 +158,16 @@ impl TextRenderer {
             ],
         });
 
-        // Create sampler
+        // Create sampler with nearest-neighbor filtering for sharp text
+        // Since we use PhysicalGlyph (pixel-grid aligned), nearest filtering
+        // gives the sharpest results without blur
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Text Sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         });
 

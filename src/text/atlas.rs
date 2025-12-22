@@ -287,14 +287,16 @@ impl GlyphAtlas {
         );
 
         // Calculate UV coordinates (excluding padding)
+        // Use actual bitmap dimensions (width, height) instead of allocated space
+        // to ensure UVs map exactly to the uploaded bitmap data
         let inv_width = 1.0 / self.page_size as f32;
         let inv_height = 1.0 / self.page_size as f32;
 
         let uv_rect = UvRect {
             min_x: (allocation.rectangle.min.x + GLYPH_PADDING) as f32 * inv_width,
             min_y: (allocation.rectangle.min.y + GLYPH_PADDING) as f32 * inv_height,
-            max_x: (allocation.rectangle.max.x - GLYPH_PADDING) as f32 * inv_width,
-            max_y: (allocation.rectangle.max.y - GLYPH_PADDING) as f32 * inv_height,
+            max_x: (allocation.rectangle.min.x + GLYPH_PADDING + width as i32) as f32 * inv_width,
+            max_y: (allocation.rectangle.min.y + GLYPH_PADDING + height as i32) as f32 * inv_height,
         };
 
         // Create glyph location

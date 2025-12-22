@@ -42,12 +42,16 @@ impl WindowRenderer {
 
         println!("Surface format: {:?}", format);
 
-        // Get window size
+        // Get window size in PHYSICAL pixels (for Retina displays)
         let bounds = window.content_bounds();
-        let width = bounds.size.width.max(1.0) as u32;
-        let height = bounds.size.height.max(1.0) as u32;
+        let scale_factor = window.scale_factor();
+        let width = (bounds.size.width * scale_factor).max(1.0) as u32;
+        let height = (bounds.size.height * scale_factor).max(1.0) as u32;
 
-        // Configure surface
+        println!("Window logical size: {}x{}, scale factor: {}, physical pixels: {}x{}",
+            bounds.size.width, bounds.size.height, scale_factor, width, height);
+
+        // Configure surface with physical pixel dimensions
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
@@ -69,15 +73,17 @@ impl WindowRenderer {
     }
 
     /// Reconfigure surface when window is resized
-    pub fn resize(&mut self, context: &RenderContext, new_bounds: Rect) {
-        let width = new_bounds.size.width.max(1.0) as u32;
-        let height = new_bounds.size.height.max(1.0) as u32;
+    pub fn resize(&mut self, context: &RenderContext, new_bounds: Rect, scale_factor: f64) {
+        // Use physical pixels for Retina displays
+        let width = (new_bounds.size.width * scale_factor).max(1.0) as u32;
+        let height = (new_bounds.size.height * scale_factor).max(1.0) as u32;
 
         if width != self.config.width || height != self.config.height {
             self.config.width = width;
             self.config.height = height;
             self.surface.configure(context.device(), &self.config);
-            println!("Surface resized to {}x{}", width, height);
+            println!("Surface resized to {}x{} physical pixels (logical: {}x{}, scale: {})",
+                width, height, new_bounds.size.width, new_bounds.size.height, scale_factor);
         }
     }
 
