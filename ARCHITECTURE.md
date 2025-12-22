@@ -2692,3 +2692,177 @@ AssortedWidgets makes specific trade-offs to achieve its goals:
 - ✅ Flexible yet performant
 
 The architecture is designed to be **flexible by default, optimized when needed**. Simple apps can ignore low-level APIs, while complex apps have escape hatches for full control.
+
+---
+
+## Per-Window Architecture (Updated 2025-12-21)
+
+### Problem Statement
+
+**Current Issues:**
+1. ✅ FIXED: Layout recalculation every frame (now only when dirty)
+2. ❌ `GuiEventLoop` owns rendering resources (architectural pollution)
+3. ❌ No clear separation between per-window and process-wide state
+4. ❌ `window_size` in event loop unclear for multi-window support
+5. ❌ Rendering resources mixed with event loop orchestration
+
+###Clean Architecture Design
+
+```
+GuiApplication (Process-wide)
+├── render_context: Arc<RenderContext>     // Shared GPU (device, queue, adapter)
+└── windows: HashMap<WindowId, WindowEventLoop>
+
+WindowEventLoop (Per-window)
+├── Window Management
+│   ├── window: PlatformWindowImpl
+│   ├── renderer: WindowRenderer           // Surface management
+│   ├── window_size: Size
+│   └── event_queue: VecDeque<GuiEvent>
+│
+├── UI State
+│   ├── element_manager: ElementManager
+│   ├── scene_graph: SceneGraph
+│   ├── layout_manager: LayoutManager
+│   └── needs_layout: bool
+│
+└── Rendering Resources (per-window)
+    ├── rect_renderer: RectRenderer
+    ├── text_renderer: TextRenderer
+    ├── glyph_atlas: GlyphAtlas           // Per-window (different DPI)
+    ├── font_system: FontSystemWrapper     // TODO: Consider sharing
+    └── text_engine: TextEngine            // Per-window cache
+```
+
+### Key Principles
+
+#### 1. Per-Window Resources
+
+**Why per-window:**
+- Each window has its own surface → needs own `WindowRenderer`
+- Each window may have different DPI → needs own glyph atlas
+- Each window has independent UI state → needs own `ElementManager`
+- Simplifies ownership and lifetimes (no Arc/Mutex for rendering)
+
+**Trade-offs:**
+- ✅ Clean ownership (no Arc/Mutex for rendering resources)
+- ✅ No cross-window synchronization needed
+- ✅ Windows can render independently (future: parallel rendering)
+- ⚠️ Higher memory usage (multiple atlases, font caches)
+- ⚠️ Can optimize later by sharing fonts/atlases if needed
+
+#### 2. Shared GPU Resources
+
+**RenderContext (Arc):**
+- GPU device, queue, adapter
+- Truly global - one per process
+- Wrapped in Arc for cheap cloning
+- Never needs mutation after creation
+
+#### 3. Layout Dirty Tracking
+
+**Fixed Implementation:**
+```rust
+// OLD (WRONG): Unconditional recalculation
+self.needs_layout = true;  // ❌ Every frame!
+
+// NEW (CORRECT): Only when elements are dirty
+let has_dirty_elements = self.element_manager.widget_ids()
+    .filter_map(|id| self.element_manager.get(id))
+    .any(|element| element.is_dirty());
+
+if has_dirty_elements {
+    self.needs_layout = true;
+}
+
+// After layout, clear dirty flags
+element.set_dirty(false);
+```
+
+### Window Lifecycle
+
+```rust
+// Create application
+let app = GuiApplication::new().await?;
+
+// Create window
+let window_id = app.create_window(WindowOptions {
+    bounds: Rect::new(Point::new(100.0, 100.0), Size::new(800.0, 600.0)),
+    title: "My Window".to_string(),
+    titlebar: None,
+})?;
+
+// Add elements to specific window
+let demo = TextDemoElement::new(WidgetId::new(1));
+app.window_mut(window_id)?.element_manager_mut().add_element(Box::new(demo));
+
+// Run event loop (handles all windows)
+app.run();
+```
+
+### Multi-Window Event Loop
+
+```rust
+impl GuiApplication {
+    pub fn run(&mut self) {
+        loop {
+            // Poll platform events for all windows
+            platform::poll_events();
+
+            // Process events per window
+            for (window_id, window_loop) in &mut self.windows {
+                // Each window processes its own events
+                window_loop.process_events();
+
+                // Each window renders independently
+                if window_loop.needs_render() {
+                    window_loop.render(&self.render_context);
+                }
+            }
+
+            // Remove closed windows
+            self.windows.retain(|_, w| !w.is_closed());
+
+            if self.windows.is_empty() {
+                break;  // Quit when all windows closed
+            }
+        }
+    }
+}
+```
+
+### Migration Path
+
+#### Phase 1: Rename and Restructure (No behavior change)
+1. Rename `GuiEventLoop` → `WindowEventLoop`
+2. Create `GuiApplication` wrapper around `WindowEventLoop`
+3. Move `render_context` to `GuiApplication`
+4. Keep single-window support working
+
+#### Phase 2: Multi-Window Support
+1. Add `windows: HashMap<WindowId, WindowEventLoop>` to `GuiApplication`
+2. Implement per-window event routing
+3. Support multiple `create_window()` calls
+4. Update platform layer for multi-window events
+
+#### Phase 3: Optimization (Optional)
+1. Consider sharing `font_system` across windows (memory savings)
+2. Consider shared glyph atlas with per-window views
+3. Add parallel rendering for multiple windows (future)
+
+### Current Status
+
+**Completed:**
+- ✅ Fixed layout recalculation (only when dirty)
+- ✅ Elements clear dirty flag after layout
+
+**Pending:**
+- ⬜ Rename `GuiEventLoop` → `WindowEventLoop`
+- ⬜ Create `GuiApplication` wrapper
+- ⬜ Move rendering resources to proper location
+- ⬜ Add multi-window support
+
+**Next Steps:**
+1. Implement Phase 1 migration (rename, no behavior change)
+2. Validate single-window behavior still works
+3. Add multi-window support (Phase 2)

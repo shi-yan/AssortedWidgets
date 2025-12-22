@@ -1,5 +1,5 @@
 use crate::paint::primitives::{Color, RectInstance};
-use crate::text::{TextInstance, TextLayout, GlyphAtlas, FontSystemWrapper};
+use crate::text::{TextInstance, TextLayout, GlyphAtlas, FontSystemWrapper, TextEngine, TextStyle};
 use crate::types::{Point, Rect, Size};
 
 /// Calculate the intersection of two rectangles
@@ -15,11 +15,43 @@ fn intersect_rects(a: Rect, b: Rect) -> Rect {
     )
 }
 
+/// Bundle of rendering resources passed to PaintContext
+///
+/// This bundles all the resources needed for text rendering into a single struct,
+/// dramatically simplifying the API (from 7 parameters down to 3).
+pub struct RenderBundle<'a> {
+    /// Glyph atlas for caching rasterized glyphs
+    pub atlas: &'a mut GlyphAtlas,
+
+    /// Font system for discovering fonts and rasterizing glyphs
+    pub font_system: &'a mut FontSystemWrapper,
+
+    /// Text engine with managed cache (for high-level API)
+    pub text_engine: &'a mut TextEngine,
+
+    /// WebGPU queue for uploading textures
+    pub queue: &'a wgpu::Queue,
+
+    /// WebGPU device for creating buffers
+    pub device: &'a wgpu::Device,
+
+    /// Display scale factor (1.0 for standard, 2.0 for Retina)
+    pub scale_factor: f32,
+}
+
 /// Paint context for drawing primitives
 ///
 /// This collects draw calls during the paint pass and then
 /// renders them all at once in a batched manner.
-pub struct PaintContext {
+///
+/// # Clean API with RenderBundle
+///
+/// PaintContext now bundles all rendering resources, providing a clean API:
+/// - `draw_text()`: High-level API with automatic caching (3 parameters)
+/// - `draw_layout()`: Low-level API for pre-shaped text (3 parameters)
+///
+/// This is a dramatic improvement over the previous 7-parameter API!
+pub struct PaintContext<'a> {
     /// Collected rectangle instances
     rects: Vec<RectInstance>,
 
@@ -32,15 +64,20 @@ pub struct PaintContext {
     /// Clip stack for hierarchical clipping
     /// The current clip rect is the intersection of all rects on the stack
     clip_stack: Vec<Rect>,
+
+    /// Bundled rendering resources (atlas, fonts, queue, etc.)
+    bundle: RenderBundle<'a>,
 }
 
-impl PaintContext {
-    pub fn new(window_size: Size) -> Self {
+impl<'a> PaintContext<'a> {
+    /// Create a new paint context with bundled rendering resources
+    pub fn new(window_size: Size, bundle: RenderBundle<'a>) -> Self {
         PaintContext {
             rects: Vec::new(),
             text: Vec::new(),
             window_size,
             clip_stack: Vec::new(),
+            bundle,
         }
     }
 
@@ -134,6 +171,66 @@ impl PaintContext {
         self.text.push(instance);
     }
 
+    /// Draw text with automatic caching (High-level managed API)
+    ///
+    /// **Use this for:** Buttons, labels, menus, tooltips - simple widgets with static text
+    ///
+    /// This is the easiest way to draw text. The TextEngine automatically caches
+    /// shaped text layouts and reuses them across frames. Perfect for UI elements
+    /// that display the same text repeatedly.
+    ///
+    /// # Arguments
+    /// * `text` - The text to display
+    /// * `style` - Text style (font size, weight, etc.)
+    /// * `position` - Top-left corner where text should be drawn
+    /// * `max_width` - Optional width constraint for wrapping
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// // Simple button label - automatically cached!
+    /// ctx.draw_text(
+    ///     "Click Me",
+    ///     &TextStyle::new().size(14.0),
+    ///     Point::new(10.0, 10.0),
+    ///     None,
+    /// );
+    /// ```
+    pub fn draw_text(
+        &mut self,
+        text: &str,
+        style: &TextStyle,
+        position: Point,
+        max_width: Option<f32>,
+    ) {
+        // Get or create managed layout (cached by TextEngine)
+        // We need to do this in two steps to avoid borrow checker issues
+        let color = style.text_color;
+
+        // Get clip rect before borrowing bundle
+        let clip_rect = self.current_clip_rect();
+        let window_size = self.window_size;
+
+        // First, get the layout (borrows text_engine)
+        let layout = self.bundle.text_engine.get_or_create_managed(text, style, max_width);
+
+        // Extract bundle fields (without text_engine which is already borrowed)
+        let scale_factor = self.bundle.scale_factor;
+
+        // Then render it using direct field access to avoid double borrow
+        Self::render_text_layout_internal(
+            layout,
+            position,
+            color,
+            &mut self.text,
+            &clip_rect,
+            window_size,
+            self.bundle.atlas,
+            self.bundle.font_system,
+            self.bundle.queue,
+            scale_factor,
+        );
+    }
+
     /// Draw a pre-shaped text layout (Low-level manual API)
     ///
     /// **Use this for:** Editors, terminals, widgets with thousands of unique texts
@@ -145,9 +242,6 @@ impl PaintContext {
     /// * `layout` - Pre-shaped text layout
     /// * `position` - Top-left corner where text should be drawn
     /// * `color` - Text color
-    /// * `atlas` - Glyph atlas for looking up glyph locations
-    /// * `font_system` - Font system for rasterizing missing glyphs
-    /// * `queue` - WebGPU queue for uploading missing glyphs
     ///
     /// # Example
     /// ```rust,ignore
@@ -157,13 +251,38 @@ impl PaintContext {
     /// }
     ///
     /// // Paint: just render the pre-shaped layout
-    /// ctx.draw_layout(&line.layout, Point::new(0, 0), Color::BLACK, atlas, font_system, queue);
+    /// ctx.draw_layout(&line.layout, Point::new(0, 0), Color::BLACK);
     /// ```
     pub fn draw_layout(
         &mut self,
         layout: &TextLayout,
         position: Point,
         color: Color,
+    ) {
+        // Precompute values to avoid borrowing issues
+        let clip_rect = self.current_clip_rect();
+        let window_size = self.window_size;
+
+        Self::render_text_layout(
+            layout,
+            position,
+            color,
+            &mut self.text,
+            &clip_rect,
+            window_size,
+            &mut self.bundle,
+        );
+    }
+
+    /// Internal method for rendering text layouts (static to avoid borrow issues)
+    /// Takes individual fields instead of bundle to avoid double-borrow issues
+    fn render_text_layout_internal(
+        layout: &TextLayout,
+        position: Point,
+        color: Color,
+        text_instances: &mut Vec<TextInstance>,
+        clip_rect_opt: &Option<Rect>,
+        window_size: Size,
         atlas: &mut GlyphAtlas,
         font_system: &mut FontSystemWrapper,
         queue: &wgpu::Queue,
@@ -174,8 +293,8 @@ impl PaintContext {
         use std::hash::{Hash, Hasher};
 
         // Get current clip rect
-        let clip = self.current_clip_rect().unwrap_or_else(|| {
-            Rect::new(Point::new(0.0, 0.0), self.window_size)
+        let clip = clip_rect_opt.unwrap_or_else(|| {
+            Rect::new(Point::new(0.0, 0.0), window_size)
         });
 
         let clip_rect = [
@@ -196,8 +315,6 @@ impl PaintContext {
             // Get the text for this specific line
             let line_text = buffer.lines[run.line_i].text();
 
-            println!("line_y: {} , {}", line_y, scale_factor);
-
             for glyph in run.glyphs.iter() {
                 // Extract the character from the line's text using glyph's byte range
                 // IMPORTANT: glyph.start/glyph.end are byte indices into THIS line, not the whole buffer
@@ -209,9 +326,6 @@ impl PaintContext {
                     (position.x as f32, position.y as f32 + line_y),
                     scale_factor
                 );
-
-                println!("position {} {}", position.x, position.y);
-                println!("physical_glyph x {} y {}", physical_glyph.x, physical_glyph.y);
 
                 let cache_key = physical_glyph.cache_key;
 
@@ -264,21 +378,10 @@ impl PaintContext {
                 let glyph_x = (physical_glyph.x + location.offset_x) as f32;
                 let glyph_y = (physical_glyph.y - location.offset_y) as f32;
 
-                println!("glyph '{}' at x {} y {}", glyph_char, location.offset_x, location.offset_y);
-
                 // Use actual rasterized glyph dimensions from atlas
                 let glyph_width = location.width as f32;
                 let glyph_height = location.height as f32;
 
-                // Debug: compare glyph advance width vs bitmap width
-                if glyph_char == 'H' || glyph_char == 'e' {
-                    println!("Glyph '{}': advance_w={:.1}, bitmap_w={}, bitmap_h={}, offset_x={}, offset_y={}",
-                        glyph_char, glyph.w, location.width, location.height,
-                        location.offset_x, location.offset_y);
-                }
-
-                println!("glyph pos {} {}", glyph_x, glyph_y);
-                println!("glyph size {} {}", glyph_width, glyph_height);
                 // Push text instance
                 let instance = TextInstance::new(
                     glyph_x,
@@ -295,10 +398,33 @@ impl PaintContext {
                     clip_rect,
                 );
 
-
-                self.text.push(instance);
+                text_instances.push(instance);
             }
         }
+    }
+
+    /// Internal method for rendering text layouts (wrapper that takes bundle)
+    fn render_text_layout(
+        layout: &TextLayout,
+        position: Point,
+        color: Color,
+        text_instances: &mut Vec<TextInstance>,
+        clip_rect_opt: &Option<Rect>,
+        window_size: Size,
+        bundle: &mut RenderBundle<'_>,
+    ) {
+        Self::render_text_layout_internal(
+            layout,
+            position,
+            color,
+            text_instances,
+            clip_rect_opt,
+            window_size,
+            bundle.atlas,
+            bundle.font_system,
+            bundle.queue,
+            bundle.scale_factor,
+        )
     }
 
     /// Get the collected rectangle instances

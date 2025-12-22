@@ -1,6 +1,7 @@
 //! Text styling configuration
 
 use cosmic_text::{Attrs, Family, Weight, Style, Stretch};
+use crate::paint::Color;
 
 /// Text style configuration
 #[derive(Clone, Debug)]
@@ -24,6 +25,9 @@ pub struct TextStyle {
 
     /// Font stretch (condensed, normal, expanded)
     pub font_stretch: Stretch,
+
+    /// Text color
+    pub text_color: Color,
 }
 
 impl TextStyle {
@@ -36,6 +40,7 @@ impl TextStyle {
             font_weight: Weight::NORMAL,
             font_style: Style::Normal,
             font_stretch: Stretch::Normal,
+            text_color: Color::WHITE,  // Default to white text
         }
     }
 
@@ -72,6 +77,12 @@ impl TextStyle {
     /// Set bold weight (builder pattern)
     pub fn bold(mut self) -> Self {
         self.font_weight = Weight::BOLD;
+        self
+    }
+
+    /// Set text color (builder pattern)
+    pub fn color(mut self, color: Color) -> Self {
+        self.text_color = color;
         self
     }
 
