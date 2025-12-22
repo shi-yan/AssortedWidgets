@@ -19,6 +19,10 @@ pub mod mac;
 #[cfg(target_os = "macos")]
 pub type PlatformWindowImpl = mac::MacWindow;
 
+// Re-export platform initialization
+#[cfg(target_os = "macos")]
+pub use mac::init;
+
 // ============================================================================
 // Platform Window Trait
 // ============================================================================

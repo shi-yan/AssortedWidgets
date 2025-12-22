@@ -14,6 +14,20 @@ impl WidgetId {
     }
 }
 
+/// Unique identifier for each window
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct WindowId(u64);
+
+impl WindowId {
+    pub fn new(id: u64) -> Self {
+        WindowId(id)
+    }
+
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
+}
+
 /// Generic message type for signal/slot communication
 #[derive(Debug)]
 pub enum GuiMessage {

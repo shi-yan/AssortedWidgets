@@ -14,20 +14,20 @@
 //! ```no_run
 //! use assorted_widgets::*;
 //!
-//! let mut event_loop = GuiEventLoop::new();
-//! let handle = event_loop.get_handle();
+//! let mut app = pollster::block_on(Application::new()).unwrap();
+//! let window_id = app.create_window(WindowOptions::default()).unwrap();
 //!
-//! // Run event loop
-//! event_loop.process_events();
+//! // Run event loop (never returns)
+//! app.run();
 //! ```
 
 // Module declarations
+pub mod application;
 pub mod connection;
 pub mod element;
 pub mod element_manager;
 pub mod elements;
 pub mod event;
-pub mod event_loop;
 pub mod handle;
 pub mod layout;
 pub mod paint;
@@ -36,14 +36,15 @@ pub mod render;
 pub mod scene_graph;
 pub mod text;
 pub mod types;
+pub mod window;
 pub mod window_render_state;
 
 // Re-export public API
+pub use application::Application;
 pub use connection::{Connection, ConnectionTable};
 pub use element::Element;
 pub use element_manager::ElementManager;
 pub use event::{GuiEvent, OsEvent};
-pub use event_loop::GuiEventLoop;
 pub use handle::GuiHandle;
 pub use platform::{
     Modifiers, MouseButton, PlatformInput, PlatformWindow, TitlebarOptions, WindowCallbacks,
@@ -52,6 +53,7 @@ pub use platform::{
 pub use scene_graph::{SceneGraph, SceneNode};
 pub use types::{
     point, rect, size, vector, DeferredCommand, GuiMessage, Point, Rect, ScreenPixels, Size,
-    Vector, WidgetId,
+    Vector, WidgetId, WindowId,
 };
+pub use window::Window;
 pub use window_render_state::WindowRenderState;

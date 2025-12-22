@@ -1,11 +1,11 @@
 //! Per-window rendering resources
 //!
 //! This module contains all rendering infrastructure specific to a single window.
-//! Windows hold references to shared resources (atlas, fonts) via Arc<Mutex<>>
+//! Windows hold references to shared RenderContext via Arc
 //! to avoid duplication while maintaining independent rendering state.
 
 use crate::paint::RectRenderer;
-use crate::render::{WindowRenderer, SharedRenderState};
+use crate::render::{WindowRenderer, RenderContext};
 use crate::text::TextRenderer;
 use std::sync::Arc;
 
@@ -13,9 +13,8 @@ use std::sync::Arc;
 ///
 /// # Architecture
 ///
-/// This struct separates rendering concerns from event handling:
-/// - **WindowRenderState**: Owns window-specific resources, references shared state
-/// - **WindowEventLoop**: Orchestrates events, layout, and calls into render state
+/// This struct holds window-specific rendering resources and a reference
+/// to the shared RenderContext (GPU + atlas + fonts).
 ///
 /// ## Per-Window Resources (owned directly)
 /// 1. **WindowRenderer**: Each window has its own surface
@@ -23,23 +22,20 @@ use std::sync::Arc;
 /// 3. **TextRenderer**: Stateless renderer (just pipeline/shaders)
 /// 4. **scale_factor**: Current DPI scale (1.0x, 2.0x for Retina, etc.)
 ///
-/// ## Shared Resources (via Arc<Mutex<>>)
-/// 1. **GlyphAtlas**: Single texture cache across all windows
+/// ## Shared Resources (via Arc<RenderContext>)
+/// 1. **GPU resources**: device, queue, adapter
+/// 2. **GlyphAtlas**: Single texture cache across all windows
 ///    - Uses scale_factor in GlyphKey for multi-DPI support
 ///    - Avoids ~16MB duplication per window
-/// 2. **FontSystem**: Font loading and rasterization
-/// 3. **TextEngine**: Text layout and shaping cache
+/// 3. **FontSystem**: Font loading and rasterization
+/// 4. **TextEngine**: Text layout and shaping cache
 ///
 /// # Benefits
 ///
-/// **Shared atlas with scale_factor in GlyphKey:**
 /// - Window moves from 1.0x to 2.0x display? Both cached, no invalidation!
 /// - 5 windows use same text? Single glyph cache instead of 5× duplication
 /// - Memory: 1 atlas (~16MB) vs per-window (~80MB for 5 windows)
-///
-/// **Stateless renderers:**
-/// - Projection matrix passed as parameter, not embedded
-/// - No per-window duplication of pipelines/shaders
+/// - Stateless renderers: no per-window duplication of pipelines/shaders
 pub struct WindowRenderState {
     /// Window surface and format management
     pub renderer: WindowRenderer,
@@ -54,9 +50,9 @@ pub struct WindowRenderState {
     /// Used in GlyphKey to support multiple scales in single atlas
     pub scale_factor: f32,
 
-    /// Shared rendering resources (atlas, fonts, text engine)
-    /// Wrapped in Arc for cheap cloning, Mutex for thread-safety
-    pub shared: Arc<SharedRenderState>,
+    /// Shared rendering context (GPU + atlas + fonts + text engine)
+    /// Wrapped in Arc for cheap cloning
+    pub render_context: Arc<RenderContext>,
 }
 
 impl WindowRenderState {
