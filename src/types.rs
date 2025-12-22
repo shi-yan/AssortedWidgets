@@ -15,6 +15,18 @@ impl WidgetId {
 }
 
 /// Unique identifier for each window
+///
+/// ## Design Decision: Simple u64 ID vs raw-window-handle
+///
+/// We use a simple `u64` counter instead of platform-specific window handles for several reasons:
+///
+/// 1. **Cross-platform uniformity**: raw-window-handle types vary per platform (NSWindow*, HWND, xcb_window_t)
+/// 2. **HashMap compatibility**: u64 is trivially hashable and comparable
+/// 3. **Stable identity**: Window handle might change on some platforms, but our ID is stable
+/// 4. **Decoupling**: Separates our logical window ID from platform implementation details
+///
+/// The platform-specific window handle is stored in `PlatformWindowImpl` and accessed via the
+/// `raw-window-handle` trait when needed for surface creation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WindowId(u64);
 

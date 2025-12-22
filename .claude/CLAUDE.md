@@ -291,23 +291,27 @@ graph TD
 **Shared Resource Architecture:**
 
 ```rust
-// Shared across all windows (Arc<Mutex<>>)
-pub struct SharedRenderState {
-    /// Single atlas for all windows (supports multiple DPIs)
+// RenderContext: SINGLE shared resource for all windows (Arc)
+pub struct RenderContext {
+    // GPU Resources (Low-Level)
+    pub instance: wgpu::Instance,
+    pub adapter: wgpu::Adapter,
+    pub device: Arc<wgpu::Device>,
+    pub queue: Arc<wgpu::Queue>,
+
+    // Rendering Resources (High-Level, Arc<Mutex<>>)
     pub glyph_atlas: Arc<Mutex<GlyphAtlas>>,
-    /// Font system (expensive to initialize)
     pub font_system: Arc<Mutex<FontSystemWrapper>>,
-    /// Text shaping cache
     pub text_engine: Arc<Mutex<TextEngine>>,
 }
 
-// Per-window (references shared state)
+// Per-window (references shared RenderContext)
 pub struct WindowRenderState {
     pub renderer: WindowRenderer,           // Window surface
     pub rect_renderer: RectRenderer,        // Stateless
     pub text_renderer: TextRenderer,        // Stateless
     pub scale_factor: f32,                  // 1.0x, 2.0x, etc.
-    pub shared: Arc<SharedRenderState>,     // Cheap clone
+    pub render_context: Arc<RenderContext>, // Cheap Arc clone (GPU + Atlas + Fonts)
 }
 
 // GlyphKey with multi-DPI support
@@ -316,15 +320,17 @@ pub struct GlyphKey {
     size_bits: u32,
     character: char,
     subpixel_offset: u8,
-    scale_factor: u8,  // ✅ NEW: 100 = 1.0x, 200 = 2.0x
+    scale_factor: u8,  // ✅ 100 = 1.0x, 200 = 2.0x
 }
 ```
 
-**Benefits of Shared Architecture:**
+**Benefits of Consolidated Architecture:**
+- ✅ **Simpler:** Single `RenderContext` instead of two separate Arc wrappers
 - ✅ **Memory:** Single atlas (~16MB) vs per-window (~80MB for 5 windows)
 - ✅ **DPI Transitions:** Window moves 1.0x → 2.0x? Both cached, no invalidation!
 - ✅ **Font System:** Initialized once, shared across windows (~10MB saved)
 - ✅ **Text Shaping:** Cache reused across windows
+- ✅ **Cleaner:** No redundancy between RenderContext and SharedRenderState
 
 **Rendering Flow:**
 1. Layout pass: Taffy queries measure functions for text dimensions
@@ -385,6 +391,34 @@ loop {
 - Standard widgets use `PrimitiveContext` (themed, batched)
 - Custom widgets access `RenderPass` directly
 - Both can coexist via `PaintContext`
+
+### Why WindowId (u64) instead of raw-window-handle?
+
+**Problem:** How to identify windows in a HashMap?
+
+**Rejected: Use raw-window-handle directly**
+```rust
+// ❌ Platform-specific types (NSWindow*, HWND, xcb_window_t)
+// ❌ Not uniformly hashable across platforms
+// ❌ Couples our logic to platform implementation
+```
+
+**Chosen: Simple u64 counter**
+```rust
+// ✅ Cross-platform uniformity
+pub struct WindowId(u64);
+
+// ✅ Trivially hashable and comparable
+windows: HashMap<WindowId, Window>
+
+// ✅ Stable identity (doesn't change during window lifetime)
+// ✅ Decoupled from platform specifics
+```
+
+**Platform handles still accessible:**
+- Stored in `PlatformWindowImpl`
+- Accessed via `raw-window-handle` trait when needed (e.g., surface creation)
+- Separation of concerns: logical ID vs platform handle
 
 ---
 

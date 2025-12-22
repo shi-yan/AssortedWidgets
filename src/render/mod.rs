@@ -2,7 +2,10 @@
 //!
 //! ## Architecture
 //!
-//! - **RenderContext**: Shared GPU state (instance, adapter, device, queue)
+//! - **RenderContext**: Shared GPU state and rendering resources
+//!   - GPU resources: instance, adapter, device, queue
+//!   - Rendering resources: glyph atlas, font system, text engine
+//!   - Created once, shared across all windows via Arc
 //! - **WindowRenderer**: Per-window rendering state (surface, configuration)
 //!
 //! ## Usage
@@ -10,7 +13,7 @@
 //! ```no_run
 //! use assorted_widgets::render::*;
 //!
-//! // Initialize shared rendering context
+//! // Initialize shared rendering context (GPU + atlas + fonts)
 //! let render_ctx = pollster::block_on(RenderContext::new()).unwrap();
 //!
 //! // Create per-window renderer
@@ -32,8 +35,6 @@
 
 mod context;
 mod window_renderer;
-mod shared_state;
 
 pub use context::RenderContext;
 pub use window_renderer::WindowRenderer;
-pub use shared_state::SharedRenderState;

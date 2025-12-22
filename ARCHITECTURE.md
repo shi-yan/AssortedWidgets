@@ -2469,9 +2469,10 @@ The text rendering system will be implemented in three phases:
 **Architecture Refactor (Dec 2025):**
 After initial implementation, refactored to shared resource model:
 - ✅ Added `scale_factor` to `GlyphKey` for multi-DPI support
-- ✅ Created `SharedRenderState` with Arc<Mutex<>> for atlas/fonts/text engine
-- ✅ Updated `WindowRenderState` to reference shared resources
-- ✅ Benefits: ~80MB memory savings for 5 windows, seamless DPI transitions
+- ✅ Consolidated shared resources into single `RenderContext` (GPU + Atlas + Fonts + Text)
+- ✅ Removed redundant `SharedRenderState` (was duplicate of resources in RenderContext)
+- ✅ Updated `WindowRenderState` to reference `Arc<RenderContext>` directly
+- ✅ Benefits: ~80MB memory savings for 5 windows, seamless DPI transitions, simpler architecture
 
 #### Phase 3.3: Text Measurement & Wrapping (1 week)
 **Goal:** Integrate with layout system, dynamic sizing
@@ -2741,17 +2742,30 @@ WindowRenderState (Per-window + Shared resources)
 ├── rect_renderer: RectRenderer           // Stateless renderer (per-window)
 ├── text_renderer: TextRenderer           // Stateless renderer (per-window)
 ├── scale_factor: f32                     // Current DPI scale (1.0x, 2.0x)
-└── shared: Arc<SharedRenderState>        // Reference to shared resources
+└── render_context: Arc<RenderContext>    // Reference to shared resources (GPU + Atlas + Fonts)
 
-SharedRenderState (Shared across all windows via Arc<Mutex<>>)
-├── glyph_atlas: GlyphAtlas              // Single atlas with multi-DPI support
-├── font_system: FontSystemWrapper        // Font discovery + rasterization
-└── text_engine: TextEngine               // Dual-mode caching
+RenderContext (Shared across all windows via Arc - CONSOLIDATED)
+├── GPU Resources (Low-Level)
+│   ├── instance: wgpu::Instance
+│   ├── adapter: wgpu::Adapter
+│   ├── device: Arc<wgpu::Device>
+│   └── queue: Arc<wgpu::Queue>
+│
+└── Rendering Resources (High-Level, wrapped in Arc<Mutex<>>)
+    ├── glyph_atlas: Arc<Mutex<GlyphAtlas>>          // Single atlas with multi-DPI support
+    ├── font_system: Arc<Mutex<FontSystemWrapper>>   // Font discovery + rasterization
+    └── text_engine: Arc<Mutex<TextEngine>>          // Dual-mode caching
 ```
 
-**Current Implementation (Phase 3.2 - ✅ REFACTORED):**
+**Current Implementation (Phase 3.2 - ✅ CONSOLIDATED):**
 ```
-GuiEventLoop (Currently per-window, will rename to WindowEventLoop)
+Application (One per process)
+├── windows: HashMap<WindowId, Window>
+├── next_window_id: u64
+├── render_context: Arc<RenderContext>  // ✅ SINGLE source of GPU + rendering resources
+└── event_queue: Arc<Mutex<VecDeque<(WindowId, GuiEvent)>>>
+
+Window (Per-window)
 ├── Event Handling & UI State
 │   ├── element_manager: ElementManager
 │   ├── scene_graph: SceneGraph
@@ -2759,16 +2773,16 @@ GuiEventLoop (Currently per-window, will rename to WindowEventLoop)
 │   ├── window_size: Size
 │   └── needs_layout: bool
 │
-├── Rendering (Per-Window) - BUNDLED ✅
+├── Rendering (Per-Window)
 │   └── render_state: WindowRenderState
-│
-├── Shared Resources - ✅ NEW ARCHITECTURE
-│   ├── render_context: Arc<RenderContext>        // GPU device/queue
-│   ├── shared_render_state: Arc<SharedRenderState>  // Atlas, fonts, text
-│   └── event_queue: Arc<Mutex<VecDeque<GuiEvent>>>
+│       ├── renderer: WindowRenderer
+│       ├── rect_renderer: RectRenderer
+│       ├── text_renderer: TextRenderer
+│       ├── scale_factor: f32
+│       └── render_context: Arc<RenderContext>  // ✅ Cheap clone from Application
 │
 └── Platform Window
-    └── window: PlatformWindowImpl
+    └── platform_window: PlatformWindowImpl
 ```
 
 ### Key Principles

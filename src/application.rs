@@ -131,7 +131,7 @@ impl Application {
             rect_renderer,
             text_renderer,
             scale_factor as f32,
-            Arc::clone(&self.shared_render_state),
+            Arc::clone(&self.render_context),
         );
 
         // Clone event queue Arc for callbacks to use
@@ -192,13 +192,8 @@ impl Application {
     }
 
     /// Get reference to shared render context
-    pub fn render_context(&self) -> &RenderContext {
+    pub fn render_context(&self) -> &Arc<RenderContext> {
         &self.render_context
-    }
-
-    /// Get reference to shared render state
-    pub fn shared_render_state(&self) -> &Arc<SharedRenderState> {
-        &self.shared_render_state
     }
 
     /// Run the main event loop (never returns)
@@ -312,7 +307,7 @@ impl Application {
 
             // Render all windows
             for window in self.windows.values_mut() {
-                window.render_frame(&self.render_context, &self.shared_render_state);
+                window.render_frame(&self.render_context);
             }
 
             // Request next frame for continuous animation (all windows)

@@ -1,15 +1,13 @@
 use crate::element_manager::ElementManager;
 use crate::layout::LayoutManager;
 use crate::paint::PaintContext;
-use crate::render::{RenderContext, SharedRenderState};
+use crate::render::RenderContext;
 use crate::scene_graph::SceneGraph;
 use crate::types::{Size, WindowId};
 use crate::window_render_state::WindowRenderState;
 
 #[cfg(target_os = "macos")]
 use crate::platform::{PlatformWindow, PlatformWindowImpl};
-
-use std::sync::Arc;
 
 // ============================================================================
 // Window - Per-window state and UI tree
@@ -188,7 +186,6 @@ impl Window {
     pub fn render_frame(
         &mut self,
         render_context: &RenderContext,
-        shared_render_state: &Arc<SharedRenderState>,
     ) {
         // Get surface texture
         let surface_texture = match self.render_state.renderer.get_current_texture() {
@@ -271,9 +268,9 @@ impl Window {
         // Paint phase - collect draw commands
         let (rect_instances, text_instances) = {
             // Lock shared resources for the duration of the frame
-            let mut atlas_lock = shared_render_state.glyph_atlas.lock().unwrap();
-            let mut font_system_lock = shared_render_state.font_system.lock().unwrap();
-            let mut text_engine_lock = shared_render_state.text_engine.lock().unwrap();
+            let mut atlas_lock = render_context.glyph_atlas.lock().unwrap();
+            let mut font_system_lock = render_context.font_system.lock().unwrap();
+            let mut text_engine_lock = render_context.text_engine.lock().unwrap();
 
             // Create render bundle with references to locked resources
             let bundle = crate::paint::RenderBundle {
@@ -333,8 +330,8 @@ impl Window {
             // Render all rectangles
             self.render_state.rect_renderer.render(render_context, &mut render_pass, &rect_instances);
 
-            // Get atlas texture view from shared glyph atlas
-            let atlas_lock = shared_render_state.glyph_atlas.lock().unwrap();
+            // Get atlas texture view from glyph atlas
+            let atlas_lock = render_context.glyph_atlas.lock().unwrap();
             let atlas_texture_view = atlas_lock.texture_view();
             self.render_state.text_renderer.render(
                 render_context,

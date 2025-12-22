@@ -51,7 +51,7 @@ pub struct WindowRenderState {
     pub scale_factor: f32,
 
     /// Shared rendering context (GPU + atlas + fonts + text engine)
-    /// Wrapped in Arc for cheap cloning
+    /// Wrapped in Arc for cheap cloning across windows
     pub render_context: Arc<RenderContext>,
 }
 
@@ -63,20 +63,20 @@ impl WindowRenderState {
     /// * `rect_renderer` - Stateless rectangle renderer
     /// * `text_renderer` - Stateless text renderer
     /// * `scale_factor` - Initial DPI scale (1.0 = standard, 2.0 = Retina)
-    /// * `shared` - Arc to shared render state (atlas, fonts, text engine)
+    /// * `render_context` - Arc to shared RenderContext (GPU + atlas + fonts + text engine)
     pub fn new(
         renderer: WindowRenderer,
         rect_renderer: RectRenderer,
         text_renderer: TextRenderer,
         scale_factor: f32,
-        shared: Arc<SharedRenderState>,
+        render_context: Arc<RenderContext>,
     ) -> Self {
         Self {
             renderer,
             rect_renderer,
             text_renderer,
             scale_factor,
-            shared,
+            render_context,
         }
     }
 
@@ -87,8 +87,8 @@ impl WindowRenderState {
     /// - Mark all atlas glyphs as potentially evictable
     pub fn begin_frame(&mut self) {
         // Lock shared resources briefly to update frame counters
-        self.shared.glyph_atlas.lock().unwrap().begin_frame();
-        self.shared.text_engine.lock().unwrap().begin_frame();
+        self.render_context.glyph_atlas.lock().unwrap().begin_frame();
+        self.render_context.text_engine.lock().unwrap().begin_frame();
     }
 
     /// Get a reference to the window surface renderer
