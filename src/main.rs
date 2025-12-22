@@ -95,7 +95,7 @@ fn main() {
             100.0,   // min_width: text heavily truncated
             600.0,   // max_width: text fully visible
         )
-        .with_bg_color(Color { r: 0.15, g: 0.2, b: 0.25, a: 1.0 });
+        .with_bg_color(Color { r: 1.0, g: 0.2, b: 0.2, a: 1.0 });
 
         let animated_id = animated_label.id();
 
@@ -103,9 +103,9 @@ fn main() {
         let animated_window = app.window_mut(animated_window_id).expect("Window not found");
         animated_window.element_manager_mut().add_element(Box::new(animated_label));
 
-        // Create layout node
+        // Create layout node with custom measurement (for animated width)
         animated_window.layout_manager_mut()
-            .create_node(animated_id, taffy::Style::default())
+            .create_measurable_node(animated_id, taffy::Style::default())
             .expect("Failed to create layout node");
 
         // Set as root

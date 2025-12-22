@@ -64,7 +64,7 @@ impl AnimatedTextLabel {
                 .size(18.0)
                 .color(Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 })
                 .align(TextAlign::Left),
-            bg_color: Color { r: 0.2, g: 0.3, b: 0.4, a: 1.0 },
+            bg_color: Color { r: 1.0, g: 0.3, b: 0.4, a: 1.0 },
             start_time: Instant::now(),
             min_width,
             max_width,
@@ -140,10 +140,10 @@ impl Element for AnimatedTextLabel {
         // Draw background
         ctx.draw_rect(self.bounds, self.bg_color);
 
-        // Get current width for dynamic truncation
-        let current_width = self.current_width();
+        // Use bounds width (not current_width!) to ensure text fits within layout-determined bounds
+        // The bounds were set by measure() which called current_width() at layout time
         let padding = 10.0;
-        let text_width = (current_width - 2.0 * padding).max(0.0) as f32;
+        let text_width = (self.bounds.size.width - 2.0 * padding).max(0.0) as f32;
 
         // Create text layout with ellipsis truncation
         // As width shrinks → text truncates with "..."
@@ -164,13 +164,6 @@ impl Element for AnimatedTextLabel {
 
         // Draw the truncated text
         ctx.draw_layout(&layout, text_pos, self.text_style.text_color);
-
-        // Debug output
-        let elapsed = self.start_time.elapsed().as_secs_f64();
-        println!(
-            "[AnimatedTextLabel] width: {:.0}px, elapsed: {:.2}s, text_width: {:.0}px",
-            current_width, elapsed, text_width
-        );
     }
 
     /// Measure function: returns current animated width

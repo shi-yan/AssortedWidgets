@@ -239,14 +239,14 @@ impl TextEngine {
         // Create buffer
         let mut buffer = Buffer::new(font_system, metrics);
 
-        // Set size (width constraint for wrapping)
-        if let Some(width) = max_width {
-            buffer.set_size(font_system, Some(width), None);
-        }
-
         // Set text with attributes
         let attrs = style.to_attrs();
         buffer.set_text(font_system, text, &attrs, Shaping::Advanced, None);
+
+        // Set size (width constraint for wrapping) - MUST be after set_text
+        if let Some(width) = max_width {
+            buffer.set_size(font_system, Some(width), None);
+        }
 
         // Set wrapping mode BEFORE shaping
         if truncate == Truncate::End {
@@ -257,7 +257,7 @@ impl TextEngine {
             buffer.set_wrap(font_system, cosmic_text::Wrap::Word);
         }
 
-        // Set alignment on all buffer lines
+        // Set alignment on all buffer lines BEFORE shaping
         use cosmic_text::Align as CosmicAlign;
         let cosmic_align = match style.alignment {
             crate::text::TextAlign::Left => CosmicAlign::Left,
@@ -269,7 +269,7 @@ impl TextEngine {
             line.set_align(Some(cosmic_align));
         }
 
-        // Shape the text
+        // Shape the text (applies wrapping, alignment, etc.)
         buffer.shape_until_scroll(font_system, false);
 
         // Apply truncation with ellipsis if requested
@@ -334,6 +334,12 @@ impl TextEngine {
                     // Re-shape with final text (wrapping already disabled above)
                     buffer.set_text(font_system, &final_text, &attrs, Shaping::Advanced, None);
                     buffer.set_size(font_system, Some(width), None);
+
+                    // Re-apply alignment (set_text may have reset it)
+                    for line in buffer.lines.iter_mut() {
+                        line.set_align(Some(cosmic_align));
+                    }
+
                     buffer.shape_until_scroll(font_system, false);
                 }
             }
