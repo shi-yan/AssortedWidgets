@@ -767,22 +767,212 @@ See [ARCHITECTURE.md § Text Rendering](ARCHITECTURE.md#text-rendering) for deta
 
 #### Phase 3.3: Polish, Performance & Layout Integration (Week 4)
 
-**Status:** 🚧 CURRENT PHASE
+**Status:** 🚧 NEXT PHASE (Phase 3.2 Complete ✅)
 
 **Goal:** Complete the text rendering system with ellipsis truncation, API cleanup, and full Taffy integration
 
-**Why Now:** Phase 3.2 proved that wrapping and multi-line text already work. Now we need to polish the rough edges and integrate with the layout system.
+**Why Now:** Phase 3.2 is complete! Text rendering with ligatures, bidirectional text, emoji, wrapping, and two-tier API all work. Now we need to polish the rough edges, clean up the API, and integrate with the layout system.
 
-**Key Realizations from Phase 3.2:**
-- ✅ Text wrapping ALREADY works (cosmic-text handles it when you pass `max_width`)
-- ✅ Multi-line text ALREADY works (cosmic-text Buffer supports it natively)
-- ⚠️ The API is functional but needs cleanup (too many parameters)
+**Phase 3.2 Achievements:**
+- ✅ Text wrapping works (cosmic-text handles it when you pass `max_width`)
+- ✅ Multi-line text works (cosmic-text Buffer supports it natively)
+- ✅ Ligatures and kerning work (demonstrated with "office" → "ffi" ligature)
+- ✅ Bidirectional text works (mixed LTR/RTL rendering)
+- ✅ Multi-language support works (automatic font fallback)
+- ✅ Emoji rendering works (color glyphs)
+- ✅ Two-tier API functional (high-level managed cache + low-level manual control)
+- ✅ Glyph atlas with multi-page support and LRU eviction
+- ✅ Retina/HiDPI display support
+
+**Remaining Issues from Phase 3.2:**
+- ⚠️ Demo is hacky (embedded in event_loop instead of using Element trait)
+- ⚠️ API has too many parameters (needs bundle struct refactoring)
 - ⚠️ Ellipsis truncation is stubbed but not implemented
-- ⚠️ No actual TextLabel element using the measure system yet
+- ⚠️ No TextLabel element with full measure integration yet
+- ⚠️ No performance benchmarking or optimization yet
+
+**Critical Architectural Issue: Hacky Demo Implementation**
+
+The current Phase 3.2 demo is embedded directly in `event_loop.rs` via the `render_test_text()` method. This is **not** how the framework is intended to be used. The demo should use the public Element API just like a real GUI integrator would.
+
+**Current Hacky State:**
+```rust
+// src/event_loop.rs
+pub struct GuiEventLoop {
+    // ❌ WRONG: Event loop owns rendering infrastructure
+    rect_renderer: Option<RectRenderer>,
+    text_renderer: Option<TextRenderer>,
+    glyph_atlas: Option<GlyphAtlas>,
+    font_system: FontSystemWrapper,
+    text_engine: TextEngine,
+
+    // ❌ WRONG: Demo-specific state in event loop
+    demo_layouts: Option<DemoTextLayouts>,
+    demo_start_time: std::time::Instant,
+    demo_frame_count: u64,
+    demo_atlas_dumped: bool,
+}
+
+// ❌ WRONG: Hardcoded demo rendering
+fn render_test_text(&mut self, paint_ctx: &mut PaintContext) {
+    let shaped_layout = self.text_engine.create_layout(...);
+    paint_ctx.draw_layout(&shaped_layout, ...);
+    // ... more hardcoded text rendering
+}
+```
+
+**Why This Is Wrong:**
+1. The event loop shouldn't own rendering infrastructure - it should just orchestrate
+2. Demo code pollutes the core event loop with demo-specific fields
+3. Doesn't demonstrate how real integrators would use the framework
+4. Real users would implement Elements, not hack the event loop
+
+**Proper Architecture (Phase 3.3 Goal):**
+```rust
+// src/elements/text_demo.rs - NEW FILE
+pub struct TextDemoElement {
+    id: WidgetId,
+    bounds: Rect,
+    // Element-owned state (like a real widget would have)
+}
+
+impl Element for TextDemoElement {
+    fn paint(&self, ctx: &mut PaintContext) {
+        // Use the public API like a real integrator
+        ctx.draw_text("Hello World", &TextStyle::default(), Point::new(10, 10), None);
+    }
+}
+
+// src/main.rs - Clean demo setup
+let mut event_loop = GuiEventLoop::new().await?;
+event_loop.create_window(WindowOptions::default())?;
+
+// Add demo element through public API
+let demo_id = event_loop.element_manager_mut().create_element(
+    TextDemoElement::new()
+);
+event_loop.scene_graph_mut().set_root(demo_id);
+
+event_loop.run();  // Clean!
+```
+
+**Migration Plan (Part of Phase 3.3):**
+1. Move rendering infrastructure from `GuiEventLoop` to `PaintContext` (bundle struct)
+2. Create proper demo elements using Element trait
+3. Remove all demo-specific fields from event loop
+4. Update `main.rs` to use public API for demos
+
+This refactoring will:
+- ✅ Demonstrate correct framework usage
+- ✅ Validate that the public API is actually usable
+- ✅ Remove pollution from core event loop
+- ✅ Serve as reference implementation for integrators
 
 **Implementation Steps:**
 
-1. **Implement Ellipsis Truncation** ([src/text/engine.rs](src/text/engine.rs)):
+1. **Fix Demo Architecture** (NEW - Highest Priority):
+
+   a. **Move Rendering Infrastructure to PaintContext Bundle:**
+   ```rust
+   // src/paint/context.rs
+   pub struct RenderBundle<'a> {
+       pub atlas: &'a mut GlyphAtlas,
+       pub font_system: &'a mut FontSystemWrapper,
+       pub text_engine: &'a mut TextEngine,
+       pub queue: &'a wgpu::Queue,
+       pub device: &'a wgpu::Device,
+       pub scale_factor: f32,
+   }
+
+   pub struct PaintContext<'a> {
+       rects: Vec<RectInstance>,
+       text_instances: Vec<TextInstance>,
+       window_size: Size,
+       clip_stack: Vec<Rect>,
+
+       // Bundle all rendering resources
+       bundle: RenderBundle<'a>,
+   }
+
+   impl PaintContext<'_> {
+       // Clean 3-parameter API!
+       pub fn draw_layout(
+           &mut self,
+           layout: &TextLayout,
+           position: Point,
+           color: Color,
+       ) {
+           // Access everything from self.bundle
+       }
+
+       // High-level API
+       pub fn draw_text(
+           &mut self,
+           text: &str,
+           style: &TextStyle,
+           position: Point,
+           max_width: Option<f32>,
+       ) {
+           let layout = self.bundle.text_engine.get_or_create_managed(
+               text, style, max_width
+           );
+           self.draw_layout(layout, position, style.color);
+       }
+   }
+   ```
+
+   b. **Create Proper Demo Elements:**
+   ```rust
+   // src/elements/text_demo.rs
+   pub struct TextDemoElement {
+       id: WidgetId,
+       bounds: Rect,
+   }
+
+   impl Element for TextDemoElement {
+       fn paint(&self, ctx: &mut PaintContext) {
+           let mut y = 50.0;
+
+           // Use high-level API like a real widget
+           ctx.draw_text(
+               "The office offers efficient service",
+               &TextStyle::new().size(18.0),
+               Point::new(40.0, y),
+               None,
+           );
+           y += 50.0;
+
+           ctx.draw_text(
+               "Hello שלום مرحبا 你好 👋",
+               &TextStyle::new().size(24.0),
+               Point::new(40.0, y),
+               None,
+           );
+           // ... etc
+       }
+   }
+   ```
+
+   c. **Clean Up Event Loop:**
+   - Remove: `demo_layouts`, `demo_start_time`, `demo_frame_count`, `demo_atlas_dumped`
+   - Keep: rendering infrastructure but pass to PaintContext as bundle
+   - Remove: `render_test_text()` method
+
+   d. **Update main.rs:**
+   ```rust
+   let mut event_loop = GuiEventLoop::new().await?;
+   event_loop.create_window(WindowOptions::default())?;
+
+   // Add demo element through public API
+   let demo = TextDemoElement::new(WidgetId::new());
+   let demo_id = demo.id();
+   event_loop.element_manager_mut().add(Box::new(demo));
+   event_loop.scene_graph_mut().set_root(demo_id);
+
+   event_loop.run();
+   ```
+
+2. **Implement Ellipsis Truncation** ([src/text/engine.rs](src/text/engine.rs)):
 
    **Current State (lines 223-230):**
    ```rust
@@ -1063,30 +1253,65 @@ See [ARCHITECTURE.md § Text Rendering](ARCHITECTURE.md#text-rendering) for deta
    ```
 
 **Phase 3.3 Deliverables:**
-- ⬜ Ellipsis truncation fully implemented (not just stubbed)
-- ⬜ Bundle struct API cleanup (reduce parameter count from 6 to 3)
-- ⬜ `TextLabel` element with `measure()` implementation
-- ⬜ Cached layout invalidation on text/width change
-- ⬜ `TextEngine` performance stats and monitoring
-- ⬜ Performance benchmarks and optimization
-- ⬜ Bidirectional layout integration:
-  - Window resize → text reflows (via measure)
-  - Text change → parent resizes via `mark_dirty`
-- ⬜ Test scenes covering all features
-- ⬜ Performance validation: <16ms for 1000+ unique glyphs
-- ⬜ Documentation update with clean API examples
+- ⬜ **Fix demo architecture** (Highest Priority):
+  - Move rendering infrastructure to PaintContext bundle
+  - Remove demo-specific fields from GuiEventLoop
+  - Create TextDemoElement using Element trait
+  - Update main.rs to use public API
+  - Validate that framework is actually usable by integrators
+- ⬜ **Bundle struct API cleanup** (reduce parameter count from 7 to 3)
+  - `draw_layout()`: 7 params → 3 params
+  - `draw_text()`: high-level API with clean interface
+  - All rendering resources bundled in PaintContext
+- ⬜ **Ellipsis truncation** fully implemented (not just stubbed)
+  - Binary search for optimal truncation point
+  - Character-level truncation with ellipsis ("…")
+  - Proper handling of multi-byte characters
+- ⬜ **TextLabel element** with `measure()` implementation
+  - Cached layout invalidation on text/width change
+  - Full Taffy integration via measure function
+  - Bidirectional layout flows:
+    - Window resize → text reflows (via measure)
+    - Text change → parent resizes via `mark_dirty`
+- ⬜ **Performance benchmarking and optimization**
+  - `TextEngine` performance stats and monitoring
+  - Test scenes covering all features
+  - Performance validation: <16ms for 1000+ unique glyphs
+  - Cache hit rate metrics (target >95%)
+- ⬜ **Documentation update** with clean API examples
+  - High-level API usage patterns
+  - Low-level API usage patterns
+  - When to use which API
 
 **Phase 3 Complete When:**
 - ✅ Can render text with shaping, wrapping, multi-language (Phase 3.2 ✅)
-- ✅ Text elements integrate with Taffy layout (Phase 3.3 target)
 - ✅ Font fallback and multi-language support works (Phase 3.2 ✅)
 - ✅ Emoji rendering works (Phase 3.2 ✅)
 - ✅ Both high-level and low-level APIs functional (Phase 3.2 ✅)
 - ✅ Frame-based cache eviction working (Phase 3.2 ✅)
-- ⬜ Ellipsis truncation works (Phase 3.3 target)
+- ⬜ Demo uses Element trait properly (Phase 3.3 target - CRITICAL)
 - ⬜ Clean API with bundle struct (Phase 3.3 target)
+- ⬜ Text elements integrate with Taffy layout (Phase 3.3 target)
+- ⬜ Ellipsis truncation works (Phase 3.3 target)
 - ⬜ Performance: <16ms frame time with 1000+ glyphs (Phase 3.3 target)
 - ⬜ Documentation updated with API examples (Phase 3.3 target)
+
+**Phase 3.2 Status: ✅ COMPLETE**
+- All core text rendering features work
+- Text shaping with ligatures and kerning ✅
+- Bidirectional and multi-language text ✅
+- Emoji rendering ✅
+- Text wrapping and multi-line ✅
+- Two-tier API (managed + manual) ✅
+- Glyph atlas with LRU eviction ✅
+- Retina/HiDPI support ✅
+
+**Phase 3.3 Focus:**
+- Fix hacky demo architecture (use Element trait)
+- Clean up API (bundle struct to reduce parameters)
+- Add ellipsis truncation
+- Integrate with Taffy layout system
+- Performance benchmarking and optimization
 
 ---
 
