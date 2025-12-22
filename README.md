@@ -9,7 +9,7 @@ A cross-platform GUI framework for Rust with first-class support for custom grap
 - 🎮 **3D Application Support**: Direct WebGPU RenderPass access for custom graphics
 - 🔄 **Event Queue Architecture**: Clean event handling without RefCell overhead
 - 🎭 **GPU-Accelerated Themes**: Entire UI theme updates via single uniform buffer
-- 📝 **Efficient Text Rendering**: Glyph atlas with batched instanced rendering
+- 📝 **Efficient Text Rendering**: Shared glyph atlas with multi-DPI support and batched instanced rendering
 - 🖥️ **Cross-Platform**: macOS, Linux, Windows (macOS implemented)
 
 ## Quick Start
@@ -195,6 +195,32 @@ let text_style = Style {
 // Measure function provides intrinsic text size
 ```
 
+### Shared Resource Architecture
+
+AssortedWidgets uses a smart resource sharing model to optimize memory and performance:
+
+```rust
+// Shared across all windows (Arc<Mutex<>>)
+pub struct SharedRenderState {
+    glyph_atlas: Arc<Mutex<GlyphAtlas>>,      // Single atlas for all windows
+    font_system: Arc<Mutex<FontSystemWrapper>>, // Font loading
+    text_engine: Arc<Mutex<TextEngine>>,       // Text shaping cache
+}
+
+// GlyphKey includes scale_factor for multi-DPI support
+pub struct GlyphKey {
+    font_id: usize,
+    size_bits: u32,
+    character: char,
+    scale_factor: u8,  // 100 = 1.0x, 200 = 2.0x (Retina)
+}
+
+// Benefits:
+// - Single atlas (~16MB) instead of per-window duplication (~80MB for 5 windows)
+// - Window moves between displays? Both 1x and 2x glyphs cached simultaneously
+// - Font system initialized once, shared across all windows
+```
+
 ### Theme System
 
 Themes are read-only configuration structs uploaded to GPU:
@@ -261,13 +287,21 @@ See the `examples/` directory:
 - [x] Event queue architecture
 - [x] WebGPU integration
 - [x] Manual runloop (macOS)
-- [ ] Taffy layout integration
-- [ ] Text rendering (cosmic-text)
-- [ ] Paint context implementation
+- [x] Text rendering (cosmic-text with shared atlas)
+- [x] Paint context implementation
+- [ ] Taffy layout integration (partial - LayoutManager exists)
 - [ ] Theme system
 - [ ] Standard widgets (Button, Label, etc.)
 - [ ] Linux support (Wayland)
 - [ ] Windows support
+
+### Recent Updates (Dec 2025)
+
+**Phase 3.2 Complete - Text Rendering Refactor:**
+- ✅ Shared resource architecture for glyph atlas, fonts, and text engine
+- ✅ Multi-DPI support via `scale_factor` in GlyphKey
+- ✅ Massive memory savings: Single 16MB atlas vs ~80MB for 5 windows
+- ✅ Seamless DPI transitions: Window moves between Retina/non-Retina? Both cached!
 
 ## Contributing
 

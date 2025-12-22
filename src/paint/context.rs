@@ -340,6 +340,7 @@ impl<'a> PaintContext<'a> {
                     size_bits: (glyph.font_size * 1024.0) as u32,
                     character: glyph_char,
                     subpixel_offset: 0,
+                    scale_factor: (scale_factor * 100.0) as u8, // 100 = 1.0x, 200 = 2.0x
                 };
 
                 // Get or insert glyph in atlas

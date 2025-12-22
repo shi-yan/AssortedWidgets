@@ -1,7 +1,7 @@
 # AssortedWidgets - Technical Architecture
 
-> **Last Updated:** 2025-12-20
-> **Status:** Event Queue + Rendering Architecture Implemented, Layout System Planned
+> **Last Updated:** 2025-12-22
+> **Status:** Phase 3.2 Complete (Text Rendering with Shared Resource Architecture), Theme System Planned
 
 ## Table of Contents
 
@@ -273,52 +273,66 @@ pub struct ThemeUniforms {
 - Elements read theme for semantic colors (not hardcoded)
 - GPU shaders share theme data automatically
 
-### 4. Text Rendering System
+### 4. Text Rendering System (✅ Phase 3.2 Complete + Refactored)
 
-Text uses a **Glyph Atlas** (texture sheet) for efficient batched rendering.
+Text uses a **Shared Glyph Atlas** (texture sheet) with multi-DPI support for efficient batched rendering.
 
 ```mermaid
 graph TD
-    A[Text Request] --> B{Glyph in Atlas?}
-    B -->|No| C[Rasterize Glyph]
+    A[Text Request<br/>scale_factor: 2.0] --> B{Glyph in Atlas?}
+    B -->|No| C[Rasterize at 2x]
     C --> D[Upload to Atlas]
-    D --> E[Update UV Coords]
+    D --> E[Cache with GlyphKey<br/>scale_factor: 200]
     B -->|Yes| E
     E --> F[Add to Instance Buffer]
     F --> G[Single Draw Call<br/>Instanced Quads]
 ```
 
-**Text System Architecture:**
+**Shared Resource Architecture:**
 
 ```rust
-pub struct TextRenderer {
-    /// Texture atlas containing all glyphs
-    atlas: GlyphAtlas,
-
-    /// Font database (cosmic-text or similar)
-    font_system: FontSystem,
-
-    /// Instance buffer for batched rendering
-    instances: Vec<TextInstance>,
-
-    /// Cached layout results
-    shaped_cache: HashMap<TextKey, ShapedText>,
+// Shared across all windows (Arc<Mutex<>>)
+pub struct SharedRenderState {
+    /// Single atlas for all windows (supports multiple DPIs)
+    pub glyph_atlas: Arc<Mutex<GlyphAtlas>>,
+    /// Font system (expensive to initialize)
+    pub font_system: Arc<Mutex<FontSystemWrapper>>,
+    /// Text shaping cache
+    pub text_engine: Arc<Mutex<TextEngine>>,
 }
 
-pub struct TextInstance {
-    position: Vector,
-    uv_rect: Rect,    // Position in atlas
-    color: Color,
-    size: f32,
+// Per-window (references shared state)
+pub struct WindowRenderState {
+    pub renderer: WindowRenderer,           // Window surface
+    pub rect_renderer: RectRenderer,        // Stateless
+    pub text_renderer: TextRenderer,        // Stateless
+    pub scale_factor: f32,                  // 1.0x, 2.0x, etc.
+    pub shared: Arc<SharedRenderState>,     // Cheap clone
+}
+
+// GlyphKey with multi-DPI support
+pub struct GlyphKey {
+    font_id: usize,
+    size_bits: u32,
+    character: char,
+    subpixel_offset: u8,
+    scale_factor: u8,  // ✅ NEW: 100 = 1.0x, 200 = 2.0x
 }
 ```
 
+**Benefits of Shared Architecture:**
+- ✅ **Memory:** Single atlas (~16MB) vs per-window (~80MB for 5 windows)
+- ✅ **DPI Transitions:** Window moves 1.0x → 2.0x? Both cached, no invalidation!
+- ✅ **Font System:** Initialized once, shared across windows (~10MB saved)
+- ✅ **Text Shaping:** Cache reused across windows
+
 **Rendering Flow:**
 1. Layout pass: Taffy queries measure functions for text dimensions
-2. Shaping: Text is shaped (glyph positions, advances, clusters)
-3. Atlas check: New glyphs are rasterized and uploaded
-4. Instance batching: All text becomes instanced quads
-5. Single draw call: Entire UI text rendered in one call
+2. Shaping: Text is shaped (glyph positions, advances, clusters) via `TextEngine`
+3. Atlas check: Lock `shared.glyph_atlas`, check with GlyphKey (includes scale_factor)
+4. Rasterize: If not cached, rasterize at current DPI and upload
+5. Instance batching: All text becomes instanced quads
+6. Single draw call: Entire UI text rendered in one call with atlas texture binding
 
 ---
 
@@ -413,11 +427,13 @@ shaders/
    - Sync with `ElementManager` on add/remove
    - Implement measure functions for text
 
-2. **Text Rendering** ([src/text/](src/text/))
-   - Choose library: `cosmic-text` or `fontdue`
-   - Implement glyph atlas with dynamic growth
-   - Create text shaping cache
-   - Build instanced quad renderer
+2. **Text Rendering** ([src/text/](src/text/)) - ✅ COMPLETE
+   - ✅ Integrated `cosmic-text` for shaping and rasterization
+   - ✅ Implemented glyph atlas with dynamic page growth (multi-page texture array)
+   - ✅ Created text shaping cache via `TextEngine` (dual-mode: managed + manual)
+   - ✅ Built instanced quad renderer with atlas texture binding
+   - ✅ **Refactored to shared resources** (Arc<Mutex<>> for atlas/fonts/text engine)
+   - ✅ Added `scale_factor` to GlyphKey for multi-DPI support
 
 3. **Paint Context** ([src/paint/](src/paint/))
    - Define `PaintContext` struct

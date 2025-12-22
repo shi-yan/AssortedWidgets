@@ -32,6 +32,8 @@
 
 mod context;
 mod window_renderer;
+mod shared_state;
 
 pub use context::RenderContext;
 pub use window_renderer::WindowRenderer;
+pub use shared_state::SharedRenderState;

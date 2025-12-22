@@ -30,15 +30,19 @@ pub struct GlyphKey {
     pub character: char,
     /// Subpixel offset (0-3) for crisp positioning
     pub subpixel_offset: u8,
+    /// Scale factor (100 = 1.0x, 200 = 2.0x for Retina)
+    /// Allows single atlas to cache glyphs at multiple DPI scales
+    pub scale_factor: u8,
 }
 
 impl GlyphKey {
-    pub fn new(font_id: usize, font_size: f32, character: char, subpixel_offset: u8) -> Self {
+    pub fn new(font_id: usize, font_size: f32, character: char, subpixel_offset: u8, scale_factor: f32) -> Self {
         Self {
             font_id,
             size_bits: (font_size * 1024.0) as u32,
             character,
             subpixel_offset: subpixel_offset & 0x03, // Clamp to 0-3
+            scale_factor: (scale_factor * 100.0) as u8, // Store as percentage (100 = 1.0x, 200 = 2.0x)
         }
     }
 }

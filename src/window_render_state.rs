@@ -1,70 +1,86 @@
 //! Per-window rendering resources
 //!
 //! This module contains all rendering infrastructure specific to a single window.
-//! Each window owns its own rendering resources (atlas, renderers, font system)
-//! to allow independent rendering and simplified ownership.
+//! Windows hold references to shared resources (atlas, fonts) via Arc<Mutex<>>
+//! to avoid duplication while maintaining independent rendering state.
 
 use crate::paint::RectRenderer;
-use crate::render::{RenderContext, WindowRenderer};
-use crate::text::{FontSystemWrapper, GlyphAtlas, TextEngine, TextRenderer};
+use crate::render::{WindowRenderer, SharedRenderState};
+use crate::text::TextRenderer;
+use std::sync::Arc;
 
 /// Bundle of rendering resources for a single window
 ///
 /// # Architecture
 ///
 /// This struct separates rendering concerns from event handling:
-/// - **WindowRenderState**: Owns all GPU rendering resources
+/// - **WindowRenderState**: Owns window-specific resources, references shared state
 /// - **WindowEventLoop**: Orchestrates events, layout, and calls into render state
 ///
-/// Each window gets its own render state because:
-/// 1. Different windows may have different DPI/scale factors
-/// 2. Each window has its own surface (WindowRenderer)
-/// 3. Simpler ownership (no Arc/Mutex needed for rendering resources)
-/// 4. Windows can render independently (future: parallel rendering)
+/// ## Per-Window Resources (owned directly)
+/// 1. **WindowRenderer**: Each window has its own surface
+/// 2. **RectRenderer**: Stateless renderer (just pipeline/shaders)
+/// 3. **TextRenderer**: Stateless renderer (just pipeline/shaders)
+/// 4. **scale_factor**: Current DPI scale (1.0x, 2.0x for Retina, etc.)
 ///
-/// # GPU Resources
+/// ## Shared Resources (via Arc<Mutex<>>)
+/// 1. **GlyphAtlas**: Single texture cache across all windows
+///    - Uses scale_factor in GlyphKey for multi-DPI support
+///    - Avoids ~16MB duplication per window
+/// 2. **FontSystem**: Font loading and rasterization
+/// 3. **TextEngine**: Text layout and shaping cache
 ///
-/// While this is per-window, the GPU device/queue (RenderContext) is shared
-/// across all windows for efficiency.
+/// # Benefits
+///
+/// **Shared atlas with scale_factor in GlyphKey:**
+/// - Window moves from 1.0x to 2.0x display? Both cached, no invalidation!
+/// - 5 windows use same text? Single glyph cache instead of 5× duplication
+/// - Memory: 1 atlas (~16MB) vs per-window (~80MB for 5 windows)
+///
+/// **Stateless renderers:**
+/// - Projection matrix passed as parameter, not embedded
+/// - No per-window duplication of pipelines/shaders
 pub struct WindowRenderState {
     /// Window surface and format management
     pub renderer: WindowRenderer,
 
-    /// Rectangle batching renderer
+    /// Rectangle batching renderer (stateless)
     pub rect_renderer: RectRenderer,
 
-    /// Text instanced renderer
+    /// Text instanced renderer (stateless)
     pub text_renderer: TextRenderer,
 
-    /// Multi-page glyph atlas (RGBA8 texture array)
-    pub glyph_atlas: GlyphAtlas,
+    /// Current DPI scale factor (1.0 = standard, 2.0 = Retina)
+    /// Used in GlyphKey to support multiple scales in single atlas
+    pub scale_factor: f32,
 
-    /// Font discovery and rasterization system
-    pub font_system: FontSystemWrapper,
-
-    /// Text layout engine with dual-mode caching
-    /// - High-level: Managed cache (for buttons, labels, menus)
-    /// - Low-level: Manual TextLayout ownership (for editors, terminals)
-    pub text_engine: TextEngine,
+    /// Shared rendering resources (atlas, fonts, text engine)
+    /// Wrapped in Arc for cheap cloning, Mutex for thread-safety
+    pub shared: Arc<SharedRenderState>,
 }
 
 impl WindowRenderState {
     /// Create a new render state for a window
+    ///
+    /// # Arguments
+    /// * `renderer` - Window surface renderer
+    /// * `rect_renderer` - Stateless rectangle renderer
+    /// * `text_renderer` - Stateless text renderer
+    /// * `scale_factor` - Initial DPI scale (1.0 = standard, 2.0 = Retina)
+    /// * `shared` - Arc to shared render state (atlas, fonts, text engine)
     pub fn new(
         renderer: WindowRenderer,
         rect_renderer: RectRenderer,
         text_renderer: TextRenderer,
-        glyph_atlas: GlyphAtlas,
-        font_system: FontSystemWrapper,
-        text_engine: TextEngine,
+        scale_factor: f32,
+        shared: Arc<SharedRenderState>,
     ) -> Self {
         Self {
             renderer,
             rect_renderer,
             text_renderer,
-            glyph_atlas,
-            font_system,
-            text_engine,
+            scale_factor,
+            shared,
         }
     }
 
@@ -74,8 +90,9 @@ impl WindowRenderState {
     /// - Increment frame counters for cache eviction
     /// - Mark all atlas glyphs as potentially evictable
     pub fn begin_frame(&mut self) {
-        self.glyph_atlas.begin_frame();
-        self.text_engine.begin_frame();
+        // Lock shared resources briefly to update frame counters
+        self.shared.glyph_atlas.lock().unwrap().begin_frame();
+        self.shared.text_engine.lock().unwrap().begin_frame();
     }
 
     /// Get a reference to the window surface renderer

@@ -2,11 +2,11 @@ use crate::element_manager::ElementManager;
 use crate::event::GuiEvent;
 use crate::handle::GuiHandle;
 use crate::layout::LayoutManager;
-use crate::paint::{PaintContext, RectRenderer};
-use crate::render::{RenderContext, WindowRenderer};
+use crate::paint::PaintContext;
+use crate::render::{RenderContext, WindowRenderer, SharedRenderState};
 use crate::scene_graph::SceneGraph;
-use crate::text::{GlyphAtlas, FontSystemWrapper, TextRenderer, TextEngine};
 use crate::types::Size;
+use crate::window_render_state::WindowRenderState;
 
 #[cfg(target_os = "macos")]
 use crate::platform::{PlatformInput, PlatformWindow, PlatformWindowImpl, WindowCallbacks, WindowOptions};
@@ -18,53 +18,74 @@ use std::sync::{Arc, Mutex};
 // Main Event Loop
 // ============================================================================
 
+/// Per-window event loop
+///
+/// # Architecture
+///
+/// This struct handles event processing and UI state management for a single window.
+/// Rendering resources are bundled in WindowRenderState for clean separation of concerns.
+///
+/// **Event Handling:** Elements, scene graph, layout
+/// **Rendering:** WindowRenderState (renderers, atlas, fonts, text engine)
+/// **Shared GPU:** RenderContext (device, queue)
 pub struct GuiEventLoop {
+    // ========================================
+    // Event Handling & UI State
+    // ========================================
     element_manager: ElementManager,
     scene_graph: SceneGraph,
     layout_manager: LayoutManager,
-    rect_renderer: Option<RectRenderer>,
-    text_renderer: Option<TextRenderer>,
-    glyph_atlas: Option<GlyphAtlas>,
-    font_system: FontSystemWrapper,
-    // Phase 3.2: Text engine with dual-mode caching
-    text_engine: TextEngine,
     window_size: Size,
     needs_layout: bool,
+
+    // ========================================
+    // Rendering (Per-Window)
+    // ========================================
+    /// Per-window rendering resources (atlas, renderers, fonts)
+    render_state: Option<WindowRenderState>,
+
+    // ========================================
+    // Shared Resources
+    // ========================================
+    /// Shared GPU context (device, queue, adapter)
     render_context: Arc<RenderContext>,
+    /// Shared rendering resources (atlas, fonts, text engine) across all windows
+    shared_render_state: Arc<SharedRenderState>,
     event_queue: Arc<Mutex<VecDeque<GuiEvent>>>,
     render_fn: Option<Box<dyn FnMut(&WindowRenderer, &RenderContext)>>,
+
+    // ========================================
+    // Platform Window (macOS)
+    // ========================================
     #[cfg(target_os = "macos")]
     window: Option<PlatformWindowImpl>,
-    #[cfg(target_os = "macos")]
-    renderer: Option<WindowRenderer>,
 }
 
 impl GuiEventLoop {
     /// Create a new event loop with rendering support
     ///
-    /// This initializes the WebGPU rendering context.
+    /// This initializes the WebGPU rendering context and shared resources.
     /// Use `pollster::block_on(GuiEventLoop::new())` for simple blocking initialization.
     pub async fn new() -> Result<Self, String> {
         let render_context = RenderContext::new().await?;
+        let render_context_arc = Arc::new(render_context);
+
+        // Create shared rendering resources (atlas, fonts, text engine)
+        let shared_render_state = Arc::new(SharedRenderState::new(&render_context_arc));
 
         Ok(GuiEventLoop {
             element_manager: ElementManager::new(),
             scene_graph: SceneGraph::new(),
             layout_manager: LayoutManager::new(),
-            rect_renderer: None,  // Created when window is created
-            text_renderer: None,  // Created when window is created
-            glyph_atlas: None,    // Created when window is created
-            font_system: FontSystemWrapper::new(),
-            text_engine: TextEngine::new(),
-            window_size: Size::new(800.0, 600.0),  // Default size
+            window_size: Size::new(800.0, 600.0),
             needs_layout: true,
-            render_context: Arc::new(render_context),
+            render_state: None,  // Created when window is created
+            render_context: render_context_arc,
+            shared_render_state,
             event_queue: Arc::new(Mutex::new(VecDeque::new())),
             render_fn: None,
             #[cfg(target_os = "macos")]
             window: None,
-            #[cfg(target_os = "macos")]
-            renderer: None,
         })
     }
 
@@ -79,9 +100,12 @@ impl GuiEventLoop {
     /// Create a window with rendering surface
     #[cfg(target_os = "macos")]
     pub fn create_window(&mut self, options: WindowOptions) -> Result<(), String> {
+        use crate::paint::RectRenderer;
+        use crate::text::TextRenderer;
+
         let mut window = PlatformWindowImpl::new(options);
 
-        // Create window renderer
+        // Create window renderer (surface + format management)
         let renderer = WindowRenderer::new(&self.render_context, &window)?;
 
         // Initialize window size
@@ -89,38 +113,38 @@ impl GuiEventLoop {
         let scale_factor = window.scale_factor();
         self.window_size = bounds.size;
 
-        println!("Initializing renderers with scale factor: {}", scale_factor);
+        println!("Initializing per-window render state with scale factor: {}", scale_factor);
+        println!("Using shared rendering resources (atlas, fonts, text engine)");
 
-        // Create rectangle renderer with the surface format
-        let mut rect_renderer = RectRenderer::new(
-            &self.render_context,
-            renderer.format,
-        );
-
-        // Set initial screen size (physical pixels for Retina)
+        // Calculate physical pixel size for Retina displays
         let physical_size = Size::new(
             bounds.size.width * scale_factor,
             bounds.size.height * scale_factor
         );
+
+        // Create rectangle renderer (stateless - just pipeline/shaders)
+        let mut rect_renderer = RectRenderer::new(
+            &self.render_context,
+            renderer.format,
+        );
         rect_renderer.update_screen_size(&self.render_context, physical_size);
-        self.rect_renderer = Some(rect_renderer);
 
-        // Create glyph atlas (2048x2048 pages, max 8 pages)
-        self.glyph_atlas = Some(GlyphAtlas::new(
-            &self.render_context.device,
-            2048,
-            8,
-        ));
-
-        // Create text renderer with the surface format
+        // Create text renderer (stateless - just pipeline/shaders)
         let mut text_renderer = TextRenderer::new(
             &self.render_context,
             renderer.format,
         );
-
-        // Set initial screen size (physical pixels for Retina)
         text_renderer.update_screen_size(&self.render_context, physical_size);
-        self.text_renderer = Some(text_renderer);
+
+        // Bundle per-window resources + reference to shared state
+        let render_state = WindowRenderState::new(
+            renderer,
+            rect_renderer,
+            text_renderer,
+            scale_factor as f32,  // Convert f64 to f32
+            Arc::clone(&self.shared_render_state),
+        );
+        self.render_state = Some(render_state);
 
         // Mark that we need to compute layout
         self.needs_layout = true;
@@ -155,7 +179,6 @@ impl GuiEventLoop {
 
         window.set_callbacks(callbacks);
         self.window = Some(window);
-        self.renderer = Some(renderer);
 
         Ok(())
     }
@@ -253,30 +276,24 @@ impl GuiEventLoop {
                         self.window_size = bounds.size;
                         self.needs_layout = true;
 
-                        // Update renderer surface with scale factor for Retina displays
-                        if let Some(renderer) = self.renderer.as_mut() {
+                        // Update all per-window rendering resources
+                        if let Some(render_state) = self.render_state.as_mut() {
                             let scale_factor = self.window.as_ref().map(|w| w.scale_factor()).unwrap_or(1.0);
-                            renderer.resize(&self.render_context, bounds, scale_factor);
-                        }
 
-                        // Update rect renderer with physical pixel dimensions
-                        if let Some(rect_renderer) = self.rect_renderer.as_mut() {
-                            let scale_factor = self.window.as_ref().map(|w| w.scale_factor()).unwrap_or(1.0);
+                            // Calculate physical pixel size
                             let physical_size = Size::new(
                                 bounds.size.width * scale_factor,
                                 bounds.size.height * scale_factor
                             );
-                            rect_renderer.update_screen_size(&self.render_context, physical_size);
-                        }
 
-                        // Update text renderer with physical pixel dimensions
-                        if let Some(text_renderer) = self.text_renderer.as_mut() {
-                            let scale_factor = self.window.as_ref().map(|w| w.scale_factor()).unwrap_or(1.0);
-                            let physical_size = Size::new(
-                                bounds.size.width * scale_factor,
-                                bounds.size.height * scale_factor
-                            );
-                            text_renderer.update_screen_size(&self.render_context, physical_size);
+                            // Resize window renderer (surface)
+                            render_state.renderer.resize(&self.render_context, bounds, scale_factor);
+
+                            // Update rect renderer screen size
+                            render_state.rect_renderer.update_screen_size(&self.render_context, physical_size);
+
+                            // Update text renderer screen size
+                            render_state.text_renderer.update_screen_size(&self.render_context, physical_size);
                         }
 
                         // Request redraw after resize
@@ -319,12 +336,13 @@ impl GuiEventLoop {
             }
 
             // Render frame using built-in layout → paint → render flow
-            if self.renderer.is_some() && self.rect_renderer.is_some() {
+            if self.render_state.is_some() {
                 self.render_frame_internal();
-            } else if let (Some(renderer), Some(ref mut render_fn)) =
-                (self.renderer.as_ref(), self.render_fn.as_mut()) {
-                // Fallback to external render function if no rect_renderer
-                render_fn(renderer, &self.render_context);
+            } else if let Some(ref mut render_fn) = self.render_fn.as_mut() {
+                // Fallback to external render function (not typically used anymore)
+                if let Some(render_state) = self.render_state.as_ref() {
+                    render_fn(render_state.window_renderer(), &self.render_context);
+                }
             }
 
             // Request next frame for continuous animation
@@ -337,10 +355,10 @@ impl GuiEventLoop {
     /// Internal frame rendering with layout → paint → render flow
     #[cfg(target_os = "macos")]
     fn render_frame_internal(&mut self) {
-        let renderer = self.renderer.as_ref().unwrap();
+        let render_state = self.render_state.as_ref().unwrap();
 
         // Get surface texture
-        let surface_texture = match renderer.get_current_texture() {
+        let surface_texture = match render_state.renderer.get_current_texture() {
             Ok(texture) => texture,
             Err(e) => {
                 eprintln!("Failed to get surface texture: {:?}", e);
@@ -350,7 +368,7 @@ impl GuiEventLoop {
 
         // Create texture view with sRGB format
         let view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor {
-            format: Some(renderer.format.add_srgb_suffix()),
+            format: Some(render_state.renderer.format.add_srgb_suffix()),
             ..Default::default()
         });
 
@@ -418,19 +436,24 @@ impl GuiEventLoop {
         // Get scale factor for Retina displays
         let scale_factor = self.window.as_ref().map(|w| w.scale_factor()).unwrap_or(1.0) as f32;
 
-        // Begin new frame for atlas and text engine
-        if let Some(atlas) = self.glyph_atlas.as_mut() {
-            atlas.begin_frame();
-        }
-        self.text_engine.begin_frame();
+        // Begin new frame for render state (atlas + text engine)
+        self.render_state.as_mut().unwrap().begin_frame();
 
         // Paint phase - collect draw commands
-        let (rect_instances, text_instances, atlas_texture_view) = {
-            // Create render bundle with all resources
+        let (rect_instances, text_instances) = {
+            let render_state = self.render_state.as_mut().unwrap();
+
+            // Lock shared resources for the duration of the frame
+            // These locks are released when the guards go out of scope
+            let mut atlas_lock = render_state.shared.glyph_atlas.lock().unwrap();
+            let mut font_system_lock = render_state.shared.font_system.lock().unwrap();
+            let mut text_engine_lock = render_state.shared.text_engine.lock().unwrap();
+
+            // Create render bundle with references to locked resources
             let bundle = crate::paint::RenderBundle {
-                atlas: self.glyph_atlas.as_mut().unwrap(),
-                font_system: &mut self.font_system,
-                text_engine: &mut self.text_engine,
+                atlas: &mut *atlas_lock,
+                font_system: &mut *font_system_lock,
+                text_engine: &mut *text_engine_lock,
                 queue: &self.render_context.queue,
                 device: &self.render_context.device,
                 scale_factor,
@@ -450,8 +473,8 @@ impl GuiEventLoop {
             let rect_instances = paint_ctx.rect_instances().to_vec();
             let text_instances = paint_ctx.text_instances().to_vec();
 
-            // paint_ctx is dropped here, releasing the mutable borrow of glyph_atlas
-            (rect_instances, text_instances, self.glyph_atlas.as_ref().unwrap().texture_view())
+            // paint_ctx is dropped here, releasing the mutable borrow of render_state
+            (rect_instances, text_instances)
         };
 
         // 3. Render batched primitives
@@ -482,20 +505,22 @@ impl GuiEventLoop {
                 multiview_mask: None,
             });
 
-            // Render all rectangles
-            if let Some(rect_renderer) = self.rect_renderer.as_mut() {
-                rect_renderer.render(&self.render_context, &mut render_pass, &rect_instances);
-            }
+            // Get mutable reference to render_state for rendering
+            let render_state = self.render_state.as_mut().unwrap();
 
-            // Render all text glyphs
-            if let Some(text_renderer) = self.text_renderer.as_mut() {
-                text_renderer.render(
-                    &self.render_context,
-                    &mut render_pass,
-                    &text_instances,
-                    atlas_texture_view,
-                );
-            }
+            // Render all rectangles
+            render_state.rect_renderer.render(&self.render_context, &mut render_pass, &rect_instances);
+
+            // Get atlas texture view from shared glyph atlas
+            let atlas_lock = render_state.shared.glyph_atlas.lock().unwrap();
+            let atlas_texture_view = atlas_lock.texture_view();
+            render_state.text_renderer.render(
+                &self.render_context,
+                &mut render_pass,
+                &text_instances,
+                atlas_texture_view,
+            );
+            drop(atlas_lock);  // Release lock explicitly
         }
 
         // Submit commands
@@ -551,29 +576,13 @@ impl GuiEventLoop {
         self.window.as_mut()
     }
 
-    #[cfg(target_os = "macos")]
-    pub fn renderer(&self) -> Option<&WindowRenderer> {
-        self.renderer.as_ref()
+    /// Get reference to the per-window render state
+    pub fn render_state(&self) -> Option<&WindowRenderState> {
+        self.render_state.as_ref()
     }
 
-    #[cfg(target_os = "macos")]
-    pub fn renderer_mut(&mut self) -> Option<&mut WindowRenderer> {
-        self.renderer.as_mut()
-    }
-
-    pub fn glyph_atlas(&self) -> Option<&GlyphAtlas> {
-        self.glyph_atlas.as_ref()
-    }
-
-    pub fn glyph_atlas_mut(&mut self) -> Option<&mut GlyphAtlas> {
-        self.glyph_atlas.as_mut()
-    }
-
-    pub fn font_system(&self) -> &FontSystemWrapper {
-        &self.font_system
-    }
-
-    pub fn font_system_mut(&mut self) -> &mut FontSystemWrapper {
-        &mut self.font_system
+    /// Get mutable reference to the per-window render state
+    pub fn render_state_mut(&mut self) -> Option<&mut WindowRenderState> {
+        self.render_state.as_mut()
     }
 }

@@ -36,6 +36,7 @@ pub mod render;
 pub mod scene_graph;
 pub mod text;
 pub mod types;
+pub mod window_render_state;
 
 // Re-export public API
 pub use connection::{Connection, ConnectionTable};
@@ -53,3 +54,4 @@ pub use types::{
     point, rect, size, vector, DeferredCommand, GuiMessage, Point, Rect, ScreenPixels, Size,
     Vector, WidgetId,
 };
+pub use window_render_state::WindowRenderState;
