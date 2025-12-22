@@ -1,8 +1,43 @@
 use std::any::Any;
+use std::time::Instant;
 
 // ============================================================================
 // Core Framework Types
 // ============================================================================
+
+/// Frame timing information for animations
+///
+/// Passed to Element::update() to enable frame-rate independent animations.
+#[derive(Debug, Clone, Copy)]
+pub struct FrameInfo {
+    /// Delta time since last frame (in seconds)
+    ///
+    /// Use this for frame-rate independent animations:
+    /// ```ignore
+    /// position += velocity * frame.dt;
+    /// ```
+    pub dt: f64,
+
+    /// Absolute timestamp of this frame
+    ///
+    /// Use this to calculate elapsed time:
+    /// ```ignore
+    /// let elapsed = (frame.timestamp - self.start_time).as_secs_f64();
+    /// ```
+    pub timestamp: Instant,
+
+    /// Frame number (starts at 0, increments each frame)
+    ///
+    /// Useful for debugging and frame-based logic.
+    pub frame_number: u64,
+}
+
+impl FrameInfo {
+    /// Create a new FrameInfo
+    pub fn new(dt: f64, timestamp: Instant, frame_number: u64) -> Self {
+        Self { dt, timestamp, frame_number }
+    }
+}
 
 /// Unique identifier for each widget/element
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]

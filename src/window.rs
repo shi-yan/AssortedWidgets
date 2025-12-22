@@ -3,8 +3,9 @@ use crate::layout::LayoutManager;
 use crate::paint::PaintContext;
 use crate::render::RenderContext;
 use crate::scene_graph::SceneGraph;
-use crate::types::{Size, WindowId};
+use crate::types::{FrameInfo, Size, WindowId};
 use crate::window_render_state::WindowRenderState;
+use std::time::Instant;
 
 #[cfg(target_os = "macos")]
 use crate::platform::{PlatformWindow, PlatformWindowImpl};
@@ -50,6 +51,15 @@ pub struct Window {
     /// Per-window rendering resources (surface, renderers, scale factor)
     /// References shared state (atlas, fonts) via Arc
     render_state: WindowRenderState,
+
+    // ========================================
+    // Animation / Frame Timing
+    // ========================================
+    /// Timestamp of the last frame (for calculating delta time)
+    last_frame_time: Option<Instant>,
+
+    /// Frame counter (increments each frame)
+    frame_number: u64,
 }
 
 impl Window {
@@ -70,6 +80,8 @@ impl Window {
             window_size,
             needs_layout: true,
             render_state,
+            last_frame_time: None,
+            frame_number: 0,
         }
     }
 
@@ -201,6 +213,27 @@ impl Window {
             format: Some(self.render_state.renderer.format.add_srgb_suffix()),
             ..Default::default()
         });
+
+        // 0. Update animations and time-based state (before layout)
+        let now = Instant::now();
+        let dt = self.last_frame_time
+            .map(|last| (now - last).as_secs_f64())
+            .unwrap_or(0.0);  // First frame has dt=0
+        let frame_info = FrameInfo::new(dt, now, self.frame_number);
+
+        // Update all elements that need continuous updates (animations, physics, etc.)
+        let widget_ids: Vec<_> = self.element_manager.widget_ids().collect();
+        for widget_id in widget_ids {
+            if let Some(element) = self.element_manager.get_mut(widget_id) {
+                if element.needs_continuous_updates() {
+                    element.update(&frame_info);
+                }
+            }
+        }
+
+        // Update frame timing for next frame
+        self.last_frame_time = Some(now);
+        self.frame_number += 1;
 
         // 1. Compute layout if needed (skip if no scene graph)
         if self.needs_layout && self.scene_graph.root().is_some() {

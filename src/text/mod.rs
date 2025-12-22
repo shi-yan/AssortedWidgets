@@ -44,4 +44,4 @@ pub use engine::{TextEngine, CacheStats};
 pub use font_system::{FontSystemWrapper, RasterizedGlyph};
 pub use layout::TextLayout;
 pub use renderer::{TextRenderer, TextInstance};
-pub use style::{TextStyle, Truncate};
+pub use style::{TextStyle, TextAlign, Truncate};

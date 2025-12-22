@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::types::{DeferredCommand, GuiMessage, Rect, Size, WidgetId};
+use crate::types::{DeferredCommand, FrameInfo, GuiMessage, Rect, Size, WidgetId};
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::PaintContext;
@@ -93,6 +93,51 @@ pub trait Element {
     /// affects its intrinsic size (e.g., text content changes, image loaded).
     fn mark_needs_layout(&mut self) {
         self.set_dirty(true);
+    }
+
+    /// Update element state (called once per frame before layout)
+    ///
+    /// This is called by the window's render loop before layout computation.
+    /// Use this for animations, time-based state changes, physics, etc.
+    ///
+    /// # Arguments
+    /// * `frame` - Frame timing information (delta time, timestamp, frame number)
+    ///
+    /// # Example
+    /// ```ignore
+    /// fn update(&mut self, frame: &FrameInfo) {
+    ///     // Frame-rate independent animation
+    ///     self.rotation += self.angular_velocity * frame.dt;
+    ///
+    ///     // Or use elapsed time for oscillations
+    ///     let elapsed = (frame.timestamp - self.start_time).as_secs_f64();
+    ///     self.scale = 1.0 + 0.2 * (elapsed * 2.0 * PI).sin();
+    ///
+    ///     // Mark layout dirty if size/position changed
+    ///     self.mark_needs_layout();
+    /// }
+    /// ```
+    ///
+    /// Default implementation does nothing. Override for animated elements.
+    fn update(&mut self, _frame: &FrameInfo) {
+        // Default: no update logic
+    }
+
+    /// Check if this element needs continuous frame updates
+    ///
+    /// Return `true` for elements that animate or change over time.
+    /// The window will only call `update()` on elements that return `true`.
+    ///
+    /// This is an optimization to avoid calling update() on static elements.
+    ///
+    /// # Performance
+    /// - Returning `true` means update() is called every frame (60+ times/sec)
+    /// - Only return `true` if the element actually needs continuous updates
+    /// - For one-shot animations, toggle this flag on/off as needed
+    ///
+    /// Default: `false` (static element, no updates needed)
+    fn needs_continuous_updates(&self) -> bool {
+        false // Default: static element
     }
 
     /// Downcast to Any for type-specific operations

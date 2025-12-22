@@ -231,6 +231,42 @@ impl<'a> PaintContext<'a> {
         );
     }
 
+    /// Create a text layout with manual control (Low-level manual API)
+    ///
+    /// **Use this for:** Custom text rendering with truncation, custom caching, etc.
+    ///
+    /// This creates a TextLayout that you render with `draw_layout()`.
+    /// Unlike `draw_text()`, this gives you full control over truncation and caching.
+    ///
+    /// # Arguments
+    /// * `text` - The text to shape
+    /// * `style` - Text style
+    /// * `max_width` - Optional width constraint
+    /// * `truncate` - Truncation mode (None or End with ellipsis)
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// // Create layout with truncation
+    /// let layout = ctx.create_text_layout(
+    ///     "Long text that will be truncated...",
+    ///     &TextStyle::new().size(14.0),
+    ///     Some(200.0),
+    ///     Truncate::End,
+    /// );
+    ///
+    /// // Render it
+    /// ctx.draw_layout(&layout, position, color);
+    /// ```
+    pub fn create_text_layout(
+        &mut self,
+        text: &str,
+        style: &TextStyle,
+        max_width: Option<f32>,
+        truncate: crate::text::Truncate,
+    ) -> crate::text::TextLayout {
+        self.bundle.text_engine.create_layout(text, style, max_width, truncate)
+    }
+
     /// Draw a pre-shaped text layout (Low-level manual API)
     ///
     /// **Use this for:** Editors, terminals, widgets with thousands of unique texts
@@ -321,7 +357,7 @@ impl<'a> PaintContext<'a> {
                 let glyph_char = line_text[glyph.start..glyph.end].chars().next().unwrap_or('?');
 
                 // Convert to PhysicalGlyph with baseline Y offset
-                // The line_y is added to position.y to get the baseline for this line
+                // cosmic-text already applies alignment offsets to glyph.x
                 let physical_glyph = glyph.physical(
                     (position.x as f32, position.y as f32 + line_y),
                     scale_factor

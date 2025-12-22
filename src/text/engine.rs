@@ -4,7 +4,7 @@
 //! 1. High-level managed API: Transparent LRU caching for simple widgets
 //! 2. Low-level manual API: Widget owns TextLayout lifecycle
 
-use super::{TextLayout, TextStyle, Truncate};
+use super::{TextLayout, TextStyle, TextAlign, Truncate};
 use super::font_system::FontSystemWrapper;
 use cosmic_text::{Buffer, Metrics, Shaping};
 use std::collections::HashMap;
@@ -29,6 +29,9 @@ struct TextCacheKey {
 
     /// Font weight as u16
     font_weight: u16,
+
+    /// Text alignment
+    alignment: TextAlign,
 }
 
 impl TextCacheKey {
@@ -39,6 +42,7 @@ impl TextCacheKey {
             max_width_bits: max_width.map(|w| w.to_bits()),
             font_family: style.font_family.clone(),
             font_weight: style.font_weight.0,
+            alignment: style.alignment,
         }
     }
 }
@@ -69,6 +73,16 @@ pub struct TextEngine {
 
     /// Cache cleanup interval (frames)
     cleanup_interval: u64,
+
+    // Performance tracking
+    /// Cache hits this frame
+    cache_hits: u64,
+
+    /// Cache misses this frame
+    cache_misses: u64,
+
+    /// Total shapes this frame (manual + managed misses)
+    shapes_this_frame: u64,
 }
 
 impl TextEngine {
@@ -80,15 +94,23 @@ impl TextEngine {
             current_frame: 0,
             eviction_threshold: 120,  // Evict after 2 seconds at 60fps
             cleanup_interval: 60,     // Clean up every 1 second
+            cache_hits: 0,
+            cache_misses: 0,
+            shapes_this_frame: 0,
         }
     }
 
     /// Begin a new frame (updates frame counter)
     ///
     /// Call this once per frame from the event loop.
-    /// Triggers cache cleanup every N frames.
+    /// Triggers cache cleanup every N frames and resets frame stats.
     pub fn begin_frame(&mut self) {
         self.current_frame += 1;
+
+        // Reset frame stats
+        self.cache_hits = 0;
+        self.cache_misses = 0;
+        self.shapes_this_frame = 0;
 
         // Clean up stale entries periodically
         if self.current_frame % self.cleanup_interval == 0 {
@@ -131,8 +153,9 @@ impl TextEngine {
         max_width: Option<f32>,
         truncate: Truncate,
     ) -> TextLayout {
+        self.shapes_this_frame += 1;  // Track manual API usage
         let buffer = self.shape_text_internal(text, style, max_width, truncate);
-        TextLayout::new(buffer)
+        TextLayout::new(buffer, style.alignment, max_width)
     }
 
     // ========================================================================
@@ -167,8 +190,11 @@ impl TextEngine {
 
         if needs_creation {
             // Cache miss - create new layout
+            self.cache_misses += 1;
+            self.shapes_this_frame += 1;
+
             let buffer = self.shape_text_internal(text, style, max_width, Truncate::None);
-            let layout = TextLayout::new(buffer);
+            let layout = TextLayout::new(buffer, style.alignment, max_width);
 
             // Insert into cache
             self.managed_cache.insert(
@@ -178,6 +204,9 @@ impl TextEngine {
                     last_used_frame: current_frame,
                 },
             );
+        } else {
+            // Cache hit
+            self.cache_hits += 1;
         }
 
         // Update last used frame (mutable borrow in scope, then drop)
@@ -219,18 +248,96 @@ impl TextEngine {
         let attrs = style.to_attrs();
         buffer.set_text(font_system, text, &attrs, Shaping::Advanced, None);
 
-        // Apply truncation if requested
+        // Set wrapping mode BEFORE shaping
         if truncate == Truncate::End {
-            if let Some(width) = max_width {
-                // cosmic-text doesn't have built-in ellipsis truncation,
-                // so we'll implement it manually in a later phase
-                // For now, just wrap
-                buffer.set_size(font_system, Some(width), None);
-            }
+            // Disable wrapping for single-line truncation
+            buffer.set_wrap(font_system, cosmic_text::Wrap::None);
+        } else {
+            // Enable word wrapping for normal multi-line text
+            buffer.set_wrap(font_system, cosmic_text::Wrap::Word);
+        }
+
+        // Set alignment on all buffer lines
+        use cosmic_text::Align as CosmicAlign;
+        let cosmic_align = match style.alignment {
+            crate::text::TextAlign::Left => CosmicAlign::Left,
+            crate::text::TextAlign::Center => CosmicAlign::Center,
+            crate::text::TextAlign::Right => CosmicAlign::Right,
+        };
+
+        for line in buffer.lines.iter_mut() {
+            line.set_align(Some(cosmic_align));
         }
 
         // Shape the text
         buffer.shape_until_scroll(font_system, false);
+
+        // Apply truncation with ellipsis if requested
+        // Note: cosmic-text 0.15 doesn't have built-in ellipsis, so we implement it manually
+        if truncate == Truncate::End {
+            if let Some(width) = max_width {
+                // Check if truncation is needed
+                let needs_truncation = buffer.layout_runs().any(|run| run.line_w > width);
+
+                if needs_truncation {
+                    // Manual ellipsis truncation via binary search
+                    let ellipsis = "…";
+
+                    // Measure ellipsis width
+                    let mut ellipsis_buffer = Buffer::new(font_system, metrics);
+                    ellipsis_buffer.set_text(font_system, ellipsis, &attrs, Shaping::Advanced, None);
+                    ellipsis_buffer.shape_until_scroll(font_system, false);
+                    let ellipsis_width = ellipsis_buffer.layout_runs()
+                        .next()
+                        .map(|run| run.line_w)
+                        .unwrap_or(0.0);
+
+                    // Available width for actual text (excluding ellipsis)
+                    let available_width = width - ellipsis_width;
+
+                    // Binary search for truncation point
+                    let char_count = text.chars().count();
+                    let mut left = 0;
+                    let mut right = char_count;
+                    let mut best_fit = 0;
+
+                    while left <= right {
+                        let mid = (left + right) / 2;
+
+                        // Get substring up to mid
+                        let truncated: String = text.chars().take(mid).collect();
+
+                        // Measure width
+                        let mut test_buffer = Buffer::new(font_system, metrics);
+                        test_buffer.set_text(font_system, &truncated, &attrs, Shaping::Advanced, None);
+                        test_buffer.shape_until_scroll(font_system, false);
+                        let test_width = test_buffer.layout_runs()
+                            .map(|run| run.line_w)
+                            .max_by(|a, b| a.partial_cmp(b).unwrap())
+                            .unwrap_or(0.0);
+
+                        if test_width <= available_width {
+                            best_fit = mid;
+                            left = mid + 1;
+                        } else {
+                            if mid == 0 {
+                                break;
+                            }
+                            right = mid - 1;
+                        }
+                    }
+
+                    // Create truncated text with ellipsis
+                    let truncated_text: String = text.chars().take(best_fit).collect();
+                    let final_text = format!("{}{}", truncated_text, ellipsis);
+
+                    // Re-shape with final text (wrapping already disabled above)
+                    buffer.set_text(font_system, &final_text, &attrs, Shaping::Advanced, None);
+                    buffer.set_size(font_system, Some(width), None);
+                    buffer.shape_until_scroll(font_system, false);
+                }
+            }
+        }
 
         buffer
     }
@@ -243,13 +350,34 @@ impl TextEngine {
         });
     }
 
-    /// Get cache statistics (for debugging)
-    #[allow(dead_code)]
+    /// Get cache statistics (for performance monitoring)
     pub fn cache_stats(&self) -> CacheStats {
+        let total_lookups = self.cache_hits + self.cache_misses;
+        let hit_rate = if total_lookups > 0 {
+            self.cache_hits as f32 / total_lookups as f32
+        } else {
+            0.0
+        };
+
         CacheStats {
             entry_count: self.managed_cache.len(),
             current_frame: self.current_frame,
+            cache_hits: self.cache_hits,
+            cache_misses: self.cache_misses,
+            shapes_this_frame: self.shapes_this_frame,
+            hit_rate,
         }
+    }
+
+    /// Print performance stats to console (for debugging)
+    pub fn print_stats(&self) {
+        let stats = self.cache_stats();
+        println!("=== TextEngine Stats (Frame {}) ===", stats.current_frame);
+        println!("  Cache entries: {}", stats.entry_count);
+        println!("  Cache hits: {}", stats.cache_hits);
+        println!("  Cache misses: {}", stats.cache_misses);
+        println!("  Hit rate: {:.1}%", stats.hit_rate * 100.0);
+        println!("  Shapes this frame: {}", stats.shapes_this_frame);
     }
 }
 
@@ -259,9 +387,24 @@ impl Default for TextEngine {
     }
 }
 
-/// Cache statistics for debugging
+/// Cache statistics for performance monitoring
 #[derive(Debug, Clone)]
 pub struct CacheStats {
+    /// Number of entries in managed cache
     pub entry_count: usize,
+
+    /// Current frame number
     pub current_frame: u64,
+
+    /// Cache hits this frame
+    pub cache_hits: u64,
+
+    /// Cache misses this frame (new layouts created)
+    pub cache_misses: u64,
+
+    /// Total layouts shaped this frame
+    pub shapes_this_frame: u64,
+
+    /// Cache hit rate (0.0 - 1.0)
+    pub hit_rate: f32,
 }

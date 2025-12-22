@@ -28,6 +28,10 @@ pub struct TextStyle {
 
     /// Text color
     pub text_color: Color,
+
+    /// Text alignment (left, center, right)
+    /// Note: Requires max_width to be set for Center/Right to have effect
+    pub alignment: TextAlign,
 }
 
 impl TextStyle {
@@ -41,6 +45,7 @@ impl TextStyle {
             font_style: Style::Normal,
             font_stretch: Stretch::Normal,
             text_color: Color::WHITE,  // Default to white text
+            alignment: TextAlign::Left,  // Default to left alignment
         }
     }
 
@@ -86,6 +91,13 @@ impl TextStyle {
         self
     }
 
+    /// Set text alignment (builder pattern)
+    /// Note: Center and Right alignment require max_width to be set
+    pub fn align(mut self, alignment: TextAlign) -> Self {
+        self.alignment = alignment;
+        self
+    }
+
     /// Convert to cosmic-text Attrs
     pub(crate) fn to_attrs(&self) -> Attrs {
         let family = if self.font_family.is_empty() {
@@ -110,6 +122,23 @@ impl TextStyle {
 impl Default for TextStyle {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Text alignment mode
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum TextAlign {
+    /// Align text to the left (default)
+    Left,
+    /// Center text horizontally
+    Center,
+    /// Align text to the right
+    Right,
+}
+
+impl Default for TextAlign {
+    fn default() -> Self {
+        TextAlign::Left
     }
 }
 

@@ -7,6 +7,7 @@
 
 use cosmic_text::Buffer;
 use crate::types::{Point, Rect, Size};
+use crate::text::TextAlign;
 
 /// A pre-shaped text layout ready for rendering
 ///
@@ -20,13 +21,29 @@ pub struct TextLayout {
 
     /// Cached size for quick access
     size: Size,
+
+    /// Text alignment
+    pub(crate) alignment: TextAlign,
+
+    /// Max width constraint (needed for center/right alignment calculation)
+    pub(crate) max_width: Option<f32>,
 }
 
 impl TextLayout {
     /// Create a new text layout from a cosmic-text buffer
-    pub(crate) fn new(buffer: Buffer) -> Self {
+    pub(crate) fn new(buffer: Buffer, alignment: TextAlign, max_width: Option<f32>) -> Self {
         let size = Self::compute_size(&buffer);
-        Self { buffer, size }
+        Self { buffer, size, alignment, max_width }
+    }
+
+    /// Get text alignment
+    pub fn alignment(&self) -> TextAlign {
+        self.alignment
+    }
+
+    /// Get max width constraint
+    pub fn max_width(&self) -> Option<f32> {
+        self.max_width
     }
 
     /// Get the size of the shaped text
