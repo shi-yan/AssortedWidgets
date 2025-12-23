@@ -954,28 +954,130 @@ Users can remap any hardware to any action without code changes:
 
 ---
 
-### Phase 2: Hit Testing & Focus (Week 2)
+### Phase 2: Hit Testing & Z-Order (Week 2) - ✅ COMPLETE
 
-**Goal**: Spatial and focus-based event routing.
+**Goal**: Spatial event routing with z-order awareness.
 
 #### Tasks:
 
-1. **Hit Tester** (`src/event/hit_test.rs`)
-   - Implement `HitTester::hit_test(position) -> Option<WidgetId>`
-   - Build interactive rect cache from layout
-   - Support z-index ordering
+1. **Z-Order System** (`src/paint/primitives.rs`, `src/text/renderer.rs`) - ✅ COMPLETE
+   - Add z_order field to RectInstance and TextInstance
+   - Implement automatic z-order assignment in PaintContext
+   - Z-order increments with each draw call (depth-first traversal)
+   - Support for with_z_order() builder methods
 
-2. **Focus Manager** (`src/event/focus.rs`)
+2. **Hit Tester with Z-Order** (`src/event/hit_test.rs`) - ✅ COMPLETE
+   - Implement `HitTester::hit_test(position) -> Option<WidgetId>`
+   - Support z-order from rendering (highest z-order on top)
+   - Add `hit_test_all()` for event bubbling support
+   - Build interactive rect cache during paint pass
+
+3. **Integration** (`src/window.rs`, `src/paint/context.rs`) - ✅ COMPLETE
+   - Add `hit_tester` field to `Window`
+   - Extract hit tester after paint pass
+   - Route mouse events via z-order-aware hit test
+   - Sort primitives by z-order before rendering (CPU-side sorting)
+
+4. **Demo & Testing** (`src/elements/clickable_rect.rs`, `src/main.rs`) - ✅ COMPLETE
+   - Create ClickableRect widget with MouseHandler
+   - Demo with 4 overlapping rectangles testing z-order
+   - Validate hit testing matches visual layering
+
+**Deliverables** - ✅ ALL COMPLETE:
+- ✅ Click on overlapping widgets routes to topmost (highest z-order)
+- ✅ Z-order assigned automatically during paint
+- ✅ Hit testing uses same z-order as rendering
+- ✅ CPU-side sorting ensures correct visual layering
+
+**Completed Tests:**
+- ✅ Overlapping colored rectangles (red, blue, green, yellow)
+- ✅ Click in overlap area hits topmost element
+- ✅ Non-overlapping elements clickable independently
+- ✅ Mouse event logging validates correct routing
+
+**Commits:**
+- b39ac1e - Add z-order to RectInstance and TextInstance
+- 97ae5e7 - Sort primitives by z-order before rendering
+- 13c2a3d - Implement HitTester with z-order support
+- 4a43345 - Add clickable rect demo for testing
+
+**See Also:** `Z_ORDER.md` for detailed architecture documentation
+
+---
+
+### Phase 2.1: Depth Buffer Rendering (Next Step)
+
+**Goal**: Optimize rendering using GPU depth buffer (two-pass rendering).
+
+**Motivation:**
+Current CPU sorting works correctly but:
+- Sorts all 10,000+ primitives on CPU (~0.2ms overhead)
+- Doesn't leverage GPU depth testing hardware
+- Difficult to integrate with 3D content
+- Expert consultation recommends depth buffer for production systems
+
+#### Tasks:
+
+1. **Depth Texture** (`src/render/window_renderer.rs`)
+   - Create depth texture (Depth24Plus format)
+   - Add depth attachment to render pass
+   - Resize depth texture with window
+
+2. **Shader Updates** (`shaders/rect.wgsl`, `shaders/text.wgsl`)
+   - Convert z_order to clip_position.z (depth value)
+   - Map range: z_order → 0.0-1.0 depth
+   - Use reverse mapping (higher z_order = closer to camera)
+
+3. **Two-Pass Rendering** (`src/window.rs`)
+   - **Pass 1 - Opaque**: depth write ON, depth test ON, no sorting
+   - **Pass 2 - Transparent**: depth write OFF, depth test ON, sorted back-to-front
+   - Separate primitives by alpha value (opaque vs transparent)
+
+4. **Pipeline Configuration**
+   - Opaque pipeline: depth_write_enabled = true
+   - Transparent pipeline: depth_write_enabled = false
+   - Both pipelines: depth_compare = LessOrEqual
+
+**Expected Performance:**
+- Typical UI: 95% opaque, 5% transparent
+- Opaque pass: GPU handles depth (no CPU sorting!)
+- Transparent pass: Sort only ~500 elements instead of 10,000
+- Overall: ~10x faster sorting for typical UIs
+
+**Deliverables**:
+- Opaque elements rendered without CPU sorting
+- Transparent elements rendered correctly with alpha blending
+- Hit testing continues to work (unchanged)
+- 3D content integration prepared
+
+**Reference:**
+- See `Z_ORDER.md` for detailed implementation guide
+- Industry standard: Unity, Unreal, Godot all use this approach
+
+---
+
+### Phase 2.2: Focus Manager & Mouse Capture
+
+**Goal**: Keyboard focus and drag operation support.
+
+#### Tasks:
+
+1. **Focus Manager** (`src/event/focus.rs`)
    - Implement `FocusManager`
    - Track `focused_id: Option<WidgetId>`
    - Implement Tab/Shift+Tab cycling
    - Rebuild focusable list from element tree
 
+2. **Mouse Capture** (`src/event/capture.rs`) - **HIGH PRIORITY**
+   - Implement mouse capture for drag operations
+   - Events continue to captured widget even outside window
+   - Release on mouse up
+   - Critical for detachable tabs/panels
+
 3. **Integration** (`src/window.rs`)
-   - Add `hit_tester` and `focus_manager` to `Window`
-   - Rebuild hit test cache after layout
-   - Route mouse events via hit test
+   - Add `focus_manager` to `Window`
    - Route keyboard events via focus
+   - Handle mouse capture in event dispatch
 
 4. **IME Support** (`src/element.rs` + `src/window.rs`)
    - Add `ime_cursor_rect()` to Element trait
@@ -983,16 +1085,10 @@ Users can remap any hardware to any action without code changes:
    - Update platform window IME position each frame
 
 **Deliverables**:
-- Click on any widget routes event correctly
 - Tab cycles through focusable widgets
 - Typing goes to focused widget
+- Mouse capture works for dragging
 - IME window appears at cursor (for text input)
-
-**Test**:
-- Create 3 text input widgets
-- Tab should cycle focus between them
-- Typing should only go to focused input
-- IME should appear at cursor position
 
 ---
 
