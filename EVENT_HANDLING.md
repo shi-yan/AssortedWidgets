@@ -886,7 +886,7 @@ Users can remap any hardware to any action without code changes:
 
 ## Implementation Plan
 
-### Phase 1: Core Event System (Week 1) - 80% COMPLETE
+### Phase 1: Core Event System (Week 1) - 90% COMPLETE
 
 **Goal**: Replace current stub event handling with proper routing.
 
@@ -913,13 +913,14 @@ Users can remap any hardware to any action without code changes:
    - ✅ Add `ime_cursor_rect()` for IME positioning
    - ✅ Deprecate old `on_event(OsEvent)` method
 
-4. **Platform Conversion** (`src/platform/mac/window.rs`) - ✅ COMPLETE
+4. **Platform Conversion & Wiring** (`src/platform/mac/window.rs`, `src/application.rs`) - ✅ COMPLETE
    - ✅ `convert_to_mouse_event()` - NSEvent → MouseEvent (with click_count for double-click)
    - ✅ `convert_to_wheel_event()` - NSEvent → WheelEvent (with momentum phases)
    - ✅ `convert_to_key_event()` - NSEvent → KeyEvent (full keyboard mapping)
    - ✅ `convert_modifiers()` - NSEventModifierFlags → Modifiers
    - ✅ `convert_key()` - macOS key codes → Key enum (arrows, function keys, etc.)
-   - 🚧 Wire up to post InputEventEnum (instead of PlatformInput)
+   - ✅ Wire platform callbacks to post InputEventEnum to event queue
+   - ✅ Handle GuiEvent::InputEvent in application event loop
 
 5. **Basic Dispatch** (`src/window.rs`) - TODO
    - Wire up event dispatch in render loop
@@ -930,11 +931,13 @@ Users can remap any hardware to any action without code changes:
 - ✅ Handler trait pattern for opt-in event handling
 - ✅ Interactive/focusable widget metadata
 - ✅ IME cursor positioning support
+- ✅ Platform event conversion (NSEvent → InputEventEnum)
+- ✅ Event queue wiring (platform → application)
+- ✅ Event loop handling for InputEventEnum
 
 **Remaining Work**:
-- Platform event conversion (NSEvent → InputEventEnum)
-- Event dispatch wiring in window render loop
-- Simple event bubbling implementation
+- Event dispatch to elements (via ElementManager)
+- Simple event bubbling implementation (parent chain traversal)
 - Test with button widget
 
 **Test**:
