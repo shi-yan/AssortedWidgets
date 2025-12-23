@@ -1,5 +1,5 @@
 use crate::element_manager::ElementManager;
-use crate::event::InputEventEnum;
+use crate::event::{HitTester, InputEventEnum};
 use crate::layout::LayoutManager;
 use crate::paint::PaintContext;
 use crate::render::RenderContext;
@@ -61,6 +61,13 @@ pub struct Window {
 
     /// Frame counter (increments each frame)
     frame_number: u64,
+
+    // ========================================
+    // Event Handling (Per-Window)
+    // ========================================
+    /// Hit tester for spatial event routing
+    /// Updated after each paint pass to match rendering z-order
+    hit_tester: HitTester,
 }
 
 impl Window {
@@ -83,6 +90,7 @@ impl Window {
             render_state,
             last_frame_time: None,
             frame_number: 0,
+            hit_tester: HitTester::new(),
         }
     }
 
@@ -211,20 +219,18 @@ impl Window {
 
     /// Dispatch an input event to elements
     ///
-    /// For Phase 1, this implements simple event dispatch:
-    /// - Mouse events: Simple hit test based on element bounds
-    /// - Keyboard events: Dispatch to focused element (TODO: focus management in Phase 2)
-    /// - Wheel events: Simple hit test based on element bounds
-    ///
-    /// This will be enhanced in Phase 2 with proper hit testing and focus management.
+    /// Phase 2 implementation with proper hit testing:
+    /// - Mouse events: Hit test using z-order from paint pass
+    /// - Keyboard events: Dispatch to focused element (TODO: focus management)
+    /// - Wheel events: Hit test using z-order from paint pass
     pub fn dispatch_input_event(&mut self, mut event: InputEventEnum) {
         match &event {
             InputEventEnum::MouseDown(mouse_event) |
             InputEventEnum::MouseUp(mouse_event) |
             InputEventEnum::MouseMove(mouse_event) => {
-                // Simple hit test: find topmost element at this position
+                // Hit test using z-order: find topmost element at this position
                 let position = mouse_event.position;
-                let target = self.simple_hit_test(position);
+                let target = self.hit_tester.hit_test(position);
 
                 if let Some(widget_id) = target {
                     // Dispatch to element via dispatch_mouse_event method
@@ -282,30 +288,6 @@ impl Window {
                 }
             }
         }
-    }
-
-    /// Simple hit test - finds topmost element at position
-    ///
-    /// This is a basic implementation for Phase 1. In Phase 2, this will be
-    /// replaced with a proper HitTester that uses z-order.
-    fn simple_hit_test(&self, position: Point) -> Option<WidgetId> {
-        // Collect all interactive elements with their bounds
-        let mut candidates: Vec<(WidgetId, crate::types::Rect)> = Vec::new();
-
-        for widget_id in self.element_manager.widget_ids() {
-            if let Some(element) = self.element_manager.get(widget_id) {
-                if element.is_interactive() {
-                    candidates.push((widget_id, element.bounds()));
-                }
-            }
-        }
-
-        // For now, just return the last one that contains the point
-        // (This is a simplification - proper implementation would use z-order)
-        candidates.iter()
-            .filter(|&(_, bounds)| bounds.contains(position))
-            .last()
-            .map(|(id, _)| *id)
     }
 
     /// Render a single frame
@@ -445,7 +427,7 @@ impl Window {
                 });
             }
 
-            // Extract instances before paint_ctx is dropped
+            // Extract instances and hit tester before paint_ctx is dropped
             let mut rect_instances = paint_ctx.rect_instances().to_vec();
             let mut text_instances = paint_ctx.text_instances().to_vec();
 
@@ -455,8 +437,15 @@ impl Window {
             rect_instances.sort_by_key(|inst| inst.z_order);
             text_instances.sort_by_key(|inst| inst.z_order);
 
-            (rect_instances, text_instances)
+            // Finalize and clone hit tester for event dispatch
+            let hit_tester = paint_ctx.finalized_hit_tester();
+
+            (rect_instances, text_instances, hit_tester)
         };
+
+        // Update window's hit tester with the one from this paint pass
+        // This ensures hit testing uses the same z-order as rendering
+        self.hit_tester = hit_tester;
 
         // 3. Render batched primitives
         let mut encoder = render_context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

@@ -1,6 +1,7 @@
+use crate::event::HitTester;
 use crate::paint::primitives::{Color, RectInstance};
 use crate::text::{TextInstance, TextLayout, GlyphAtlas, FontSystemWrapper, TextEngine, TextStyle};
-use crate::types::{Point, Rect, Size};
+use crate::types::{Point, Rect, Size, WidgetId};
 
 /// Calculate the intersection of two rectangles
 fn intersect_rects(a: Rect, b: Rect) -> Rect {
@@ -79,6 +80,10 @@ pub struct PaintContext<'a> {
     /// Current z-order counter (increments with each draw call)
     /// Higher values are rendered on top
     z_order: u32,
+
+    /// Hit tester for registering interactive element bounds
+    /// This is built during the paint pass and used for hit testing later
+    hit_tester: HitTester,
 }
 
 impl<'a> PaintContext<'a> {
@@ -91,6 +96,7 @@ impl<'a> PaintContext<'a> {
             clip_stack: Vec::new(),
             bundle,
             z_order: 0,
+            hit_tester: HitTester::new(),
         }
     }
 
@@ -103,6 +109,53 @@ impl<'a> PaintContext<'a> {
     /// This can be used to create "layers" where multiple primitives share the same z-order
     pub fn advance_z_order(&mut self) {
         self.z_order += 1;
+    }
+
+    /// Register an interactive element's hitbox
+    ///
+    /// This should be called by interactive elements during their paint() method
+    /// to register their bounds for hit testing. The current z-order is used.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// impl Element for MyButton {
+    ///     fn paint(&self, ctx: &mut PaintContext) {
+    ///         // Register hitbox before drawing (uses current z-order)
+    ///         ctx.register_hitbox(self.id, self.bounds);
+    ///
+    ///         // Draw the button
+    ///         ctx.draw_rect(self.bounds, Color::BLUE);
+    ///     }
+    /// }
+    /// ```
+    pub fn register_hitbox(&mut self, widget_id: WidgetId, bounds: Rect) {
+        self.hit_tester.add(widget_id, bounds, self.z_order);
+    }
+
+    /// Get a reference to the hit tester
+    ///
+    /// This is typically used after the paint pass to extract the hit tester
+    /// for use in event dispatch.
+    pub fn hit_tester(&self) -> &HitTester {
+        &self.hit_tester
+    }
+
+    /// Take ownership of the hit tester
+    ///
+    /// This consumes the paint context and returns the hit tester.
+    /// The hit tester must be finalized before use.
+    pub fn into_hit_tester(mut self) -> HitTester {
+        self.hit_tester.finalize();
+        self.hit_tester
+    }
+
+    /// Finalize and clone the hit tester
+    ///
+    /// This finalizes the internal hit tester and returns a clone.
+    /// Useful when you need to keep the PaintContext alive.
+    pub fn finalized_hit_tester(&mut self) -> HitTester {
+        self.hit_tester.finalize();
+        self.hit_tester.clone()
     }
 
     /// Push a clip rectangle onto the stack
