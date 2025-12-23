@@ -566,6 +566,15 @@ impl PlatformWindow for MacWindow {
         // - firstRectForCharacterRange:actualRange:
         // etc.
     }
+
+    fn window_screen_origin(&self) -> Point {
+        // Get window frame in screen coordinates
+        let frame = self.native_window.frame();
+
+        // macOS uses bottom-left origin for screen coordinates
+        // The frame.origin gives us the bottom-left corner directly
+        point(frame.origin.x, frame.origin.y)
+    }
 }
 
 // ============================================================================

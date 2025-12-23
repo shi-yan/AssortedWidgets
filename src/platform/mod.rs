@@ -207,6 +207,26 @@ pub trait PlatformWindow {
     /// * `width` - Width of the cursor area in screen pixels
     /// * `height` - Height of the cursor area in screen pixels
     fn set_ime_cursor_area(&mut self, x: f64, y: f64, width: f64, height: f64);
+
+    // ========================================
+    // Screen Coordinate Methods (for cross-window drag-drop)
+    // ========================================
+
+    /// Get the window's origin in screen coordinates
+    /// Returns the bottom-left corner on macOS (standard screen coords)
+    fn window_screen_origin(&self) -> Point;
+
+    /// Convert window-local coordinates to screen coordinates
+    fn window_to_screen(&self, window_pos: Point) -> Point {
+        let origin = self.window_screen_origin();
+        Point::new(origin.x + window_pos.x, origin.y + window_pos.y)
+    }
+
+    /// Convert screen coordinates to window-local coordinates
+    fn screen_to_window(&self, screen_pos: Point) -> Point {
+        let origin = self.window_screen_origin();
+        Point::new(screen_pos.x - origin.x, screen_pos.y - origin.y)
+    }
 }
 
 /// Platform event loop trait
