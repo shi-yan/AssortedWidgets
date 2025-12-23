@@ -54,11 +54,19 @@ pub struct GlyphLocation {
     pub page_index: u32,
     /// UV coordinates in the atlas
     pub uv_rect: UvRect,
-    /// Glyph metrics for positioning
-    pub width: u32,
-    pub height: u32,
-    pub offset_x: i32,  // Bearing X
-    pub offset_y: i32,  // Bearing Y
+
+    /// Physical dimensions (bitmap size at current DPI)
+    pub physical_width: f32,
+    pub physical_height: f32,
+    pub physical_offset_x: f32,  // Bearing X
+    pub physical_offset_y: f32,  // Bearing Y
+
+    /// Logical dimensions (DPI-independent, for rendering)
+    pub logical_width: f32,
+    pub logical_height: f32,
+    pub logical_offset_x: f32,   // Bearing X
+    pub logical_offset_y: f32,   // Bearing Y
+
     /// Is this a color glyph (emoji)?
     pub is_color: bool,
     /// Last frame this glyph was used (for LRU eviction)
@@ -213,6 +221,7 @@ impl GlyphAtlas {
         offset_x: i32,
         offset_y: i32,
         is_color: bool,
+        scale_factor: f32,
     ) -> Result<GlyphLocation, String> {
         // Check if already cached
         if let Some(location) = self.cache.get(&key) {
@@ -307,10 +316,14 @@ impl GlyphAtlas {
         let location = GlyphLocation {
             page_index: page.layer_index,
             uv_rect,
-            width,
-            height,
-            offset_x,
-            offset_y,
+            physical_width: width as f32,
+            physical_height: height as f32,
+            physical_offset_x: offset_x as f32,
+            physical_offset_y: offset_y as f32,
+            logical_width: width as f32 / scale_factor,
+            logical_height: height as f32 / scale_factor,
+            logical_offset_x: offset_x as f32 / scale_factor,
+            logical_offset_y: offset_y as f32 / scale_factor,
             is_color,
             last_used_frame: self.current_frame,
         };

@@ -369,7 +369,7 @@ impl<'a> PaintContext<'a> {
                 // Convert to PhysicalGlyph with baseline Y offset
                 // cosmic-text already applies alignment offsets to glyph.x
                 let physical_glyph = glyph.physical(
-                    (position.x as f32 * scale_factor, position.y  as f32 * scale_factor+ line_y),
+                    (0.0 as f32, 0.0 as f32),
                     scale_factor
                 );
 
@@ -405,6 +405,7 @@ impl<'a> PaintContext<'a> {
                             rasterized.offset_x,
                             rasterized.offset_y,
                             rasterized.is_color,
+                            scale_factor,
                         ) {
                             Ok(loc) => loc,
                             Err(_e) => {
@@ -435,13 +436,15 @@ impl<'a> PaintContext<'a> {
                 // 3. Projection matrix: logical_size * scale_factor = physical_size (1200 * 2 = 2400)
                 // 4. Shader: logical_coord / physical_screen_size = correct NDC (100 / 2400)
                 // 5. Viewport maps NDC to physical pixels correctly
-                let glyph_x = (physical_glyph.x + location.offset_x) as f32 / scale_factor;
-                let glyph_y = (physical_glyph.y - location.offset_y) as f32 / scale_factor;
+                //println!("phyiscal_glyph x={} y={}", physical_glyph.x, physical_glyph.y);
+                //println!("position.x ={} position.y={}", position.x as f32 * scale_factor, position.y as f32 * scale_factor);
+                let glyph_x = glyph.x as f32 + location.logical_offset_x + position.x as f32  ;
+                let glyph_y = glyph.y as f32 - location.logical_offset_y + position.y as f32 + line_y ;
 
                 // Glyph dimensions from atlas are PHYSICAL (high-res bitmap)
                 // Convert to LOGICAL for consistent coordinate system
-                let glyph_width = location.width as f32 / scale_factor;
-                let glyph_height = location.height as f32 / scale_factor;
+                let glyph_width = location.logical_width ;
+                let glyph_height = location.logical_height ;
 
                 // Push text instance
                 let instance = TextInstance::new(
