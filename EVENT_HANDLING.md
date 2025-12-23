@@ -886,39 +886,52 @@ Users can remap any hardware to any action without code changes:
 
 ## Implementation Plan
 
-### Phase 1: Core Event System (Week 1)
+### Phase 1: Core Event System (Week 1) - IN PROGRESS
 
 **Goal**: Replace current stub event handling with proper routing.
 
 #### Tasks:
 
-1. **Event Types** (`src/event/input.rs`)
-   - Define `InputEvent` trait
-   - Implement `MouseEvent`, `KeyEvent`, `ScrollEvent`
-   - Add propagation/preventDefault state
+1. **Event Types** (`src/event/input.rs`) - ✅ COMPLETE
+   - ✅ Define `InputEvent` trait with propagation/preventDefault
+   - ✅ Implement `MouseEvent` with button, position, modifiers, click_count
+   - ✅ Implement `KeyEvent` with Key enum (Character/Named)
+   - ✅ Implement `ScrollEvent` with delta, phase (Begin/Update/End/Momentum)
+   - ✅ Add `EventResponse` enum (Handled/PassThrough/Ignored)
 
-2. **Event Enum** (`src/event/mod.rs`)
-   - Create `InputEventEnum` wrapper for all event types
-   - Update `GuiEvent` to use new input events
+2. **Event Enum** (`src/event/mod.rs`) - ✅ COMPLETE
+   - ✅ Create `InputEventEnum` wrapper for all event types
+   - ✅ Add `GuiEvent::InputEvent` variant
+   - ✅ Keep legacy `GuiEvent::Input(PlatformInput)` for backward compatibility
 
-3. **Element Trait Updates** (`src/element.rs`)
-   - Add `is_interactive()` method (default: false)
-   - Add `is_focusable()` method (default: false)
-   - Add optional `as_mouse_handler()`, `as_keyboard_handler()` methods
-   - Deprecate old `on_event(OsEvent)` method
+3. **Element Trait Updates** (`src/element.rs` + `src/event/handlers.rs`) - ✅ COMPLETE
+   - ✅ Create `MouseHandler` trait (on_mouse_down/up/move/enter/leave)
+   - ✅ Create `KeyboardHandler` trait (on_key_down/up)
+   - ✅ Create `ScrollHandler` trait (on_scroll)
+   - ✅ Add `is_interactive()` method (default: false)
+   - ✅ Add `is_focusable()` method (default: false)
+   - ✅ Add `ime_cursor_rect()` for IME positioning
+   - ✅ Deprecate old `on_event(OsEvent)` method
 
-4. **Platform Conversion** (`src/platform/mac/window.rs`)
+4. **Platform Conversion** (`src/platform/mac/window.rs`) - TODO
    - Convert `NSEvent` → `InputEventEnum`
    - Post new event types to queue
 
-5. **Basic Dispatch** (`src/window.rs`)
+5. **Basic Dispatch** (`src/window.rs`) - TODO
    - Wire up event dispatch in render loop
    - Implement simple bubbling (without hit test yet)
 
-**Deliverables**:
-- Mouse clicks print which element was hit (hardcoded path)
-- Keyboard events route to a hardcoded focused widget
-- Events can be marked as handled to stop propagation
+**Completed Deliverables**:
+- ✅ Event type system with propagation control
+- ✅ Handler trait pattern for opt-in event handling
+- ✅ Interactive/focusable widget metadata
+- ✅ IME cursor positioning support
+
+**Remaining Work**:
+- Platform event conversion (NSEvent → InputEventEnum)
+- Event dispatch wiring in window render loop
+- Simple event bubbling implementation
+- Test with button widget
 
 **Test**:
 - Create a button widget with MouseHandler
@@ -1564,6 +1577,41 @@ If we decide to adopt BoundsTree:
 - [ ] Consider spatial hash for hit testing if needed
 
 **Initial recommendation: Skip BoundsTree for Phase 1-2, revisit in Phase 5 if performance issues arise.**
+
+---
+
+---
+
+## Implementation Status
+
+### Phase 1: Core Event System - 60% Complete
+
+**Completed (3/5 tasks):**
+- ✅ Event types module (input.rs)
+  - InputEvent trait, MouseEvent, KeyEvent, ScrollEvent
+  - EventResponse enum, Modifiers struct
+  - Propagation and preventDefault support
+- ✅ InputEventEnum wrapper (mod.rs)
+  - Unified wrapper for all event types
+  - GuiEvent integration
+- ✅ Element trait updates (element.rs, handlers.rs)
+  - MouseHandler, KeyboardHandler, ScrollHandler traits
+  - is_interactive(), is_focusable(), ime_cursor_rect() methods
+  - Deprecated old on_event(OsEvent) method
+
+**In Progress:**
+- Platform event conversion (NSEvent → InputEventEnum)
+- Event dispatch wiring in window
+
+**Next Steps:**
+- Complete Phase 1 (platform conversion + dispatch)
+- Begin Phase 2 (Hit Testing & Focus Management)
+
+### Commits
+
+1. `ad14133` - Add event input types module (Phase 1.1)
+2. `d9596a2` - Add InputEventEnum wrapper and update GuiEvent (Phase 1.2)
+3. `50d5d5b` - Add event handler traits and update Element trait (Phase 1.3)
 
 ---
 
