@@ -645,8 +645,8 @@ unsafe fn create_window(options: &WindowOptions, mtm: MainThreadMarker) -> Retai
 
     // Always on top
     if options.always_on_top {
-        use objc2_app_kit::NSWindowLevel;
-        window.setLevel(NSWindowLevel::FloatingWindow);
+        const NSFloatingWindowLevel: isize = 3;
+        window.setLevel(NSFloatingWindowLevel);
     }
 
     window

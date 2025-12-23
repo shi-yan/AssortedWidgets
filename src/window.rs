@@ -4,7 +4,7 @@ use crate::layout::LayoutManager;
 use crate::paint::PaintContext;
 use crate::render::RenderContext;
 use crate::scene_graph::SceneGraph;
-use crate::types::{FrameInfo, Point, Size, WidgetId, WindowId};
+use crate::types::{FrameInfo, Point, Size, WindowId};
 use crate::window_render_state::WindowRenderState;
 use std::time::Instant;
 
@@ -388,6 +388,11 @@ impl Window {
                     }
                 }
             }
+
+            InputEventEnum::Custom(_) => {
+                // Custom events are not yet handled
+                // TODO: Implement custom event handling
+            }
         }
     }
 
@@ -549,7 +554,7 @@ impl Window {
         self.render_state.begin_frame();
 
         // Paint phase - collect draw commands
-        let (rect_instances, text_instances) = {
+        let (rect_instances, text_instances, hit_tester) = {
             // Lock shared resources for the duration of the frame
             let mut atlas_lock = render_context.glyph_atlas.lock().unwrap();
             let mut font_system_lock = render_context.font_system.lock().unwrap();

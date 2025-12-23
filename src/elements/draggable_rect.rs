@@ -10,7 +10,8 @@ use crate::element::Element;
 use crate::event::{EventResponse, MouseEvent, MouseHandler};
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
-use crate::types::{DeferredCommand, FrameInfo, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::text::TextStyle;
+use crate::types::{DeferredCommand, GuiMessage, Point, Rect, WidgetId};
 
 /// Draggable rectangle that can be dragged between windows
 pub struct DraggableRect {
@@ -97,8 +98,8 @@ impl Element for DraggableRect {
     fn layout(&self) -> Style {
         Style {
             size: taffy::Size {
-                width: taffy::Dimension::Length(self.bounds.size.width as f32),
-                height: taffy::Dimension::Length(self.bounds.size.height as f32),
+                width: taffy::Dimension::length(self.bounds.size.width as f32),
+                height: taffy::Dimension::length(self.bounds.size.height as f32),
             },
             ..Default::default()
         }
@@ -106,11 +107,11 @@ impl Element for DraggableRect {
 
     fn paint(&self, ctx: &mut PaintContext) {
         // Draw the rectangle with current color
-        let alpha = if self.is_dragging { 128 } else { 255 };
+        let alpha = if self.is_dragging { 0.5 } else { 1.0 };
         let color = Color::rgba(
-            (self.color.r * 255.0) as u8,
-            (self.color.g * 255.0) as u8,
-            (self.color.b * 255.0) as u8,
+            self.color.r,
+            self.color.g,
+            self.color.b,
             alpha,
         );
         ctx.draw_rect(self.bounds, color);
@@ -120,24 +121,18 @@ impl Element for DraggableRect {
             self.bounds.origin.x + self.bounds.size.width / 2.0 - 40.0,
             self.bounds.origin.y + self.bounds.size.height / 2.0 - 10.0,
         );
-        ctx.draw_text(
-            &self.label,
-            text_pos,
-            Color::rgba(255, 255, 255, 255),
-            16.0,
-        );
+        let label_style = TextStyle::new().size(16.0).color(Color::WHITE);
+        ctx.draw_text(&self.label, &label_style, text_pos, None);
 
         // Draw "DRAG ME" hint
         let hint_pos = Point::new(
             self.bounds.origin.x + self.bounds.size.width / 2.0 - 30.0,
             self.bounds.origin.y + self.bounds.size.height / 2.0 + 10.0,
         );
-        ctx.draw_text(
-            "DRAG ME",
-            hint_pos,
-            Color::rgba(200, 200, 200, 200),
-            12.0,
-        );
+        let hint_style = TextStyle::new()
+            .size(12.0)
+            .color(Color::rgba(200.0/255.0, 200.0/255.0, 200.0/255.0, 1.0));
+        ctx.draw_text("DRAG ME", &hint_style, hint_pos, None);
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

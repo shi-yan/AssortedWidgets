@@ -1,9 +1,10 @@
 //! Clickable rectangle widget for testing hit testing and event handling
 
 use crate::element::Element;
-use crate::event::{EventResponse, MouseEvent, MouseHandler};
+use crate::event::{EventResponse, MouseEvent, MouseHandler, OsEvent};
+use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
-use crate::types::{FrameInfo, Point, Rect, Size, WidgetId};
+use crate::types::{DeferredCommand, GuiMessage, Rect, WidgetId};
 
 /// A simple clickable colored rectangle for testing hit testing
 ///
@@ -18,6 +19,7 @@ pub struct ClickableRect {
     hover_color: Color,
     label: String,
     is_hovered: bool,
+    is_dirty: bool,
 }
 
 impl ClickableRect {
@@ -38,6 +40,7 @@ impl ClickableRect {
             hover_color,
             label: label.into(),
             is_hovered: false,
+            is_dirty: true,
         }
     }
 
@@ -58,7 +61,36 @@ impl Element for ClickableRect {
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        self.bounds = bounds;
+        if self.bounds != bounds {
+            self.bounds = bounds;
+            self.is_dirty = true;
+        }
+    }
+
+    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
+        Vec::new()
+    }
+
+    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
+        Vec::new()
+    }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.is_dirty = dirty;
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.is_dirty
+    }
+
+    fn layout(&self) -> Style {
+        Style {
+            size: taffy::Size {
+                width: taffy::Dimension::length(self.bounds.size.width as f32),
+                height: taffy::Dimension::length(self.bounds.size.height as f32),
+            },
+            ..Default::default()
+        }
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
@@ -85,6 +117,14 @@ impl Element for ClickableRect {
 
     fn is_focusable(&self) -> bool {
         false // Not keyboard-focusable (yet)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }
 

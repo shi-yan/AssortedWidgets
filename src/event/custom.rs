@@ -151,6 +151,37 @@ impl std::fmt::Debug for CustomEvent {
     }
 }
 
+// Implement InputEvent trait for CustomEvent
+impl crate::event::InputEvent for CustomEvent {
+    fn should_propagate(&self) -> bool {
+        self.propagate
+    }
+
+    fn stop_propagation(&mut self) {
+        self.propagate = false;
+    }
+
+    fn is_default_prevented(&self) -> bool {
+        self.default_prevented
+    }
+
+    fn prevent_default(&mut self) {
+        self.default_prevented = true;
+    }
+
+    fn timestamp(&self) -> Instant {
+        self.timestamp
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
 // ============================================================================
 // Example Event Types (for reference/testing)
 // ============================================================================

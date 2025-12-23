@@ -44,6 +44,10 @@ fn main() {
             bounds: Rect::new(Point::new(100.0, 100.0), Size::new(600.0, 400.0)),
             title: "Drag Demo - Window 1".to_string(),
             titlebar: None,
+            borderless: false,
+            transparent: false,
+            always_on_top: false,
+            utility: false,
         })
         .expect("Failed to create window 1");
 
@@ -95,6 +99,10 @@ fn main() {
             bounds: Rect::new(Point::new(750.0, 100.0), Size::new(600.0, 400.0)),
             title: "Drag Demo - Window 2".to_string(),
             titlebar: None,
+            borderless: false,
+            transparent: false,
+            always_on_top: false,
+            utility: false,
         })
         .expect("Failed to create window 2");
 

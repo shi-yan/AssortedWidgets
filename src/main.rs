@@ -42,6 +42,10 @@ fn main() {
             bounds: Rect::new(Point::new(100.0, 100.0), Size::new(800.0, 600.0)),
             title: "Phase 2: Hit Testing Demo".to_string(),
             titlebar: None,
+            borderless: false,
+            transparent: false,
+            always_on_top: false,
+            utility: false,
         })
         .expect("Failed to create window");
 
@@ -72,14 +76,14 @@ fn main() {
             display: taffy::Display::Flex,
             flex_direction: taffy::FlexDirection::Column,
             gap: taffy::Size {
-                width: taffy::LengthPercentage::Length(20.0),
-                height: taffy::LengthPercentage::Length(20.0),
+                width: taffy::LengthPercentage::length(20.0),
+                height: taffy::LengthPercentage::length(20.0),
             },
             padding: taffy::Rect {
-                left: taffy::LengthPercentage::Length(50.0),
-                right: taffy::LengthPercentage::Length(50.0),
-                top: taffy::LengthPercentage::Length(50.0),
-                bottom: taffy::LengthPercentage::Length(50.0),
+                left: taffy::LengthPercentage::length(50.0),
+                right: taffy::LengthPercentage::length(50.0),
+                top: taffy::LengthPercentage::length(50.0),
+                bottom: taffy::LengthPercentage::length(50.0),
             },
             ..Default::default()
         };

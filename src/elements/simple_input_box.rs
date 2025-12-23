@@ -7,13 +7,13 @@
 
 use crate::element::Element;
 use crate::event::{
-    EventResponse, ImeEvent, ImeEventType, ImeHandler, KeyEvent, KeyboardHandler, MouseEvent,
-    MouseHandler,
+    EventResponse, ImeEvent, ImeEventType, ImeHandler, Key, KeyEvent, KeyboardHandler, MouseEvent,
+    MouseHandler, NamedKey,
 };
 use crate::layout::Style;
-use crate::paint::PaintContext;
-use crate::types::{color, DeferredCommand, FrameInfo, GuiMessage, Rect, Size, WidgetId};
-use taffy::AvailableSpace;
+use crate::paint::{Color, PaintContext};
+use crate::text::TextStyle;
+use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 
 /// Simple input box for IME testing
 ///
@@ -94,31 +94,32 @@ impl Element for SimpleInputBox {
     fn layout(&self) -> Style {
         Style {
             size: taffy::Size {
-                width: taffy::Dimension::Length(400.0),
-                height: taffy::Dimension::Length(60.0),
+                width: taffy::Dimension::length(400.0),
+                height: taffy::Dimension::length(60.0),
             },
             padding: taffy::Rect {
-                left: taffy::LengthPercentage::Length(10.0),
-                right: taffy::LengthPercentage::Length(10.0),
-                top: taffy::LengthPercentage::Length(10.0),
-                bottom: taffy::LengthPercentage::Length(10.0),
+                left: taffy::LengthPercentage::length(10.0),
+                right: taffy::LengthPercentage::length(10.0),
+                top: taffy::LengthPercentage::length(10.0),
+                bottom: taffy::LengthPercentage::length(10.0),
             },
             ..Default::default()
         }
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
-        // Draw border (outer rect)
-        let border = self.bounds.inset(-2.0);
-        ctx.draw_rect(border, color::rgba(100, 100, 120, 255));
+        // Draw border (outer rect) - inflate by 2.0 to make it larger
+        let border = self.bounds.inflate(2.0, 2.0);
+        ctx.draw_rect(border, Color::rgba(100.0/255.0, 100.0/255.0, 120.0/255.0, 1.0));
 
         // Draw background
-        ctx.draw_rect(self.bounds, color::rgba(40, 40, 45, 255));
+        ctx.draw_rect(self.bounds, Color::rgba(40.0/255.0, 40.0/255.0, 45.0/255.0, 1.0));
 
         // Draw committed text in white
         if !self.text.is_empty() {
-            let text_pos = self.bounds.origin.offset(10.0, 25.0);
-            ctx.draw_text(&self.text, text_pos, color::rgba(255, 255, 255, 255), 18.0);
+            let text_pos = Point::new(self.bounds.origin.x + 10.0, self.bounds.origin.y + 25.0);
+            let text_style = TextStyle::new().size(18.0).color(Color::WHITE);
+            ctx.draw_text(&self.text, &text_style, text_pos, None);
         }
 
         // Draw preedit text in yellow (right after committed text)
@@ -130,22 +131,23 @@ impl Element for SimpleInputBox {
                 self.text.len() as f64 * 10.0 // Rough estimate
             };
 
-            let preedit_pos = self.bounds.origin.offset(10.0 + committed_width, 25.0);
-            ctx.draw_text(
-                &self.preedit,
-                preedit_pos,
-                color::rgba(255, 255, 0, 255), // Yellow for preedit
-                18.0,
+            let preedit_pos = Point::new(
+                self.bounds.origin.x + 10.0 + committed_width,
+                self.bounds.origin.y + 25.0
             );
+            let preedit_style = TextStyle::new()
+                .size(18.0)
+                .color(Color::rgba(1.0, 1.0, 0.0, 1.0)); // Yellow
+            ctx.draw_text(&self.preedit, &preedit_style, preedit_pos, None);
 
             // Draw underline under preedit text
             let underline_y = preedit_pos.y + 5.0;
             let underline_width = self.preedit.len() as f64 * 10.0;
             let underline_rect = Rect::new(
-                crate::types::Point::new(preedit_pos.x, underline_y),
+                Point::new(preedit_pos.x, underline_y),
                 Size::new(underline_width, 2.0),
             );
-            ctx.draw_rect(underline_rect, color::rgba(255, 255, 0, 255));
+            ctx.draw_rect(underline_rect, Color::rgba(1.0, 1.0, 0.0, 1.0));
         }
     }
 
@@ -173,7 +175,7 @@ impl Element for SimpleInputBox {
         let cursor_y = 15.0;
 
         Some(Rect::new(
-            self.bounds.origin.offset(cursor_x, cursor_y),
+            Point::new(self.bounds.origin.x + cursor_x, self.bounds.origin.y + cursor_y),
             Size::new(2.0, 30.0),
         ))
     }
@@ -194,7 +196,7 @@ impl Element for SimpleInputBox {
         &mut self,
         event: &mut crate::event::InputEventEnum,
     ) -> crate::event::EventResponse {
-        use crate::event::{InputEventEnum, Key, NamedKey};
+        use crate::event::InputEventEnum;
 
         match event {
             InputEventEnum::KeyDown(key_event) => {

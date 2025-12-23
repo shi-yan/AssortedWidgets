@@ -259,9 +259,6 @@ impl Application {
         drag_data: DragData,
         screen_position: Point,
     ) -> Result<(), String> {
-        use crate::paint::RectRenderer;
-        use crate::text::TextRenderer;
-
         println!("[Drag] Starting drag from window {:?} at screen ({:.1}, {:.1})",
                  source_window, screen_position.x, screen_position.y);
 

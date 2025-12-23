@@ -64,6 +64,7 @@ impl InputEventEnum {
             InputEventEnum::KeyUp(e) => e,
             InputEventEnum::Wheel(e) => e,
             InputEventEnum::Ime(e) => e,
+            InputEventEnum::Custom(e) => e,
         }
     }
 
@@ -77,6 +78,7 @@ impl InputEventEnum {
             InputEventEnum::KeyUp(e) => e,
             InputEventEnum::Wheel(e) => e,
             InputEventEnum::Ime(e) => e,
+            InputEventEnum::Custom(e) => e,
         }
     }
 }
