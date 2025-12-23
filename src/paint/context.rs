@@ -1,6 +1,7 @@
+use crate::event::HitTester;
 use crate::paint::primitives::{Color, RectInstance};
 use crate::text::{TextInstance, TextLayout, GlyphAtlas, FontSystemWrapper, TextEngine, TextStyle};
-use crate::types::{Point, Rect, Size};
+use crate::types::{Point, Rect, Size, WidgetId};
 
 /// Calculate the intersection of two rectangles
 fn intersect_rects(a: Rect, b: Rect) -> Rect {
@@ -51,6 +52,14 @@ pub struct RenderBundle<'a> {
 /// - `draw_layout()`: Low-level API for pre-shaped text (3 parameters)
 ///
 /// This is a dramatic improvement over the previous 7-parameter API!
+///
+/// # Z-Order Management
+///
+/// PaintContext automatically assigns z-order values to all primitives
+/// in the order they are drawn. This ensures correct overlapping in the UI:
+/// - Elements drawn first have lower z-order (rendered first, appear behind)
+/// - Elements drawn later have higher z-order (rendered last, appear on top)
+/// - The z-order is used for both rendering and hit testing
 pub struct PaintContext<'a> {
     /// Collected rectangle instances
     rects: Vec<RectInstance>,
@@ -67,6 +76,14 @@ pub struct PaintContext<'a> {
 
     /// Bundled rendering resources (atlas, fonts, queue, etc.)
     bundle: RenderBundle<'a>,
+
+    /// Current z-order counter (increments with each draw call)
+    /// Higher values are rendered on top
+    z_order: u32,
+
+    /// Hit tester for registering interactive element bounds
+    /// This is built during the paint pass and used for hit testing later
+    hit_tester: HitTester,
 }
 
 impl<'a> PaintContext<'a> {
@@ -78,7 +95,67 @@ impl<'a> PaintContext<'a> {
             window_size,
             clip_stack: Vec::new(),
             bundle,
+            z_order: 0,
+            hit_tester: HitTester::new(),
         }
+    }
+
+    /// Get the current z-order value (for debugging or manual control)
+    pub fn current_z_order(&self) -> u32 {
+        self.z_order
+    }
+
+    /// Manually advance the z-order counter
+    /// This can be used to create "layers" where multiple primitives share the same z-order
+    pub fn advance_z_order(&mut self) {
+        self.z_order += 1;
+    }
+
+    /// Register an interactive element's hitbox
+    ///
+    /// This should be called by interactive elements during their paint() method
+    /// to register their bounds for hit testing. The current z-order is used.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// impl Element for MyButton {
+    ///     fn paint(&self, ctx: &mut PaintContext) {
+    ///         // Register hitbox before drawing (uses current z-order)
+    ///         ctx.register_hitbox(self.id, self.bounds);
+    ///
+    ///         // Draw the button
+    ///         ctx.draw_rect(self.bounds, Color::BLUE);
+    ///     }
+    /// }
+    /// ```
+    pub fn register_hitbox(&mut self, widget_id: WidgetId, bounds: Rect) {
+        self.hit_tester.add(widget_id, bounds, self.z_order);
+    }
+
+    /// Get a reference to the hit tester
+    ///
+    /// This is typically used after the paint pass to extract the hit tester
+    /// for use in event dispatch.
+    pub fn hit_tester(&self) -> &HitTester {
+        &self.hit_tester
+    }
+
+    /// Take ownership of the hit tester
+    ///
+    /// This consumes the paint context and returns the hit tester.
+    /// The hit tester must be finalized before use.
+    pub fn into_hit_tester(mut self) -> HitTester {
+        self.hit_tester.finalize();
+        self.hit_tester
+    }
+
+    /// Finalize and clone the hit tester
+    ///
+    /// This finalizes the internal hit tester and returns a clone.
+    /// Useful when you need to keep the PaintContext alive.
+    pub fn finalized_hit_tester(&mut self) -> HitTester {
+        self.hit_tester.finalize();
+        self.hit_tester.clone()
     }
 
     /// Push a clip rectangle onto the stack
@@ -130,6 +207,10 @@ impl<'a> PaintContext<'a> {
             instance
         };
 
+        // Assign z-order and increment for next primitive
+        let instance = instance.with_z_order(self.z_order);
+        self.z_order += 1;
+
         self.rects.push(instance);
     }
 
@@ -176,7 +257,9 @@ impl<'a> PaintContext<'a> {
             page_index,
             is_color,
             clip_rect,
-        );
+        ).with_z_order(self.z_order);
+
+        self.z_order += 1;
 
         self.text.push(instance);
     }
@@ -226,6 +309,9 @@ impl<'a> PaintContext<'a> {
         // Extract bundle fields (without text_engine which is already borrowed)
         let scale_factor = self.bundle.scale_factor;
 
+        // Get current z-order (all glyphs in this text share the same z-order)
+        let z_order = self.z_order;
+
         // Then render it using direct field access to avoid double borrow
         Self::render_text_layout_internal(
             layout,
@@ -238,7 +324,11 @@ impl<'a> PaintContext<'a> {
             self.bundle.font_system,
             self.bundle.queue,
             scale_factor,
+            z_order,
         );
+
+        // Increment z-order after rendering the entire text layout
+        self.z_order += 1;
     }
 
     /// Create a text layout with manual control (Low-level manual API)
@@ -308,6 +398,7 @@ impl<'a> PaintContext<'a> {
         // Precompute values to avoid borrowing issues
         let clip_rect = self.current_clip_rect();
         let window_size = self.window_size;
+        let z_order = self.z_order;
 
         Self::render_text_layout(
             layout,
@@ -317,7 +408,11 @@ impl<'a> PaintContext<'a> {
             &clip_rect,
             window_size,
             &mut self.bundle,
+            z_order,
         );
+
+        // Increment z-order after rendering the entire text layout
+        self.z_order += 1;
     }
 
     /// Internal method for rendering text layouts (static to avoid borrow issues)
@@ -333,6 +428,7 @@ impl<'a> PaintContext<'a> {
         font_system: &mut FontSystemWrapper,
         queue: &wgpu::Queue,
         scale_factor: f32,
+        z_order: u32,
     ) {
         use crate::text::GlyphKey;
         use std::collections::hash_map::DefaultHasher;
@@ -446,7 +542,7 @@ impl<'a> PaintContext<'a> {
                 let glyph_width = location.logical_width ;
                 let glyph_height = location.logical_height ;
 
-                // Push text instance
+                // Push text instance with z-order
                 let instance = TextInstance::new(
                     glyph_x,
                     glyph_y,
@@ -460,7 +556,7 @@ impl<'a> PaintContext<'a> {
                     location.page_index,
                     location.is_color,
                     clip_rect,
-                );
+                ).with_z_order(z_order);
 
                 text_instances.push(instance);
             }
@@ -476,6 +572,7 @@ impl<'a> PaintContext<'a> {
         clip_rect_opt: &Option<Rect>,
         window_size: Size,
         bundle: &mut RenderBundle<'_>,
+        z_order: u32,
     ) {
         Self::render_text_layout_internal(
             layout,
@@ -488,6 +585,7 @@ impl<'a> PaintContext<'a> {
             bundle.font_system,
             bundle.queue,
             bundle.scale_factor,
+            z_order,
         )
     }
 

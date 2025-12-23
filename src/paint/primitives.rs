@@ -37,11 +37,16 @@ pub struct RectInstance {
     pub color: [f32; 4],
     /// Clip rect (x, y, width, height) - pixels outside are discarded
     pub clip_rect: [f32; 4],
+    /// Z-order for depth sorting (higher = on top)
+    /// Used for sorting primitives before rendering to ensure correct overlapping
+    pub z_order: u32,
+    /// Padding to maintain alignment
+    _padding: [u32; 3],
 }
 
 impl RectInstance {
     pub fn new(rect: Rect, color: Color) -> Self {
-        // Default: no clipping (use huge bounds)
+        // Default: no clipping (use huge bounds), z_order = 0
         RectInstance {
             rect: [
                 rect.origin.x as f32,
@@ -51,6 +56,8 @@ impl RectInstance {
             ],
             color: [color.r, color.g, color.b, color.a],
             clip_rect: [0.0, 0.0, 1000000.0, 1000000.0],
+            z_order: 0,
+            _padding: [0; 3],
         }
     }
 
@@ -61,6 +68,11 @@ impl RectInstance {
             clip.size.width as f32,
             clip.size.height as f32,
         ];
+        self
+    }
+
+    pub fn with_z_order(mut self, z_order: u32) -> Self {
+        self.z_order = z_order;
         self
     }
 }

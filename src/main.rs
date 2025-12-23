@@ -1,12 +1,18 @@
 use assorted_widgets::{Application, Element, WindowOptions};
-use assorted_widgets::elements::{TextDemoElement, AnimatedTextLabel};
+use assorted_widgets::elements::ClickableRect;
 use assorted_widgets::scene_graph::SceneNode;
 use assorted_widgets::types::{Point, Rect, Size, WidgetId};
 use assorted_widgets::paint::Color;
 
 fn main() {
-    println!("AssortedWidgets - Phase 3.3 Complete");
-    println!("====================================");
+    println!("AssortedWidgets - Phase 2: Event Handling & Hit Testing Demo");
+    println!("=============================================================");
+    println!();
+    println!("This demo tests:");
+    println!("  ✓ Z-order based hit testing");
+    println!("  ✓ Event dispatch to interactive elements");
+    println!("  ✓ Mouse event logging");
+    println!("  ✓ Overlapping elements (later elements on top)");
     println!();
 
     #[cfg(target_os = "macos")]
@@ -23,8 +29,8 @@ fn main() {
 
         // Create window
         let window_id = app.create_window(WindowOptions {
-            bounds: Rect::new(Point::new(100.0, 100.0), Size::new(1200.0, 900.0)),
-            title: "AssortedWidgets - Phase 3.3 Demo".to_string(),
+            bounds: Rect::new(Point::new(100.0, 100.0), Size::new(800.0, 600.0)),
+            title: "Phase 2: Hit Testing Demo".to_string(),
             titlebar: None,
         })
         .expect("Failed to create window");
@@ -33,92 +39,101 @@ fn main() {
         println!();
 
         // ================================================================
-        // Create demo element using the Element trait (proper way!)
+        // Create overlapping clickable rectangles to test z-order
         // ================================================================
-        let demo = TextDemoElement::new(WidgetId::new(1));
-        let demo_id = demo.id();
+
+        // Rectangle 1: Large red background (bottom layer, z-order = 0)
+        let rect1 = ClickableRect::new(
+            WidgetId::new(1),
+            Rect::new(Point::new(50.0, 50.0), Size::new(300.0, 300.0)),
+            Color::rgb(0.8, 0.2, 0.2), // Red
+            "Red Background"
+        );
+        let rect1_id = rect1.id();
+
+        // Rectangle 2: Medium blue (middle layer, z-order = 1, overlaps rect1)
+        let rect2 = ClickableRect::new(
+            WidgetId::new(2),
+            Rect::new(Point::new(150.0, 150.0), Size::new(300.0, 300.0)),
+            Color::rgb(0.2, 0.2, 0.8), // Blue
+            "Blue Middle"
+        );
+        let rect2_id = rect2.id();
+
+        // Rectangle 3: Small green (top layer, z-order = 2, overlaps both)
+        let rect3 = ClickableRect::new(
+            WidgetId::new(3),
+            Rect::new(Point::new(250.0, 250.0), Size::new(200.0, 200.0)),
+            Color::rgb(0.2, 0.8, 0.2), // Green
+            "Green Top"
+        );
+        let rect3_id = rect3.id();
+
+        // Rectangle 4: Non-overlapping yellow (z-order = 3, but separate)
+        let rect4 = ClickableRect::new(
+            WidgetId::new(4),
+            Rect::new(Point::new(500.0, 100.0), Size::new(200.0, 200.0)),
+            Color::rgb(0.9, 0.9, 0.2), // Yellow
+            "Yellow Separate"
+        );
+        let rect4_id = rect4.id();
 
         // Get mutable reference to the window to set up UI
         let window = app.window_mut(window_id).expect("Window not found");
 
-        // Add demo element to element manager
-        window.element_manager_mut().add_element(Box::new(demo));
+        // Add all rectangles to element manager (in order - this determines z-order)
+        window.element_manager_mut().add_element(Box::new(rect1));
+        window.element_manager_mut().add_element(Box::new(rect2));
+        window.element_manager_mut().add_element(Box::new(rect3));
+        window.element_manager_mut().add_element(Box::new(rect4));
 
-        // Create layout node for the element (LayoutManager needs to be synced)
-        window.layout_manager_mut().create_node(demo_id, taffy::Style::default())
+        // Create layout nodes for all elements
+        window.layout_manager_mut().create_node(rect1_id, taffy::Style::default())
+            .expect("Failed to create layout node");
+        window.layout_manager_mut().create_node(rect2_id, taffy::Style::default())
+            .expect("Failed to create layout node");
+        window.layout_manager_mut().create_node(rect3_id, taffy::Style::default())
+            .expect("Failed to create layout node");
+        window.layout_manager_mut().create_node(rect4_id, taffy::Style::default())
             .expect("Failed to create layout node");
 
-        // Set as root of both scene graph and layout
-        window.scene_graph_mut().set_root(SceneNode::new(demo_id));
-        window.layout_manager_mut().set_root(demo_id)
+        // Create scene graph: rect1 as root, others as children
+        // This creates a flat hierarchy for this demo
+        let mut root = SceneNode::new(rect1_id);
+        root.add_child(SceneNode::new(rect2_id));
+        root.add_child(SceneNode::new(rect3_id));
+        root.add_child(SceneNode::new(rect4_id));
+
+        window.scene_graph_mut().set_root(root);
+        window.layout_manager_mut().set_root(rect1_id)
             .expect("Failed to set layout root");
 
-        println!("Demo element created using Element trait (clean architecture!)");
+        println!("✅ Demo setup complete!");
         println!();
-        println!("Phase 3 Text Rendering - COMPLETE ✅");
+        println!("═══════════════════════════════════════════════════════");
+        println!("  TEST INSTRUCTIONS");
+        println!("═══════════════════════════════════════════════════════");
         println!();
-        println!("Phase 3.2 Features:");
-        println!("  ✓ Text shaping with kerning and ligatures");
-        println!("  ✓ Bidirectional text (English + Arabic + Hebrew + Chinese)");
-        println!("  ✓ Emoji rendering with color glyph support");
-        println!("  ✓ Text wrapping (multi-line)");
-        println!("  ✓ Font fallback for multi-language text");
-        println!("  ✓ Glyph atlas with automatic page management");
-        println!("  ✓ TextEngine with dual-mode caching (managed + manual)");
-        println!("  ✓ Clean two-tier API (high-level + low-level)");
+        println!("1. Red Background (50, 50) - 300x300 - Bottom Layer");
+        println!("2. Blue Middle (150, 150) - 300x300 - Middle Layer (overlaps red)");
+        println!("3. Green Top (250, 250) - 200x200 - Top Layer (overlaps both)");
+        println!("4. Yellow Separate (500, 100) - 200x200 - Separate (no overlap)");
         println!();
-        println!("Phase 3.3 Features (NEW):");
-        println!("  ✓ Text alignment (left, center, right)");
-        println!("  ✓ Ellipsis truncation with binary search");
-        println!("  ✓ TextLabel element with measure() integration");
-        println!("  ✓ Performance benchmarking and cache stats");
-        println!("  ✓ Clean architecture (Element trait demo)");
-        println!("  ✓ Multi-window ready with shared GPU resources");
+        println!("Expected behavior:");
+        println!("  • Click in overlap area (250-350, 250-350):");
+        println!("    → Should hit GREEN (highest z-order)");
+        println!("  • Click in blue-only area (150-250, 150-450):");
+        println!("    → Should hit BLUE");
+        println!("  • Click in red-only area (50-150, 50-350):");
+        println!("    → Should hit RED");
+        println!("  • Click on yellow:");
+        println!("    → Should hit YELLOW");
         println!();
-        println!("Press Cmd+Q to quit.");
-        println!();
- 
-        // ================================================================
-        // Create second window for animated text truncation demo
-        // ================================================================
-        let animated_window_id = app.create_window(WindowOptions {
-            bounds: Rect::new(Point::new(400.0, 200.0), Size::new(800.0, 400.0)),
-            title: "Animated Text Truncation Demo".to_string(),
-            titlebar: None,
-        })
-        .expect("Failed to create animated demo window");
-
-        // Create animated text label
-        let animated_label = AnimatedTextLabel::new(
-            WidgetId::new(100),
-            "This is a long text that will demonstrate dynamic truncation with ellipsis (...) as the container width changes. Watch how the text truncates smoothly!",
-            100.0,   // min_width: text heavily truncated
-            600.0,   // max_width: text fully visible
-        )
-        .with_bg_color(Color { r: 1.0, g: 0.2, b: 0.2, a: 1.0 });
-
-        let animated_id = animated_label.id();
-
-        // Add to second window
-        let animated_window = app.window_mut(animated_window_id).expect("Window not found");
-        animated_window.element_manager_mut().add_element(Box::new(animated_label));
-
-        // Create layout node with custom measurement (for animated width)
-        animated_window.layout_manager_mut()
-            .create_measurable_node(animated_id, taffy::Style::default())
-            .expect("Failed to create layout node");
-
-        // Set as root
-        animated_window.scene_graph_mut().set_root(SceneNode::new(animated_id));
-        animated_window.layout_manager_mut().set_root(animated_id)
-            .expect("Failed to set layout root");
-
-        println!("Animated text truncation demo window created!");
-        println!("  → Watch the text truncate with '...' as width oscillates");
-        println!("  → min width: 100px, max width: 600px");
+        println!("Watch the terminal for mouse event logs!");
+        println!("═══════════════════════════════════════════════════════");
         println!();
 
-        // Run application event loop - demo renders via Element::paint()
+        // Run application event loop
         app.run();
     }
 

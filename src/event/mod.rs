@@ -5,10 +5,12 @@ use crate::platform::PlatformInput;
 
 // Sub-modules
 pub mod handlers;
+pub mod hit_test;
 pub mod input;
 
 // Re-exports
 pub use handlers::{KeyboardHandler, MouseHandler, WheelHandler};
+pub use hit_test::{HitTester, HitTestEntry};
 pub use input::{
     EventResponse, InputEvent, InputEventEnum, Key, KeyEvent, Modifiers, MouseButton, MouseEvent,
     NamedKey, WheelEvent, WheelPhase,
