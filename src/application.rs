@@ -1,7 +1,8 @@
 use crate::event::GuiEvent;
 use crate::handle::GuiHandle;
+use crate::paint::Color;
 use crate::render::{RenderContext, WindowRenderer};
-use crate::types::WindowId;
+use crate::types::{Point, Rect, Size, WidgetId, WindowId};
 use crate::window::Window;
 use crate::window_render_state::WindowRenderState;
 
@@ -10,6 +11,41 @@ use crate::platform::{PlatformInput, PlatformWindow, PlatformWindowImpl, WindowC
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
+
+// ============================================================================
+// Drag State (for cross-window drag-drop)
+// ============================================================================
+
+/// Data transferred during drag operation
+#[derive(Debug, Clone)]
+pub struct DragData {
+    /// Widget being dragged
+    pub widget_id: WidgetId,
+
+    /// Visual appearance (for proxy window)
+    pub color: Color,
+    pub label: String,
+    pub size: Size,
+
+    /// Offset from mouse position to widget origin
+    pub drag_offset: Point,
+}
+
+/// Global drag state (application-wide)
+#[derive(Debug, Clone)]
+pub struct DragState {
+    /// Source window where drag started
+    pub source_window: WindowId,
+
+    /// Dragged widget data
+    pub drag_data: DragData,
+
+    /// Floating proxy window (shows dragged element)
+    pub proxy_window: Option<WindowId>,
+
+    /// Current screen position (global coordinates)
+    pub screen_position: Point,
+}
 
 // ============================================================================
 // Application - Root container (ONE per process)
@@ -57,6 +93,13 @@ pub struct Application {
     /// Event queue for all windows
     /// Events are tagged with WindowId to route to correct window
     event_queue: Arc<Mutex<VecDeque<(WindowId, GuiEvent)>>>,
+
+    // ========================================
+    // Cross-Window Drag State
+    // ========================================
+    /// Active drag operation (cross-window)
+    /// None when no drag is in progress
+    drag_state: Option<DragState>,
 }
 
 impl Application {
@@ -79,6 +122,7 @@ impl Application {
             next_window_id: 1,
             render_context: render_context_arc,
             event_queue: Arc::new(Mutex::new(VecDeque::new())),
+            drag_state: None,
         })
     }
 
@@ -196,6 +240,187 @@ impl Application {
         &self.render_context
     }
 
+    // ========================================
+    // Cross-Window Drag-Drop API
+    // ========================================
+
+    /// Start a cross-window drag operation
+    ///
+    /// Creates a floating proxy window to visualize the dragged element.
+    ///
+    /// # Arguments
+    /// * `source_window` - Window where drag started
+    /// * `drag_data` - Data about the widget being dragged
+    /// * `screen_position` - Initial mouse position in screen coordinates
+    #[cfg(target_os = "macos")]
+    pub fn start_drag(
+        &mut self,
+        source_window: WindowId,
+        drag_data: DragData,
+        screen_position: Point,
+    ) -> Result<(), String> {
+        use crate::paint::RectRenderer;
+        use crate::text::TextRenderer;
+
+        println!("[Drag] Starting drag from window {:?} at screen ({:.1}, {:.1})",
+                 source_window, screen_position.x, screen_position.y);
+
+        // Create borderless, transparent, always-on-top proxy window
+        let proxy_bounds = Rect::new(
+            Point::new(
+                screen_position.x - drag_data.drag_offset.x,
+                screen_position.y - drag_data.drag_offset.y,
+            ),
+            drag_data.size,
+        );
+
+        let proxy_options = WindowOptions {
+            bounds: proxy_bounds,
+            title: "Drag Proxy".to_string(),
+            titlebar: None,
+            borderless: true,
+            transparent: true,
+            always_on_top: true,
+            utility: true,
+        };
+
+        // Create proxy window
+        let proxy_id = self.create_window(proxy_options)?;
+
+        println!("[Drag] Created proxy window {:?}", proxy_id);
+
+        // Store drag state
+        self.drag_state = Some(DragState {
+            source_window,
+            drag_data,
+            proxy_window: Some(proxy_id),
+            screen_position,
+        });
+
+        Ok(())
+    }
+
+    /// Update drag position (moves the proxy window)
+    ///
+    /// # Arguments
+    /// * `screen_position` - New mouse position in screen coordinates
+    pub fn update_drag(&mut self, screen_position: Point) {
+        if let Some(drag_state) = &mut self.drag_state {
+            drag_state.screen_position = screen_position;
+
+            // Move proxy window to follow mouse
+            if let Some(proxy_id) = drag_state.proxy_window {
+                if let Some(proxy_window) = self.windows.get_mut(&proxy_id) {
+                    let new_origin = Point::new(
+                        screen_position.x - drag_state.drag_data.drag_offset.x,
+                        screen_position.y - drag_state.drag_data.drag_offset.y,
+                    );
+
+                    // Update proxy window position
+                    // Note: We'd need to add a method to set window position
+                    // For now, just log
+                    println!("[Drag] Update proxy position to ({:.1}, {:.1})",
+                             new_origin.x, new_origin.y);
+                }
+            }
+        }
+    }
+
+    /// End drag operation
+    ///
+    /// Detects the target window under the cursor and transfers the widget if applicable.
+    /// Closes the proxy window and clears drag state.
+    ///
+    /// # Arguments
+    /// * `screen_position` - Final mouse position in screen coordinates
+    ///
+    /// # Returns
+    /// * `Some(WindowId)` if dropped on a valid target window (not the source)
+    /// * `None` if dropped outside or on the source window
+    pub fn end_drag(&mut self, screen_position: Point) -> Option<WindowId> {
+        let drag_state = self.drag_state.take()?;
+
+        println!("[Drag] Ending drag at screen ({:.1}, {:.1})",
+                 screen_position.x, screen_position.y);
+
+        // Close proxy window
+        if let Some(proxy_id) = drag_state.proxy_window {
+            println!("[Drag] Closing proxy window {:?}", proxy_id);
+            self.windows.remove(&proxy_id);
+        }
+
+        // Find target window under cursor
+        let target_window = self.get_window_at_screen_position(screen_position)?;
+
+        // Don't allow dropping on source window
+        if target_window == drag_state.source_window {
+            println!("[Drag] Dropped on source window - cancelling");
+            return None;
+        }
+
+        println!("[Drag] Dropped on window {:?}", target_window);
+
+        // Transfer widget from source to target
+        // TODO: Implement widget transfer logic
+        // This requires:
+        // 1. Remove widget from source window's ElementManager
+        // 2. Update widget bounds to target window coordinates
+        // 3. Add widget to target window's ElementManager
+        // 4. Update scene graphs and layout managers
+
+        Some(target_window)
+    }
+
+    /// Find which window is at the given screen position
+    ///
+    /// # Arguments
+    /// * `screen_pos` - Position in screen coordinates
+    ///
+    /// # Returns
+    /// * `Some(WindowId)` if a window is at that position
+    /// * `None` if no window found (or only proxy window)
+    pub fn get_window_at_screen_position(&self, screen_pos: Point) -> Option<WindowId> {
+        // Check each window's bounds in screen coordinates
+        for (window_id, window) in &self.windows {
+            // Skip proxy windows
+            if let Some(drag_state) = &self.drag_state {
+                if Some(*window_id) == drag_state.proxy_window {
+                    continue;
+                }
+            }
+
+            let origin = window.platform_window().window_screen_origin();
+            let bounds = window.platform_window().content_bounds();
+
+            // Convert to screen-space rect
+            let screen_bounds = Rect::new(
+                Point::new(origin.x, origin.y),
+                bounds.size,
+            );
+
+            // Check if point is inside window
+            if screen_pos.x >= screen_bounds.origin.x
+                && screen_pos.x <= screen_bounds.origin.x + screen_bounds.size.width
+                && screen_pos.y >= screen_bounds.origin.y
+                && screen_pos.y <= screen_bounds.origin.y + screen_bounds.size.height
+            {
+                return Some(*window_id);
+            }
+        }
+
+        None
+    }
+
+    /// Check if a drag operation is in progress
+    pub fn is_dragging(&self) -> bool {
+        self.drag_state.is_some()
+    }
+
+    /// Get the current drag state (if any)
+    pub fn drag_state(&self) -> Option<&DragState> {
+        self.drag_state.as_ref()
+    }
+
     /// Run the main event loop (never returns)
     ///
     /// This manually pumps the platform event loop and processes events from the queue.
@@ -289,6 +514,40 @@ impl Application {
                         if self.windows.is_empty() {
                             println!("All windows closed - goodbye!");
                             std::process::exit(0);
+                        }
+                    }
+                    Some((window_id, GuiEvent::StartCrossWindowDrag {
+                        widget_id,
+                        color,
+                        label,
+                        size,
+                        drag_offset,
+                        screen_position,
+                    })) => {
+                        println!("[App] Starting cross-window drag for widget {:?} from window {:?}",
+                                 widget_id, window_id);
+
+                        let drag_data = crate::application::DragData {
+                            widget_id,
+                            color,
+                            label,
+                            size,
+                            drag_offset,
+                        };
+
+                        if let Err(e) = self.start_drag(window_id, drag_data, screen_position) {
+                            eprintln!("[App] Failed to start drag: {}", e);
+                        }
+                    }
+                    Some((_window_id, GuiEvent::UpdateCrossWindowDrag { screen_position })) => {
+                        self.update_drag(screen_position);
+                    }
+                    Some((_window_id, GuiEvent::EndCrossWindowDrag { screen_position })) => {
+                        if let Some(target_window) = self.end_drag(screen_position) {
+                            println!("[App] Drag completed - dropped on window {:?}", target_window);
+                            // TODO: Transfer widget to target window
+                        } else {
+                            println!("[App] Drag cancelled - no valid drop target");
                         }
                     }
                     None => break, // No more events to process

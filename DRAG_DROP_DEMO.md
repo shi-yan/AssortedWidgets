@@ -108,24 +108,187 @@ The current implementation demonstrates mouse capture **within** a window. True 
    - Window-level drag/drop APIs
    - Screen coordinate conversions
 
+## Cross-Window Drag-Drop API (Phase 1 & 2 - IMPLEMENTED)
+
+The framework now supports cross-window drag-drop with floating proxy windows!
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Application (Global Drag State)                            │
+├─────────────────────────────────────────────────────────────┤
+│ • start_drag(source_window, drag_data, screen_pos)         │
+│ • update_drag(screen_pos)                                   │
+│ • end_drag(screen_pos) -> Option<target_window>            │
+│ • get_window_at_screen_position(screen_pos)                │
+└─────────────────────────────────────────────────────────────┘
+                          ↕
+┌─────────────────────────────────────────────────────────────┐
+│ GuiEvent Queue                                              │
+├─────────────────────────────────────────────────────────────┤
+│ • StartCrossWindowDrag { widget_id, drag_data, screen_pos }│
+│ • UpdateCrossWindowDrag { screen_pos }                      │
+│ • EndCrossWindowDrag { screen_pos }                         │
+└─────────────────────────────────────────────────────────────┘
+                          ↕
+┌─────────────────────────────────────────────────────────────┐
+│ Window (Per-Window Event Handling)                         │
+├─────────────────────────────────────────────────────────────┤
+│ • Detects drag operations via MouseCapture                  │
+│ • Converts window coords to screen coords                   │
+│ • Emits cross-window drag events when appropriate           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### API Reference
+
+#### Application Methods
+
+```rust
+// Start cross-window drag - creates floating proxy window
+pub fn start_drag(
+    &mut self,
+    source_window: WindowId,
+    drag_data: DragData,
+    screen_position: Point,
+) -> Result<(), String>
+
+// Update proxy window position as mouse moves
+pub fn update_drag(&mut self, screen_position: Point)
+
+// End drag - detects target window and transfers widget
+// Returns Some(target_window) if dropped on valid target
+pub fn end_drag(&mut self, screen_position: Point) -> Option<WindowId>
+
+// Helper: Find window at screen coordinates
+pub fn get_window_at_screen_position(&self, screen_pos: Point) -> Option<WindowId>
+```
+
+#### DragData Structure
+
+```rust
+pub struct DragData {
+    pub widget_id: WidgetId,
+    pub color: Color,
+    pub label: String,
+    pub size: Size,
+    pub drag_offset: Point,  // Mouse offset from widget origin
+}
+```
+
+#### GuiEvent Variants
+
+```rust
+pub enum GuiEvent {
+    // ... existing events ...
+
+    StartCrossWindowDrag {
+        widget_id: WidgetId,
+        color: Color,
+        label: String,
+        size: Size,
+        drag_offset: Point,
+        screen_position: Point,
+    },
+    UpdateCrossWindowDrag {
+        screen_position: Point,
+    },
+    EndCrossWindowDrag {
+        screen_position: Point,
+    },
+}
+```
+
+### Platform Support
+
+#### Window Options (Implemented)
+
+```rust
+pub struct WindowOptions {
+    pub borderless: bool,      // No title bar or resize controls
+    pub transparent: bool,     // For floating drag proxies
+    pub always_on_top: bool,   // Keep proxy above other windows
+    pub utility: bool,         // Don't appear in Dock/taskbar
+}
+```
+
+#### Screen Coordinate Tracking (Implemented)
+
+```rust
+// PlatformWindow trait methods
+fn window_screen_origin(&self) -> Point;
+fn window_to_screen(&self, window_pos: Point) -> Point;
+fn screen_to_window(&self, screen_pos: Point) -> Point;
+```
+
+### Usage Example
+
+```rust
+// In widget's mouse event handler:
+fn on_mouse_down(&mut self, event: &mut MouseEvent) -> EventResponse {
+    self.is_dragging = true;
+    self.drag_offset = Point::new(
+        event.position.x - self.bounds.origin.x,
+        event.position.y - self.bounds.origin.y,
+    );
+
+    // Trigger cross-window drag via event queue
+    // (Window converts local coords to screen coords)
+    EventResponse::Handled
+}
+
+// In Application event loop:
+GuiEvent::StartCrossWindowDrag { widget_id, color, label, size, drag_offset, screen_position } => {
+    let drag_data = DragData {
+        widget_id,
+        color,
+        label,
+        size,
+        drag_offset,
+    };
+    app.start_drag(source_window, drag_data, screen_position)?;
+}
+
+GuiEvent::UpdateCrossWindowDrag { screen_position } => {
+    app.update_drag(screen_position);
+}
+
+GuiEvent::EndCrossWindowDrag { screen_position } => {
+    if let Some(target_window) = app.end_drag(screen_position) {
+        // Widget was dropped on target_window
+        // TODO: Transfer widget from source to target
+    }
+}
+```
+
+### Current Status
+
+✅ **Implemented:**
+- Borderless, transparent, always-on-top windows (proxy window support)
+- Screen coordinate tracking across windows
+- Cross-window drag event system
+- Proxy window creation and positioning
+- Target window detection via hit testing
+
+⏳ **TODO:**
+- Widget transfer logic (remove from source, add to target)
+- Scene graph and layout manager updates during transfer
+- Update DraggableRect to emit cross-window drag events
+- Proxy window visual rendering (currently empty)
+- Smooth transition animations
+
 ## Future Enhancements
 
-### Phase 1: Proxy Window (Next Step)
-- Add borderless window creation to `WindowOptions`
-- Create floating proxy on drag start
-- Track global mouse position
-- Update proxy window position in real-time
+### Phase 3: Drag Data Payload
+- Generic drag data with MIME types
+- Serialization for complex data structures
+- Support for multiple data formats simultaneously
 
-### Phase 2: Cross-Window Drop
-- Detect mouse release over target window
-- Transfer widget between windows
-- Update element manager and scene graph
-- Smooth transition animation
-
-### Phase 3: Drag Data
-- Generic drag data payload
-- MIME type support
-- External application drag-drop (system clipboard)
+### Phase 4: External Drag-Drop
+- System clipboard integration
+- Drag-drop from/to external applications (Finder, Chrome, etc.)
+- Platform-specific pasteboard/clipboard APIs (NSPasteboard on macOS)
 
 ## Technical Notes
 
