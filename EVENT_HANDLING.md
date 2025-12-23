@@ -886,7 +886,7 @@ Users can remap any hardware to any action without code changes:
 
 ## Implementation Plan
 
-### Phase 1: Core Event System (Week 1) - IN PROGRESS
+### Phase 1: Core Event System (Week 1) - 80% COMPLETE
 
 **Goal**: Replace current stub event handling with proper routing.
 
@@ -896,7 +896,7 @@ Users can remap any hardware to any action without code changes:
    - ✅ Define `InputEvent` trait with propagation/preventDefault
    - ✅ Implement `MouseEvent` with button, position, modifiers, click_count
    - ✅ Implement `KeyEvent` with Key enum (Character/Named)
-   - ✅ Implement `ScrollEvent` with delta, phase (Begin/Update/End/Momentum)
+   - ✅ Implement `WheelEvent` with delta, phase (Begin/Update/End/Momentum)
    - ✅ Add `EventResponse` enum (Handled/PassThrough/Ignored)
 
 2. **Event Enum** (`src/event/mod.rs`) - ✅ COMPLETE
@@ -907,15 +907,19 @@ Users can remap any hardware to any action without code changes:
 3. **Element Trait Updates** (`src/element.rs` + `src/event/handlers.rs`) - ✅ COMPLETE
    - ✅ Create `MouseHandler` trait (on_mouse_down/up/move/enter/leave)
    - ✅ Create `KeyboardHandler` trait (on_key_down/up)
-   - ✅ Create `ScrollHandler` trait (on_scroll)
+   - ✅ Create `WheelHandler` trait (on_wheel) - renamed from ScrollHandler
    - ✅ Add `is_interactive()` method (default: false)
    - ✅ Add `is_focusable()` method (default: false)
    - ✅ Add `ime_cursor_rect()` for IME positioning
    - ✅ Deprecate old `on_event(OsEvent)` method
 
-4. **Platform Conversion** (`src/platform/mac/window.rs`) - TODO
-   - Convert `NSEvent` → `InputEventEnum`
-   - Post new event types to queue
+4. **Platform Conversion** (`src/platform/mac/window.rs`) - ✅ COMPLETE
+   - ✅ `convert_to_mouse_event()` - NSEvent → MouseEvent (with click_count for double-click)
+   - ✅ `convert_to_wheel_event()` - NSEvent → WheelEvent (with momentum phases)
+   - ✅ `convert_to_key_event()` - NSEvent → KeyEvent (full keyboard mapping)
+   - ✅ `convert_modifiers()` - NSEventModifierFlags → Modifiers
+   - ✅ `convert_key()` - macOS key codes → Key enum (arrows, function keys, etc.)
+   - 🚧 Wire up to post InputEventEnum (instead of PlatformInput)
 
 5. **Basic Dispatch** (`src/window.rs`) - TODO
    - Wire up event dispatch in render loop
@@ -1584,27 +1588,32 @@ If we decide to adopt BoundsTree:
 
 ## Implementation Status
 
-### Phase 1: Core Event System - 60% Complete
+### Phase 1: Core Event System - 80% Complete
 
-**Completed (3/5 tasks):**
+**Completed (4/5 tasks):**
 - ✅ Event types module (input.rs)
-  - InputEvent trait, MouseEvent, KeyEvent, ScrollEvent
+  - InputEvent trait, MouseEvent, KeyEvent, WheelEvent
   - EventResponse enum, Modifiers struct
   - Propagation and preventDefault support
 - ✅ InputEventEnum wrapper (mod.rs)
   - Unified wrapper for all event types
   - GuiEvent integration
 - ✅ Element trait updates (element.rs, handlers.rs)
-  - MouseHandler, KeyboardHandler, ScrollHandler traits
+  - MouseHandler, KeyboardHandler, WheelHandler traits
   - is_interactive(), is_focusable(), ime_cursor_rect() methods
   - Deprecated old on_event(OsEvent) method
+- ✅ Platform event conversion methods (platform/mac/window.rs)
+  - NSEvent → MouseEvent (with double-click support via clickCount)
+  - NSEvent → WheelEvent (with trackpad momentum phases)
+  - NSEvent → KeyEvent (full keyboard mapping including F-keys, arrows)
+  - Modifier key extraction (shift/control/alt/command)
 
 **In Progress:**
-- Platform event conversion (NSEvent → InputEventEnum)
-- Event dispatch wiring in window
+- Wire up platform conversions to event queue
+- Basic event dispatch in window
 
 **Next Steps:**
-- Complete Phase 1 (platform conversion + dispatch)
+- Complete Phase 1 (wire up conversions + basic dispatch)
 - Begin Phase 2 (Hit Testing & Focus Management)
 
 ### Commits
@@ -1612,6 +1621,8 @@ If we decide to adopt BoundsTree:
 1. `ad14133` - Add event input types module (Phase 1.1)
 2. `d9596a2` - Add InputEventEnum wrapper and update GuiEvent (Phase 1.2)
 3. `50d5d5b` - Add event handler traits and update Element trait (Phase 1.3)
+4. `4bc9ac5` - Rename ScrollEvent to WheelEvent (feedback: "wheel" more accurate)
+5. `4a0e33d` - Add platform event conversion methods (Phase 1.4a)
 
 ---
 
