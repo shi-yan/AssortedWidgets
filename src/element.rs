@@ -143,4 +143,35 @@ pub trait Element {
     /// Downcast to Any for type-specific operations
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
+
+    // ========================================
+    // Event Dispatch Methods (Phase 1)
+    // ========================================
+
+    /// Dispatch mouse event to this element
+    ///
+    /// Default implementation returns Ignored. Elements that implement MouseHandler
+    /// should override this to call their handler methods.
+    fn dispatch_mouse_event(&mut self, event: &mut crate::event::InputEventEnum) -> crate::event::EventResponse {
+        let _ = event;
+        crate::event::EventResponse::Ignored
+    }
+
+    /// Dispatch keyboard event to this element
+    ///
+    /// Default implementation returns Ignored. Elements that implement KeyboardHandler
+    /// should override this to call their handler methods.
+    fn dispatch_key_event(&mut self, event: &mut crate::event::InputEventEnum) -> crate::event::EventResponse {
+        let _ = event;
+        crate::event::EventResponse::Ignored
+    }
+
+    /// Dispatch wheel event to this element
+    ///
+    /// Default implementation returns Ignored. Elements that implement WheelHandler
+    /// should override this to call their handler methods.
+    fn dispatch_wheel_event(&mut self, event: &mut crate::event::WheelEvent) -> crate::event::EventResponse {
+        let _ = event;
+        crate::event::EventResponse::Ignored
+    }
 }

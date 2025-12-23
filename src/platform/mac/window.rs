@@ -1,7 +1,8 @@
 //! macOS window implementation using NSWindow/NSView with objc2
 
+use crate::event::{InputEventEnum, Key, KeyEvent, Modifiers, MouseButton, MouseEvent, NamedKey, WheelEvent, WheelPhase};
 use crate::platform::{
-    Modifiers, MouseButton, PlatformInput, PlatformWindow, WindowCallbacks, WindowOptions,
+    PlatformInput, PlatformWindow, WindowCallbacks, WindowOptions,
 };
 use crate::types::{point, vector, Point, Rect, Size};
 
@@ -70,34 +71,51 @@ define_class!(
         // Mouse events
         #[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &NSEvent) {
+            // Legacy callback
             if let Some(input) = self.convert_mouse_event(event, MouseButton::Left, true) {
                 self.invoke_input_callback(input);
             }
+            // New event system
+            let mouse_event = self.convert_to_mouse_event(event, MouseButton::Left);
+            self.invoke_input_event_callback(InputEventEnum::MouseDown(mouse_event));
         }
 
         #[unsafe(method(mouseUp:))]
         fn mouse_up(&self, event: &NSEvent) {
+            // Legacy callback
             if let Some(input) = self.convert_mouse_event(event, MouseButton::Left, false) {
                 self.invoke_input_callback(input);
             }
+            // New event system
+            let mouse_event = self.convert_to_mouse_event(event, MouseButton::Left);
+            self.invoke_input_event_callback(InputEventEnum::MouseUp(mouse_event));
         }
 
         #[unsafe(method(rightMouseDown:))]
         fn right_mouse_down(&self, event: &NSEvent) {
+            // Legacy callback
             if let Some(input) = self.convert_mouse_event(event, MouseButton::Right, true) {
                 self.invoke_input_callback(input);
             }
+            // New event system
+            let mouse_event = self.convert_to_mouse_event(event, MouseButton::Right);
+            self.invoke_input_event_callback(InputEventEnum::MouseDown(mouse_event));
         }
 
         #[unsafe(method(rightMouseUp:))]
         fn right_mouse_up(&self, event: &NSEvent) {
+            // Legacy callback
             if let Some(input) = self.convert_mouse_event(event, MouseButton::Right, false) {
                 self.invoke_input_callback(input);
             }
+            // New event system
+            let mouse_event = self.convert_to_mouse_event(event, MouseButton::Right);
+            self.invoke_input_event_callback(InputEventEnum::MouseUp(mouse_event));
         }
 
         #[unsafe(method(mouseMoved:))]
         fn mouse_moved(&self, event: &NSEvent) {
+            // Legacy callback
             let position = self.get_mouse_position(event);
             let modifiers = Self::get_modifiers(event);
             let input = PlatformInput::MouseMove {
@@ -105,10 +123,15 @@ define_class!(
                 modifiers,
             };
             self.invoke_input_callback(input);
+
+            // New event system (use Left button for move events, though button isn't meaningful)
+            let mouse_event = self.convert_to_mouse_event(event, MouseButton::Left);
+            self.invoke_input_event_callback(InputEventEnum::MouseMove(mouse_event));
         }
 
         #[unsafe(method(mouseDragged:))]
         fn mouse_dragged(&self, event: &NSEvent) {
+            // Legacy callback
             let position = self.get_mouse_position(event);
             let modifiers = Self::get_modifiers(event);
             let input = PlatformInput::MouseMove {
@@ -116,33 +139,51 @@ define_class!(
                 modifiers,
             };
             self.invoke_input_callback(input);
+
+            // New event system (use Left button for dragged events)
+            let mouse_event = self.convert_to_mouse_event(event, MouseButton::Left);
+            self.invoke_input_event_callback(InputEventEnum::MouseMove(mouse_event));
         }
 
         #[unsafe(method(scrollWheel:))]
         fn scroll_wheel(&self, event: &NSEvent) {
+            // Legacy callback
             let delta_x = event.scrollingDeltaX();
             let delta_y = event.scrollingDeltaY();
             let modifiers = Self::get_modifiers(event);
-
             let input = PlatformInput::MouseWheel {
                 delta: vector(delta_x, delta_y),
                 modifiers,
             };
             self.invoke_input_callback(input);
+
+            // New event system
+            let wheel_event = self.convert_to_wheel_event(event);
+            self.invoke_input_event_callback(InputEventEnum::Wheel(wheel_event));
         }
 
         // Keyboard events
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
+            // Legacy callback
             if let Some(input) = Self::convert_key_event(event, true) {
                 self.invoke_input_callback(input);
+            }
+            // New event system
+            if let Some(key_event) = Self::convert_to_key_event(event) {
+                self.invoke_input_event_callback(InputEventEnum::KeyDown(key_event));
             }
         }
 
         #[unsafe(method(keyUp:))]
         fn key_up(&self, event: &NSEvent) {
+            // Legacy callback
             if let Some(input) = Self::convert_key_event(event, false) {
                 self.invoke_input_callback(input);
+            }
+            // New event system
+            if let Some(key_event) = Self::convert_to_key_event(event) {
+                self.invoke_input_event_callback(InputEventEnum::KeyUp(key_event));
             }
         }
 
@@ -224,6 +265,117 @@ impl CustomView {
         if let Some(callback) = state.callbacks.input.as_mut() {
             callback(input);
         }
+    }
+
+    fn invoke_input_event_callback(&self, event: InputEventEnum) {
+        let mut state = self.ivars().state.borrow_mut();
+        if let Some(callback) = state.callbacks.input_event.as_mut() {
+            callback(event);
+        }
+    }
+
+    // ========================================
+    // New Event System Conversions
+    // ========================================
+
+    /// Convert NSEvent modifiers to our Modifiers struct
+    fn convert_modifiers(event: &NSEvent) -> Modifiers {
+        let flags = event.modifierFlags();
+        Modifiers {
+            shift: flags.contains(NSEventModifierFlags::Shift),
+            control: flags.contains(NSEventModifierFlags::Control),
+            alt: flags.contains(NSEventModifierFlags::Option),
+            command: flags.contains(NSEventModifierFlags::Command),
+        }
+    }
+
+    /// Convert NSEvent to MouseEvent (for down/up/move)
+    fn convert_to_mouse_event(&self, event: &NSEvent, button: MouseButton) -> MouseEvent {
+        let position = self.get_mouse_position(event);
+        let modifiers = Self::convert_modifiers(event);
+        let click_count = event.clickCount() as u8;
+
+        MouseEvent::new(position, button, modifiers)
+            .with_click_count(click_count)
+    }
+
+    /// Convert NSEvent to WheelEvent
+    fn convert_to_wheel_event(&self, event: &NSEvent) -> WheelEvent {
+        let delta_x = event.scrollingDeltaX();
+        let delta_y = event.scrollingDeltaY();
+        let modifiers = Self::convert_modifiers(event);
+
+        // Detect wheel phase (for trackpad momentum)
+        let phase = match event.phase() {
+            p if p.contains(objc2_app_kit::NSEventPhase::Began) => WheelPhase::Begin,
+            p if p.contains(objc2_app_kit::NSEventPhase::Ended) => WheelPhase::End,
+            p if p.contains(objc2_app_kit::NSEventPhase::MayBegin) => WheelPhase::Begin,
+            _ => {
+                if event.momentumPhase().contains(objc2_app_kit::NSEventPhase::Changed) {
+                    WheelPhase::Momentum
+                } else {
+                    WheelPhase::Update
+                }
+            }
+        };
+
+        WheelEvent::new(vector(delta_x, delta_y), modifiers)
+            .with_phase(phase)
+    }
+
+    /// Convert NSEvent key to our Key enum
+    fn convert_key(event: &NSEvent) -> Option<Key> {
+        let characters = event.characters()?;
+        let key_str = characters.to_string();
+
+        // Check for named keys first
+        match key_str.as_str() {
+            "\r" | "\n" => Some(Key::Named(NamedKey::Enter)),
+            "\t" => Some(Key::Named(NamedKey::Tab)),
+            "\u{1b}" => Some(Key::Named(NamedKey::Escape)),
+            "\u{7f}" => Some(Key::Named(NamedKey::Backspace)),
+            " " => Some(Key::Named(NamedKey::Space)),
+            _ => {
+                // Check virtual key code for special keys
+                let key_code = event.keyCode();
+                match key_code {
+                    123 => Some(Key::Named(NamedKey::ArrowLeft)),
+                    124 => Some(Key::Named(NamedKey::ArrowRight)),
+                    125 => Some(Key::Named(NamedKey::ArrowDown)),
+                    126 => Some(Key::Named(NamedKey::ArrowUp)),
+                    117 => Some(Key::Named(NamedKey::Delete)),
+                    115 => Some(Key::Named(NamedKey::Home)),
+                    119 => Some(Key::Named(NamedKey::End)),
+                    116 => Some(Key::Named(NamedKey::PageUp)),
+                    121 => Some(Key::Named(NamedKey::PageDown)),
+                    122 => Some(Key::Named(NamedKey::F1)),
+                    120 => Some(Key::Named(NamedKey::F2)),
+                    99 => Some(Key::Named(NamedKey::F3)),
+                    118 => Some(Key::Named(NamedKey::F4)),
+                    96 => Some(Key::Named(NamedKey::F5)),
+                    97 => Some(Key::Named(NamedKey::F6)),
+                    98 => Some(Key::Named(NamedKey::F7)),
+                    100 => Some(Key::Named(NamedKey::F8)),
+                    101 => Some(Key::Named(NamedKey::F9)),
+                    109 => Some(Key::Named(NamedKey::F10)),
+                    103 => Some(Key::Named(NamedKey::F11)),
+                    111 => Some(Key::Named(NamedKey::F12)),
+                    _ => {
+                        // Regular character key
+                        key_str.chars().next().map(Key::Character)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Convert NSEvent to KeyEvent
+    fn convert_to_key_event(event: &NSEvent) -> Option<KeyEvent> {
+        let key = Self::convert_key(event)?;
+        let modifiers = Self::convert_modifiers(event);
+        let is_repeat = event.isARepeat();
+
+        Some(KeyEvent::new(key, modifiers).with_repeat(is_repeat))
     }
 }
 

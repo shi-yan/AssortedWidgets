@@ -3,6 +3,17 @@ use crate::types::{Rect, WidgetId};
 #[cfg(target_os = "macos")]
 use crate::platform::PlatformInput;
 
+// Sub-modules
+pub mod handlers;
+pub mod input;
+
+// Re-exports
+pub use handlers::{KeyboardHandler, MouseHandler, WheelHandler};
+pub use input::{
+    EventResponse, InputEvent, InputEventEnum, Key, KeyEvent, Modifiers, MouseButton, MouseEvent,
+    NamedKey, WheelEvent, WheelPhase,
+};
+
 // ============================================================================
 // GUI Event Queue Events
 // ============================================================================
@@ -20,9 +31,13 @@ pub enum GuiEvent {
     /// Window was resized
     Resize(Rect),
 
-    /// Platform input event (mouse, keyboard, etc.)
+    /// Platform input event (mouse, keyboard, etc.) - LEGACY
+    /// This will be replaced by InputEvent variant
     #[cfg(target_os = "macos")]
     Input(PlatformInput),
+
+    /// New input event system
+    InputEvent(InputEventEnum),
 
     /// Window close requested
     Close,

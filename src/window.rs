@@ -1,10 +1,12 @@
 use crate::element_manager::ElementManager;
+use crate::event::{InputEventEnum, KeyboardHandler, MouseHandler, WheelHandler};
 use crate::layout::LayoutManager;
 use crate::paint::PaintContext;
 use crate::render::RenderContext;
 use crate::scene_graph::SceneGraph;
-use crate::types::{FrameInfo, Size, WindowId};
+use crate::types::{FrameInfo, Point, Size, WindowId};
 use crate::window_render_state::WindowRenderState;
+use std::any::Any;
 use std::time::Instant;
 
 #[cfg(target_os = "macos")]
@@ -206,6 +208,105 @@ impl Window {
         self.render_state.rect_renderer.update_screen_size(render_context, bounds.size, scale_factor as f32);
         self.render_state.text_renderer.update_screen_size(render_context, bounds.size, scale_factor as f32);
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
+
+    /// Dispatch an input event to elements
+    ///
+    /// For Phase 1, this implements simple event dispatch:
+    /// - Mouse events: Simple hit test based on element bounds
+    /// - Keyboard events: Dispatch to focused element (TODO: focus management in Phase 2)
+    /// - Wheel events: Simple hit test based on element bounds
+    ///
+    /// This will be enhanced in Phase 2 with proper hit testing and focus management.
+    pub fn dispatch_input_event(&mut self, mut event: InputEventEnum) {
+        match &event {
+            InputEventEnum::MouseDown(mouse_event) |
+            InputEventEnum::MouseUp(mouse_event) |
+            InputEventEnum::MouseMove(mouse_event) => {
+                // Simple hit test: find topmost element at this position
+                let position = mouse_event.position;
+                let target = self.simple_hit_test(position);
+
+                if let Some(widget_id) = target {
+                    // Dispatch to element via dispatch_mouse_event method
+                    if let Some(element) = self.element_manager.get_mut(widget_id) {
+                        let response = element.dispatch_mouse_event(&mut event);
+
+                        use crate::event::EventResponse;
+                        match response {
+                            EventResponse::Handled => {
+                                println!("[Window {:?}] Element {:?} handled mouse event", self.id, widget_id);
+                            }
+                            EventResponse::PassThrough => {
+                                println!("[Window {:?}] Element {:?} passed through mouse event", self.id, widget_id);
+                                // TODO Phase 2: Bubble to parent
+                            }
+                            EventResponse::Ignored => {
+                                // Element didn't handle it
+                            }
+                        }
+                    }
+                }
+            }
+
+            InputEventEnum::KeyDown(_) | InputEventEnum::KeyUp(_) => {
+                // TODO Phase 2: Dispatch to focused element
+                // For now, dispatch to all elements (temporary - will be replaced with focus system)
+                let widget_ids: Vec<_> = self.element_manager.widget_ids().collect();
+                for widget_id in widget_ids {
+                    if let Some(element) = self.element_manager.get_mut(widget_id) {
+                        let response = element.dispatch_key_event(&mut event);
+
+                        use crate::event::EventResponse;
+                        if response == EventResponse::Handled {
+                            println!("[Window {:?}] Element {:?} handled key event", self.id, widget_id);
+                            break;  // Stop after first handler
+                        }
+                    }
+                }
+            }
+
+            InputEventEnum::Wheel(wheel_event) => {
+                // Use same hit test as mouse events
+                let position = Point::new(0.0, 0.0);  // TODO: track mouse position
+                let target = self.simple_hit_test(position);
+
+                if let Some(widget_id) = target {
+                    if let Some(element) = self.element_manager.get_mut(widget_id) {
+                        let response = element.dispatch_wheel_event(&mut wheel_event.clone());
+
+                        use crate::event::EventResponse;
+                        if response == EventResponse::Handled {
+                            println!("[Window {:?}] Element {:?} handled wheel event", self.id, widget_id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Simple hit test - finds topmost element at position
+    ///
+    /// This is a basic implementation for Phase 1. In Phase 2, this will be
+    /// replaced with a proper HitTester that uses z-order.
+    fn simple_hit_test(&self, position: Point) -> Option<WidgetId> {
+        // Collect all interactive elements with their bounds
+        let mut candidates: Vec<(WidgetId, crate::types::Rect)> = Vec::new();
+
+        for widget_id in self.element_manager.widget_ids() {
+            if let Some(element) = self.element_manager.get(widget_id) {
+                if element.is_interactive() {
+                    candidates.push((widget_id, element.bounds()));
+                }
+            }
+        }
+
+        // For now, just return the last one that contains the point
+        // (This is a simplification - proper implementation would use z-order)
+        candidates.iter()
+            .filter(|(_, bounds)| bounds.contains(position))
+            .last()
+            .map(|(id, _)| *id)
     }
 
     /// Render a single frame
