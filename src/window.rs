@@ -446,8 +446,14 @@ impl Window {
             }
 
             // Extract instances before paint_ctx is dropped
-            let rect_instances = paint_ctx.rect_instances().to_vec();
-            let text_instances = paint_ctx.text_instances().to_vec();
+            let mut rect_instances = paint_ctx.rect_instances().to_vec();
+            let mut text_instances = paint_ctx.text_instances().to_vec();
+
+            // Sort by z-order (low to high) for correct overlapping
+            // Elements with lower z-order are drawn first (appear behind)
+            // Elements with higher z-order are drawn last (appear on top)
+            rect_instances.sort_by_key(|inst| inst.z_order);
+            text_instances.sort_by_key(|inst| inst.z_order);
 
             (rect_instances, text_instances)
         };
