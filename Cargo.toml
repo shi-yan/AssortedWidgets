@@ -11,6 +11,10 @@ path = "src/lib.rs"
 name = "assorted_widgets_test"
 path = "src/main.rs"
 
+[[example]]
+name = "drag_drop_demo"
+path = "examples/drag_drop_demo.rs"
+
 [dependencies]
 euclid = { version = "0.22", features = ["serde"] }
 wgpu = "28.0"

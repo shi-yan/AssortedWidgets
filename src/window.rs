@@ -262,6 +262,10 @@ impl Window {
                         match response {
                             EventResponse::Handled => {
                                 println!("[Window {:?}] Element {:?} handled mouse down", self.id, widget_id);
+
+                                // Capture mouse for this widget (for drag operations)
+                                self.mouse_capture.capture(widget_id);
+                                println!("[Window {:?}] Mouse captured by {:?}", self.id, widget_id);
                             }
                             EventResponse::PassThrough => {
                                 // TODO Phase 3: Bubble to parent
@@ -289,6 +293,12 @@ impl Window {
                         match response {
                             EventResponse::Handled => {
                                 println!("[Window {:?}] Element {:?} handled mouse up", self.id, widget_id);
+
+                                // Release mouse capture
+                                if self.mouse_capture.is_captured_by(widget_id) {
+                                    self.mouse_capture.release();
+                                    println!("[Window {:?}] Mouse capture released", self.id);
+                                }
                             }
                             EventResponse::PassThrough => {}
                             EventResponse::Ignored => {}
