@@ -1,4 +1,5 @@
 use crate::types::Point;
+use super::custom::CustomEvent;
 use std::any::Any;
 use std::time::Instant;
 
@@ -10,7 +11,7 @@ use std::time::Instant;
 ///
 /// This allows passing different event types through a uniform interface
 /// while preserving type information for downcasting.
-#[derive(Debug)]
+#[derive(Clone)]
 pub enum InputEventEnum {
     /// Mouse button press
     MouseDown(MouseEvent),
@@ -32,6 +33,24 @@ pub enum InputEventEnum {
 
     /// IME (Input Method Editor) event
     Ime(ImeEvent),
+
+    /// Custom hardware event (MIDI, gamepad, etc.)
+    Custom(CustomEvent),
+}
+
+impl std::fmt::Debug for InputEventEnum {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InputEventEnum::MouseDown(e) => f.debug_tuple("MouseDown").field(e).finish(),
+            InputEventEnum::MouseUp(e) => f.debug_tuple("MouseUp").field(e).finish(),
+            InputEventEnum::MouseMove(e) => f.debug_tuple("MouseMove").field(e).finish(),
+            InputEventEnum::KeyDown(e) => f.debug_tuple("KeyDown").field(e).finish(),
+            InputEventEnum::KeyUp(e) => f.debug_tuple("KeyUp").field(e).finish(),
+            InputEventEnum::Wheel(e) => f.debug_tuple("Wheel").field(e).finish(),
+            InputEventEnum::Ime(e) => f.debug_tuple("Ime").field(e).finish(),
+            InputEventEnum::Custom(e) => f.debug_tuple("Custom").field(e).finish(),
+        }
+    }
 }
 
 impl InputEventEnum {

@@ -4,16 +4,20 @@ use crate::types::{Point, Rect, WidgetId};
 use crate::platform::PlatformInput;
 
 // Sub-modules
+pub mod bus;
 pub mod capture;
+pub mod custom;
 pub mod focus;
 pub mod handlers;
 pub mod hit_test;
 pub mod input;
 
 // Re-exports
+pub use bus::EventBus;
 pub use capture::MouseCapture;
+pub use custom::{CustomEvent, GamepadAxis, GamepadButton, GamepadEvent, MidiEvent, MidiMessageType};
 pub use focus::FocusManager;
-pub use handlers::{ImeHandler, KeyboardHandler, MouseHandler, WheelHandler};
+pub use handlers::{CustomInputHandler, ImeHandler, KeyboardHandler, MouseHandler, WheelHandler};
 pub use hit_test::{HitTester, HitTestEntry};
 pub use input::{
     EventResponse, ImeEvent, ImeEventType, InputEvent, InputEventEnum, Key, KeyEvent, Modifiers,
