@@ -137,11 +137,16 @@ impl RectRenderer {
     }
 
     /// Update screen size uniform
-    pub fn update_screen_size(&mut self, context: &RenderContext, size: Size) {
+    pub fn update_screen_size(&mut self, context: &RenderContext, size: Size, scale_factor: f32) {
+        // Scale logical size by scale_factor to match physical viewport
+        // This way logical coords in the shader map correctly to physical pixels
         let uniforms = RectUniforms {
-            screen_size: [size.width as f32, size.height as f32],
+            screen_size: [size.width as f32 * scale_factor, size.height as f32 * scale_factor],
             _padding: [0.0, 0.0],
         };
+
+        println!("[RectRenderer] Updating projection matrix: logical = {:.0}x{:.0}, scale = {:.1}x, uniform = {:.0}x{:.0}",
+            size.width, size.height, scale_factor, uniforms.screen_size[0], uniforms.screen_size[1]);
 
         context.queue().write_buffer(
             &self.uniform_buffer,
@@ -161,6 +166,9 @@ impl RectRenderer {
             return;
         }
 
+        if instances.len() > 0 {
+            println!("rect {:?} ", instances);
+        }
         let device = context.device();
 
         // Create or resize instance buffer if needed

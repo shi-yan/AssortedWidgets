@@ -111,11 +111,21 @@ impl<'a> PaintContext<'a> {
 
     /// Draw a filled rectangle
     pub fn draw_rect(&mut self, rect: Rect, color: Color) {
-        let instance = RectInstance::new(rect, color);
+
+        let logical_rect = Rect::new(
+            Point::new(rect.origin.x , rect.origin.y ),
+            Size::new(rect.size.width , rect.size.height ),
+        );
+
+        let instance = RectInstance::new(logical_rect, color);
 
         // Apply clipping if there's a clip rect on the stack
         let instance = if let Some(clip) = self.current_clip_rect() {
-            instance.with_clip(clip)
+            let logical_clip = Rect::new(
+                Point::new(clip.origin.x , clip.origin.y ),
+                Size::new(clip.size.width , clip.size.height ),
+            );
+            instance.with_clip(logical_clip)
         } else {
             instance
         };
@@ -359,7 +369,7 @@ impl<'a> PaintContext<'a> {
                 // Convert to PhysicalGlyph with baseline Y offset
                 // cosmic-text already applies alignment offsets to glyph.x
                 let physical_glyph = glyph.physical(
-                    (position.x as f32, position.y as f32 + line_y),
+                    (position.x as f32 * scale_factor, position.y  as f32 * scale_factor+ line_y),
                     scale_factor
                 );
 
@@ -412,12 +422,26 @@ impl<'a> PaintContext<'a> {
                 //
                 // COORDINATE SYSTEM: cosmic-text uses bottom-left origin (Y goes UP)
                 // but WebGPU uses top-left origin (Y goes DOWN), so we flip Y by subtracting
-                let glyph_x = (physical_glyph.x + location.offset_x) as f32;
-                let glyph_y = (physical_glyph.y - location.offset_y) as f32;
+                //
+                // CRITICAL ARCHITECTURE: Logical Coordinates with Scaled Projection
+                // ===================================================================
+                // - ALL drawing coordinates are in LOGICAL pixels (DPI-independent)
+                // - Projection matrix is scaled: screen_size = logical_size * scale_factor (PHYSICAL)
+                // - This ensures logical coords map correctly to the physical viewport
+                //
+                // Why this works:
+                // 1. physical_glyph gives us PHYSICAL coordinates (e.g., 200px on 2x display)
+                // 2. We divide by scale_factor to convert to LOGICAL (200 / 2 = 100)
+                // 3. Projection matrix: logical_size * scale_factor = physical_size (1200 * 2 = 2400)
+                // 4. Shader: logical_coord / physical_screen_size = correct NDC (100 / 2400)
+                // 5. Viewport maps NDC to physical pixels correctly
+                let glyph_x = (physical_glyph.x + location.offset_x) as f32 / scale_factor;
+                let glyph_y = (physical_glyph.y - location.offset_y) as f32 / scale_factor;
 
-                // Use actual rasterized glyph dimensions from atlas
-                let glyph_width = location.width as f32;
-                let glyph_height = location.height as f32;
+                // Glyph dimensions from atlas are PHYSICAL (high-res bitmap)
+                // Convert to LOGICAL for consistent coordinate system
+                let glyph_width = location.width as f32 / scale_factor;
+                let glyph_height = location.height as f32 / scale_factor;
 
                 // Push text instance
                 let instance = TextInstance::new(

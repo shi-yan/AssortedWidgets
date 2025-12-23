@@ -93,6 +93,8 @@ impl AnimatedTextLabel {
 
     /// Get current animated width based on elapsed time
     fn current_width(&self) -> f64 {
+        // Todo: global timer
+        /* 
         let elapsed = self.start_time.elapsed().as_secs_f64();
         let angle = 2.0 * std::f64::consts::PI * self.frequency * elapsed;
 
@@ -100,6 +102,9 @@ impl AnimatedTextLabel {
         let range = (self.max_width - self.min_width) / 2.0;
         let center = (self.max_width + self.min_width) / 2.0;
         center + range * angle.sin()
+        */
+
+        return 300.0;
     }
 }
 
@@ -139,7 +144,9 @@ impl Element for AnimatedTextLabel {
     fn paint(&self, ctx: &mut PaintContext) {
         // Draw background
         ctx.draw_rect(self.bounds, self.bg_color);
-
+        println!("[AnimatedTextLabel] paint() - bounds: x={:.1}, y={:.1}, w={:.1}, h={:.1}",
+            self.bounds.origin.x, self.bounds.origin.y,
+            self.bounds.size.width, self.bounds.size.height);
         // Use bounds width (not current_width!) to ensure text fits within layout-determined bounds
         // The bounds were set by measure() which called current_width() at layout time
         let padding = 10.0;

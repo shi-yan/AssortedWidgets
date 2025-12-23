@@ -77,7 +77,7 @@ fn main() {
         println!();
         println!("Press Cmd+Q to quit.");
         println!();
-
+ 
         // ================================================================
         // Create second window for animated text truncation demo
         // ================================================================

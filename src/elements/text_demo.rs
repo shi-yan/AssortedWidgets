@@ -113,6 +113,8 @@ impl Element for TextDemoElement {
             Color { r: 0.15, g: 0.15, b: 0.2, a: 1.0 },
         );
 
+        println!("draw rect {} {} {} {}", left_margin, y, box_width, 90.0);
+
         // Left-aligned (default)
         ctx.draw_text(
             "Left aligned",

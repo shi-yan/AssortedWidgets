@@ -12,7 +12,7 @@ use objc2_app_kit::{
     NSApplication, NSBackingStoreType, NSEvent, NSEventModifierFlags, NSView, NSWindow,
     NSWindowDelegate, NSWindowStyleMask,
 };
-use objc2_foundation::{MainThreadMarker, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString};
+use objc2_foundation::{MainThreadMarker, NSNotification, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -259,6 +259,24 @@ define_class!(
                 close_callback();
             }
             true
+        }
+
+        #[unsafe(method(windowDidResize:))]
+        fn window_did_resize(&self, notification: &NSNotification) {
+            // Get the window from the notification
+            let window: *const NSWindow = unsafe { msg_send![notification, object] };
+            let window = unsafe { &*window };
+
+            // Get content bounds (excludes titlebar)
+            let frame = window.frame();
+            let content_rect: NSRect = unsafe { msg_send![window, contentRectForFrameRect:frame] };
+            let bounds = nsrect_to_rect(content_rect);
+
+            // Invoke resize callback if set
+            let mut state = self.ivars().state.borrow_mut();
+            if let Some(ref mut resize_callback) = state.callbacks.resize {
+                resize_callback(bounds);
+            }
         }
     }
 );

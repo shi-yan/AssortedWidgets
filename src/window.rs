@@ -163,29 +163,49 @@ impl Window {
     /// Resize window and update all rendering resources
     #[cfg(target_os = "macos")]
     pub fn resize(&mut self, bounds: crate::types::Rect, render_context: &RenderContext) {
-        println!("Window {:?} resized to {:.0}x{:.0}", self.id, bounds.size.width, bounds.size.height);
+        // Get scale factor from platform window
+        let scale_factor = self.platform_window.scale_factor();
+
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!("📐 Window {:?} resize:", self.id);
+        println!("  Logical size:  {:.0}x{:.0}", bounds.size.width, bounds.size.height);
+        println!("  Scale factor:  {:.1}x", scale_factor);
+        println!("  Physical size: {:.0}x{:.0}",
+            bounds.size.width * scale_factor,
+            bounds.size.height * scale_factor);
 
         // Update window size and mark layout as dirty
         self.window_size = bounds.size;
         self.needs_layout = true;
 
-        // Get scale factor from platform window
-        let scale_factor = self.platform_window.scale_factor();
+        // Check if scale factor changed (e.g., window moved to different DPI display)
+        let scale_factor_changed = (self.render_state.scale_factor - scale_factor as f32).abs() > 0.01;
+        if scale_factor_changed {
+            println!("  ⚠️  DPI CHANGE: {:.1}x → {:.1}x",
+                self.render_state.scale_factor, scale_factor);
+            // Update the stored scale factor
+            self.render_state.scale_factor = scale_factor as f32;
+            // Note: No need to invalidate glyph atlas - glyphs at both scales are cached separately
+            // via the scale_factor field in GlyphKey. This allows seamless transitions between displays!
+        }
 
-        // Calculate physical pixel size for Retina displays
+        // Calculate physical pixel size for Retina displays (for surface configuration only)
         let physical_size = Size::new(
             bounds.size.width * scale_factor,
             bounds.size.height * scale_factor
         );
 
-        // Resize window renderer (surface)
+        // Resize window renderer (surface needs physical size for actual pixel buffer)
         self.render_state.renderer.resize(render_context, bounds, scale_factor);
 
-        // Update rect renderer screen size
-        self.render_state.rect_renderer.update_screen_size(render_context, physical_size);
+        // Update projection matrices with logical size and scale factor
+        // The renderers will scale the uniform by scale_factor to match the physical viewport
+        println!("  📊 Updating projection matrices: logical = {:.0}x{:.0}, scale = {:.1}x",
+            bounds.size.width, bounds.size.height, scale_factor);
 
-        // Update text renderer screen size
-        self.render_state.text_renderer.update_screen_size(render_context, physical_size);
+        self.render_state.rect_renderer.update_screen_size(render_context, bounds.size, scale_factor as f32);
+        self.render_state.text_renderer.update_screen_size(render_context, bounds.size, scale_factor as f32);
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
     /// Render a single frame
@@ -237,14 +257,14 @@ impl Window {
 
         // 1. Compute layout if needed (skip if no scene graph)
         if self.needs_layout && self.scene_graph.root().is_some() {
-            println!("[Window {:?}] Computing layout...", self.id);
+            //println!("[Window {:?}] Computing layout...", self.id);
 
             // Mark all elements that need measurement as dirty in Taffy
             let widget_ids: Vec<_> = self.element_manager.widget_ids().collect();
             for widget_id in widget_ids {
                 if let Some(element) = self.element_manager.get(widget_id) {
                     if element.needs_measure() {
-                        println!("[Window {:?}] Marking widget {:?} as dirty for re-measurement", self.id, widget_id);
+                        //println!("[Window {:?}] Marking widget {:?} as dirty for re-measurement", self.id, widget_id);
                         if let Err(e) = self.layout_manager.mark_dirty(widget_id) {
                             eprintln!("Failed to mark widget {:?} dirty: {}", widget_id, e);
                         }

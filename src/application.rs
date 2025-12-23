@@ -97,33 +97,29 @@ impl Application {
         // Create window renderer (surface + format management)
         let renderer = WindowRenderer::new(&self.render_context, &platform_window)?;
 
-        // Get window bounds and scale factor
-        let bounds = platform_window.bounds();
+        // Get window content bounds (excludes titlebar) and scale factor
+        let content_bounds = platform_window.content_bounds();
         let scale_factor = platform_window.scale_factor();
-        let window_size = bounds.size;
+        let window_size = content_bounds.size;
 
-        println!("Creating window {:?} with size {:.0}x{:.0}, scale factor: {}",
+        println!("Creating window {:?} with logical size {:.0}x{:.0}, scale factor: {:.1}x",
                  window_id, window_size.width, window_size.height, scale_factor);
-
-        // Calculate physical pixel size for Retina displays
-        let physical_size = Size::new(
-            bounds.size.width * scale_factor,
-            bounds.size.height * scale_factor
-        );
 
         // Create rectangle renderer (stateless - just pipeline/shaders)
         let mut rect_renderer = RectRenderer::new(
             &self.render_context,
             renderer.format,
         );
-        rect_renderer.update_screen_size(&self.render_context, physical_size);
+        // Initialize projection matrix (logical size scaled by scale_factor)
+        rect_renderer.update_screen_size(&self.render_context, window_size, scale_factor as f32);
 
         // Create text renderer (stateless - just pipeline/shaders)
         let mut text_renderer = TextRenderer::new(
             &self.render_context,
             renderer.format,
         );
-        text_renderer.update_screen_size(&self.render_context, physical_size);
+        // Initialize projection matrix (logical size scaled by scale_factor)
+        text_renderer.update_screen_size(&self.render_context, window_size, scale_factor as f32);
 
         // Bundle per-window resources
         let render_state = WindowRenderState::new(
@@ -164,7 +160,7 @@ impl Application {
 
         platform_window.set_callbacks(callbacks);
 
-        // Create window
+        // Create window (uses logical size for layout calculations)
         let window = Window::new(window_id, platform_window, render_state, window_size);
 
         // Store window

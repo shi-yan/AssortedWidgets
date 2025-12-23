@@ -194,6 +194,7 @@ impl TextEngine {
             self.shapes_this_frame += 1;
 
             let buffer = self.shape_text_internal(text, style, max_width, Truncate::None);
+            println!("max width {:?}", max_width);
             let layout = TextLayout::new(buffer, style.alignment, max_width);
 
             // Insert into cache
@@ -232,6 +233,8 @@ impl TextEngine {
         truncate: Truncate,
     ) -> Buffer {
         let font_system = self.font_system.font_system_mut();
+
+        //println!("font size: {}", style.font_size);
 
         // Create metrics
         let metrics = Metrics::new(style.font_size, style.line_height_pixels());

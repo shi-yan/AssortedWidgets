@@ -285,11 +285,17 @@ impl TextRenderer {
     }
 
     /// Update screen size uniforms
-    pub fn update_screen_size(&mut self, context: &RenderContext, size: Size) {
+    pub fn update_screen_size(&mut self, context: &RenderContext, size: Size, scale_factor: f32) {
+        // Scale logical size by scale_factor to match physical viewport
+        // This way logical coords in the shader map correctly to physical pixels
         let uniforms = TextUniforms {
-            screen_size: [size.width as f32, size.height as f32],
+            screen_size: [size.width as f32 * scale_factor, size.height as f32 * scale_factor],
             _padding: [0.0, 0.0],
         };
+
+        println!("[TextRenderer] Updating projection matrix: logical = {:.0}x{:.0}, scale = {:.1}x, uniform = {:.0}x{:.0}",
+            size.width, size.height, scale_factor, uniforms.screen_size[0], uniforms.screen_size[1]);
+
         context
             .queue()
             .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
