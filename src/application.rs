@@ -280,35 +280,10 @@ impl Application {
                         // TODO: Convert to OsEvent and dispatch to ElementManager
                     }
                     Some((window_id, GuiEvent::InputEvent(input_event))) => {
-                        // Handle new event system
-                        use crate::event::InputEventEnum;
-                        match input_event {
-                            InputEventEnum::MouseDown(evt) => {
-                                println!("[NEW] Window {:?}: Mouse {:?} down at ({:.1}, {:.1}), click_count={}",
-                                         window_id, evt.button, evt.position.x, evt.position.y, evt.click_count);
-                            }
-                            InputEventEnum::MouseUp(evt) => {
-                                println!("[NEW] Window {:?}: Mouse {:?} up at ({:.1}, {:.1})",
-                                         window_id, evt.button, evt.position.x, evt.position.y);
-                            }
-                            InputEventEnum::MouseMove(evt) => {
-                                // Too noisy to log every move
-                                let _ = evt;
-                            }
-                            InputEventEnum::KeyDown(evt) => {
-                                println!("[NEW] Window {:?}: Key down: {:?}, repeat={}",
-                                         window_id, evt.key, evt.is_repeat);
-                            }
-                            InputEventEnum::KeyUp(evt) => {
-                                println!("[NEW] Window {:?}: Key up: {:?}",
-                                         window_id, evt.key);
-                            }
-                            InputEventEnum::Wheel(evt) => {
-                                println!("[NEW] Window {:?}: Wheel delta=({:.1}, {:.1}), phase={:?}",
-                                         window_id, evt.delta.dx, evt.delta.dy, evt.phase);
-                            }
+                        // Dispatch event to window's element manager
+                        if let Some(window) = self.windows.get_mut(&window_id) {
+                            window.dispatch_input_event(input_event);
                         }
-                        // TODO: Dispatch to ElementManager when hit testing is implemented
                     }
                     Some((window_id, GuiEvent::Close)) => {
                         println!("Window {:?} closing", window_id);
