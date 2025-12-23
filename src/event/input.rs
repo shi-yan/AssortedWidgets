@@ -27,8 +27,8 @@ pub enum InputEventEnum {
     /// Keyboard key release
     KeyUp(KeyEvent),
 
-    /// Mouse wheel / trackpad scroll
-    Scroll(ScrollEvent),
+    /// Mouse wheel / trackpad event
+    Wheel(WheelEvent),
 }
 
 impl InputEventEnum {
@@ -40,7 +40,7 @@ impl InputEventEnum {
             InputEventEnum::MouseMove(e) => e,
             InputEventEnum::KeyDown(e) => e,
             InputEventEnum::KeyUp(e) => e,
-            InputEventEnum::Scroll(e) => e,
+            InputEventEnum::Wheel(e) => e,
         }
     }
 
@@ -52,7 +52,7 @@ impl InputEventEnum {
             InputEventEnum::MouseMove(e) => e,
             InputEventEnum::KeyDown(e) => e,
             InputEventEnum::KeyUp(e) => e,
-            InputEventEnum::Scroll(e) => e,
+            InputEventEnum::Wheel(e) => e,
         }
     }
 }
@@ -325,12 +325,12 @@ impl InputEvent for KeyEvent {
 }
 
 // ============================================================================
-// Scroll Events
+// Wheel Events (Mouse Wheel / Trackpad)
 // ============================================================================
 
-/// Scroll phase (for trackpad/touchpad momentum)
+/// Wheel phase (for trackpad/touchpad momentum)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScrollPhase {
+pub enum WheelPhase {
     /// User started scrolling
     Begin,
 
@@ -344,14 +344,17 @@ pub enum ScrollPhase {
     Momentum,
 }
 
-/// Mouse wheel / trackpad scroll event
+/// Mouse wheel / trackpad event
+///
+/// Note: This is called "wheel" (not "scroll") because the wheel can be used
+/// for purposes other than scrolling (e.g., zooming in 3D applications).
 #[derive(Debug, Clone)]
-pub struct ScrollEvent {
-    /// Scroll delta (positive = scroll down/right)
+pub struct WheelEvent {
+    /// Wheel delta (positive = scroll down/right)
     pub delta: crate::types::Vector,
 
-    /// Scroll phase (for momentum tracking)
-    pub phase: ScrollPhase,
+    /// Wheel phase (for momentum tracking)
+    pub phase: WheelPhase,
 
     /// Keyboard modifiers held during the event
     pub modifiers: Modifiers,
@@ -364,12 +367,12 @@ pub struct ScrollEvent {
     default_prevented: bool,
 }
 
-impl ScrollEvent {
-    /// Create a new scroll event
+impl WheelEvent {
+    /// Create a new wheel event
     pub fn new(delta: crate::types::Vector, modifiers: Modifiers) -> Self {
         Self {
             delta,
-            phase: ScrollPhase::Update,
+            phase: WheelPhase::Update,
             modifiers,
             timestamp: Instant::now(),
             propagate: true,
@@ -377,14 +380,14 @@ impl ScrollEvent {
         }
     }
 
-    /// Set the scroll phase
-    pub fn with_phase(mut self, phase: ScrollPhase) -> Self {
+    /// Set the wheel phase
+    pub fn with_phase(mut self, phase: WheelPhase) -> Self {
         self.phase = phase;
         self
     }
 }
 
-impl InputEvent for ScrollEvent {
+impl InputEvent for WheelEvent {
     fn should_propagate(&self) -> bool {
         self.propagate
     }

@@ -8,10 +8,10 @@ pub mod handlers;
 pub mod input;
 
 // Re-exports
-pub use handlers::{KeyboardHandler, MouseHandler, ScrollHandler};
+pub use handlers::{KeyboardHandler, MouseHandler, WheelHandler};
 pub use input::{
     EventResponse, InputEvent, InputEventEnum, Key, KeyEvent, Modifiers, MouseButton, MouseEvent,
-    NamedKey, ScrollEvent, ScrollPhase,
+    NamedKey, WheelEvent, WheelPhase,
 };
 
 // ============================================================================

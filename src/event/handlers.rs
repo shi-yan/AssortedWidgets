@@ -1,4 +1,4 @@
-use super::{EventResponse, KeyEvent, MouseEvent, ScrollEvent};
+use super::{EventResponse, KeyEvent, MouseEvent, WheelEvent};
 
 // ============================================================================
 // Event Handler Traits
@@ -57,12 +57,14 @@ pub trait KeyboardHandler {
     }
 }
 
-/// Optional trait for widgets that handle scroll input
+/// Optional trait for widgets that handle wheel input
 ///
-/// Widgets implement this trait to respond to scroll wheel/trackpad events.
-pub trait ScrollHandler {
-    /// Handle scroll wheel / trackpad event
-    fn on_scroll(&mut self, event: &mut ScrollEvent) -> EventResponse {
+/// Widgets implement this trait to respond to mouse wheel/trackpad events.
+/// Note: This is called "wheel" (not "scroll") because the wheel can be used
+/// for purposes other than scrolling (e.g., zooming in 3D applications).
+pub trait WheelHandler {
+    /// Handle mouse wheel / trackpad event
+    fn on_wheel(&mut self, event: &mut WheelEvent) -> EventResponse {
         let _ = event;
         EventResponse::Ignored
     }
