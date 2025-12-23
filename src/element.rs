@@ -213,4 +213,16 @@ pub trait Element {
         let _ = event;
         crate::event::EventResponse::Ignored
     }
+
+    /// Dispatch custom event to this element
+    ///
+    /// Default implementation returns Ignored. Elements that implement CustomInputHandler
+    /// should override this to call their handler methods.
+    ///
+    /// Custom events are used for hardware plugins (MIDI, gamepad, etc.) that post
+    /// events via the EventBus.
+    fn dispatch_custom_event(&mut self, event: &mut crate::event::CustomEvent) -> crate::event::EventResponse {
+        let _ = event;
+        crate::event::EventResponse::Ignored
+    }
 }

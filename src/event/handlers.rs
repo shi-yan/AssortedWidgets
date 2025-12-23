@@ -1,4 +1,5 @@
 use super::{EventResponse, ImeEvent, KeyEvent, MouseEvent, WheelEvent};
+use super::custom::CustomEvent;
 
 // ============================================================================
 // Event Handler Traits
@@ -107,6 +108,78 @@ pub trait WheelHandler {
 pub trait ImeHandler {
     /// Handle IME event
     fn on_ime(&mut self, event: &mut ImeEvent) -> EventResponse {
+        let _ = event;
+        EventResponse::Ignored
+    }
+}
+
+/// Optional trait for widgets that handle custom hardware input
+///
+/// Widgets implement this trait to respond to custom events from hardware plugins
+/// (e.g., MIDI controllers, gamepads, 3D mice, foot pedals, etc.).
+///
+/// # How It Works
+/// 1. Plugin posts CustomEvent to event bus with event_type (e.g., "midi")
+/// 2. Event dispatcher checks each widget's handled_event_types()
+/// 3. If widget handles this event type, on_custom_event() is called
+/// 4. Widget downcasts data to concrete type and processes it
+///
+/// # Example: MIDI Controller
+/// ```ignore
+/// impl CustomInputHandler for SynthSlider {
+///     fn handled_event_types(&self) -> &[&str] {
+///         &["midi"]
+///     }
+///
+///     fn on_custom_event(&mut self, event: &mut CustomEvent) -> EventResponse {
+///         if event.event_type == "midi" {
+///             if let Some(midi) = event.downcast_ref::<MidiEvent>() {
+///                 // Map MIDI CC to slider value
+///                 if midi.message_type == MidiMessageType::ControlChange {
+///                     self.value = midi.velocity as f32 / 127.0;
+///                     return EventResponse::Handled;
+///                 }
+///             }
+///         }
+///         EventResponse::Ignored
+///     }
+/// }
+/// ```
+///
+/// # Example: Gamepad
+/// ```ignore
+/// impl CustomInputHandler for Player {
+///     fn handled_event_types(&self) -> &[&str] {
+///         &["gamepad"]
+///     }
+///
+///     fn on_custom_event(&mut self, event: &mut CustomEvent) -> EventResponse {
+///         if let Some(gamepad) = event.downcast_ref::<GamepadEvent>() {
+///             if let Some(GamepadButton::A) = gamepad.button {
+///                 self.jump();
+///                 return EventResponse::Handled;
+///             }
+///         }
+///         EventResponse::Ignored
+///     }
+/// }
+/// ```
+pub trait CustomInputHandler {
+    /// Return event types this handler cares about (e.g., "midi", "gamepad")
+    ///
+    /// The event dispatcher uses this to filter events before calling on_custom_event().
+    /// This avoids unnecessary downcasting for events the widget doesn't handle.
+    fn handled_event_types(&self) -> &[&str];
+
+    /// Handle a custom event
+    ///
+    /// Called when a custom event matching one of the handler's event types is received.
+    /// The widget should:
+    /// 1. Check event.event_type if it handles multiple types
+    /// 2. Downcast event.data to the expected concrete type
+    /// 3. Process the event data
+    /// 4. Return Handled/PassThrough/Ignored as appropriate
+    fn on_custom_event(&mut self, event: &mut CustomEvent) -> EventResponse {
         let _ = event;
         EventResponse::Ignored
     }
