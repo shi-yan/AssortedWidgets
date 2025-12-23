@@ -8,8 +8,8 @@ pub mod input;
 
 // Re-exports
 pub use input::{
-    EventResponse, InputEvent, Key, KeyEvent, Modifiers, MouseButton, MouseEvent, NamedKey,
-    ScrollEvent, ScrollPhase,
+    EventResponse, InputEvent, InputEventEnum, Key, KeyEvent, Modifiers, MouseButton, MouseEvent,
+    NamedKey, ScrollEvent, ScrollPhase,
 };
 
 // ============================================================================
@@ -29,9 +29,13 @@ pub enum GuiEvent {
     /// Window was resized
     Resize(Rect),
 
-    /// Platform input event (mouse, keyboard, etc.)
+    /// Platform input event (mouse, keyboard, etc.) - LEGACY
+    /// This will be replaced by InputEvent variant
     #[cfg(target_os = "macos")]
     Input(PlatformInput),
+
+    /// New input event system
+    InputEvent(InputEventEnum),
 
     /// Window close requested
     Close,

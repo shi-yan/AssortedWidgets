@@ -3,6 +3,61 @@ use std::any::Any;
 use std::time::Instant;
 
 // ============================================================================
+// Input Event Enum
+// ============================================================================
+
+/// Wrapper enum for all input event types
+///
+/// This allows passing different event types through a uniform interface
+/// while preserving type information for downcasting.
+#[derive(Debug)]
+pub enum InputEventEnum {
+    /// Mouse button press
+    MouseDown(MouseEvent),
+
+    /// Mouse button release
+    MouseUp(MouseEvent),
+
+    /// Mouse movement
+    MouseMove(MouseEvent),
+
+    /// Keyboard key press
+    KeyDown(KeyEvent),
+
+    /// Keyboard key release
+    KeyUp(KeyEvent),
+
+    /// Mouse wheel / trackpad scroll
+    Scroll(ScrollEvent),
+}
+
+impl InputEventEnum {
+    /// Get a reference to the underlying InputEvent trait object
+    pub fn as_input_event(&self) -> &dyn InputEvent {
+        match self {
+            InputEventEnum::MouseDown(e) => e,
+            InputEventEnum::MouseUp(e) => e,
+            InputEventEnum::MouseMove(e) => e,
+            InputEventEnum::KeyDown(e) => e,
+            InputEventEnum::KeyUp(e) => e,
+            InputEventEnum::Scroll(e) => e,
+        }
+    }
+
+    /// Get a mutable reference to the underlying InputEvent trait object
+    pub fn as_input_event_mut(&mut self) -> &mut dyn InputEvent {
+        match self {
+            InputEventEnum::MouseDown(e) => e,
+            InputEventEnum::MouseUp(e) => e,
+            InputEventEnum::MouseMove(e) => e,
+            InputEventEnum::KeyDown(e) => e,
+            InputEventEnum::KeyUp(e) => e,
+            InputEventEnum::Scroll(e) => e,
+        }
+    }
+}
+
+// ============================================================================
 // Input Event Trait
 // ============================================================================
 
