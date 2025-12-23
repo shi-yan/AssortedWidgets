@@ -120,6 +120,18 @@ pub struct WindowOptions {
     pub bounds: Rect,
     pub title: String,
     pub titlebar: Option<TitlebarOptions>,
+
+    /// Create a borderless window (no title bar, no resize controls)
+    pub borderless: bool,
+
+    /// Create a transparent window (for floating drag proxies)
+    pub transparent: bool,
+
+    /// Keep window always on top of other windows
+    pub always_on_top: bool,
+
+    /// Window is a utility window (doesn't appear in Dock/taskbar)
+    pub utility: bool,
 }
 
 impl Default for WindowOptions {
@@ -128,6 +140,10 @@ impl Default for WindowOptions {
             bounds: rect(100.0, 100.0, 800.0, 600.0),
             title: "AssortedWidgets Window".to_string(),
             titlebar: Some(TitlebarOptions::default()),
+            borderless: false,
+            transparent: false,
+            always_on_top: false,
+            utility: false,
         }
     }
 }

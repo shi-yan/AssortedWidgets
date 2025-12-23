@@ -1,7 +1,8 @@
 use crate::event::GuiEvent;
 use crate::handle::GuiHandle;
+use crate::paint::Color;
 use crate::render::{RenderContext, WindowRenderer};
-use crate::types::WindowId;
+use crate::types::{Point, Rect, Size, WidgetId, WindowId};
 use crate::window::Window;
 use crate::window_render_state::WindowRenderState;
 
@@ -10,6 +11,41 @@ use crate::platform::{PlatformInput, PlatformWindow, PlatformWindowImpl, WindowC
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
+
+// ============================================================================
+// Drag State (for cross-window drag-drop)
+// ============================================================================
+
+/// Data transferred during drag operation
+#[derive(Debug, Clone)]
+pub struct DragData {
+    /// Widget being dragged
+    pub widget_id: WidgetId,
+
+    /// Visual appearance (for proxy window)
+    pub color: Color,
+    pub label: String,
+    pub size: Size,
+
+    /// Offset from mouse position to widget origin
+    pub drag_offset: Point,
+}
+
+/// Global drag state (application-wide)
+#[derive(Debug, Clone)]
+pub struct DragState {
+    /// Source window where drag started
+    pub source_window: WindowId,
+
+    /// Dragged widget data
+    pub drag_data: DragData,
+
+    /// Floating proxy window (shows dragged element)
+    pub proxy_window: Option<WindowId>,
+
+    /// Current screen position (global coordinates)
+    pub screen_position: Point,
+}
 
 // ============================================================================
 // Application - Root container (ONE per process)
@@ -57,6 +93,13 @@ pub struct Application {
     /// Event queue for all windows
     /// Events are tagged with WindowId to route to correct window
     event_queue: Arc<Mutex<VecDeque<(WindowId, GuiEvent)>>>,
+
+    // ========================================
+    // Cross-Window Drag State
+    // ========================================
+    /// Active drag operation (cross-window)
+    /// None when no drag is in progress
+    drag_state: Option<DragState>,
 }
 
 impl Application {
@@ -79,6 +122,7 @@ impl Application {
             next_window_id: 1,
             render_context: render_context_arc,
             event_queue: Arc::new(Mutex::new(VecDeque::new())),
+            drag_state: None,
         })
     }
 

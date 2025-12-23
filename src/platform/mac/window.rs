@@ -575,14 +575,29 @@ impl PlatformWindow for MacWindow {
 unsafe fn create_window(options: &WindowOptions, mtm: MainThreadMarker) -> Retained<NSWindow> {
     let rect = rect_to_nsrect(options.bounds);
 
-    let mut style_mask = NSWindowStyleMask::Closable
-        | NSWindowStyleMask::Miniaturizable
-        | NSWindowStyleMask::Resizable
-        | NSWindowStyleMask::Titled;
+    // Build style mask based on options
+    let mut style_mask = if options.borderless {
+        // Borderless window: no title bar, no resize controls
+        NSWindowStyleMask::Borderless
+    } else {
+        // Normal window
+        NSWindowStyleMask::Closable
+            | NSWindowStyleMask::Miniaturizable
+            | NSWindowStyleMask::Resizable
+            | NSWindowStyleMask::Titled
+    };
 
-    if let Some(titlebar) = &options.titlebar {
-        if titlebar.appears_transparent {
-            style_mask |= NSWindowStyleMask::FullSizeContentView;
+    // Utility windows (don't appear in Dock/taskbar)
+    if options.utility {
+        style_mask |= NSWindowStyleMask::UtilityWindow;
+    }
+
+    // Transparent titlebar (for custom chrome)
+    if !options.borderless {
+        if let Some(titlebar) = &options.titlebar {
+            if titlebar.appears_transparent {
+                style_mask |= NSWindowStyleMask::FullSizeContentView;
+            }
         }
     }
 
@@ -598,15 +613,31 @@ unsafe fn create_window(options: &WindowOptions, mtm: MainThreadMarker) -> Retai
     // This is required when creating `NSWindow` outside a window controller.
     window.setReleasedWhenClosed(false);
 
-    // Set title
+    // Set title (even for borderless - useful for debugging)
     let ns_title = NSString::from_str(&options.title);
     window.setTitle(&ns_title);
 
     // Configure titlebar if needed
-    if let Some(titlebar) = &options.titlebar {
-        if titlebar.appears_transparent {
-            window.setTitlebarAppearsTransparent(true);
+    if !options.borderless {
+        if let Some(titlebar) = &options.titlebar {
+            if titlebar.appears_transparent {
+                window.setTitlebarAppearsTransparent(true);
+            }
         }
+    }
+
+    // Transparent window (for drag proxies)
+    if options.transparent {
+        window.setOpaque(false);
+        window.setBackgroundColor(Some(&objc2_app_kit::NSColor::clearColor()));
+        // Allow window to accept mouse events even though it's transparent
+        window.setIgnoresMouseEvents(false);
+    }
+
+    // Always on top
+    if options.always_on_top {
+        use objc2_app_kit::NSWindowLevel;
+        window.setLevel(NSWindowLevel::FloatingWindow);
     }
 
     window
