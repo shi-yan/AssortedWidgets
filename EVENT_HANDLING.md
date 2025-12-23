@@ -252,41 +252,55 @@ pub enum MidiMessageType {
 
 #### Hit Testing
 
+**Z-Order: Shared Between Rendering and Hit Testing**
+
+Z-order (draw order) should be unified across rendering and hit testing. When a widget is painted "on top" visually, it should also be "on top" for mouse clicks.
+
+**Approach (inspired by gpui):**
+1. **Rendering assigns z-order**: During the paint pass, use `BoundsTree` to assign z-order to each painted primitive
+2. **Hit testing uses same z-order**: Query elements in reverse z-order (top to bottom)
+3. **Non-overlapping elements share z-order**: Saves draw calls and memory
+
+See [gpui's BoundsTree Analysis](#appendix-gpuis-boundstree-analysis) for detailed implementation insights.
+
 ```rust
 /// Hit tester for spatial event routing (mouse, touch, stylus)
 pub struct HitTester {
-    /// Cache of interactive element bounds (for optimization)
-    interactive_rects: Vec<(WidgetId, Rect, i32)>, // (id, bounds, z_index)
+    /// Cache of interactive element bounds with z-order from rendering
+    /// Sorted by z_order (lowest to highest)
+    interactive_rects: Vec<(WidgetId, Rect, u32)>, // (id, bounds, z_order)
 }
 
 impl HitTester {
     /// Find the topmost widget at the given position
     pub fn hit_test(&self, position: Point) -> Option<WidgetId> {
-        // Iterate from highest to lowest z-index
+        // Iterate from highest to lowest z-order (reverse = top to bottom)
         self.interactive_rects
             .iter()
-            .rev() // Reverse iteration = top to bottom
+            .rev()
             .find(|(_, rect, _)| rect.contains(position))
             .map(|(id, _, _)| *id)
     }
 
-    /// Rebuild hit test cache from layout results
-    pub fn rebuild(&mut self, layout_manager: &LayoutManager, element_manager: &ElementManager) {
+    /// Rebuild hit test cache from rendering scene
+    ///
+    /// This should be called after the paint pass, when z-orders are assigned.
+    /// The z_order comes from the BoundsTree during rendering.
+    pub fn rebuild(&mut self, element_manager: &ElementManager, scene: &Scene) {
         self.interactive_rects.clear();
 
         for widget_id in element_manager.widget_ids() {
             if let Some(element) = element_manager.get(widget_id) {
                 // Only cache interactive elements
                 if element.is_interactive() {
-                    if let Some(rect) = layout_manager.get_layout(widget_id) {
-                        let z_index = element.z_index();
-                        self.interactive_rects.push((widget_id, rect, z_index));
+                    if let Some((bounds, z_order)) = scene.get_element_bounds_and_order(widget_id) {
+                        self.interactive_rects.push((widget_id, bounds, z_order));
                     }
                 }
             }
         }
 
-        // Sort by z-index (lowest to highest)
+        // Sort by z-order (lowest to highest)
         self.interactive_rects.sort_by_key(|(_, _, z)| *z);
     }
 }
@@ -428,6 +442,52 @@ pub enum EventResponse {
 
 ### 4. Action Mapping Layer
 
+**What is the Action System?**
+
+The action system is NOT about UI menus with shortcuts. It's an **abstraction layer** that decouples "what hardware event happened" from "what should happen in the UI."
+
+**Without actions:**
+```rust
+// Widget must know about ALL hardware types
+impl Widget for Player {
+    fn on_key(&mut self, key: Key) {
+        if key == Key::Space { self.jump(); }
+    }
+    fn on_gamepad(&mut self, button: GamepadButton) {
+        if button == GamepadButton::A { self.jump(); }
+    }
+    fn on_midi(&mut self, midi: MidiEvent) {
+        if midi.note == 60 { self.jump(); }
+    }
+}
+```
+
+**With actions:**
+```rust
+// Widget only knows about logical actions
+impl ActionHandler for Player {
+    fn on_action(&mut self, action: Action) -> EventResponse {
+        match action {
+            Action::Jump => { self.jump(); EventResponse::Handled }
+            _ => EventResponse::Ignored
+        }
+    }
+}
+
+// Config file maps hardware to actions:
+// Space → Jump
+// Gamepad A → Jump
+// MIDI Note 60 → Jump
+```
+
+**Benefits:**
+- Widget code doesn't need to know about MIDI, gamepad, etc.
+- Users can remap inputs without code changes
+- Accessibility: voice commands can trigger same actions
+- Consistency: same action works across all input methods
+
+---
+
 Decouple hardware from UI logic:
 
 ```rust
@@ -453,7 +513,7 @@ pub enum Action {
     SelectAll,
     ExtendSelection,
 
-    // Custom actions (plugin-defined)
+    // Custom actions (app/plugin-defined)
     Custom(&'static str),
 }
 
@@ -1238,6 +1298,275 @@ impl Element for Viewport3D {
 
 ---
 
+## Appendix: gpui's BoundsTree Analysis
+
+### Overview
+
+We analyzed gpui's `BoundsTree` implementation (from the Zed editor codebase) to understand their approach to z-order assignment and hit testing.
+
+**Source**: `zed/crates/gpui/src/bounds_tree.rs` (commit: 0facdfa5)
+
+### What is BoundsTree?
+
+BoundsTree is an **R-tree variant** specifically optimized for assigning z-order to overlapping UI elements. It's NOT a general-purpose spatial index, but rather a specialized structure for the question: "What z-order should this new element have?"
+
+### Key Insights
+
+#### 1. Automatic Z-Order Assignment
+
+```rust
+// From gpui/src/scene.rs
+pub fn insert_primitive(&mut self, primitive: impl Into<Primitive>) {
+    let clipped_bounds = primitive.bounds().intersect(&primitive.content_mask().bounds);
+
+    // BoundsTree automatically assigns z-order
+    let order = self.primitive_bounds.insert(clipped_bounds);
+
+    // All primitives with same z-order can be batched
+    primitive.order = order;
+    self.quads.push(primitive);
+}
+```
+
+**How it works:**
+1. When inserting bounds, BoundsTree finds the maximum z-order of all intersecting bounds
+2. Assigns `new_order = max_intersecting_order + 1`
+3. Returns the assigned order
+
+**Example:**
+```
+Insert bounds A at (0,0,10,10)  → order = 1 (no intersections)
+Insert bounds B at (5,5,15,15)  → order = 2 (intersects A)
+Insert bounds C at (20,20,30,30) → order = 1 (doesn't intersect A or B, can reuse order!)
+```
+
+#### 2. Non-Overlapping Elements Share Z-Order
+
+This is a **huge optimization** for GPU rendering:
+- Elements with the same z-order can be batched in a single draw call
+- Reduces state changes and improves cache efficiency
+- Typical UI has many non-overlapping elements (sidebar, toolbar, content area)
+
+```rust
+// Example scene:
+// Toolbar    (order=1, bounds=[0,0,100,30])
+// Sidebar    (order=1, bounds=[0,30,20,100])  ← Same order! No overlap
+// Content    (order=1, bounds=[20,30,100,100]) ← Same order! No overlap
+// Tooltip    (order=2, bounds=[50,50,70,60])  ← Overlaps content, needs higher order
+```
+
+#### 3. R-Tree Structure with Aggressive Pruning
+
+```rust
+/// Find maximum ordering among all bounds that intersect with the query
+fn find_max_ordering(&mut self, query: &Bounds) -> u32 {
+    // FAST PATH: Check if the global max-ordering leaf intersects
+    if let Some(max_idx) = self.max_leaf {
+        if query.intersects(&self.nodes[max_idx].bounds) {
+            return self.nodes[max_idx].max_order;  // O(1) lookup!
+        }
+    }
+
+    // SLOW PATH: Traverse tree with two types of pruning
+    while let Some(node_idx) = search_stack.pop() {
+        let node = &self.nodes[node_idx];
+
+        // Pruning #1: If this subtree's max_order ≤ current best, skip
+        if node.max_order <= max_found { continue; }
+
+        // Pruning #2: If bounds don't intersect, skip
+        if !query.intersects(&node.bounds) { continue; }
+
+        // ... continue search
+    }
+}
+```
+
+**Key optimizations:**
+- **Max leaf tracking**: O(1) fast path for common case (new element overlaps current top element)
+- **Order-based pruning**: Skip entire subtrees that can't improve result
+- **Spatial pruning**: Skip non-intersecting subtrees
+- **High branching factor** (12 children per node): Lower tree height = fewer cache misses
+
+#### 4. Integration with Rendering
+
+**gpui's Scene struct:**
+```rust
+pub struct Scene {
+    primitive_bounds: BoundsTree<ScaledPixels>,  // ← Z-order assignment
+    layer_stack: Vec<DrawOrder>,                 // ← Layer nesting
+    quads: Vec<Quad>,                            // ← All primitives tagged with order
+    // ... other primitives
+}
+
+// After scene construction:
+pub fn finish(&mut self) {
+    // Sort all primitives by z-order for GPU upload
+    self.quads.sort_by_key(|quad| quad.order);
+    self.shadows.sort_by_key(|shadow| shadow.order);
+    // ...
+}
+```
+
+**Benefits:**
+- Render pipeline sorts primitives once by z-order
+- GPU draws front-to-back (early z-culling) or back-to-front (alpha blending)
+- Batching by z-order reduces draw calls
+
+#### 5. Hit Testing Does NOT Use BoundsTree
+
+Surprisingly, gpui does **simple linear scan** for hit testing:
+
+```rust
+// From gpui/src/window.rs
+pub(crate) fn hit_test(&self, position: Point<Pixels>) -> HitTest {
+    let mut hit_test = HitTest::default();
+
+    // Reverse iteration = top to bottom (last painted = on top)
+    for hitbox in self.hitboxes.iter().rev() {
+        if hitbox.bounds.contains(&position) {
+            hit_test.ids.push(hitbox.id);
+
+            // Check behavior (BlockMouse, BlockMouseExceptScroll, etc.)
+            if hitbox.behavior == HitboxBehavior::BlockMouse {
+                break;  // Stop, this hitbox blocks
+            }
+        }
+    }
+    hit_test
+}
+```
+
+**Why not use BoundsTree for hit testing?**
+- Hit testing needs to return ALL overlapping elements (for event bubbling)
+- Linear scan through ~100-1000 hitboxes is fast enough (< 0.1ms)
+- BoundsTree is optimized for "max order" queries, not "all intersecting" queries
+
+**However, for complex UIs (10,000+ interactive elements), a spatial hash might help.**
+
+### Recommendations for AssortedWidgets
+
+#### Phase 1-2: Simple Approach
+
+For initial implementation, use simple approaches:
+
+```rust
+// Hit Testing: Linear scan (good enough for <1000 interactive elements)
+pub struct HitTester {
+    hitboxes: Vec<(WidgetId, Rect)>,  // Sorted by paint order
+}
+
+impl HitTester {
+    fn hit_test(&self, position: Point) -> Option<WidgetId> {
+        // Reverse = top to bottom
+        self.hitboxes.iter().rev()
+            .find(|(_, rect)| rect.contains(position))
+            .map(|(id, _)| *id)
+    }
+}
+
+// Z-Order: Manual assignment during paint
+pub trait Element {
+    fn paint(&self, ctx: &mut PaintContext) {
+        // Explicitly set z-order (or let parent manage it)
+        ctx.draw_rect(self.bounds, z_order: self.z_index);
+    }
+}
+```
+
+#### Phase 5: Optimization with BoundsTree
+
+If/when performance becomes an issue:
+
+```rust
+// Port gpui's BoundsTree for z-order assignment
+pub struct Scene {
+    bounds_tree: BoundsTree<f64>,  // Automatic z-order
+    primitives: Vec<Primitive>,
+}
+
+impl Scene {
+    pub fn draw_rect(&mut self, bounds: Rect, color: Color) {
+        let order = self.bounds_tree.insert(bounds);  // Automatic!
+        self.primitives.push(Primitive::Rect { bounds, color, order });
+    }
+
+    pub fn finish(&mut self) {
+        // Sort for GPU (enables batching)
+        self.primitives.sort_by_key(|p| p.order);
+    }
+}
+
+// Hit testing: Still linear scan (fast enough)
+// OR: Add spatial hash if needed (10,000+ elements)
+```
+
+### BoundsTree Source Code Highlights
+
+**Key algorithm (simplified):**
+```rust
+impl BoundsTree {
+    /// Insert bounds and get assigned z-order
+    pub fn insert(&mut self, new_bounds: Bounds) -> u32 {
+        // Step 1: Find max z-order of intersecting bounds
+        let max_intersecting = self.find_max_ordering(&new_bounds);
+
+        // Step 2: Assign new order (one higher than max)
+        let ordering = max_intersecting + 1;
+
+        // Step 3: Insert into R-tree
+        self.insert_leaf(new_bounds, ordering);
+
+        ordering
+    }
+
+    /// Fast path: O(1) for common case (intersects top element)
+    /// Slow path: O(log n) R-tree search with aggressive pruning
+    fn find_max_ordering(&self, query: &Bounds) -> u32 {
+        // Check global max first
+        if self.max_leaf.intersects(query) {
+            return self.max_leaf.order;  // Done!
+        }
+
+        // Tree search with pruning...
+    }
+}
+```
+
+**Performance characteristics:**
+- **Insert**: O(log n) average, O(n) worst case (requires tree rebalancing)
+- **Find max**: O(1) common case, O(log n) with pruning
+- **Memory**: ~32 bytes per node (compact!)
+- **Cache efficiency**: Contiguous node storage, high branching factor
+
+### When to Use BoundsTree
+
+**Good for:**
+- ✅ Complex UIs with many overlapping elements
+- ✅ GPU rendering (batching by z-order)
+- ✅ Automatic z-order management (no manual assignment)
+- ✅ Minimizing draw calls (non-overlapping elements share order)
+
+**Not needed if:**
+- ❌ Simple UIs (< 1000 elements)
+- ❌ Manually managing z-order is acceptable
+- ❌ No overlapping elements (everything can use order=1)
+- ❌ Immediate mode GUI (rebuild scene every frame anyway)
+
+### Implementation Checklist
+
+If we decide to adopt BoundsTree:
+
+- [ ] Port BoundsTree struct from gpui (MIT licensed)
+- [ ] Adapt for our Rect/Point types (currently uses euclid)
+- [ ] Integrate into Scene/PaintContext
+- [ ] Benchmark vs simple approach (linear assignment)
+- [ ] Consider spatial hash for hit testing if needed
+
+**Initial recommendation: Skip BoundsTree for Phase 1-2, revisit in Phase 5 if performance issues arise.**
+
+---
+
 ## References
 
 - [Web API: Event Interface](https://developer.mozilla.org/en-US/docs/Web/API/Event)
@@ -1245,3 +1574,5 @@ impl Element for Viewport3D {
 - [Iced Event Handling](https://github.com/iced-rs/iced)
 - [egui Input Handling](https://github.com/emilk/egui)
 - [Flutter Gesture Detection](https://docs.flutter.dev/ui/interactivity/gestures)
+- [gpui BoundsTree (Zed Editor)](https://github.com/zed-industries/zed/blob/main/crates/gpui/src/bounds_tree.rs) - R-tree for z-order assignment
+- [R-tree (Wikipedia)](https://en.wikipedia.org/wiki/R-tree) - Spatial data structure background
