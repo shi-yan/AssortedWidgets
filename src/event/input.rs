@@ -29,6 +29,9 @@ pub enum InputEventEnum {
 
     /// Mouse wheel / trackpad event
     Wheel(WheelEvent),
+
+    /// IME (Input Method Editor) event
+    Ime(ImeEvent),
 }
 
 impl InputEventEnum {
@@ -41,6 +44,7 @@ impl InputEventEnum {
             InputEventEnum::KeyDown(e) => e,
             InputEventEnum::KeyUp(e) => e,
             InputEventEnum::Wheel(e) => e,
+            InputEventEnum::Ime(e) => e,
         }
     }
 
@@ -53,6 +57,7 @@ impl InputEventEnum {
             InputEventEnum::KeyDown(e) => e,
             InputEventEnum::KeyUp(e) => e,
             InputEventEnum::Wheel(e) => e,
+            InputEventEnum::Ime(e) => e,
         }
     }
 }
@@ -388,6 +393,123 @@ impl WheelEvent {
 }
 
 impl InputEvent for WheelEvent {
+    fn should_propagate(&self) -> bool {
+        self.propagate
+    }
+
+    fn stop_propagation(&mut self) {
+        self.propagate = false;
+    }
+
+    fn is_default_prevented(&self) -> bool {
+        self.default_prevented
+    }
+
+    fn prevent_default(&mut self) {
+        self.default_prevented = true;
+    }
+
+    fn timestamp(&self) -> Instant {
+        self.timestamp
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+// ============================================================================
+// IME Events (Input Method Editor)
+// ============================================================================
+
+/// IME (Input Method Editor) event
+///
+/// IME is used for complex text input such as Chinese, Japanese, Korean, etc.
+/// The input process has two phases:
+/// 1. Preedit (composition): Temporary text being composed (shown with underline)
+/// 2. Commit: Final text is committed to the text field
+///
+/// Example flow for typing "你好" (hello in Chinese):
+/// - Preedit: "ni" (user types 'n', 'i')
+/// - Preedit: "你" (user selects character from candidate list)
+/// - Commit: "你" (user confirms)
+/// - Preedit: "hao" (user types 'h', 'a', 'o')
+/// - Preedit: "好" (user selects character)
+/// - Commit: "好" (user confirms)
+#[derive(Debug, Clone)]
+pub struct ImeEvent {
+    /// IME event type
+    pub event_type: ImeEventType,
+
+    /// Event timestamp
+    pub timestamp: Instant,
+
+    // Event state
+    propagate: bool,
+    default_prevented: bool,
+}
+
+/// Type of IME event
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImeEventType {
+    /// Preedit (composition) text changed
+    ///
+    /// This is temporary text being composed. It should be displayed
+    /// differently from committed text (e.g., with underline or different color).
+    /// The preedit text can change multiple times before being committed.
+    ///
+    /// An empty string means the preedit was cleared.
+    Preedit(String),
+
+    /// Text was committed (finalized)
+    ///
+    /// This text should be inserted into the text field. After commit,
+    /// the preedit text should be cleared.
+    Commit(String),
+
+    /// IME composition was cancelled
+    ///
+    /// The preedit text should be cleared without committing.
+    Cancel,
+}
+
+impl ImeEvent {
+    /// Create a preedit event
+    pub fn preedit(text: String) -> Self {
+        Self {
+            event_type: ImeEventType::Preedit(text),
+            timestamp: Instant::now(),
+            propagate: true,
+            default_prevented: false,
+        }
+    }
+
+    /// Create a commit event
+    pub fn commit(text: String) -> Self {
+        Self {
+            event_type: ImeEventType::Commit(text),
+            timestamp: Instant::now(),
+            propagate: true,
+            default_prevented: false,
+        }
+    }
+
+    /// Create a cancel event
+    pub fn cancel() -> Self {
+        Self {
+            event_type: ImeEventType::Cancel,
+            timestamp: Instant::now(),
+            propagate: true,
+            default_prevented: false,
+        }
+    }
+}
+
+impl InputEvent for ImeEvent {
     fn should_propagate(&self) -> bool {
         self.propagate
     }

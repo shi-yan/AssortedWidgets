@@ -4,16 +4,20 @@ use crate::types::{Rect, WidgetId};
 use crate::platform::PlatformInput;
 
 // Sub-modules
+pub mod capture;
+pub mod focus;
 pub mod handlers;
 pub mod hit_test;
 pub mod input;
 
 // Re-exports
-pub use handlers::{KeyboardHandler, MouseHandler, WheelHandler};
+pub use capture::MouseCapture;
+pub use focus::FocusManager;
+pub use handlers::{ImeHandler, KeyboardHandler, MouseHandler, WheelHandler};
 pub use hit_test::{HitTester, HitTestEntry};
 pub use input::{
-    EventResponse, InputEvent, InputEventEnum, Key, KeyEvent, Modifiers, MouseButton, MouseEvent,
-    NamedKey, WheelEvent, WheelPhase,
+    EventResponse, ImeEvent, ImeEventType, InputEvent, InputEventEnum, Key, KeyEvent, Modifiers,
+    MouseButton, MouseEvent, NamedKey, WheelEvent, WheelPhase,
 };
 
 // ============================================================================

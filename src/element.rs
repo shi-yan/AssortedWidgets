@@ -158,6 +158,26 @@ pub trait Element {
         false // Default: does not receive input events
     }
 
+    /// Check if this element can receive keyboard focus
+    ///
+    /// Return `true` for elements that accept keyboard input (text fields,
+    /// buttons, etc.) to allow them to be included in focus navigation.
+    ///
+    /// Default: `false` (not focusable)
+    fn is_focusable(&self) -> bool {
+        false // Default: does not accept focus
+    }
+
+    /// Get IME cursor position for this element (if focused)
+    ///
+    /// Return a rectangle representing where the IME composition window should
+    /// be positioned. This is typically at the text insertion point.
+    ///
+    /// Default: `None` (no IME support)
+    fn ime_cursor_rect(&self) -> Option<Rect> {
+        None // Default: no IME support
+    }
+
     /// Dispatch mouse event to this element
     ///
     /// Default implementation returns Ignored. Elements that implement MouseHandler
@@ -181,6 +201,15 @@ pub trait Element {
     /// Default implementation returns Ignored. Elements that implement WheelHandler
     /// should override this to call their handler methods.
     fn dispatch_wheel_event(&mut self, event: &mut crate::event::WheelEvent) -> crate::event::EventResponse {
+        let _ = event;
+        crate::event::EventResponse::Ignored
+    }
+
+    /// Dispatch IME event to this element
+    ///
+    /// Default implementation returns Ignored. Elements that implement ImeHandler
+    /// should override this to call their handler methods.
+    fn dispatch_ime_event(&mut self, event: &mut crate::event::ImeEvent) -> crate::event::EventResponse {
         let _ = event;
         crate::event::EventResponse::Ignored
     }

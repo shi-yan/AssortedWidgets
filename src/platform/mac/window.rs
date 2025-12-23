@@ -551,6 +551,21 @@ impl PlatformWindow for MacWindow {
     fn set_callbacks(&mut self, callbacks: WindowCallbacks) {
         self.state.borrow_mut().callbacks = callbacks;
     }
+
+    fn set_ime_cursor_area(&mut self, x: f64, y: f64, width: f64, height: f64) {
+        // Store IME cursor area in window state
+        let mut state = self.state.borrow_mut();
+        // For now, just log the IME cursor area
+        // Full IME support requires NSTextInputClient implementation
+        println!("[IME] Cursor area set: ({}, {}) {}x{}", x, y, width, height);
+
+        // TODO: Implement NSTextInputClient protocol in CustomView
+        // This requires implementing methods like:
+        // - setMarkedText:selectedRange:replacementRange:
+        // - insertText:replacementRange:
+        // - firstRectForCharacterRange:actualRange:
+        // etc.
+    }
 }
 
 // ============================================================================
