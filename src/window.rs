@@ -1,12 +1,11 @@
 use crate::element_manager::ElementManager;
-use crate::event::{InputEventEnum, KeyboardHandler, MouseHandler, WheelHandler};
+use crate::event::InputEventEnum;
 use crate::layout::LayoutManager;
 use crate::paint::PaintContext;
 use crate::render::RenderContext;
 use crate::scene_graph::SceneGraph;
-use crate::types::{FrameInfo, Point, Size, WindowId};
+use crate::types::{FrameInfo, Point, Size, WidgetId, WindowId};
 use crate::window_render_state::WindowRenderState;
-use std::any::Any;
 use std::time::Instant;
 
 #[cfg(target_os = "macos")]
@@ -304,7 +303,7 @@ impl Window {
         // For now, just return the last one that contains the point
         // (This is a simplification - proper implementation would use z-order)
         candidates.iter()
-            .filter(|(_, bounds)| bounds.contains(position))
+            .filter(|&(_, bounds)| bounds.contains(position))
             .last()
             .map(|(id, _)| *id)
     }

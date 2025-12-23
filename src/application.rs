@@ -1,7 +1,7 @@
 use crate::event::GuiEvent;
 use crate::handle::GuiHandle;
 use crate::render::{RenderContext, WindowRenderer};
-use crate::types::{Size, WindowId};
+use crate::types::WindowId;
 use crate::window::Window;
 use crate::window_render_state::WindowRenderState;
 

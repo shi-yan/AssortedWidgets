@@ -12,6 +12,9 @@
 
 use crate::types::{rect, Point, Rect, Vector};
 
+// Re-export input types for convenience
+pub use crate::event::input::{Modifiers, MouseButton};
+
 #[cfg(target_os = "macos")]
 pub mod mac;
 
@@ -109,21 +112,6 @@ pub enum PlatformInput {
         key: String,
         modifiers: Modifiers,
     },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MouseButton {
-    Left,
-    Right,
-    Middle,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Modifiers {
-    pub shift: bool,
-    pub control: bool,
-    pub alt: bool,
-    pub command: bool,
 }
 
 /// Window options for creation

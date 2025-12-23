@@ -148,6 +148,16 @@ pub trait Element {
     // Event Dispatch Methods (Phase 1)
     // ========================================
 
+    /// Check if this element can receive input events (mouse, keyboard, etc.)
+    ///
+    /// Return `true` for elements that implement event handlers (MouseHandler,
+    /// KeyboardHandler, etc.) to allow them to be considered during hit testing.
+    ///
+    /// Default: `false` (non-interactive element)
+    fn is_interactive(&self) -> bool {
+        false // Default: does not receive input events
+    }
+
     /// Dispatch mouse event to this element
     ///
     /// Default implementation returns Ignored. Elements that implement MouseHandler
