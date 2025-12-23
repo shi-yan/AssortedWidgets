@@ -1,5 +1,5 @@
 use crate::element_manager::ElementManager;
-use crate::event::{HitTester, InputEventEnum};
+use crate::event::{FocusManager, HitTester, InputEventEnum, MouseCapture};
 use crate::layout::LayoutManager;
 use crate::paint::PaintContext;
 use crate::render::RenderContext;
@@ -68,6 +68,12 @@ pub struct Window {
     /// Hit tester for spatial event routing
     /// Updated after each paint pass to match rendering z-order
     hit_tester: HitTester,
+
+    /// Focus manager for keyboard input and Tab navigation
+    focus_manager: FocusManager,
+
+    /// Mouse capture for drag operations
+    mouse_capture: MouseCapture,
 }
 
 impl Window {
@@ -91,6 +97,8 @@ impl Window {
             last_frame_time: None,
             frame_number: 0,
             hit_tester: HitTester::new(),
+            focus_manager: FocusManager::new(),
+            mouse_capture: MouseCapture::new(),
         }
     }
 
@@ -219,53 +227,124 @@ impl Window {
 
     /// Dispatch an input event to elements
     ///
-    /// Phase 2 implementation with proper hit testing:
-    /// - Mouse events: Hit test using z-order from paint pass
-    /// - Keyboard events: Dispatch to focused element (TODO: focus management)
+    /// Phase 2.2 implementation with focus management and mouse capture:
+    /// - Mouse events: Use capture if active, otherwise hit test with z-order
+    /// - Keyboard events: Dispatch to focused element, handle Tab/Shift+Tab
     /// - Wheel events: Hit test using z-order from paint pass
+    /// - IME events: Dispatch to focused element
     pub fn dispatch_input_event(&mut self, mut event: InputEventEnum) {
+        use crate::event::{EventResponse, Key, NamedKey};
+
         match &event {
-            InputEventEnum::MouseDown(mouse_event) |
-            InputEventEnum::MouseUp(mouse_event) |
-            InputEventEnum::MouseMove(mouse_event) => {
-                // Hit test using z-order: find topmost element at this position
+            InputEventEnum::MouseDown(mouse_event) => {
                 let position = mouse_event.position;
-                let target = self.hit_tester.hit_test(position);
+
+                // Check if mouse is captured
+                let target = if let Some(captured_id) = self.mouse_capture.captured_id() {
+                    Some(captured_id)
+                } else {
+                    // Hit test using z-order: find topmost element at this position
+                    self.hit_tester.hit_test(position)
+                };
 
                 if let Some(widget_id) = target {
+                    // Give focus to clicked element if it's focusable
+                    if let Some(element) = self.element_manager.get(widget_id) {
+                        if element.is_focusable() {
+                            self.focus_manager.set_focus(Some(widget_id));
+                        }
+                    }
+
                     // Dispatch to element via dispatch_mouse_event method
                     if let Some(element) = self.element_manager.get_mut(widget_id) {
                         let response = element.dispatch_mouse_event(&mut event);
 
-                        use crate::event::EventResponse;
                         match response {
                             EventResponse::Handled => {
-                                println!("[Window {:?}] Element {:?} handled mouse event", self.id, widget_id);
+                                println!("[Window {:?}] Element {:?} handled mouse down", self.id, widget_id);
                             }
                             EventResponse::PassThrough => {
-                                println!("[Window {:?}] Element {:?} passed through mouse event", self.id, widget_id);
-                                // TODO Phase 2: Bubble to parent
+                                // TODO Phase 3: Bubble to parent
                             }
-                            EventResponse::Ignored => {
-                                // Element didn't handle it
-                            }
+                            EventResponse::Ignored => {}
                         }
                     }
                 }
             }
 
-            InputEventEnum::KeyDown(_) | InputEventEnum::KeyUp(_) => {
-                // TODO Phase 2: Dispatch to focused element
-                // For now, dispatch to all elements (temporary - will be replaced with focus system)
-                let widget_ids: Vec<_> = self.element_manager.widget_ids().collect();
-                for widget_id in widget_ids {
+            InputEventEnum::MouseUp(mouse_event) => {
+                let position = mouse_event.position;
+
+                // Check if mouse is captured
+                let target = if let Some(captured_id) = self.mouse_capture.captured_id() {
+                    Some(captured_id)
+                } else {
+                    self.hit_tester.hit_test(position)
+                };
+
+                if let Some(widget_id) = target {
                     if let Some(element) = self.element_manager.get_mut(widget_id) {
+                        let response = element.dispatch_mouse_event(&mut event);
+
+                        match response {
+                            EventResponse::Handled => {
+                                println!("[Window {:?}] Element {:?} handled mouse up", self.id, widget_id);
+                            }
+                            EventResponse::PassThrough => {}
+                            EventResponse::Ignored => {}
+                        }
+                    }
+                }
+            }
+
+            InputEventEnum::MouseMove(mouse_event) => {
+                let position = mouse_event.position;
+
+                // Check if mouse is captured
+                let target = if let Some(captured_id) = self.mouse_capture.captured_id() {
+                    Some(captured_id)
+                } else {
+                    self.hit_tester.hit_test(position)
+                };
+
+                if let Some(widget_id) = target {
+                    if let Some(element) = self.element_manager.get_mut(widget_id) {
+                        element.dispatch_mouse_event(&mut event);
+                    }
+                }
+            }
+
+            InputEventEnum::KeyDown(key_event) => {
+                // Handle Tab navigation
+                if key_event.key == Key::Named(NamedKey::Tab) {
+                    if key_event.modifiers.shift {
+                        self.focus_manager.focus_previous();
+                    } else {
+                        self.focus_manager.focus_next();
+                    }
+                    return;
+                }
+
+                // Dispatch to focused element
+                if let Some(focused_id) = self.focus_manager.focused_id() {
+                    if let Some(element) = self.element_manager.get_mut(focused_id) {
                         let response = element.dispatch_key_event(&mut event);
 
-                        use crate::event::EventResponse;
                         if response == EventResponse::Handled {
-                            println!("[Window {:?}] Element {:?} handled key event", self.id, widget_id);
-                            break;  // Stop after first handler
+                            println!("[Window {:?}] Element {:?} handled key down", self.id, focused_id);
+                        }
+                    }
+                }
+            }
+
+            InputEventEnum::KeyUp(key_event) => {
+                // Dispatch to focused element
+                if let Some(focused_id) = self.focus_manager.focused_id() {
+                    if let Some(element) = self.element_manager.get_mut(focused_id) {
+                        let response = element.dispatch_key_event(&mut event);
+
+                        if response == EventResponse::Handled {
+                            println!("[Window {:?}] Element {:?} handled key up", self.id, focused_id);
                         }
                     }
                 }
@@ -273,20 +352,79 @@ impl Window {
 
             InputEventEnum::Wheel(wheel_event) => {
                 // Use same hit test as mouse events
-                let position = Point::new(0.0, 0.0);  // TODO: track mouse position
-                let target = self.simple_hit_test(position);
+                let position = Point::new(0.0, 0.0); // TODO: track mouse position
+                let target = self.hit_tester.hit_test(position);
 
                 if let Some(widget_id) = target {
                     if let Some(element) = self.element_manager.get_mut(widget_id) {
                         let response = element.dispatch_wheel_event(&mut wheel_event.clone());
 
-                        use crate::event::EventResponse;
                         if response == EventResponse::Handled {
                             println!("[Window {:?}] Element {:?} handled wheel event", self.id, widget_id);
                         }
                     }
                 }
             }
+
+            InputEventEnum::Ime(ime_event) => {
+                // Dispatch to focused element
+                if let Some(focused_id) = self.focus_manager.focused_id() {
+                    if let Some(element) = self.element_manager.get_mut(focused_id) {
+                        let response = element.dispatch_ime_event(&mut ime_event.clone());
+
+                        if response == EventResponse::Handled {
+                            println!("[Window {:?}] Element {:?} handled IME event", self.id, focused_id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Get access to the focus manager
+    pub fn focus_manager(&self) -> &FocusManager {
+        &self.focus_manager
+    }
+
+    /// Get mutable access to the focus manager
+    pub fn focus_manager_mut(&mut self) -> &mut FocusManager {
+        &mut self.focus_manager
+    }
+
+    /// Get access to the mouse capture
+    pub fn mouse_capture(&self) -> &MouseCapture {
+        &self.mouse_capture
+    }
+
+    /// Get mutable access to the mouse capture
+    pub fn mouse_capture_mut(&mut self) -> &mut MouseCapture {
+        &mut self.mouse_capture
+    }
+
+    /// Update IME cursor position based on focused widget
+    ///
+    /// This should be called each frame to keep the IME window positioned correctly.
+    #[cfg(target_os = "macos")]
+    pub fn update_ime_position(&mut self) {
+        if let Some(cursor_rect) = self.focus_manager.get_ime_cursor_rect(&self.element_manager) {
+            // Convert to screen coordinates
+            // For now, assume window coordinates = screen coordinates (no offset)
+            // TODO: Add window position offset when we support window positioning
+
+            let scale_factor = self.platform_window.scale_factor();
+
+            // Convert logical coordinates to physical (screen) coordinates
+            let screen_x = cursor_rect.origin.x * scale_factor;
+            let screen_y = cursor_rect.origin.y * scale_factor;
+            let screen_width = cursor_rect.size.width * scale_factor;
+            let screen_height = cursor_rect.size.height * scale_factor;
+
+            self.platform_window.set_ime_cursor_area(
+                screen_x,
+                screen_y,
+                screen_width,
+                screen_height,
+            );
         }
     }
 
@@ -446,6 +584,13 @@ impl Window {
         // Update window's hit tester with the one from this paint pass
         // This ensures hit testing uses the same z-order as rendering
         self.hit_tester = hit_tester;
+
+        // Rebuild focus manager to sync with current element tree
+        // This ensures focusable widgets are up-to-date for Tab navigation
+        self.focus_manager.rebuild(&self.element_manager);
+
+        // Update IME cursor position for the focused widget
+        self.update_ime_position();
 
         // 3. Render batched primitives
         let mut encoder = render_context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

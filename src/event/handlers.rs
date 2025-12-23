@@ -1,4 +1,4 @@
-use super::{EventResponse, KeyEvent, MouseEvent, WheelEvent};
+use super::{EventResponse, ImeEvent, KeyEvent, MouseEvent, WheelEvent};
 
 // ============================================================================
 // Event Handler Traits
@@ -65,6 +65,48 @@ pub trait KeyboardHandler {
 pub trait WheelHandler {
     /// Handle mouse wheel / trackpad event
     fn on_wheel(&mut self, event: &mut WheelEvent) -> EventResponse {
+        let _ = event;
+        EventResponse::Ignored
+    }
+}
+
+/// Optional trait for widgets that handle IME (Input Method Editor) input
+///
+/// Widgets implement this trait to respond to IME events for complex text input
+/// such as Chinese, Japanese, Korean, etc.
+///
+/// # IME Event Flow
+/// 1. User starts typing with IME
+/// 2. on_ime() is called with Preedit events (composition text)
+/// 3. Widget displays preedit text with visual distinction (e.g., underline)
+/// 4. on_ime() is called with Commit event (final text)
+/// 5. Widget inserts committed text and clears preedit
+///
+/// # Example
+/// ```ignore
+/// impl ImeHandler for TextInput {
+///     fn on_ime(&mut self, event: &mut ImeEvent) -> EventResponse {
+///         match &event.event_type {
+///             ImeEventType::Preedit(text) => {
+///                 self.preedit_text = text.clone();
+///                 EventResponse::Handled
+///             }
+///             ImeEventType::Commit(text) => {
+///                 self.insert_text(text);
+///                 self.preedit_text.clear();
+///                 EventResponse::Handled
+///             }
+///             ImeEventType::Cancel => {
+///                 self.preedit_text.clear();
+///                 EventResponse::Handled
+///             }
+///         }
+///     }
+/// }
+/// ```
+pub trait ImeHandler {
+    /// Handle IME event
+    fn on_ime(&mut self, event: &mut ImeEvent) -> EventResponse {
         let _ = event;
         EventResponse::Ignored
     }

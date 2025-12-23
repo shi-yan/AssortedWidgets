@@ -182,6 +182,15 @@ pub trait PlatformWindow {
 
     /// Set callbacks for window events
     fn set_callbacks(&mut self, callbacks: WindowCallbacks);
+
+    /// Set the IME cursor area (for positioning the IME composition window)
+    ///
+    /// # Arguments
+    /// * `x` - X coordinate in screen pixels
+    /// * `y` - Y coordinate in screen pixels
+    /// * `width` - Width of the cursor area in screen pixels
+    /// * `height` - Height of the cursor area in screen pixels
+    fn set_ime_cursor_area(&mut self, x: f64, y: f64, width: f64, height: f64);
 }
 
 /// Platform event loop trait

@@ -1,18 +1,28 @@
 use assorted_widgets::{Application, Element, WindowOptions};
-use assorted_widgets::elements::ClickableRect;
+use assorted_widgets::elements::{ClickableRect, SimpleInputBox};
 use assorted_widgets::scene_graph::SceneNode;
 use assorted_widgets::types::{Point, Rect, Size, WidgetId};
 use assorted_widgets::paint::Color;
 
 fn main() {
-    println!("AssortedWidgets - Phase 2: Event Handling & Hit Testing Demo");
-    println!("=============================================================");
+    println!("AssortedWidgets - Phase 2.2: Focus & IME Demo");
+    println!("==============================================");
     println!();
     println!("This demo tests:");
-    println!("  ✓ Z-order based hit testing");
-    println!("  ✓ Event dispatch to interactive elements");
-    println!("  ✓ Mouse event logging");
-    println!("  ✓ Overlapping elements (later elements on top)");
+    println!("  ✓ Focus management (click input box to focus)");
+    println!("  ✓ Tab navigation between focusable elements");
+    println!("  ✓ Keyboard input to focused element");
+    println!("  ✓ IME cursor positioning");
+    println!("  ✓ Mouse capture (for future drag operations)");
+    println!();
+    println!("Instructions:");
+    println!("  1. Click the input box to focus it");
+    println!("  2. Type characters to see them appear");
+    println!("  3. Press Backspace to delete");
+    println!("  4. Use Tab to cycle focus (when multiple focusable elements)");
+    println!();
+    println!("Note: Full IME support (Chinese/Japanese/Korean) requires");
+    println!("      NSTextInputClient implementation (future enhancement)");
     println!();
 
     #[cfg(target_os = "macos")]
@@ -39,73 +49,52 @@ fn main() {
         println!();
 
         // ================================================================
-        // Create overlapping clickable rectangles to test z-order
+        // Create test widgets for focus and IME
         // ================================================================
 
-        // Rectangle 1: Large red background (bottom layer, z-order = 0)
-        let rect1 = ClickableRect::new(
-            WidgetId::new(1),
-            Rect::new(Point::new(50.0, 50.0), Size::new(300.0, 300.0)),
-            Color::rgb(0.8, 0.2, 0.2), // Red
-            "Red Background"
-        );
-        let rect1_id = rect1.id();
+        // Input box 1: Primary input
+        let input1 = SimpleInputBox::new(WidgetId::new(1));
+        let input1_id = input1.id();
 
-        // Rectangle 2: Medium blue (middle layer, z-order = 1, overlaps rect1)
-        let rect2 = ClickableRect::new(
-            WidgetId::new(2),
-            Rect::new(Point::new(150.0, 150.0), Size::new(300.0, 300.0)),
-            Color::rgb(0.2, 0.2, 0.8), // Blue
-            "Blue Middle"
-        );
-        let rect2_id = rect2.id();
-
-        // Rectangle 3: Small green (top layer, z-order = 2, overlaps both)
-        let rect3 = ClickableRect::new(
-            WidgetId::new(3),
-            Rect::new(Point::new(250.0, 250.0), Size::new(200.0, 200.0)),
-            Color::rgb(0.2, 0.8, 0.2), // Green
-            "Green Top"
-        );
-        let rect3_id = rect3.id();
-
-        // Rectangle 4: Non-overlapping yellow (z-order = 3, but separate)
-        let rect4 = ClickableRect::new(
-            WidgetId::new(4),
-            Rect::new(Point::new(500.0, 100.0), Size::new(200.0, 200.0)),
-            Color::rgb(0.9, 0.9, 0.2), // Yellow
-            "Yellow Separate"
-        );
-        let rect4_id = rect4.id();
+        // Input box 2: Secondary input (for Tab testing)
+        let input2 = SimpleInputBox::new(WidgetId::new(2));
+        let input2_id = input2.id();
 
         // Get mutable reference to the window to set up UI
         let window = app.window_mut(window_id).expect("Window not found");
 
-        // Add all rectangles to element manager (in order - this determines z-order)
-        window.element_manager_mut().add_element(Box::new(rect1));
-        window.element_manager_mut().add_element(Box::new(rect2));
-        window.element_manager_mut().add_element(Box::new(rect3));
-        window.element_manager_mut().add_element(Box::new(rect4));
+        // Add input boxes to element manager
+        window.element_manager_mut().add_element(Box::new(input1));
+        window.element_manager_mut().add_element(Box::new(input2));
 
-        // Create layout nodes for all elements
-        window.layout_manager_mut().create_node(rect1_id, taffy::Style::default())
+        // Create layout nodes with vertical stacking
+        let layout_style = taffy::Style {
+            display: taffy::Display::Flex,
+            flex_direction: taffy::FlexDirection::Column,
+            gap: taffy::Size {
+                width: taffy::LengthPercentage::Length(20.0),
+                height: taffy::LengthPercentage::Length(20.0),
+            },
+            padding: taffy::Rect {
+                left: taffy::LengthPercentage::Length(50.0),
+                right: taffy::LengthPercentage::Length(50.0),
+                top: taffy::LengthPercentage::Length(50.0),
+                bottom: taffy::LengthPercentage::Length(50.0),
+            },
+            ..Default::default()
+        };
+
+        window.layout_manager_mut().create_node(input1_id, layout_style.clone())
             .expect("Failed to create layout node");
-        window.layout_manager_mut().create_node(rect2_id, taffy::Style::default())
-            .expect("Failed to create layout node");
-        window.layout_manager_mut().create_node(rect3_id, taffy::Style::default())
-            .expect("Failed to create layout node");
-        window.layout_manager_mut().create_node(rect4_id, taffy::Style::default())
+        window.layout_manager_mut().create_node(input2_id, layout_style.clone())
             .expect("Failed to create layout node");
 
-        // Create scene graph: rect1 as root, others as children
-        // This creates a flat hierarchy for this demo
-        let mut root = SceneNode::new(rect1_id);
-        root.add_child(SceneNode::new(rect2_id));
-        root.add_child(SceneNode::new(rect3_id));
-        root.add_child(SceneNode::new(rect4_id));
+        // Create scene graph with input boxes
+        let mut root = SceneNode::new(input1_id);
+        root.add_child(SceneNode::new(input2_id));
 
         window.scene_graph_mut().set_root(root);
-        window.layout_manager_mut().set_root(rect1_id)
+        window.layout_manager_mut().set_root(input1_id)
             .expect("Failed to set layout root");
 
         println!("✅ Demo setup complete!");
@@ -114,22 +103,16 @@ fn main() {
         println!("  TEST INSTRUCTIONS");
         println!("═══════════════════════════════════════════════════════");
         println!();
-        println!("1. Red Background (50, 50) - 300x300 - Bottom Layer");
-        println!("2. Blue Middle (150, 150) - 300x300 - Middle Layer (overlaps red)");
-        println!("3. Green Top (250, 250) - 200x200 - Top Layer (overlaps both)");
-        println!("4. Yellow Separate (500, 100) - 200x200 - Separate (no overlap)");
+        println!("✓ Two input boxes are displayed vertically");
+        println!("✓ Click an input box to focus it (watch terminal log)");
+        println!("✓ Type characters to see them appear in white");
+        println!("✓ Press Backspace to delete characters");
+        println!("✓ Press Tab to switch focus between input boxes");
         println!();
-        println!("Expected behavior:");
-        println!("  • Click in overlap area (250-350, 250-350):");
-        println!("    → Should hit GREEN (highest z-order)");
-        println!("  • Click in blue-only area (150-250, 150-450):");
-        println!("    → Should hit BLUE");
-        println!("  • Click in red-only area (50-150, 50-350):");
-        println!("    → Should hit RED");
-        println!("  • Click on yellow:");
-        println!("    → Should hit YELLOW");
-        println!();
-        println!("Watch the terminal for mouse event logs!");
+        println!("Future enhancements:");
+        println!("  - Full IME support requires NSTextInputClient");
+        println!("  - Preedit text shown in yellow with underline");
+        println!("  - Committed text shown in white");
         println!("═══════════════════════════════════════════════════════");
         println!();
 

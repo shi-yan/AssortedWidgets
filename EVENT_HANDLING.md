@@ -1056,39 +1056,67 @@ Current CPU sorting works correctly but:
 
 ---
 
-### Phase 2.2: Focus Manager & Mouse Capture
+### Phase 2.2: Focus Manager & Mouse Capture - ✅ COMPLETE
 
 **Goal**: Keyboard focus and drag operation support.
 
 #### Tasks:
 
-1. **Focus Manager** (`src/event/focus.rs`)
-   - Implement `FocusManager`
-   - Track `focused_id: Option<WidgetId>`
-   - Implement Tab/Shift+Tab cycling
-   - Rebuild focusable list from element tree
+1. **Focus Manager** (`src/event/focus.rs`) - ✅ COMPLETE
+   - ✅ Implement `FocusManager`
+   - ✅ Track `focused_id: Option<WidgetId>`
+   - ✅ Implement Tab/Shift+Tab cycling
+   - ✅ Rebuild focusable list from element tree
 
-2. **Mouse Capture** (`src/event/capture.rs`) - **HIGH PRIORITY**
-   - Implement mouse capture for drag operations
-   - Events continue to captured widget even outside window
-   - Release on mouse up
-   - Critical for detachable tabs/panels
+2. **Mouse Capture** (`src/event/capture.rs`) - ✅ COMPLETE
+   - ✅ Implement mouse capture for drag operations
+   - ✅ Events continue to captured widget even outside window
+   - ✅ Release on mouse up
+   - ✅ Critical for detachable tabs/panels
 
-3. **Integration** (`src/window.rs`)
-   - Add `focus_manager` to `Window`
-   - Route keyboard events via focus
-   - Handle mouse capture in event dispatch
+3. **Integration** (`src/window.rs`) - ✅ COMPLETE
+   - ✅ Add `focus_manager` to `Window`
+   - ✅ Route keyboard events via focus
+   - ✅ Handle mouse capture in event dispatch
+   - ✅ Rebuild focus manager each frame
+   - ✅ Update IME position each frame
 
-4. **IME Support** (`src/element.rs` + `src/window.rs`)
-   - Add `ime_cursor_rect()` to Element trait
-   - Query focused widget for IME rect
-   - Update platform window IME position each frame
+4. **IME Support** (`src/element.rs` + `src/window.rs` + `src/event/input.rs`) - ✅ COMPLETE
+   - ✅ Add `is_focusable()` to Element trait
+   - ✅ Add `ime_cursor_rect()` to Element trait
+   - ✅ Add `dispatch_ime_event()` to Element trait
+   - ✅ Create `ImeEvent` type with Preedit/Commit/Cancel
+   - ✅ Add `ImeHandler` trait
+   - ✅ Query focused widget for IME rect
+   - ✅ Update platform window IME position each frame
+   - ✅ Add `set_ime_cursor_area()` to PlatformWindow trait
 
-**Deliverables**:
-- Tab cycles through focusable widgets
-- Typing goes to focused widget
-- Mouse capture works for dragging
-- IME window appears at cursor (for text input)
+5. **Test Widget** (`src/elements/simple_input_box.rs`) - ✅ COMPLETE
+   - ✅ Create SimpleInputBox widget
+   - ✅ Implement focus on click
+   - ✅ Handle keyboard input (characters, backspace)
+   - ✅ Display committed text in white
+   - ✅ Display preedit text in yellow with underline
+   - ✅ IME cursor positioning support
+
+**Completed Deliverables**:
+- ✅ Tab cycles through focusable widgets
+- ✅ Typing goes to focused widget
+- ✅ Mouse capture infrastructure for dragging
+- ✅ IME cursor area updates each frame
+- ✅ Test widget demonstrates focus and input
+
+**Test**:
+- ✅ Run `cargo run` to see SimpleInputBox demo
+- ✅ Click input box to focus
+- ✅ Type characters to see them appear
+- ✅ Press Tab to cycle focus between input boxes
+- ✅ IME cursor position logged to terminal
+
+**Notes**:
+- Full IME composition (Chinese/Japanese/Korean) requires NSTextInputClient protocol implementation on macOS
+- Current implementation provides infrastructure and test widget
+- Platform callbacks for setMarkedText/insertText are future enhancement
 
 ---
 
@@ -1210,12 +1238,7 @@ Current CPU sorting works correctly but:
 
 #### Tasks:
 
-1. **Mouse Capture** (`src/event/capture.rs`)
-   - Implement mouse capture for drag operations
-   - Events continue to captured widget even outside window
-   - Release on mouse up
-
-2. **Gesture Recognition** (`src/event/gestures.rs`)
+1. **Gesture Recognition** (`src/event/gestures.rs`)
    - Detect double-click, long-press, drag
    - Multi-touch gestures (pinch, rotate)
    - Configure gesture parameters
@@ -1231,16 +1254,16 @@ Current CPU sorting works correctly but:
    - Focus visualizer (highlight focused widget)
 
 **Deliverables**:
-- Scrollbar dragging works outside window bounds
 - Double-click detected reliably
 - Full keyboard navigation support
 - Debug overlay shows event flow
 
 **Test**:
-- Scrollbar: Click, drag outside window, release
 - Double-click detection within 300ms
 - Tab navigation reaches all focusable widgets
 - Event inspector shows all mouse moves
+
+**Note**: Mouse capture was moved to Phase 2.2 as high priority
 
 ---
 
@@ -1282,24 +1305,22 @@ Add `TouchEvent` with support for:
 - Touch ID tracking (for gestures)
 - Force touch (3D Touch)
 
-### Haptic Feedback
+**Note**: The following are stretch goals with no short-term implementation plan:
 
-Add `HapticFeedback` API:
+### ~~Haptic Feedback~~ (Stretch Goal)
+
 - Trigger vibration on touch/stylus events
 - Configure intensity/duration
 - Platform-specific implementations
 
-### Network Input
+### ~~Network Input~~ (Stretch Goal)
 
-Support remote control:
 - WebSocket-based input streaming
 - Network latency compensation
 - Security considerations
 
-### Voice Input
+### ~~Speech Recognition~~ (Stretch Goal)
 
-Add `VoiceEvent`:
-- Speech recognition integration
 - Voice commands mapped to actions
 - Accessibility feature
 
