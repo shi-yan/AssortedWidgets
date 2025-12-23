@@ -516,6 +516,40 @@ impl Application {
                             std::process::exit(0);
                         }
                     }
+                    Some((window_id, GuiEvent::StartCrossWindowDrag {
+                        widget_id,
+                        color,
+                        label,
+                        size,
+                        drag_offset,
+                        screen_position,
+                    })) => {
+                        println!("[App] Starting cross-window drag for widget {:?} from window {:?}",
+                                 widget_id, window_id);
+
+                        let drag_data = crate::application::DragData {
+                            widget_id,
+                            color,
+                            label,
+                            size,
+                            drag_offset,
+                        };
+
+                        if let Err(e) = self.start_drag(window_id, drag_data, screen_position) {
+                            eprintln!("[App] Failed to start drag: {}", e);
+                        }
+                    }
+                    Some((_window_id, GuiEvent::UpdateCrossWindowDrag { screen_position })) => {
+                        self.update_drag(screen_position);
+                    }
+                    Some((_window_id, GuiEvent::EndCrossWindowDrag { screen_position })) => {
+                        if let Some(target_window) = self.end_drag(screen_position) {
+                            println!("[App] Drag completed - dropped on window {:?}", target_window);
+                            // TODO: Transfer widget to target window
+                        } else {
+                            println!("[App] Drag cancelled - no valid drop target");
+                        }
+                    }
                     None => break, // No more events to process
                 }
             }

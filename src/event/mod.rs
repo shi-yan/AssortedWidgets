@@ -1,4 +1,4 @@
-use crate::types::{Rect, WidgetId};
+use crate::types::{Point, Rect, WidgetId};
 
 #[cfg(target_os = "macos")]
 use crate::platform::PlatformInput;
@@ -47,6 +47,30 @@ pub enum GuiEvent {
 
     /// Window close requested
     Close,
+
+    // ========================================
+    // Cross-Window Drag-Drop Events
+    // ========================================
+    /// Request to start a cross-window drag operation
+    /// Window sends this when a widget wants to be dragged across windows
+    StartCrossWindowDrag {
+        widget_id: WidgetId,
+        color: crate::paint::Color,
+        label: String,
+        size: crate::types::Size,
+        drag_offset: Point,
+        screen_position: Point,
+    },
+
+    /// Update drag position during cross-window drag
+    UpdateCrossWindowDrag {
+        screen_position: Point,
+    },
+
+    /// End cross-window drag operation
+    EndCrossWindowDrag {
+        screen_position: Point,
+    },
 }
 
 // ============================================================================
