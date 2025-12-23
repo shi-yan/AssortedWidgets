@@ -71,34 +71,51 @@ define_class!(
         // Mouse events
         #[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &NSEvent) {
+            // Legacy callback
             if let Some(input) = self.convert_mouse_event(event, MouseButton::Left, true) {
                 self.invoke_input_callback(input);
             }
+            // New event system
+            let mouse_event = self.convert_to_mouse_event(event, MouseButton::Left);
+            self.invoke_input_event_callback(InputEventEnum::MouseDown(mouse_event));
         }
 
         #[unsafe(method(mouseUp:))]
         fn mouse_up(&self, event: &NSEvent) {
+            // Legacy callback
             if let Some(input) = self.convert_mouse_event(event, MouseButton::Left, false) {
                 self.invoke_input_callback(input);
             }
+            // New event system
+            let mouse_event = self.convert_to_mouse_event(event, MouseButton::Left);
+            self.invoke_input_event_callback(InputEventEnum::MouseUp(mouse_event));
         }
 
         #[unsafe(method(rightMouseDown:))]
         fn right_mouse_down(&self, event: &NSEvent) {
+            // Legacy callback
             if let Some(input) = self.convert_mouse_event(event, MouseButton::Right, true) {
                 self.invoke_input_callback(input);
             }
+            // New event system
+            let mouse_event = self.convert_to_mouse_event(event, MouseButton::Right);
+            self.invoke_input_event_callback(InputEventEnum::MouseDown(mouse_event));
         }
 
         #[unsafe(method(rightMouseUp:))]
         fn right_mouse_up(&self, event: &NSEvent) {
+            // Legacy callback
             if let Some(input) = self.convert_mouse_event(event, MouseButton::Right, false) {
                 self.invoke_input_callback(input);
             }
+            // New event system
+            let mouse_event = self.convert_to_mouse_event(event, MouseButton::Right);
+            self.invoke_input_event_callback(InputEventEnum::MouseUp(mouse_event));
         }
 
         #[unsafe(method(mouseMoved:))]
         fn mouse_moved(&self, event: &NSEvent) {
+            // Legacy callback
             let position = self.get_mouse_position(event);
             let modifiers = Self::get_modifiers(event);
             let input = PlatformInput::MouseMove {
@@ -106,10 +123,15 @@ define_class!(
                 modifiers,
             };
             self.invoke_input_callback(input);
+
+            // New event system (use Left button for move events, though button isn't meaningful)
+            let mouse_event = self.convert_to_mouse_event(event, MouseButton::Left);
+            self.invoke_input_event_callback(InputEventEnum::MouseMove(mouse_event));
         }
 
         #[unsafe(method(mouseDragged:))]
         fn mouse_dragged(&self, event: &NSEvent) {
+            // Legacy callback
             let position = self.get_mouse_position(event);
             let modifiers = Self::get_modifiers(event);
             let input = PlatformInput::MouseMove {
@@ -117,33 +139,51 @@ define_class!(
                 modifiers,
             };
             self.invoke_input_callback(input);
+
+            // New event system (use Left button for dragged events)
+            let mouse_event = self.convert_to_mouse_event(event, MouseButton::Left);
+            self.invoke_input_event_callback(InputEventEnum::MouseMove(mouse_event));
         }
 
         #[unsafe(method(scrollWheel:))]
         fn scroll_wheel(&self, event: &NSEvent) {
+            // Legacy callback
             let delta_x = event.scrollingDeltaX();
             let delta_y = event.scrollingDeltaY();
             let modifiers = Self::get_modifiers(event);
-
             let input = PlatformInput::MouseWheel {
                 delta: vector(delta_x, delta_y),
                 modifiers,
             };
             self.invoke_input_callback(input);
+
+            // New event system
+            let wheel_event = self.convert_to_wheel_event(event);
+            self.invoke_input_event_callback(InputEventEnum::Wheel(wheel_event));
         }
 
         // Keyboard events
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
+            // Legacy callback
             if let Some(input) = Self::convert_key_event(event, true) {
                 self.invoke_input_callback(input);
+            }
+            // New event system
+            if let Some(key_event) = Self::convert_to_key_event(event) {
+                self.invoke_input_event_callback(InputEventEnum::KeyDown(key_event));
             }
         }
 
         #[unsafe(method(keyUp:))]
         fn key_up(&self, event: &NSEvent) {
+            // Legacy callback
             if let Some(input) = Self::convert_key_event(event, false) {
                 self.invoke_input_callback(input);
+            }
+            // New event system
+            if let Some(key_event) = Self::convert_to_key_event(event) {
+                self.invoke_input_event_callback(InputEventEnum::KeyUp(key_event));
             }
         }
 
@@ -224,6 +264,13 @@ impl CustomView {
         let mut state = self.ivars().state.borrow_mut();
         if let Some(callback) = state.callbacks.input.as_mut() {
             callback(input);
+        }
+    }
+
+    fn invoke_input_event_callback(&self, event: InputEventEnum) {
+        let mut state = self.ivars().state.borrow_mut();
+        if let Some(callback) = state.callbacks.input_event.as_mut() {
+            callback(event);
         }
     }
 

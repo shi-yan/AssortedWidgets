@@ -136,6 +136,7 @@ impl Application {
 
         // Clone event queue Arc for callbacks to use
         let event_queue_input = self.event_queue.clone();
+        let event_queue_input_event = self.event_queue.clone();
         let event_queue_frame = self.event_queue.clone();
         let event_queue_resize = self.event_queue.clone();
         let event_queue_close = self.event_queue.clone();
@@ -144,6 +145,9 @@ impl Application {
         let callbacks = WindowCallbacks {
             input: Some(Box::new(move |input| {
                 event_queue_input.lock().unwrap().push_back((window_id, GuiEvent::Input(input)));
+            })),
+            input_event: Some(Box::new(move |input_event| {
+                event_queue_input_event.lock().unwrap().push_back((window_id, GuiEvent::InputEvent(input_event)));
             })),
             request_frame: Some(Box::new(move || {
                 event_queue_frame.lock().unwrap().push_back((window_id, GuiEvent::RedrawRequested));
@@ -262,7 +266,7 @@ impl Application {
                         }
                     }
                     Some((window_id, GuiEvent::Input(input))) => {
-                        // Handle input events
+                        // Handle input events (LEGACY)
                         match input {
                             PlatformInput::MouseDown { position, button, .. } => {
                                 println!("Window {:?}: Mouse {:?} clicked at ({:.1}, {:.1})",
@@ -274,6 +278,37 @@ impl Application {
                             _ => {}
                         }
                         // TODO: Convert to OsEvent and dispatch to ElementManager
+                    }
+                    Some((window_id, GuiEvent::InputEvent(input_event))) => {
+                        // Handle new event system
+                        use crate::event::InputEventEnum;
+                        match input_event {
+                            InputEventEnum::MouseDown(evt) => {
+                                println!("[NEW] Window {:?}: Mouse {:?} down at ({:.1}, {:.1}), click_count={}",
+                                         window_id, evt.button, evt.position.x, evt.position.y, evt.click_count);
+                            }
+                            InputEventEnum::MouseUp(evt) => {
+                                println!("[NEW] Window {:?}: Mouse {:?} up at ({:.1}, {:.1})",
+                                         window_id, evt.button, evt.position.x, evt.position.y);
+                            }
+                            InputEventEnum::MouseMove(evt) => {
+                                // Too noisy to log every move
+                                let _ = evt;
+                            }
+                            InputEventEnum::KeyDown(evt) => {
+                                println!("[NEW] Window {:?}: Key down: {:?}, repeat={}",
+                                         window_id, evt.key, evt.is_repeat);
+                            }
+                            InputEventEnum::KeyUp(evt) => {
+                                println!("[NEW] Window {:?}: Key up: {:?}",
+                                         window_id, evt.key);
+                            }
+                            InputEventEnum::Wheel(evt) => {
+                                println!("[NEW] Window {:?}: Wheel delta=({:.1}, {:.1}), phase={:?}",
+                                         window_id, evt.delta.dx, evt.delta.dy, evt.phase);
+                            }
+                        }
+                        // TODO: Dispatch to ElementManager when hit testing is implemented
                     }
                     Some((window_id, GuiEvent::Close)) => {
                         println!("Window {:?} closing", window_id);
