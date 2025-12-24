@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::time::Instant;
 
-use crate::element::Element;
+use crate::widget::Widget;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
@@ -10,7 +10,7 @@ use taffy::AvailableSpace;
 
 /// An animated rectangle that changes its intrinsic width over time
 ///
-/// This element demonstrates measure functions and dynamic layout.
+/// This widget demonstrates measure functions and dynamic layout.
 /// The width oscillates using a sine wave, causing the layout system
 /// to recalculate from leaves to root.
 pub struct AnimatedRect {
@@ -64,7 +64,7 @@ impl AnimatedRect {
     }
 }
 
-impl Element for AnimatedRect {
+impl Widget for AnimatedRect {
     fn id(&self) -> WidgetId {
         self.id
     }

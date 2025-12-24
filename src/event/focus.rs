@@ -3,7 +3,7 @@
 //! The FocusManager tracks which widget has keyboard focus and manages
 //! Tab/Shift+Tab navigation through focusable elements.
 
-use crate::element_manager::ElementManager;
+use crate::widget_manager::WidgetManager;
 use crate::types::{Rect, WidgetId};
 
 /// Manages keyboard focus and focusable widget navigation
@@ -104,27 +104,27 @@ impl FocusManager {
     /// Returns the rectangle where the IME composition window should be
     /// positioned, or None if no widget is focused or the focused widget
     /// doesn't support IME.
-    pub fn get_ime_cursor_rect(&self, element_manager: &ElementManager) -> Option<Rect> {
+    pub fn get_ime_cursor_rect(&self, widget_manager: &WidgetManager) -> Option<Rect> {
         let focused_id = self.focused_id?;
 
-        element_manager
+        widget_manager
             .get(focused_id)
             .and_then(|element| element.ime_cursor_rect())
     }
 
-    /// Rebuild the focusable widget list from the element tree
+    /// Rebuild the focusable widget list from the widget tree
     ///
     /// This should be called when:
     /// - Widgets are added/removed
     /// - A widget's is_focusable() state changes
-    /// - The scene graph structure changes
+    /// - The widget tree structure changes
     ///
     /// The order of focusable widgets determines Tab navigation order.
-    pub fn rebuild(&mut self, element_manager: &ElementManager) {
+    pub fn rebuild(&mut self, widget_manager: &WidgetManager) {
         self.focusable_widgets.clear();
 
-        for widget_id in element_manager.widget_ids() {
-            if let Some(element) = element_manager.get(widget_id) {
+        for widget_id in widget_manager.widget_ids() {
+            if let Some(element) = widget_manager.get(widget_id) {
                 if element.is_focusable() {
                     self.focusable_widgets.push(widget_id);
                 }

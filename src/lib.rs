@@ -1,11 +1,11 @@
 //! # AssortedWidgets
 //!
-//! A GUI framework using a signal/slot architecture with flat element storage.
+//! A GUI framework using a signal/slot architecture with flat widget storage.
 //!
 //! ## Architecture
 //!
-//! - **ElementManager**: Flat hash table storage for all UI elements
-//! - **SceneGraph**: Tree structure using IDs for hierarchical organization
+//! - **WidgetManager**: Flat hash table storage for all UI widgets
+//! - **WidgetTree**: Tree structure using IDs for hierarchical organization
 //! - **Signal/Slot**: Qt-inspired deferred message system
 //! - **Thread-safe**: Cross-thread messaging via `GuiHandle`
 //!
@@ -24,8 +24,8 @@
 // Module declarations
 pub mod application;
 pub mod connection;
-pub mod element;
-pub mod element_manager;
+pub mod widget;
+pub mod widget_manager;
 pub mod elements;
 pub mod event;
 pub mod handle;
@@ -33,7 +33,7 @@ pub mod layout;
 pub mod paint;
 pub mod platform;
 pub mod render;
-pub mod scene_graph;
+pub mod widget_tree;
 pub mod text;
 pub mod types;
 pub mod window;
@@ -41,15 +41,15 @@ pub mod window;
 // Re-export public API
 pub use application::Application;
 pub use connection::{Connection, ConnectionTable};
-pub use element::Element;
-pub use element_manager::ElementManager;
+pub use widget::Widget;
+pub use widget_manager::WidgetManager;
 pub use event::{GuiEvent, OsEvent};
 pub use handle::GuiHandle;
 pub use platform::{
     Modifiers, MouseButton, PlatformInput, PlatformWindow, TitlebarOptions, WindowCallbacks,
     WindowOptions,
 };
-pub use scene_graph::{SceneGraph, SceneNode};
+pub use widget_tree::{WidgetTree, TreeNode};
 pub use types::{
     point, rect, size, vector, DeferredCommand, GuiMessage, Point, Rect, ScreenPixels, Size,
     Vector, WidgetId, WindowId,

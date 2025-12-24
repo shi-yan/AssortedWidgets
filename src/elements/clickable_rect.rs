@@ -1,6 +1,6 @@
 //! Clickable rectangle widget for testing hit testing and event handling
 
-use crate::element::Element;
+use crate::widget::Widget;
 use crate::event::{EventResponse, MouseEvent, MouseHandler, OsEvent};
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
@@ -9,7 +9,7 @@ use crate::types::{DeferredCommand, GuiMessage, Rect, WidgetId};
 /// A simple clickable colored rectangle for testing hit testing
 ///
 /// This widget demonstrates:
-/// - Interactive element with MouseHandler implementation
+/// - Interactive widget with MouseHandler implementation
 /// - Hit testing with z-order (registers hitbox during paint)
 /// - Event logging to terminal for debugging
 pub struct ClickableRect {
@@ -51,7 +51,7 @@ impl ClickableRect {
     }
 }
 
-impl Element for ClickableRect {
+impl Widget for ClickableRect {
     fn id(&self) -> WidgetId {
         self.id
     }

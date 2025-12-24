@@ -10,7 +10,7 @@
 //!
 //! This is how real integrators should use the framework!
 
-use crate::element::Element;
+use crate::widget::Widget;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
@@ -18,7 +18,7 @@ use crate::text::{TextStyle, TextAlign};
 use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 use std::any::Any;
 
-/// Demo element showcasing Phase 3.2 text rendering features
+/// Demo widget showcasing Phase 3.2 text rendering features
 ///
 /// This demonstrates:
 /// - Ligatures and kerning (text shaping)
@@ -44,17 +44,17 @@ impl TextDemoElement {
     }
 }
 
-impl Element for TextDemoElement {
+impl Widget for TextDemoElement {
     fn id(&self) -> WidgetId {
         self.id
     }
 
     fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()  // Demo element doesn't handle messages
+        Vec::new()  // Demo widget doesn't handle messages
     }
 
     fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()  // Demo element doesn't handle events
+        Vec::new()  // Demo widget doesn't handle events
     }
 
     fn bounds(&self) -> Rect {
@@ -74,7 +74,7 @@ impl Element for TextDemoElement {
     }
 
     fn layout(&self) -> Style {
-        Style::default()  // Demo uses fixed positioning
+        Style::default()  // Demo widget uses fixed positioning
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
@@ -226,7 +226,7 @@ impl Element for TextDemoElement {
     }
 
     fn needs_measure(&self) -> bool {
-        false  // Demo element doesn't participate in layout
+        false  // Demo widget doesn't participate in layout
     }
 
     fn measure(
@@ -234,7 +234,7 @@ impl Element for TextDemoElement {
         _known_dimensions: taffy::Size<Option<f32>>,
         _available_space: taffy::Size<taffy::AvailableSpace>,
     ) -> Option<Size> {
-        None  // Demo element uses fixed positioning
+        None  // Demo widget uses fixed positioning
     }
 
     fn as_any(&self) -> &dyn Any {

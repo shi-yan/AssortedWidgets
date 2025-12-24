@@ -1,25 +1,25 @@
 use crate::types::{Point, WidgetId};
 
 // ============================================================================
-// Scene Graph (Element Tree)
+// Widget Tree
 // ============================================================================
 
-/// Tree node containing only IDs, not actual elements
+/// Tree node containing only IDs, not actual widgets
 #[derive(Debug, Clone)]
-pub struct SceneNode {
+pub struct TreeNode {
     pub id: WidgetId,
-    pub children: Vec<SceneNode>,
+    pub children: Vec<TreeNode>,
 }
 
-impl SceneNode {
+impl TreeNode {
     pub fn new(id: WidgetId) -> Self {
-        SceneNode {
+        TreeNode {
             id,
             children: Vec::new(),
         }
     }
 
-    pub fn add_child(&mut self, child: SceneNode) {
+    pub fn add_child(&mut self, child: TreeNode) {
         self.children.push(child);
     }
 
@@ -34,7 +34,7 @@ impl SceneNode {
         }
     }
 
-    /// Traverse tree to find element at given position (hit testing)
+    /// Traverse tree to find widget at given position (hit testing)
     pub fn hit_test(&self, point: Point) -> Option<WidgetId> {
         // Traverse in reverse order (top to bottom in z-order)
         for child in self.children.iter().rev() {
@@ -59,25 +59,25 @@ impl SceneNode {
     }
 }
 
-/// The scene graph holds the hierarchical structure
-pub struct SceneGraph {
-    root: Option<SceneNode>,
+/// The widget tree holds the hierarchical structure of all widgets
+pub struct WidgetTree {
+    root: Option<TreeNode>,
 }
 
-impl SceneGraph {
+impl WidgetTree {
     pub fn new() -> Self {
-        SceneGraph { root: None }
+        WidgetTree { root: None }
     }
 
-    pub fn set_root(&mut self, root: SceneNode) {
+    pub fn set_root(&mut self, root: TreeNode) {
         self.root = Some(root);
     }
 
-    pub fn root(&self) -> Option<&SceneNode> {
+    pub fn root(&self) -> Option<&TreeNode> {
         self.root.as_ref()
     }
 
-    pub fn root_mut(&mut self) -> Option<&mut SceneNode> {
+    pub fn root_mut(&mut self) -> Option<&mut TreeNode> {
         self.root.as_mut()
     }
 

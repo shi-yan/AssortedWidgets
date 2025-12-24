@@ -5,7 +5,7 @@
 //! - IME support (preedit and commit)
 //! - Visual feedback for preedit vs committed text
 
-use crate::element::Element;
+use crate::widget::Widget;
 use crate::event::{
     EventResponse, ImeEvent, ImeEventType, ImeHandler, Key, KeyEvent, KeyboardHandler, MouseEvent,
     MouseHandler, NamedKey,
@@ -59,7 +59,7 @@ impl SimpleInputBox {
     }
 }
 
-impl Element for SimpleInputBox {
+impl Widget for SimpleInputBox {
     fn id(&self) -> WidgetId {
         self.id
     }

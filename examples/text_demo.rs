@@ -1,8 +1,8 @@
-use assorted_widgets::{Application, Element, WindowOptions};
+use assorted_widgets::{Application, Widget, WindowOptions};
 use assorted_widgets::elements::{TextDemoElement, AnimatedTextLabel};
-use assorted_widgets::scene_graph::SceneNode;
 use assorted_widgets::types::{Point, Rect, Size, WidgetId};
 use assorted_widgets::paint::Color;
+use assorted_widgets::layout::Style;
 
 fn main() {
     println!("AssortedWidgets - Phase 3.3 Complete");
@@ -37,27 +37,18 @@ fn main() {
         println!();
 
         // ================================================================
-        // Create demo element using the Element trait (proper way!)
+        // Create demo widget using clean Window API
         // ================================================================
         let demo = TextDemoElement::new(WidgetId::new(1));
-        let demo_id = demo.id();
 
         // Get mutable reference to the window to set up UI
         let window = app.window_mut(window_id).expect("Window not found");
 
-        // Add demo element to element manager
-        window.element_manager_mut().add_element(Box::new(demo));
+        // Add demo widget using clean API - automatically coordinates all three systems
+        window.add_root(Box::new(demo), Style::default())
+            .expect("Failed to add root widget");
 
-        // Create layout node for the element (LayoutManager needs to be synced)
-        window.layout_manager_mut().create_node(demo_id, taffy::Style::default())
-            .expect("Failed to create layout node");
-
-        // Set as root of both scene graph and layout
-        window.scene_graph_mut().set_root(SceneNode::new(demo_id));
-        window.layout_manager_mut().set_root(demo_id)
-            .expect("Failed to set layout root");
-
-        println!("Demo element created using Element trait (clean architecture!)");
+        println!("Demo widget created using Widget trait (clean architecture!)");
         println!();
         println!("Phase 3 Text Rendering - COMPLETE ✅");
         println!();
@@ -107,26 +98,17 @@ fn main() {
 
         let animated_id = animated_label.id();
 
-        // Add to second window
+        // Add to second window using clean API
         let animated_window = app.window_mut(animated_window_id).expect("Window not found");
-        animated_window.element_manager_mut().add_element(Box::new(animated_label));
-
-        // Create layout node with custom measurement (for animated width)
-        animated_window.layout_manager_mut()
-            .create_measurable_node(animated_id, taffy::Style::default())
-            .expect("Failed to create layout node");
-
-        // Set as root
-        animated_window.scene_graph_mut().set_root(SceneNode::new(animated_id));
-        animated_window.layout_manager_mut().set_root(animated_id)
-            .expect("Failed to set layout root");
+        animated_window.add_root(Box::new(animated_label), Style::default())
+            .expect("Failed to add root widget");
 
         println!("Animated text truncation demo window created!");
         println!("  → Watch the text truncate with '...' as width oscillates");
         println!("  → min width: 100px, max width: 600px");
         println!();
 
-        // Run application event loop - demo renders via Element::paint()
+        // Run application event loop - demo renders via Widget::paint()
         app.run();
     }
 

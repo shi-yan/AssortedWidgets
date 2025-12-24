@@ -7,15 +7,15 @@ use crate::paint::PaintContext;
 use taffy::AvailableSpace;
 
 // ============================================================================
-// Element Trait
+// Widget Trait
 // ============================================================================
 
-/// Base trait for all UI elements
+/// Base trait for all UI widgets
 ///
-/// Note: Element does not require Send since the GUI framework is single-threaded.
-/// All elements live on the main thread and are managed by the event loop.
-pub trait Element {
-    /// Returns the unique ID of this element
+/// Note: Widget does not require Send since the GUI framework is single-threaded.
+/// All widgets live on the main thread and are managed by the event loop.
+pub trait Widget {
+    /// Returns the unique ID of this widget
     fn id(&self) -> WidgetId;
 
     /// Handle incoming messages (the "slot" function)
@@ -24,16 +24,16 @@ pub trait Element {
     /// Handle OS events (mouse, keyboard, etc.)
     fn on_event(&mut self, event: &OsEvent) -> Vec<DeferredCommand>;
 
-    /// Get element bounds for hit testing (set by layout system)
+    /// Get widget bounds for hit testing (set by layout system)
     fn bounds(&self) -> Rect;
 
-    /// Set element bounds (called by layout system)
+    /// Set widget bounds (called by layout system)
     fn set_bounds(&mut self, bounds: Rect);
 
-    /// Mark this element as needing redraw
+    /// Mark this widget as needing redraw
     fn set_dirty(&mut self, dirty: bool);
 
-    /// Check if element needs redraw
+    /// Check if widget needs redraw
     fn is_dirty(&self) -> bool;
 
     /// Get layout style for Taffy
@@ -41,18 +41,18 @@ pub trait Element {
     /// This defines how the element should be laid out (flex, grid, size, etc.)
     fn layout(&self) -> Style;
 
-    /// Paint the element
+    /// Paint the widget
     ///
     /// This is called during the paint pass after layout has been computed.
     /// Use the PaintContext to draw primitives.
     fn paint(&self, ctx: &mut PaintContext);
 
-    /// Measure the element's intrinsic size given available space
+    /// Measure the widget's intrinsic size given available space
     ///
     /// This is called by the layout system to determine the natural size of
-    /// content-based elements (like text that wraps based on available width).
+    /// content-based widgets (like text that wraps based on available width).
     ///
-    /// Returns `None` if the element doesn't need custom measurement (uses
+    /// Returns `None` if the widget doesn't need custom measurement (uses
     /// style dimensions only). Returns `Some(size)` to provide intrinsic dimensions.
     ///
     /// # Arguments
@@ -79,23 +79,23 @@ pub trait Element {
         None // Default: no custom measurement
     }
 
-    /// Check if this element needs a measure function
+    /// Check if this widget needs a measure function
     ///
-    /// Return true if this element's intrinsic size depends on its content
+    /// Return true if this widget's intrinsic size depends on its content
     /// (e.g., text, images with intrinsic dimensions).
     fn needs_measure(&self) -> bool {
         false // Default: static sizing
     }
 
-    /// Mark this element as needing layout recalculation
+    /// Mark this widget as needing layout recalculation
     ///
-    /// This should be called when the element's content changes in a way that
+    /// This should be called when the widget's content changes in a way that
     /// affects its intrinsic size (e.g., text content changes, image loaded).
     fn mark_needs_layout(&mut self) {
         self.set_dirty(true);
     }
 
-    /// Update element state (called once per frame before layout)
+    /// Update widget state (called once per frame before layout)
     ///
     /// This is called by the window's render loop before layout computation.
     /// Use this for animations, time-based state changes, physics, etc.
@@ -118,26 +118,26 @@ pub trait Element {
     /// }
     /// ```
     ///
-    /// Default implementation does nothing. Override for animated elements.
+    /// Default implementation does nothing. Override for animated widgets.
     fn update(&mut self, _frame: &FrameInfo) {
         // Default: no update logic
     }
 
-    /// Check if this element needs continuous frame updates
+    /// Check if this widget needs continuous frame updates
     ///
-    /// Return `true` for elements that animate or change over time.
-    /// The window will only call `update()` on elements that return `true`.
+    /// Return `true` for widgets that animate or change over time.
+    /// The window will only call `update()` on widgets that return `true`.
     ///
-    /// This is an optimization to avoid calling update() on static elements.
+    /// This is an optimization to avoid calling update() on static widgets.
     ///
     /// # Performance
     /// - Returning `true` means update() is called every frame (60+ times/sec)
-    /// - Only return `true` if the element actually needs continuous updates
+    /// - Only return `true` if the widget actually needs continuous updates
     /// - For one-shot animations, toggle this flag on/off as needed
     ///
-    /// Default: `false` (static element, no updates needed)
+    /// Default: `false` (static widget, no updates needed)
     fn needs_continuous_updates(&self) -> bool {
-        false // Default: static element
+        false // Default: static widget
     }
 
     /// Downcast to Any for type-specific operations
@@ -148,19 +148,19 @@ pub trait Element {
     // Event Dispatch Methods (Phase 1)
     // ========================================
 
-    /// Check if this element can receive input events (mouse, keyboard, etc.)
+    /// Check if this widget can receive input events (mouse, keyboard, etc.)
     ///
-    /// Return `true` for elements that implement event handlers (MouseHandler,
+    /// Return `true` for widgets that implement event handlers (MouseHandler,
     /// KeyboardHandler, etc.) to allow them to be considered during hit testing.
     ///
-    /// Default: `false` (non-interactive element)
+    /// Default: `false` (non-interactive widget)
     fn is_interactive(&self) -> bool {
         false // Default: does not receive input events
     }
 
-    /// Check if this element can receive keyboard focus
+    /// Check if this widget can receive keyboard focus
     ///
-    /// Return `true` for elements that accept keyboard input (text fields,
+    /// Return `true` for widgets that accept keyboard input (text fields,
     /// buttons, etc.) to allow them to be included in focus navigation.
     ///
     /// Default: `false` (not focusable)
@@ -168,7 +168,7 @@ pub trait Element {
         false // Default: does not accept focus
     }
 
-    /// Get IME cursor position for this element (if focused)
+    /// Get IME cursor position for this widget (if focused)
     ///
     /// Return a rectangle representing where the IME composition window should
     /// be positioned. This is typically at the text insertion point.
@@ -178,45 +178,45 @@ pub trait Element {
         None // Default: no IME support
     }
 
-    /// Dispatch mouse event to this element
+    /// Dispatch mouse event to this widget
     ///
-    /// Default implementation returns Ignored. Elements that implement MouseHandler
+    /// Default implementation returns Ignored. Widgets that implement MouseHandler
     /// should override this to call their handler methods.
     fn dispatch_mouse_event(&mut self, event: &mut crate::event::InputEventEnum) -> crate::event::EventResponse {
         let _ = event;
         crate::event::EventResponse::Ignored
     }
 
-    /// Dispatch keyboard event to this element
+    /// Dispatch keyboard event to this widget
     ///
-    /// Default implementation returns Ignored. Elements that implement KeyboardHandler
+    /// Default implementation returns Ignored. Widgets that implement KeyboardHandler
     /// should override this to call their handler methods.
     fn dispatch_key_event(&mut self, event: &mut crate::event::InputEventEnum) -> crate::event::EventResponse {
         let _ = event;
         crate::event::EventResponse::Ignored
     }
 
-    /// Dispatch wheel event to this element
+    /// Dispatch wheel event to this widget
     ///
-    /// Default implementation returns Ignored. Elements that implement WheelHandler
+    /// Default implementation returns Ignored. Widgets that implement WheelHandler
     /// should override this to call their handler methods.
     fn dispatch_wheel_event(&mut self, event: &mut crate::event::WheelEvent) -> crate::event::EventResponse {
         let _ = event;
         crate::event::EventResponse::Ignored
     }
 
-    /// Dispatch IME event to this element
+    /// Dispatch IME event to this widget
     ///
-    /// Default implementation returns Ignored. Elements that implement ImeHandler
+    /// Default implementation returns Ignored. Widgets that implement ImeHandler
     /// should override this to call their handler methods.
     fn dispatch_ime_event(&mut self, event: &mut crate::event::ImeEvent) -> crate::event::EventResponse {
         let _ = event;
         crate::event::EventResponse::Ignored
     }
 
-    /// Dispatch custom event to this element
+    /// Dispatch custom event to this widget
     ///
-    /// Default implementation returns Ignored. Elements that implement CustomInputHandler
+    /// Default implementation returns Ignored. Widgets that implement CustomInputHandler
     /// should override this to call their handler methods.
     ///
     /// Custom events are used for hardware plugins (MIDI, gamepad, etc.) that post

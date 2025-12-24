@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::element::Element;
+use crate::widget::Widget;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
@@ -8,7 +8,7 @@ use crate::types::{DeferredCommand, GuiMessage, Rect, WidgetId, Point, Size};
 
 /// A container that clips its content to its bounds
 ///
-/// This element demonstrates shader-based clipping by:
+/// This widget demonstrates shader-based clipping by:
 /// 1. Rendering a background color
 /// 2. Pushing its bounds as a clip rect
 /// 3. Rendering overflow content (will be clipped)
@@ -40,7 +40,7 @@ impl ClippedContainer {
     }
 }
 
-impl Element for ClippedContainer {
+impl Widget for ClippedContainer {
     fn id(&self) -> WidgetId {
         self.id
     }

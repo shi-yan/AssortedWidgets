@@ -12,7 +12,7 @@
 use std::any::Any;
 use std::time::Instant;
 
-use crate::element::Element;
+use crate::widget::Widget;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
@@ -108,7 +108,7 @@ impl AnimatedTextLabel {
     }
 }
 
-impl Element for AnimatedTextLabel {
+impl Widget for AnimatedTextLabel {
     fn id(&self) -> WidgetId {
         self.id
     }

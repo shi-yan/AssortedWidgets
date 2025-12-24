@@ -6,7 +6,7 @@
 //! - Cross-window drag and drop
 //! - Transparent/borderless window support
 
-use crate::element::Element;
+use crate::widget::Widget;
 use crate::event::{EventResponse, MouseEvent, MouseHandler};
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
@@ -63,7 +63,7 @@ impl DraggableRect {
     }
 }
 
-impl Element for DraggableRect {
+impl Widget for DraggableRect {
     fn id(&self) -> WidgetId {
         self.id
     }

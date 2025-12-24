@@ -1,14 +1,14 @@
 use std::any::Any;
 
-use crate::element::Element;
+use crate::widget::Widget;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::PaintContext;
 use crate::types::{DeferredCommand, GuiMessage, Rect, WidgetId};
 
-/// A layout container that can hold child elements
+/// A layout container that can hold child widgets
 ///
-/// This element uses Taffy for layout (Flexbox/Grid) and doesn't render anything itself.
+/// This widget uses Taffy for layout (Flexbox/Grid) and doesn't render anything itself.
 /// It just positions its children according to the layout style.
 pub struct Container {
     id: WidgetId,
@@ -28,7 +28,7 @@ impl Container {
     }
 }
 
-impl Element for Container {
+impl Widget for Container {
     fn id(&self) -> WidgetId {
         self.id
     }
@@ -62,7 +62,7 @@ impl Element for Container {
     }
 
     fn paint(&self, _ctx: &mut PaintContext) {
-        // Container doesn't render anything - it just positions children
+        // Container doesn't render anything - it just positions child widgets
     }
 
     fn as_any(&self) -> &dyn Any {

@@ -1,10 +1,10 @@
-use crate::element::Element;
-use crate::element_manager::ElementManager;
+use crate::widget::Widget;
+use crate::widget_manager::WidgetManager;
 use crate::event::{FocusManager, GuiEvent, HitTester, InputEventEnum, MouseCapture};
 use crate::layout::LayoutManager;
 use crate::paint::PaintContext;
 use crate::render::{RenderContext, WindowRenderer};
-use crate::scene_graph::{SceneGraph, SceneNode};
+use crate::widget_tree::{WidgetTree, TreeNode};
 use crate::types::{FrameInfo, Point, Size, WidgetId, WindowId};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -20,7 +20,7 @@ use crate::platform::{PlatformWindow, PlatformWindowImpl};
 /// Represents a single window with its UI tree and rendering state
 ///
 /// Each window has its own:
-/// - UI element tree (ElementManager, SceneGraph)
+/// - UI widget tree (WidgetManager, WidgetTree)
 /// - Layout system (LayoutManager)
 /// - Rendering surface and uniforms (WindowRenderer)
 ///
@@ -41,10 +41,10 @@ pub struct Window {
     platform_window: PlatformWindowImpl,
 
     // ========================================
-    // UI State (Per-Window)
+    // UI State (Per-Window) - PRIVATE (use add_root/add_child/remove/get/get_mut APIs)
     // ========================================
-    element_manager: ElementManager,
-    scene_graph: SceneGraph,
+    widgets: WidgetManager,
+    widget_tree: WidgetTree,
     layout_manager: LayoutManager,
     window_size: Size,
     needs_layout: bool,
@@ -95,8 +95,8 @@ impl Window {
         Window {
             id,
             platform_window,
-            element_manager: ElementManager::new(),
-            scene_graph: SceneGraph::new(),
+            widgets: WidgetManager::new(),
+            widget_tree: WidgetTree::new(),
             layout_manager: LayoutManager::new(),
             window_size,
             needs_layout: true,
@@ -133,34 +133,12 @@ impl Window {
         self.needs_layout = true;
     }
 
-    /// Get reference to element manager
-    pub fn element_manager(&self) -> &ElementManager {
-        &self.element_manager
-    }
-
-    /// Get mutable reference to element manager
-    pub fn element_manager_mut(&mut self) -> &mut ElementManager {
-        &mut self.element_manager
-    }
-
-    /// Get reference to scene graph
-    pub fn scene_graph(&self) -> &SceneGraph {
-        &self.scene_graph
-    }
-
-    /// Get mutable reference to scene graph
-    pub fn scene_graph_mut(&mut self) -> &mut SceneGraph {
-        &mut self.scene_graph
-    }
-
-    /// Get reference to layout manager
-    pub fn layout_manager(&self) -> &LayoutManager {
-        &self.layout_manager
-    }
-
-    /// Get mutable reference to layout manager
-    pub fn layout_manager_mut(&mut self) -> &mut LayoutManager {
-        &mut self.layout_manager
+    /// Get a handle for interacting with UI elements
+    ///
+    /// Returns a thread-safe handle to the WidgetManager that allows
+    /// querying and manipulating UI state from other threads or contexts.
+    pub fn get_handle(&self) -> crate::handle::GuiHandle {
+        self.widgets.get_handle()
     }
 
     /// Get reference to window renderer
@@ -191,36 +169,36 @@ impl Window {
 
     /// Add a widget as the root of the window
     ///
-    /// This is a high-level API that coordinates three systems:
-    /// 1. Adds element to ElementManager
+    /// This is the clean API that coordinates three internal systems:
+    /// 1. Adds widget to WidgetManager
     /// 2. Creates root node in LayoutManager
-    /// 3. Sets root in SceneGraph
+    /// 3. Sets root in WidgetTree
     ///
     /// # Arguments
-    /// * `element` - The widget to add (must implement Element trait)
+    /// * `widget` - The widget to add (must implement Widget trait)
     /// * `style` - Layout style (flex, grid, absolute positioning, etc.)
     ///
     /// # Example
     /// ```ignore
     /// let panel = Panel::new(WidgetId::new(1));
-    /// window.add_root_widget(Box::new(panel), Style {
+    /// window.add_root(Box::new(panel), Style {
     ///     display: Display::Flex,
     ///     flex_direction: FlexDirection::Column,
     ///     ..Default::default()
     /// })?;
     /// ```
-    pub fn add_root_widget(
+    pub fn add_root(
         &mut self,
-        element: Box<dyn Element>,
+        widget: Box<dyn Widget>,
         style: crate::layout::Style,
     ) -> Result<WidgetId, String> {
-        let widget_id = element.id();
+        let widget_id = widget.id();
 
-        // 1. Add to ElementManager
-        self.element_manager.add_element(element);
+        // 1. Add to WidgetManager
+        self.widgets.add_widget(widget);
 
         // 2. Create layout node
-        if self.element_manager.get(widget_id).unwrap().needs_measure() {
+        if self.widgets.get(widget_id).unwrap().needs_measure() {
             self.layout_manager.create_measurable_node(widget_id, style)?;
         } else {
             self.layout_manager.create_node(widget_id, style)?;
@@ -229,9 +207,9 @@ impl Window {
         // 3. Set as layout root
         self.layout_manager.set_root(widget_id)?;
 
-        // 4. Create scene graph root
-        let root_node = SceneNode::new(widget_id);
-        self.scene_graph.set_root(root_node);
+        // 4. Create widget tree root
+        let root_node = TreeNode::new(widget_id);
+        self.widget_tree.set_root(root_node);
 
         // Mark layout as dirty
         self.needs_layout = true;
@@ -241,20 +219,20 @@ impl Window {
 
     /// Add a widget as a child of an existing parent widget
     ///
-    /// This is a high-level API that coordinates three systems:
-    /// 1. Adds element to ElementManager
+    /// This is the clean API that coordinates three internal systems:
+    /// 1. Adds widget to WidgetManager
     /// 2. Creates child node in LayoutManager and establishes parent-child relationship
-    /// 3. Adds child to parent in SceneGraph
+    /// 3. Adds child to parent in WidgetTree
     ///
     /// # Arguments
-    /// * `element` - The widget to add (must implement Element trait)
+    /// * `widget` - The widget to add (must implement Widget trait)
     /// * `style` - Layout style for this child
     /// * `parent_id` - The parent widget's ID
     ///
     /// # Example
     /// ```ignore
     /// let button = Button::new(WidgetId::new(2));
-    /// window.add_child_widget(Box::new(button), Style {
+    /// window.add_child(Box::new(button), Style {
     ///     size: Size {
     ///         width: Dimension::Length(100.0),
     ///         height: Dimension::Length(30.0),
@@ -262,19 +240,19 @@ impl Window {
     ///     ..Default::default()
     /// }, panel_id)?;
     /// ```
-    pub fn add_child_widget(
+    pub fn add_child(
         &mut self,
-        element: Box<dyn Element>,
+        widget: Box<dyn Widget>,
         style: crate::layout::Style,
         parent_id: WidgetId,
     ) -> Result<WidgetId, String> {
-        let widget_id = element.id();
+        let widget_id = widget.id();
 
-        // 1. Add to ElementManager
-        self.element_manager.add_element(element);
+        // 1. Add to WidgetManager
+        self.widgets.add_widget(widget);
 
         // 2. Create layout node
-        if self.element_manager.get(widget_id).unwrap().needs_measure() {
+        if self.widgets.get(widget_id).unwrap().needs_measure() {
             self.layout_manager.create_measurable_node(widget_id, style)?;
         } else {
             self.layout_manager.create_node(widget_id, style)?;
@@ -283,7 +261,7 @@ impl Window {
         // 3. Establish parent-child relationship in LayoutManager
         self.layout_manager.add_child(parent_id, widget_id)?;
 
-        // 4. Add to SceneGraph
+        // 4. Add to WidgetTree
         self.add_scene_graph_child(parent_id, widget_id)?;
 
         // Mark layout as dirty
@@ -292,22 +270,70 @@ impl Window {
         Ok(widget_id)
     }
 
-    /// Internal helper: Add child to SceneGraph by finding parent node
+    /// Get immutable reference to a widget by ID
+    ///
+    /// # Arguments
+    /// * `widget_id` - The ID of the widget to retrieve
+    ///
+    /// # Returns
+    /// Option containing reference to widget if found, None otherwise
+    pub fn get(&self, widget_id: WidgetId) -> Option<&dyn Widget> {
+        self.widgets.get(widget_id)
+    }
+
+    /// Get mutable reference to a widget by ID
+    ///
+    /// # Arguments
+    /// * `widget_id` - The ID of the widget to retrieve
+    ///
+    /// # Returns
+    /// Option containing mutable reference to widget if found, None otherwise
+    pub fn get_mut(&mut self, widget_id: WidgetId) -> Option<&mut dyn Widget> {
+        self.widgets.get_mut(widget_id)
+    }
+
+    /// Add a floating widget (not participating in layout)
+    ///
+    /// Floating widgets are rendered but don't participate in the layout system.
+    /// They're useful for tooltips, popups, overlays, etc.
+    ///
+    /// # Arguments
+    /// * `widget` - The floating widget to add
+    ///
+    /// # Example
+    /// ```ignore
+    /// let tooltip = Tooltip::new(WidgetId::new(3), "Hello!".to_string());
+    /// window.add_floating(Box::new(tooltip))?;
+    /// ```
+    pub fn add_floating(&mut self, widget: Box<dyn Widget>) -> Result<WidgetId, String> {
+        let widget_id = widget.id();
+
+        // 1. Add to WidgetManager
+        self.widgets.add_widget(widget);
+
+        // 2. Add to WidgetTree (but not to LayoutManager - floating widgets don't participate in layout)
+        // For now, just add to widgets - full floating support would include positioning
+        // TODO: Implement full floating widget support with absolute positioning
+
+        Ok(widget_id)
+    }
+
+    /// Internal helper: Add child to widget tree by finding parent node
     fn add_scene_graph_child(&mut self, parent_id: WidgetId, child_id: WidgetId) -> Result<(), String> {
-        // Find parent node in scene graph
-        if let Some(root) = self.scene_graph.root_mut() {
+        // Find parent node in widget tree
+        if let Some(root) = self.widget_tree.root_mut() {
             Self::add_child_to_node(root, parent_id, child_id)?;
             Ok(())
         } else {
-            Err(format!("No root in scene graph - cannot add child {:?}", child_id))
+            Err(format!("No root in widget tree - cannot add child {:?}", child_id))
         }
     }
 
     /// Recursive helper to find parent and add child
-    fn add_child_to_node(node: &mut SceneNode, parent_id: WidgetId, child_id: WidgetId) -> Result<(), String> {
+    fn add_child_to_node(node: &mut TreeNode, parent_id: WidgetId, child_id: WidgetId) -> Result<(), String> {
         if node.id == parent_id {
             // Found parent - add child
-            node.add_child(SceneNode::new(child_id));
+            node.add_child(TreeNode::new(child_id));
             return Ok(());
         }
 
@@ -318,36 +344,36 @@ impl Window {
             }
         }
 
-        Err(format!("Parent {:?} not found in scene graph", parent_id))
+        Err(format!("Parent {:?} not found in widget tree", parent_id))
     }
 
     /// Remove a widget and all its descendants
     ///
     /// This coordinates removal across all three systems:
-    /// 1. Removes from ElementManager
+    /// 1. Removes from WidgetManager
     /// 2. Removes from LayoutManager (including descendants)
-    /// 3. Removes from SceneGraph
+    /// 3. Removes from WidgetTree
     ///
     /// # Example
     /// ```ignore
-    /// window.remove_widget(button_id)?;
+    /// window.remove(button_id)?;
     /// ```
-    pub fn remove_widget(&mut self, widget_id: WidgetId) -> Result<(), String> {
+    pub fn remove(&mut self, widget_id: WidgetId) -> Result<(), String> {
         // 1. Remove from LayoutManager (this removes descendants too)
         self.layout_manager.remove_node(widget_id)?;
 
-        // 2. Collect all descendants from SceneGraph
+        // 2. Collect all descendants from WidgetTree
         let mut to_remove = vec![widget_id];
-        if let Some(root) = self.scene_graph.root() {
+        if let Some(root) = self.widget_tree.root() {
             Self::collect_descendants(root, widget_id, &mut to_remove);
         }
 
-        // 3. Remove from ElementManager
+        // 3. Remove from WidgetManager
         for id in &to_remove {
-            self.element_manager.remove_element(*id);
+            self.widgets.remove_widget(*id);
         }
 
-        // 4. Remove from SceneGraph
+        // 4. Remove from WidgetTree
         self.remove_from_scene_graph(widget_id)?;
 
         // Mark layout as dirty
@@ -357,7 +383,7 @@ impl Window {
     }
 
     /// Recursive helper to collect all descendants
-    fn collect_descendants(node: &SceneNode, target_id: WidgetId, result: &mut Vec<WidgetId>) {
+    fn collect_descendants(node: &TreeNode, target_id: WidgetId, result: &mut Vec<WidgetId>) {
         if node.id == target_id {
             // Found target - collect all children
             Self::collect_all_children(node, result);
@@ -370,32 +396,32 @@ impl Window {
     }
 
     /// Recursive helper to collect all children
-    fn collect_all_children(node: &SceneNode, result: &mut Vec<WidgetId>) {
+    fn collect_all_children(node: &TreeNode, result: &mut Vec<WidgetId>) {
         for child in &node.children {
             result.push(child.id);
             Self::collect_all_children(child, result);
         }
     }
 
-    /// Remove node from SceneGraph
+    /// Remove node from WidgetTree
     fn remove_from_scene_graph(&mut self, widget_id: WidgetId) -> Result<(), String> {
-        if let Some(root) = self.scene_graph.root() {
+        if let Some(root) = self.widget_tree.root() {
             if root.id == widget_id {
                 // Removing root
-                self.scene_graph = SceneGraph::new();
+                self.widget_tree = WidgetTree::new();
                 return Ok(());
             }
         }
 
-        if let Some(root) = self.scene_graph.root_mut() {
+        if let Some(root) = self.widget_tree.root_mut() {
             Self::remove_child_from_node(root, widget_id)?;
         }
 
         Ok(())
     }
 
-    /// Recursive helper to remove child from scene graph
-    fn remove_child_from_node(node: &mut SceneNode, target_id: WidgetId) -> Result<(), String> {
+    /// Recursive helper to remove child from widget tree
+    fn remove_child_from_node(node: &mut TreeNode, target_id: WidgetId) -> Result<(), String> {
         // Check direct children
         if let Some(index) = node.children.iter().position(|child| child.id == target_id) {
             node.children.remove(index);
@@ -409,7 +435,7 @@ impl Window {
             }
         }
 
-        Err(format!("Widget {:?} not found in scene graph", target_id))
+        Err(format!("Widget {:?} not found in widget tree", target_id))
     }
 
     /// Resize window and update all rendering resources
@@ -474,14 +500,14 @@ impl Window {
 
                 if let Some(widget_id) = target {
                     // Give focus to clicked element if it's focusable
-                    if let Some(element) = self.element_manager.get(widget_id) {
+                    if let Some(element) = self.widgets.get(widget_id) {
                         if element.is_focusable() {
                             self.focus_manager.set_focus(Some(widget_id));
                         }
                     }
 
                     // Dispatch to element via dispatch_mouse_event method
-                    if let Some(element) = self.element_manager.get_mut(widget_id) {
+                    if let Some(element) = self.widgets.get_mut(widget_id) {
                         let response = element.dispatch_mouse_event(&mut event);
 
                         match response {
@@ -540,7 +566,7 @@ impl Window {
 
                 if let Some(widget_id) = target {
                     // Check if this was a dragging DraggableRect before dispatching
-                    let was_dragging = if let Some(element) = self.element_manager.get(widget_id) {
+                    let was_dragging = if let Some(element) = self.widgets.get(widget_id) {
                         use crate::elements::DraggableRect;
                         element.as_any().downcast_ref::<DraggableRect>()
                             .map(|d| d.is_dragging())
@@ -549,7 +575,7 @@ impl Window {
                         false
                     };
 
-                    if let Some(element) = self.element_manager.get_mut(widget_id) {
+                    if let Some(element) = self.widgets.get_mut(widget_id) {
                         let response = element.dispatch_mouse_event(&mut event);
 
                         match response {
@@ -596,7 +622,7 @@ impl Window {
                 };
 
                 if let Some(widget_id) = target {
-                    if let Some(element) = self.element_manager.get_mut(widget_id) {
+                    if let Some(element) = self.widgets.get_mut(widget_id) {
                         element.dispatch_mouse_event(&mut event);
 
                         // If this is a dragging DraggableRect, emit UpdateCrossWindowDrag
@@ -632,7 +658,7 @@ impl Window {
 
                 // Dispatch to focused element
                 if let Some(focused_id) = self.focus_manager.focused_id() {
-                    if let Some(element) = self.element_manager.get_mut(focused_id) {
+                    if let Some(element) = self.widgets.get_mut(focused_id) {
                         let response = element.dispatch_key_event(&mut event);
 
                         if response == EventResponse::Handled {
@@ -645,7 +671,7 @@ impl Window {
             InputEventEnum::KeyUp(key_event) => {
                 // Dispatch to focused element
                 if let Some(focused_id) = self.focus_manager.focused_id() {
-                    if let Some(element) = self.element_manager.get_mut(focused_id) {
+                    if let Some(element) = self.widgets.get_mut(focused_id) {
                         let response = element.dispatch_key_event(&mut event);
 
                         if response == EventResponse::Handled {
@@ -661,7 +687,7 @@ impl Window {
                 let target = self.hit_tester.hit_test(position);
 
                 if let Some(widget_id) = target {
-                    if let Some(element) = self.element_manager.get_mut(widget_id) {
+                    if let Some(element) = self.widgets.get_mut(widget_id) {
                         let response = element.dispatch_wheel_event(&mut wheel_event.clone());
 
                         if response == EventResponse::Handled {
@@ -674,7 +700,7 @@ impl Window {
             InputEventEnum::Ime(ime_event) => {
                 // Dispatch to focused element
                 if let Some(focused_id) = self.focus_manager.focused_id() {
-                    if let Some(element) = self.element_manager.get_mut(focused_id) {
+                    if let Some(element) = self.widgets.get_mut(focused_id) {
                         let response = element.dispatch_ime_event(&mut ime_event.clone());
 
                         if response == EventResponse::Handled {
@@ -711,12 +737,27 @@ impl Window {
         &mut self.mouse_capture
     }
 
+    /// Get all widget IDs in this window
+    ///
+    /// Returns an iterator over all widget IDs managed by this window.
+    pub fn widget_ids(&self) -> impl Iterator<Item = WidgetId> + '_ {
+        self.widgets.widget_ids()
+    }
+
+    /// Process all pending messages for widgets in this window
+    ///
+    /// This is the signal/slot system that allows widgets to communicate
+    /// with each other asynchronously.
+    pub fn process_messages(&mut self) {
+        self.widgets.process_messages();
+    }
+
     /// Update IME cursor position based on focused widget
     ///
     /// This should be called each frame to keep the IME window positioned correctly.
     #[cfg(target_os = "macos")]
     pub fn update_ime_position(&mut self) {
-        if let Some(cursor_rect) = self.focus_manager.get_ime_cursor_rect(&self.element_manager) {
+        if let Some(cursor_rect) = self.focus_manager.get_ime_cursor_rect(&self.widgets) {
             // Convert to screen coordinates
             // For now, assume window coordinates = screen coordinates (no offset)
             // TODO: Add window position offset when we support window positioning
@@ -773,9 +814,9 @@ impl Window {
         let frame_info = FrameInfo::new(dt, now, self.frame_number);
 
         // Update all elements that need continuous updates (animations, physics, etc.)
-        let widget_ids: Vec<_> = self.element_manager.widget_ids().collect();
+        let widget_ids: Vec<_> = self.widgets.widget_ids().collect();
         for widget_id in widget_ids {
-            if let Some(element) = self.element_manager.get_mut(widget_id) {
+            if let Some(element) = self.widgets.get_mut(widget_id) {
                 if element.needs_continuous_updates() {
                     element.update(&frame_info);
                 }
@@ -786,14 +827,14 @@ impl Window {
         self.last_frame_time = Some(now);
         self.frame_number += 1;
 
-        // 1. Compute layout if needed (skip if no scene graph)
-        if self.needs_layout && self.scene_graph.root().is_some() {
+        // 1. Compute layout if needed (skip if no widget tree)
+        if self.needs_layout && self.widget_tree.root().is_some() {
             //println!("[Window {:?}] Computing layout...", self.id);
 
             // Mark all elements that need measurement as dirty in Taffy
-            let widget_ids: Vec<_> = self.element_manager.widget_ids().collect();
+            let widget_ids: Vec<_> = self.widgets.widget_ids().collect();
             for widget_id in widget_ids {
-                if let Some(element) = self.element_manager.get(widget_id) {
+                if let Some(element) = self.widgets.get(widget_id) {
                     if element.needs_measure() {
                         //println!("[Window {:?}] Marking widget {:?} as dirty for re-measurement", self.id, widget_id);
                         if let Err(e) = self.layout_manager.mark_dirty(widget_id) {
@@ -811,7 +852,7 @@ impl Window {
                     if let Some(ctx) = context {
                         if ctx.needs_measure {
                             // Look up element and call its measure() method
-                            if let Some(element) = self.element_manager.get(ctx.widget_id) {
+                            if let Some(element) = self.widgets.get(ctx.widget_id) {
                                 if let Some(size) = element.measure(known, available) {
                                     return taffy::Size {
                                         width: size.width as f32,
@@ -830,10 +871,10 @@ impl Window {
             }
 
             // Apply layout results to elements
-            let widget_ids: Vec<_> = self.element_manager.widget_ids().collect();
+            let widget_ids: Vec<_> = self.widgets.widget_ids().collect();
             for widget_id in widget_ids {
                 if let Some(bounds) = self.layout_manager.get_layout(widget_id) {
-                    if let Some(element) = self.element_manager.get_mut(widget_id) {
+                    if let Some(element) = self.widgets.get_mut(widget_id) {
                         element.set_bounds(bounds);
                         element.set_dirty(false);
                     }
@@ -847,10 +888,10 @@ impl Window {
         // This happens AFTER layout (bounds are known) but BEFORE paint
         // Separates spatial/event concerns from rendering
         self.hit_tester.clear();
-        if let Some(root) = self.scene_graph.root() {
+        if let Some(root) = self.widget_tree.root() {
             let mut z_order = 0u32;
             root.traverse(&mut |widget_id| {
-                if let Some(element) = self.element_manager.get(widget_id) {
+                if let Some(element) = self.widgets.get(widget_id) {
                     // Only register interactive elements for hit testing
                     if element.is_interactive() {
                         self.hit_tester.add(widget_id, element.bounds(), z_order);
@@ -886,9 +927,9 @@ impl Window {
 
             let mut paint_ctx = PaintContext::new(self.window_size, bundle);
 
-            if let Some(root) = self.scene_graph.root() {
+            if let Some(root) = self.widget_tree.root() {
                 root.traverse(&mut |widget_id| {
-                    if let Some(element) = self.element_manager.get(widget_id) {
+                    if let Some(element) = self.widgets.get(widget_id) {
                         element.paint(&mut paint_ctx);
                     }
                 });
@@ -910,7 +951,7 @@ impl Window {
 
         // Rebuild focus manager to sync with current element tree
         // This ensures focusable widgets are up-to-date for Tab navigation
-        self.focus_manager.rebuild(&self.element_manager);
+        self.focus_manager.rebuild(&self.widgets);
 
         // Update IME cursor position for the focused widget
         self.update_ime_position();

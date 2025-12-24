@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::element::Element;
+use crate::widget::Widget;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
@@ -8,7 +8,7 @@ use crate::types::{DeferredCommand, GuiMessage, Rect, WidgetId};
 
 /// A simple colored rectangle for debugging layouts
 ///
-/// This element renders a filled rectangle with the specified color.
+/// This widget renders a filled rectangle with the specified color.
 /// Useful for visualizing layout boundaries and testing the rendering system.
 pub struct DebugRect {
     id: WidgetId,
@@ -40,7 +40,7 @@ impl DebugRect {
     }
 }
 
-impl Element for DebugRect {
+impl Widget for DebugRect {
     fn id(&self) -> WidgetId {
         self.id
     }

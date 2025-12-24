@@ -1,8 +1,6 @@
-use assorted_widgets::{Application, Element, WindowOptions};
-use assorted_widgets::elements::{ClickableRect, SimpleInputBox};
-use assorted_widgets::scene_graph::SceneNode;
+use assorted_widgets::{Application, WindowOptions};
+use assorted_widgets::elements::SimpleInputBox;
 use assorted_widgets::types::{Point, Rect, Size, WidgetId};
-use assorted_widgets::paint::Color;
 
 fn main() {
     println!("AssortedWidgets - Phase 2.2: Focus & IME Demo");
@@ -56,22 +54,20 @@ fn main() {
         // Create test widgets for focus and IME
         // ================================================================
 
+        // Input box IDs (capture before moving widgets)
+        let input1_id = WidgetId::new(1);
+        let input2_id = WidgetId::new(2);
+
         // Input box 1: Primary input
-        let input1 = SimpleInputBox::new(WidgetId::new(1));
-        let input1_id = input1.id();
+        let input1 = SimpleInputBox::new(input1_id);
 
         // Input box 2: Secondary input (for Tab testing)
-        let input2 = SimpleInputBox::new(WidgetId::new(2));
-        let input2_id = input2.id();
+        let input2 = SimpleInputBox::new(input2_id);
 
         // Get mutable reference to the window to set up UI
         let window = app.window_mut(window_id).expect("Window not found");
 
-        // Add input boxes to element manager
-        window.element_manager_mut().add_element(Box::new(input1));
-        window.element_manager_mut().add_element(Box::new(input2));
-
-        // Create layout nodes with vertical stacking
+        // Create layout style for vertical stacking
         let layout_style = taffy::Style {
             display: taffy::Display::Flex,
             flex_direction: taffy::FlexDirection::Column,
@@ -88,18 +84,13 @@ fn main() {
             ..Default::default()
         };
 
-        window.layout_manager_mut().create_node(input1_id, layout_style.clone())
-            .expect("Failed to create layout node");
-        window.layout_manager_mut().create_node(input2_id, layout_style.clone())
-            .expect("Failed to create layout node");
+        // Add input box 1 as root using clean Window API
+        window.add_root(Box::new(input1), layout_style.clone())
+            .expect("Failed to add input box 1");
 
-        // Create scene graph with input boxes
-        let mut root = SceneNode::new(input1_id);
-        root.add_child(SceneNode::new(input2_id));
-
-        window.scene_graph_mut().set_root(root);
-        window.layout_manager_mut().set_root(input1_id)
-            .expect("Failed to set layout root");
+        // Add input box 2 as child of input box 1 using clean Window API
+        window.add_child(Box::new(input2), layout_style, input1_id)
+            .expect("Failed to add input box 2");
 
         println!("✅ Demo setup complete!");
         println!();

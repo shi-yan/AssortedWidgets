@@ -2,19 +2,19 @@ use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 
 use crate::connection::ConnectionTable;
-use crate::element::Element;
+use crate::widget::Widget;
 use crate::event::OsEvent;
 use crate::handle::GuiHandle;
 use crate::types::{DeferredCommand, GuiMessage, WidgetId};
 
 // ============================================================================
-// Element Manager
+// Widget Manager
 // ============================================================================
 
-/// Manages all UI elements in a flat hash table
-pub struct ElementManager {
-    /// Flat storage of all elements
-    elements: HashMap<WidgetId, Box<dyn Element>>,
+/// Manages all UI widgets in a flat hash table
+pub struct WidgetManager {
+    /// Flat storage of all widgets
+    widgets: HashMap<WidgetId, Box<dyn Widget>>,
     /// ID generator
     next_id: u64,
     /// Pending messages to be processed
@@ -27,11 +27,11 @@ pub struct ElementManager {
     message_tx: Sender<GuiMessage>,
 }
 
-impl ElementManager {
+impl WidgetManager {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel();
-        ElementManager {
-            elements: HashMap::new(),
+        WidgetManager {
+            widgets: HashMap::new(),
             next_id: 1,
             pending_messages: Vec::new(),
             connections: ConnectionTable::new(),
@@ -47,31 +47,31 @@ impl ElementManager {
         id
     }
 
-    /// Add an element to the manager
-    pub fn add_element(&mut self, element: Box<dyn Element>) -> WidgetId {
-        let id = element.id();
-        self.elements.insert(id, element);
+    /// Add a widget to the manager
+    pub fn add_widget(&mut self, widget: Box<dyn Widget>) -> WidgetId {
+        let id = widget.id();
+        self.widgets.insert(id, widget);
         id
     }
 
-    /// Remove an element
-    pub fn remove_element(&mut self, id: WidgetId) {
-        self.elements.remove(&id);
+    /// Remove a widget
+    pub fn remove_widget(&mut self, id: WidgetId) {
+        self.widgets.remove(&id);
         self.connections.remove_widget(id);
     }
 
-    /// Get immutable reference to an element
-    pub fn get_element(&self, id: WidgetId) -> Option<&dyn Element> {
-        self.elements.get(&id).map(|e: &Box<dyn Element>| e.as_ref())
+    /// Get immutable reference to a widget
+    pub fn get_widget(&self, id: WidgetId) -> Option<&dyn Widget> {
+        self.widgets.get(&id).map(|w: &Box<dyn Widget>| w.as_ref())
     }
 
-    /// Alter a child element using a closure (the core mutation pattern)
-    pub fn alter_element<F>(&mut self, id: WidgetId, f: F) -> Vec<DeferredCommand>
+    /// Alter a widget using a closure (the core mutation pattern)
+    pub fn alter_widget<F>(&mut self, id: WidgetId, f: F) -> Vec<DeferredCommand>
     where
-        F: FnOnce(&mut dyn Element) -> Vec<DeferredCommand>,
+        F: FnOnce(&mut dyn Widget) -> Vec<DeferredCommand>,
     {
-        if let Some(element) = self.elements.get_mut(&id) {
-            f(element.as_mut())
+        if let Some(widget) = self.widgets.get_mut(&id) {
+            f(widget.as_mut())
         } else {
             Vec::new()
         }
@@ -102,9 +102,9 @@ impl ElementManager {
         let messages = std::mem::take(&mut self.pending_messages);
 
         for cmd in messages {
-            // Get the target element and deliver the message
-            let new_commands = self.alter_element(cmd.target, |element| {
-                element.on_message(&cmd.message)
+            // Get the target widget and deliver the message
+            let new_commands = self.alter_widget(cmd.target, |widget| {
+                widget.on_message(&cmd.message)
             });
 
             // Queue any new commands generated
@@ -156,34 +156,34 @@ impl ElementManager {
 
     /// Handle an OS event by finding the target widget and dispatching
     pub fn handle_os_event(&mut self, event: OsEvent) {
-        // For mouse events, we need hit testing (would integrate with SceneGraph)
+        // For mouse events, we need hit testing (would integrate with WidgetTree)
         // For now, simplified version
         if let Some(target) = event.target_widget() {
-            let commands = self.alter_element(target, |element| element.on_event(&event));
+            let commands = self.alter_widget(target, |widget| widget.on_event(&event));
             self.pending_messages.extend(commands);
         }
     }
 
-    /// Get element by ID (immutable) - simpler API without lifetime issues
-    pub fn get(&self, id: WidgetId) -> Option<&dyn Element> {
-        self.elements.get(&id).map(|e| &**e)
+    /// Get widget by ID (immutable) - simpler API without lifetime issues
+    pub fn get(&self, id: WidgetId) -> Option<&dyn Widget> {
+        self.widgets.get(&id).map(|w| &**w)
     }
 
-    /// Get element by ID (mutable)
-    pub fn get_mut(&mut self, id: WidgetId) -> Option<&mut (dyn Element + '_)> {
-        match self.elements.get_mut(&id) {
-            Some(e) => Some(&mut **e),
+    /// Get widget by ID (mutable)
+    pub fn get_mut(&mut self, id: WidgetId) -> Option<&mut (dyn Widget + '_)> {
+        match self.widgets.get_mut(&id) {
+            Some(w) => Some(&mut **w),
             None => None,
         }
     }
 
-    /// Iterate over all widget IDs (for when you need to visit all elements)
+    /// Iterate over all widget IDs (for when you need to visit all widgets)
     pub fn widget_ids(&self) -> impl Iterator<Item = WidgetId> + '_ {
-        self.elements.keys().copied()
+        self.widgets.keys().copied()
     }
 
-    /// Add an element with a specific ID (for layout system)
-    pub fn add_element_with_id(&mut self, id: WidgetId, element: Box<dyn Element>) {
-        self.elements.insert(id, element);
+    /// Add a widget with a specific ID (for layout system)
+    pub fn add_widget_with_id(&mut self, id: WidgetId, widget: Box<dyn Widget>) {
+        self.widgets.insert(id, widget);
     }
 }

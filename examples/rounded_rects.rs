@@ -2,7 +2,7 @@
 
 use assorted_widgets::paint::{Border, Brush, Color, CornerRadius, ShapeStyle};
 use assorted_widgets::types::{Point, Rect, Size, WidgetId};
-use assorted_widgets::{Application, Element, WindowOptions};
+use assorted_widgets::{Application, Widget, WindowOptions};
 
 /// Demo element that shows various rounded rectangle styles
 struct RoundedRectsDemo {
@@ -16,7 +16,7 @@ impl RoundedRectsDemo {
     }
 }
 
-impl Element for RoundedRectsDemo {
+impl Widget for RoundedRectsDemo {
     fn id(&self) -> WidgetId {
         self.id
     }
@@ -246,7 +246,7 @@ fn main() {
             })
             .expect("Failed to create window");
 
-        // Add demo element using proper API (adds to ElementManager, LayoutManager, and SceneGraph)
+        // Add demo widget using clean Window API
         {
             let window = app.window_mut(window_id).expect("Window not found");
             let demo = RoundedRectsDemo::new(
@@ -254,9 +254,9 @@ fn main() {
                 Rect::new(Point::new(0.0, 0.0), Size::new(750.0, 650.0)),
             );
 
-            // Use add_root_widget to properly register in all three systems
+            // Use add_root to properly register in all internal systems
             use assorted_widgets::layout::{Style, Display};
-            window.add_root_widget(
+            window.add_root(
                 Box::new(demo),
                 Style {
                     display: Display::Block,

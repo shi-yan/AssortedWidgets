@@ -1,6 +1,6 @@
-//! TextLabel element with full Taffy layout integration
+//! TextLabel widget with full Taffy layout integration
 //!
-//! This element demonstrates:
+//! This widget demonstrates:
 //! - Measure function integration for intrinsic sizing
 //! - Layout invalidation on text/width changes
 //! - Bidirectional layout flows (window resize + content changes)
@@ -8,16 +8,16 @@
 
 use std::any::Any;
 
-use crate::element::Element;
+use crate::widget::Widget;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
 use crate::text::{TextAlign, TextEngine, TextLayout, TextStyle, Truncate};
 use crate::types::{DeferredCommand, GuiMessage, Rect, Size, WidgetId};
 
-/// A text label element with automatic layout sizing
+/// A text label widget with automatic layout sizing
 ///
-/// This element uses the measure() API to integrate with Taffy layout:
+/// This widget uses the measure() API to integrate with Taffy layout:
 /// - If parent sets width: Text wraps to that width, height is measured
 /// - If width is auto: Text uses intrinsic width (no wrapping)
 /// - Layout is cached and only re-shaped when text or width changes
@@ -151,7 +151,7 @@ impl TextLabel {
     }
 }
 
-impl Element for TextLabel {
+impl Widget for TextLabel {
     fn id(&self) -> WidgetId {
         self.id
     }

@@ -6,7 +6,7 @@ use crate::types::{Point, Rect, Size, WidgetId, WindowId};
 use crate::window::Window;
 
 #[cfg(target_os = "macos")]
-use crate::platform::{PlatformInput, PlatformWindow, PlatformWindowImpl, WindowCallbacks, WindowOptions};
+use crate::platform::{PlatformWindow, PlatformWindowImpl, WindowCallbacks, WindowOptions};
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -206,7 +206,7 @@ impl Application {
     /// For now, this returns the handle from the first window.
     /// In a multi-window app, you'd specify which window's handle you want.
     pub fn get_handle(&self) -> Option<GuiHandle> {
-        self.windows.values().next().map(|w| w.element_manager().get_handle())
+        self.windows.values().next().map(|w| w.get_handle())
     }
 
     /// Get reference to shared render context
@@ -269,9 +269,7 @@ impl Application {
 
         // Add draggable rect to proxy window to visualize the dragged element
         {
-            use crate::element::Element;
             use crate::elements::DraggableRect;
-            use crate::scene_graph::SceneNode;
 
             let proxy_window = self.windows.get_mut(&proxy_id).ok_or("Proxy window not found")?;
 
@@ -283,21 +281,10 @@ impl Application {
                 drag_data.color,
                 &drag_data.label,
             );
-            let proxy_rect_id = proxy_rect.id();
 
-            // Add to element manager
-            proxy_window.element_manager_mut().add_element(Box::new(proxy_rect));
-
-            // Create layout node
-            proxy_window.layout_manager_mut()
-                .create_node(proxy_rect_id, taffy::Style::default())
-                .map_err(|e| format!("Failed to create layout node: {}", e))?;
-
-            // Set up scene graph
-            let root = SceneNode::new(proxy_rect_id);
-            proxy_window.scene_graph_mut().set_root(root);
-            proxy_window.layout_manager_mut().set_root(proxy_rect_id)
-                .map_err(|e| format!("Failed to set layout root: {}", e))?;
+            // Use clean Window API to add as root widget
+            proxy_window.add_root(Box::new(proxy_rect), taffy::Style::default())
+                .map_err(|e| format!("Failed to add proxy widget: {}", e))?;
         }
 
         // Store drag state
@@ -403,20 +390,15 @@ impl Application {
 
         // Transfer widget: Remove from source, add to target
         {
-            use crate::element::Element;
             use crate::elements::DraggableRect;
-            use crate::scene_graph::SceneNode;
 
             // 1. Remove widget from source window
             if let Some(source_window) = self.windows.get_mut(&drag_state.source_window) {
                 println!("  [d] Removing widget {:?} from source window {:?}",
                          drag_state.drag_data.widget_id, drag_state.source_window);
 
-                source_window.element_manager_mut().remove_element(drag_state.drag_data.widget_id);
-                source_window.layout_manager_mut().remove_node(drag_state.drag_data.widget_id).ok();
-
-                // Clear scene graph from source window (simple case: root was the dragged element)
-                source_window.scene_graph_mut().set_root(SceneNode::new(WidgetId::new(0)));
+                // Use clean Window API to remove the widget
+                source_window.remove(drag_state.drag_data.widget_id).ok();
             }
 
             // 2. Create new widget at calculated position on target window
@@ -431,31 +413,26 @@ impl Application {
                     drag_state.drag_data.color,
                     &drag_state.drag_data.label,
                 );
-                let new_rect_id = new_rect.id();
 
-                // Add to element manager
-                target_window_mut.element_manager_mut().add_element(Box::new(new_rect));
+                // Create layout style with explicit position and size
+                let style = taffy::Style {
+                    margin: taffy::Rect {
+                        left: taffy::LengthPercentageAuto::length(rect_x as f32),
+                        top: taffy::LengthPercentageAuto::length(rect_y as f32),
+                        right: taffy::LengthPercentageAuto::auto(),
+                        bottom: taffy::LengthPercentageAuto::auto(),
+                    },
+                    size: taffy::Size {
+                        width: taffy::Dimension::length(drag_state.drag_data.size.width as f32),
+                        height: taffy::Dimension::length(drag_state.drag_data.size.height as f32),
+                    },
+                    ..Default::default()
+                };
 
-                // Create layout node with explicit size
-                target_window_mut.layout_manager_mut()
-                    .create_node(new_rect_id, taffy::Style {
-                        margin: taffy::Rect {
-                            left: taffy::LengthPercentageAuto::length(rect_x as f32),
-                            top: taffy::LengthPercentageAuto::length(rect_y as f32),
-                            right: taffy::LengthPercentageAuto::auto(),
-                            bottom: taffy::LengthPercentageAuto::auto(),
-                        },
-                        size: taffy::Size {
-                            width: taffy::Dimension::length(drag_state.drag_data.size.width as f32),
-                            height: taffy::Dimension::length(drag_state.drag_data.size.height as f32),
-                        },
-                        ..Default::default()
-                    })
+                // Use clean Window API to add as root widget
+                target_window_mut.add_root(Box::new(new_rect), style)
+                    .map_err(|e| format!("Failed to add widget to target: {}", e))
                     .ok();
-
-                // Set up scene graph
-                target_window_mut.scene_graph_mut().set_root(SceneNode::new(new_rect_id));
-                target_window_mut.layout_manager_mut().set_root(new_rect_id).ok();
 
                 println!("  [d] ✓ Widget transferred successfully!");
             }
@@ -662,13 +639,13 @@ impl Application {
 
             // Process element manager messages for all windows (signal/slot system)
             for window in self.windows.values_mut() {
-                window.element_manager_mut().process_messages();
+                window.process_messages();
             }
 
             // Check if any windows have animated elements
             for window in self.windows.values_mut() {
-                let has_animations = window.element_manager().widget_ids()
-                    .filter_map(|id| window.element_manager().get(id))
+                let has_animations = window.widget_ids()
+                    .filter_map(|id| window.get(id))
                     .any(|element| element.is_dirty());
 
                 if has_animations {

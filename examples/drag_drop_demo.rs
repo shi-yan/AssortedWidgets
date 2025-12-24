@@ -1,6 +1,5 @@
-use assorted_widgets::{Application, Element, WindowOptions};
+use assorted_widgets::{Application, Widget, WindowOptions};
 use assorted_widgets::elements::DraggableRect;
-use assorted_widgets::scene_graph::SceneNode;
 use assorted_widgets::types::{Point, Rect, Size, WidgetId};
 use assorted_widgets::paint::Color;
 
@@ -77,51 +76,46 @@ fn main() {
 
             let window = app.window_mut(window1_id).expect("Window 1 not found");
 
-            window.element_manager_mut().add_element(Box::new(red_rect));
-            window.element_manager_mut().add_element(Box::new(blue_rect));
-
-            // Create layout nodes with absolute positioning
-            window.layout_manager_mut().create_node(red_id, Style {
-                position: taffy::Position::Absolute,
-                inset: taffy::Rect {
-                    left: taffy::LengthPercentageAuto::Length(50.0),
-                    top: taffy::LengthPercentageAuto::Length(50.0),
+            // Add red rect as root with absolute positioning
+            window.add_root(
+                Box::new(red_rect),
+                Style {
+                    position: taffy::Position::Absolute,
+                    inset: taffy::Rect {
+                        left: taffy::LengthPercentageAuto::length(50.0),
+                        top: taffy::LengthPercentageAuto::length(50.0),
+                        right: taffy::LengthPercentageAuto::auto(),
+                        bottom: taffy::LengthPercentageAuto::auto(),
+                    },
+                    size: taffy::Size {
+                        width: taffy::Dimension::length(200.0),
+                        height: taffy::Dimension::length(150.0),
+                    },
                     ..Default::default()
                 },
-                size: taffy::Size {
-                    width: taffy::Dimension::Length(200.0),
-                    height: taffy::Dimension::Length(150.0),
-                },
-                ..Default::default()
-            })
-            .expect("Failed to create layout node");
+            )
+            .expect("Failed to add red rect as root");
 
-            window.layout_manager_mut().create_node(blue_id, Style {
-                position: taffy::Position::Absolute,
-                inset: taffy::Rect {
-                    left: taffy::LengthPercentageAuto::Length(300.0),
-                    top: taffy::LengthPercentageAuto::Length(50.0),
+            // Add blue rect as child with absolute positioning
+            window.add_child(
+                Box::new(blue_rect),
+                Style {
+                    position: taffy::Position::Absolute,
+                    inset: taffy::Rect {
+                        left: taffy::LengthPercentageAuto::length(300.0),
+                        top: taffy::LengthPercentageAuto::length(50.0),
+                        right: taffy::LengthPercentageAuto::auto(),
+                        bottom: taffy::LengthPercentageAuto::auto(),
+                    },
+                    size: taffy::Size {
+                        width: taffy::Dimension::length(200.0),
+                        height: taffy::Dimension::length(150.0),
+                    },
                     ..Default::default()
                 },
-                size: taffy::Size {
-                    width: taffy::Dimension::Length(200.0),
-                    height: taffy::Dimension::Length(150.0),
-                },
-                ..Default::default()
-            })
-            .expect("Failed to create layout node");
-
-            // Build scene graph: red is root, blue is child
-            let mut root = SceneNode::new(red_id);
-            root.add_child(SceneNode::new(blue_id));
-
-            // Sync layout hierarchy with scene graph (THIS IS THE KEY!)
-            window.layout_manager_mut().add_child(red_id, blue_id)
-                .expect("Failed to add layout child");
-
-            window.scene_graph_mut().set_root(root);
-            window.layout_manager_mut().set_root(red_id)
-                .expect("Failed to set layout root");
+                red_id,
+            )
+            .expect("Failed to add blue rect as child");
         }
 
         // ================================================================
@@ -165,51 +159,46 @@ fn main() {
 
             let window = app.window_mut(window2_id).expect("Window 2 not found");
 
-            window.element_manager_mut().add_element(Box::new(green_rect));
-            window.element_manager_mut().add_element(Box::new(yellow_rect));
-
-            // Create layout nodes with absolute positioning
-            window.layout_manager_mut().create_node(green_id, Style {
-                position: taffy::Position::Absolute,
-                inset: taffy::Rect {
-                    left: taffy::LengthPercentageAuto::Length(50.0),
-                    top: taffy::LengthPercentageAuto::Length(50.0),
+            // Add green rect as root with absolute positioning
+            window.add_root(
+                Box::new(green_rect),
+                Style {
+                    position: taffy::Position::Absolute,
+                    inset: taffy::Rect {
+                        left: taffy::LengthPercentageAuto::length(50.0),
+                        top: taffy::LengthPercentageAuto::length(50.0),
+                        right: taffy::LengthPercentageAuto::auto(),
+                        bottom: taffy::LengthPercentageAuto::auto(),
+                    },
+                    size: taffy::Size {
+                        width: taffy::Dimension::length(200.0),
+                        height: taffy::Dimension::length(150.0),
+                    },
                     ..Default::default()
                 },
-                size: taffy::Size {
-                    width: taffy::Dimension::Length(200.0),
-                    height: taffy::Dimension::Length(150.0),
-                },
-                ..Default::default()
-            })
-            .expect("Failed to create layout node");
+            )
+            .expect("Failed to add green rect as root");
 
-            window.layout_manager_mut().create_node(yellow_id, Style {
-                position: taffy::Position::Absolute,
-                inset: taffy::Rect {
-                    left: taffy::LengthPercentageAuto::Length(300.0),
-                    top: taffy::LengthPercentageAuto::Length(50.0),
+            // Add yellow rect as child with absolute positioning
+            window.add_child(
+                Box::new(yellow_rect),
+                Style {
+                    position: taffy::Position::Absolute,
+                    inset: taffy::Rect {
+                        left: taffy::LengthPercentageAuto::length(300.0),
+                        top: taffy::LengthPercentageAuto::length(50.0),
+                        right: taffy::LengthPercentageAuto::auto(),
+                        bottom: taffy::LengthPercentageAuto::auto(),
+                    },
+                    size: taffy::Size {
+                        width: taffy::Dimension::length(200.0),
+                        height: taffy::Dimension::length(150.0),
+                    },
                     ..Default::default()
                 },
-                size: taffy::Size {
-                    width: taffy::Dimension::Length(200.0),
-                    height: taffy::Dimension::Length(150.0),
-                },
-                ..Default::default()
-            })
-            .expect("Failed to create layout node");
-
-            // Build scene graph: green is root, yellow is child
-            let mut root = SceneNode::new(green_id);
-            root.add_child(SceneNode::new(yellow_id));
-
-            // Sync layout hierarchy with scene graph (THIS IS THE KEY!)
-            window.layout_manager_mut().add_child(green_id, yellow_id)
-                .expect("Failed to add layout child");
-
-            window.scene_graph_mut().set_root(root);
-            window.layout_manager_mut().set_root(green_id)
-                .expect("Failed to set layout root");
+                green_id,
+            )
+            .expect("Failed to add yellow rect as child");
         }
 
         println!();
