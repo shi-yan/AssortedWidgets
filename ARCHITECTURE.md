@@ -444,6 +444,11 @@ pub struct RenderContext {
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
 
+    // Shared Rendering Pipelines (Stateless, Created Once)
+    pub rect_pipeline: RectPipeline,
+    pub text_pipeline: TextPipeline,
+    pub surface_format: wgpu::TextureFormat,
+
     // Rendering Resources (Arc<Mutex<>>)
     pub glyph_atlas: Arc<Mutex<GlyphAtlas>>,
     pub font_system: Arc<Mutex<FontSystemWrapper>>,
@@ -452,6 +457,7 @@ pub struct RenderContext {
 ```
 
 **Shared Across All Windows:**
+- Rendering pipelines (rect, text) - stateless, created once, reused by all windows
 - Single glyph atlas (~16MB) vs per-window (~80MB for 5 windows)
 - Font system initialized once (~10MB saved)
 - Text shaping cache reused across windows
@@ -459,19 +465,34 @@ pub struct RenderContext {
 ### Per-Window Resources
 
 ```rust
-pub struct WindowRenderState {
-    pub renderer: WindowRenderer,     // Window surface
-    pub rect_renderer: RectRenderer,  // Stateless
-    pub text_renderer: TextRenderer,  // Stateless
-    pub scale_factor: f32,            // 1.0x, 2.0x, etc.
-    pub render_context: Arc<RenderContext>, // Cheap Arc clone
+pub struct WindowRenderer {
+    // Surface Management
+    pub surface: wgpu::Surface<'static>,
+    pub config: wgpu::SurfaceConfiguration,
+    pub format: wgpu::TextureFormat,
+
+    // Per-Window Uniforms (screen size varies per window)
+    rect_uniform_buffer: wgpu::Buffer,
+    rect_uniform_bind_group: wgpu::BindGroup,
+    text_uniform_buffer: wgpu::Buffer,
+    text_uniform_bind_group: wgpu::BindGroup,
+
+    // Dynamic Instance Buffers (reused each frame)
+    rect_instance_buffer: Option<wgpu::Buffer>,
+    text_instance_buffer: Option<wgpu::Buffer>,
+
+    // Window State
+    pub scale_factor: f32,
+    pub render_context: Arc<RenderContext>, // Shared pipelines + atlas + fonts
 }
 ```
 
 **Per-Window State:**
 - Surface configuration (size, format)
+- Uniform buffers for screen size (varies per window)
+- Instance buffers for batched rendering (dynamic)
 - Scale factor for DPI
-- Stateless renderers (reference shared atlas)
+- Reference to shared RenderContext (pipelines, atlas, fonts)
 
 ### Multi-Window Event Loop
 

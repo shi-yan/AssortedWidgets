@@ -1,11 +1,11 @@
+use crate::element::Element;
 use crate::element_manager::ElementManager;
 use crate::event::{FocusManager, GuiEvent, HitTester, InputEventEnum, MouseCapture};
 use crate::layout::LayoutManager;
 use crate::paint::PaintContext;
-use crate::render::RenderContext;
-use crate::scene_graph::SceneGraph;
-use crate::types::{FrameInfo, Point, Size, WindowId};
-use crate::window_render_state::WindowRenderState;
+use crate::render::{RenderContext, WindowRenderer};
+use crate::scene_graph::{SceneGraph, SceneNode};
+use crate::types::{FrameInfo, Point, Size, WidgetId, WindowId};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -22,11 +22,12 @@ use crate::platform::{PlatformWindow, PlatformWindowImpl};
 /// Each window has its own:
 /// - UI element tree (ElementManager, SceneGraph)
 /// - Layout system (LayoutManager)
-/// - Rendering surface (WindowRenderState)
+/// - Rendering surface and uniforms (WindowRenderer)
 ///
-/// Windows share:
-/// - GPU context (RenderContext) - passed by reference
-/// - Glyph atlas, fonts, text engine (SharedRenderState) - passed by reference
+/// Windows share (via WindowRenderer's Arc<RenderContext>):
+/// - GPU resources (device, queue, adapter)
+/// - Rendering pipelines (RectPipeline, TextPipeline)
+/// - Glyph atlas, fonts, text engine
 pub struct Window {
     // ========================================
     // Identity
@@ -44,8 +45,6 @@ pub struct Window {
     // ========================================
     element_manager: ElementManager,
     scene_graph: SceneGraph,
-    // todo: should we have a global layout manager?
-    // todo: only the container elements need to have layout support, why do we have a global layout manager?
     layout_manager: LayoutManager,
     window_size: Size,
     needs_layout: bool,
@@ -53,9 +52,9 @@ pub struct Window {
     // ========================================
     // Rendering (Per-Window)
     // ========================================
-    /// Per-window rendering resources (surface, renderers, scale factor)
-    /// References shared state (atlas, fonts) via Arc
-    render_state: WindowRenderState,
+    /// Per-window rendering resources (surface, uniforms, instance buffers)
+    /// Holds Arc<RenderContext> for shared GPU resources and pipelines
+    window_renderer: WindowRenderer,
 
     // ========================================
     // Animation / Frame Timing
@@ -89,7 +88,7 @@ impl Window {
     pub(crate) fn new(
         id: WindowId,
         platform_window: PlatformWindowImpl,
-        render_state: WindowRenderState,
+        window_renderer: WindowRenderer,
         window_size: Size,
         event_queue: Arc<Mutex<VecDeque<(WindowId, GuiEvent)>>>,
     ) -> Self {
@@ -101,7 +100,7 @@ impl Window {
             layout_manager: LayoutManager::new(),
             window_size,
             needs_layout: true,
-            render_state,
+            window_renderer,
             last_frame_time: None,
             frame_number: 0,
             hit_tester: HitTester::new(),
@@ -164,14 +163,14 @@ impl Window {
         &mut self.layout_manager
     }
 
-    /// Get reference to render state
-    pub fn render_state(&self) -> &WindowRenderState {
-        &self.render_state
+    /// Get reference to window renderer
+    pub fn window_renderer(&self) -> &WindowRenderer {
+        &self.window_renderer
     }
 
-    /// Get mutable reference to render state
-    pub fn render_state_mut(&mut self) -> &mut WindowRenderState {
-        &mut self.render_state
+    /// Get mutable reference to window renderer
+    pub fn window_renderer_mut(&mut self) -> &mut WindowRenderer {
+        &mut self.window_renderer
     }
 
     /// Get reference to platform window
@@ -186,9 +185,236 @@ impl Window {
         &mut self.platform_window
     }
 
+    // ========================================
+    // Unified Widget Management
+    // ========================================
+
+    /// Add a widget as the root of the window
+    ///
+    /// This is a high-level API that coordinates three systems:
+    /// 1. Adds element to ElementManager
+    /// 2. Creates root node in LayoutManager
+    /// 3. Sets root in SceneGraph
+    ///
+    /// # Arguments
+    /// * `element` - The widget to add (must implement Element trait)
+    /// * `style` - Layout style (flex, grid, absolute positioning, etc.)
+    ///
+    /// # Example
+    /// ```ignore
+    /// let panel = Panel::new(WidgetId::new(1));
+    /// window.add_root_widget(Box::new(panel), Style {
+    ///     display: Display::Flex,
+    ///     flex_direction: FlexDirection::Column,
+    ///     ..Default::default()
+    /// })?;
+    /// ```
+    pub fn add_root_widget(
+        &mut self,
+        element: Box<dyn Element>,
+        style: crate::layout::Style,
+    ) -> Result<WidgetId, String> {
+        let widget_id = element.id();
+
+        // 1. Add to ElementManager
+        self.element_manager.add_element(element);
+
+        // 2. Create layout node
+        if self.element_manager.get(widget_id).unwrap().needs_measure() {
+            self.layout_manager.create_measurable_node(widget_id, style)?;
+        } else {
+            self.layout_manager.create_node(widget_id, style)?;
+        }
+
+        // 3. Set as layout root
+        self.layout_manager.set_root(widget_id)?;
+
+        // 4. Create scene graph root
+        let root_node = SceneNode::new(widget_id);
+        self.scene_graph.set_root(root_node);
+
+        // Mark layout as dirty
+        self.needs_layout = true;
+
+        Ok(widget_id)
+    }
+
+    /// Add a widget as a child of an existing parent widget
+    ///
+    /// This is a high-level API that coordinates three systems:
+    /// 1. Adds element to ElementManager
+    /// 2. Creates child node in LayoutManager and establishes parent-child relationship
+    /// 3. Adds child to parent in SceneGraph
+    ///
+    /// # Arguments
+    /// * `element` - The widget to add (must implement Element trait)
+    /// * `style` - Layout style for this child
+    /// * `parent_id` - The parent widget's ID
+    ///
+    /// # Example
+    /// ```ignore
+    /// let button = Button::new(WidgetId::new(2));
+    /// window.add_child_widget(Box::new(button), Style {
+    ///     size: Size {
+    ///         width: Dimension::Length(100.0),
+    ///         height: Dimension::Length(30.0),
+    ///     },
+    ///     ..Default::default()
+    /// }, panel_id)?;
+    /// ```
+    pub fn add_child_widget(
+        &mut self,
+        element: Box<dyn Element>,
+        style: crate::layout::Style,
+        parent_id: WidgetId,
+    ) -> Result<WidgetId, String> {
+        let widget_id = element.id();
+
+        // 1. Add to ElementManager
+        self.element_manager.add_element(element);
+
+        // 2. Create layout node
+        if self.element_manager.get(widget_id).unwrap().needs_measure() {
+            self.layout_manager.create_measurable_node(widget_id, style)?;
+        } else {
+            self.layout_manager.create_node(widget_id, style)?;
+        }
+
+        // 3. Establish parent-child relationship in LayoutManager
+        self.layout_manager.add_child(parent_id, widget_id)?;
+
+        // 4. Add to SceneGraph
+        self.add_scene_graph_child(parent_id, widget_id)?;
+
+        // Mark layout as dirty
+        self.needs_layout = true;
+
+        Ok(widget_id)
+    }
+
+    /// Internal helper: Add child to SceneGraph by finding parent node
+    fn add_scene_graph_child(&mut self, parent_id: WidgetId, child_id: WidgetId) -> Result<(), String> {
+        // Find parent node in scene graph
+        if let Some(root) = self.scene_graph.root_mut() {
+            Self::add_child_to_node(root, parent_id, child_id)?;
+            Ok(())
+        } else {
+            Err(format!("No root in scene graph - cannot add child {:?}", child_id))
+        }
+    }
+
+    /// Recursive helper to find parent and add child
+    fn add_child_to_node(node: &mut SceneNode, parent_id: WidgetId, child_id: WidgetId) -> Result<(), String> {
+        if node.id == parent_id {
+            // Found parent - add child
+            node.add_child(SceneNode::new(child_id));
+            return Ok(());
+        }
+
+        // Recursively search children
+        for child in &mut node.children {
+            if Self::add_child_to_node(child, parent_id, child_id).is_ok() {
+                return Ok(());
+            }
+        }
+
+        Err(format!("Parent {:?} not found in scene graph", parent_id))
+    }
+
+    /// Remove a widget and all its descendants
+    ///
+    /// This coordinates removal across all three systems:
+    /// 1. Removes from ElementManager
+    /// 2. Removes from LayoutManager (including descendants)
+    /// 3. Removes from SceneGraph
+    ///
+    /// # Example
+    /// ```ignore
+    /// window.remove_widget(button_id)?;
+    /// ```
+    pub fn remove_widget(&mut self, widget_id: WidgetId) -> Result<(), String> {
+        // 1. Remove from LayoutManager (this removes descendants too)
+        self.layout_manager.remove_node(widget_id)?;
+
+        // 2. Collect all descendants from SceneGraph
+        let mut to_remove = vec![widget_id];
+        if let Some(root) = self.scene_graph.root() {
+            Self::collect_descendants(root, widget_id, &mut to_remove);
+        }
+
+        // 3. Remove from ElementManager
+        for id in &to_remove {
+            self.element_manager.remove_element(*id);
+        }
+
+        // 4. Remove from SceneGraph
+        self.remove_from_scene_graph(widget_id)?;
+
+        // Mark layout as dirty
+        self.needs_layout = true;
+
+        Ok(())
+    }
+
+    /// Recursive helper to collect all descendants
+    fn collect_descendants(node: &SceneNode, target_id: WidgetId, result: &mut Vec<WidgetId>) {
+        if node.id == target_id {
+            // Found target - collect all children
+            Self::collect_all_children(node, result);
+            return;
+        }
+
+        for child in &node.children {
+            Self::collect_descendants(child, target_id, result);
+        }
+    }
+
+    /// Recursive helper to collect all children
+    fn collect_all_children(node: &SceneNode, result: &mut Vec<WidgetId>) {
+        for child in &node.children {
+            result.push(child.id);
+            Self::collect_all_children(child, result);
+        }
+    }
+
+    /// Remove node from SceneGraph
+    fn remove_from_scene_graph(&mut self, widget_id: WidgetId) -> Result<(), String> {
+        if let Some(root) = self.scene_graph.root() {
+            if root.id == widget_id {
+                // Removing root
+                self.scene_graph = SceneGraph::new();
+                return Ok(());
+            }
+        }
+
+        if let Some(root) = self.scene_graph.root_mut() {
+            Self::remove_child_from_node(root, widget_id)?;
+        }
+
+        Ok(())
+    }
+
+    /// Recursive helper to remove child from scene graph
+    fn remove_child_from_node(node: &mut SceneNode, target_id: WidgetId) -> Result<(), String> {
+        // Check direct children
+        if let Some(index) = node.children.iter().position(|child| child.id == target_id) {
+            node.children.remove(index);
+            return Ok(());
+        }
+
+        // Recursively search
+        for child in &mut node.children {
+            if Self::remove_child_from_node(child, target_id).is_ok() {
+                return Ok(());
+            }
+        }
+
+        Err(format!("Widget {:?} not found in scene graph", target_id))
+    }
+
     /// Resize window and update all rendering resources
     #[cfg(target_os = "macos")]
-    pub fn resize(&mut self, bounds: crate::types::Rect, render_context: &RenderContext) {
+    pub fn resize(&mut self, bounds: crate::types::Rect, _render_context: &RenderContext) {
         // Get scale factor from platform window
         let scale_factor = self.platform_window.scale_factor();
 
@@ -205,32 +431,16 @@ impl Window {
         self.needs_layout = true;
 
         // Check if scale factor changed (e.g., window moved to different DPI display)
-        let scale_factor_changed = (self.render_state.scale_factor - scale_factor as f32).abs() > 0.01;
+        let scale_factor_changed = (self.window_renderer.scale_factor - scale_factor as f32).abs() > 0.01;
         if scale_factor_changed {
             println!("  ⚠️  DPI CHANGE: {:.1}x → {:.1}x",
-                self.render_state.scale_factor, scale_factor);
-            // Update the stored scale factor
-            self.render_state.scale_factor = scale_factor as f32;
+                self.window_renderer.scale_factor, scale_factor);
             // Note: No need to invalidate glyph atlas - glyphs at both scales are cached separately
             // via the scale_factor field in GlyphKey. This allows seamless transitions between displays!
         }
 
-        // Calculate physical pixel size for Retina displays (for surface configuration only)
-        let physical_size = Size::new(
-            bounds.size.width * scale_factor,
-            bounds.size.height * scale_factor
-        );
-
-        // Resize window renderer (surface needs physical size for actual pixel buffer)
-        self.render_state.renderer.resize(render_context, bounds, scale_factor);
-
-        // Update projection matrices with logical size and scale factor
-        // The renderers will scale the uniform by scale_factor to match the physical viewport
-        println!("  📊 Updating projection matrices: logical = {:.0}x{:.0}, scale = {:.1}x",
-            bounds.size.width, bounds.size.height, scale_factor);
-
-        self.render_state.rect_renderer.update_screen_size(render_context, bounds.size, scale_factor as f32);
-        self.render_state.text_renderer.update_screen_size(render_context, bounds.size, scale_factor as f32);
+        // WindowRenderer.resize() handles surface reconfiguration and uniform buffer updates
+        self.window_renderer.resize(bounds, scale_factor);
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
@@ -541,7 +751,7 @@ impl Window {
     ) {
 
         // Get surface texture
-        let surface_texture = match self.render_state.renderer.get_current_texture() {
+        let surface_texture = match self.window_renderer.get_current_texture() {
             Ok(texture) => texture,
             Err(e) => {
                 eprintln!("Failed to get surface texture: {:?}", e);
@@ -551,7 +761,7 @@ impl Window {
 
         // Create texture view with sRGB format
         let view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor {
-            format: Some(self.render_state.renderer.format.add_srgb_suffix()),
+            format: Some(self.window_renderer.format.add_srgb_suffix()),
             ..Default::default()
         });
 
@@ -654,8 +864,8 @@ impl Window {
         // 3. Paint elements in tree order (collect draw commands)
         let scale_factor = self.platform_window.scale_factor() as f32;
 
-        // Begin new frame for render state (atlas + text engine)
-        self.render_state.begin_frame();
+        // Begin new frame for window renderer (atlas + text engine)
+        self.window_renderer.begin_frame();
 
         // Paint phase - collect draw commands
         let (rect_instances, text_instances) = {
@@ -732,18 +942,13 @@ impl Window {
                 multiview_mask: None,
             });
 
-            // Render all rectangles
-            self.render_state.rect_renderer.render(render_context, &mut render_pass, &rect_instances);
+            // Render all rectangles using shared pipeline
+            self.window_renderer.render_rects(&mut render_pass, &rect_instances);
 
-            // Get atlas texture view from glyph atlas
+            // Render all text using shared pipeline and atlas
             let atlas_lock = render_context.glyph_atlas.lock().unwrap();
             let atlas_texture_view = atlas_lock.texture_view();
-            self.render_state.text_renderer.render(
-                render_context,
-                &mut render_pass,
-                &text_instances,
-                atlas_texture_view,
-            );
+            self.window_renderer.render_text(&mut render_pass, &text_instances, atlas_texture_view);
             drop(atlas_lock);
         }
 

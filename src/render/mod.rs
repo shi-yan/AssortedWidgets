@@ -34,7 +34,9 @@
 //! ```
 
 mod context;
+mod pipelines;
 mod window_renderer;
 
 pub use context::RenderContext;
+pub use pipelines::{RectPipeline, TextPipeline};
 pub use window_renderer::WindowRenderer;

@@ -299,19 +299,37 @@ pub struct RenderContext {
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
 
+    // Shared Rendering Pipelines (Stateless, Created Once)
+    pub rect_pipeline: RectPipeline,
+    pub text_pipeline: TextPipeline,
+    pub surface_format: wgpu::TextureFormat,
+
     // Rendering Resources (High-Level, Arc<Mutex<>>)
     pub glyph_atlas: Arc<Mutex<GlyphAtlas>>,
     pub font_system: Arc<Mutex<FontSystemWrapper>>,
     pub text_engine: Arc<Mutex<TextEngine>>,
 }
 
-// Per-window (references shared RenderContext)
-pub struct WindowRenderState {
-    pub renderer: WindowRenderer,           // Window surface
-    pub rect_renderer: RectRenderer,        // Stateless
-    pub text_renderer: TextRenderer,        // Stateless
-    pub scale_factor: f32,                  // 1.0x, 2.0x, etc.
-    pub render_context: Arc<RenderContext>, // Cheap Arc clone (GPU + Atlas + Fonts)
+// Per-window (merged from WindowRenderState into WindowRenderer)
+pub struct WindowRenderer {
+    // Surface Management
+    pub surface: wgpu::Surface<'static>,
+    pub config: wgpu::SurfaceConfiguration,
+    pub format: wgpu::TextureFormat,
+
+    // Per-Window Uniforms (screen size varies per window)
+    rect_uniform_buffer: wgpu::Buffer,
+    rect_uniform_bind_group: wgpu::BindGroup,
+    text_uniform_buffer: wgpu::Buffer,
+    text_uniform_bind_group: wgpu::BindGroup,
+
+    // Dynamic Instance Buffers (reused each frame)
+    rect_instance_buffer: Option<wgpu::Buffer>,
+    text_instance_buffer: Option<wgpu::Buffer>,
+
+    // Window State
+    pub scale_factor: f32,
+    pub render_context: Arc<RenderContext>, // Shared pipelines + atlas + fonts
 }
 
 // GlyphKey with multi-DPI support
@@ -325,12 +343,13 @@ pub struct GlyphKey {
 ```
 
 **Benefits of Consolidated Architecture:**
-- ✅ **Simpler:** Single `RenderContext` instead of two separate Arc wrappers
+- ✅ **Simpler:** Single `RenderContext` with all shared resources (pipelines + GPU + atlas + fonts)
+- ✅ **Pipeline Sharing:** Pipelines created once, reused by all windows (5 windows = 1× pipeline creation, not 5×)
 - ✅ **Memory:** Single atlas (~16MB) vs per-window (~80MB for 5 windows)
 - ✅ **DPI Transitions:** Window moves 1.0x → 2.0x? Both cached, no invalidation!
 - ✅ **Font System:** Initialized once, shared across windows (~10MB saved)
 - ✅ **Text Shaping:** Cache reused across windows
-- ✅ **Cleaner:** No redundancy between RenderContext and SharedRenderState
+- ✅ **Cleaner:** WindowRenderer consolidates all per-window state (surface + uniforms + instance buffers)
 
 **Rendering Flow:**
 1. Layout pass: Taffy queries measure functions for text dimensions

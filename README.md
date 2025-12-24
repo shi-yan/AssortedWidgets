@@ -202,11 +202,30 @@ let text_style = Style {
 AssortedWidgets uses a smart resource sharing model to optimize memory and performance:
 
 ```rust
-// Shared across all windows (Arc<Mutex<>>)
-pub struct SharedRenderState {
-    glyph_atlas: Arc<Mutex<GlyphAtlas>>,      // Single atlas for all windows
+// Shared across all windows (Arc<RenderContext>)
+pub struct RenderContext {
+    // GPU Resources
+    device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
+
+    // Shared Pipelines (Created Once, Reused by All Windows)
+    rect_pipeline: RectPipeline,
+    text_pipeline: TextPipeline,
+    surface_format: wgpu::TextureFormat,
+
+    // Shared Rendering Resources
+    glyph_atlas: Arc<Mutex<GlyphAtlas>>,       // Single atlas for all windows
     font_system: Arc<Mutex<FontSystemWrapper>>, // Font loading
-    text_engine: Arc<Mutex<TextEngine>>,       // Text shaping cache
+    text_engine: Arc<Mutex<TextEngine>>,        // Text shaping cache
+}
+
+// Per-window resources reference shared pipelines
+pub struct WindowRenderer {
+    surface: wgpu::Surface<'static>,
+    rect_uniform_buffer: wgpu::Buffer,  // Screen size (per-window)
+    text_uniform_buffer: wgpu::Buffer,   // Screen size (per-window)
+    render_context: Arc<RenderContext>,  // Shared pipelines + atlas + fonts
+    // ...
 }
 
 // GlyphKey includes scale_factor for multi-DPI support
@@ -218,6 +237,7 @@ pub struct GlyphKey {
 }
 
 // Benefits:
+// - Pipelines created once, not duplicated per window (5 windows = 1× creation)
 // - Single atlas (~16MB) instead of per-window duplication (~80MB for 5 windows)
 // - Window moves between displays? Both 1x and 2x glyphs cached simultaneously
 // - Font system initialized once, shared across all windows
@@ -297,7 +317,13 @@ See the `examples/` directory:
 - [ ] Linux support (Wayland)
 - [ ] Windows support
 
-### Recent Updates (Dec 2025)
+### Recent Updates (Dec 2024)
+
+**Phase 3.3 Complete - Pipeline Sharing Refactor:**
+- ✅ Shared rendering pipelines across all windows (created once, not per-window)
+- ✅ Consolidated WindowRenderer (merged WindowRenderState + per-window uniforms)
+- ✅ Eliminated redundant pipeline creation (5 windows = 1× creation instead of 5×)
+- ✅ Cleaner architecture: WindowRenderer now contains all per-window state
 
 **Phase 3.2 Complete - Text Rendering Refactor:**
 - ✅ Shared resource architecture for glyph atlas, fonts, and text engine

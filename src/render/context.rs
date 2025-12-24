@@ -2,17 +2,20 @@
 
 use std::sync::{Arc, Mutex};
 use crate::text::{GlyphAtlas, FontSystemWrapper, TextEngine};
+use crate::render::pipelines::{RectPipeline, TextPipeline};
 
 /// Shared rendering context containing GPU resources and rendering state
 ///
 /// This is created once per application and shared between all windows via Arc.
 /// It holds:
 /// - WebGPU instance, adapter, device, and queue (GPU low-level)
+/// - Shared rendering pipelines (rect, text) - stateless, reused across windows
 /// - Glyph atlas, font system, and text engine (rendering high-level)
 ///
 /// # Memory Efficiency
 ///
 /// Sharing these resources across windows saves significant memory:
+/// - Single pipeline creation instead of per-window duplication
 /// - Single glyph atlas (~16MB) instead of per-window duplication (~80MB for 5 windows)
 /// - Single font database (~10MB) instead of ~50MB for 5 windows
 /// - Shared text shaping cache
@@ -24,6 +27,17 @@ pub struct RenderContext {
     pub adapter: wgpu::Adapter,
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
+
+    // ========================================
+    // Shared Pipelines (Stateless)
+    // ========================================
+    /// Rectangle rendering pipeline (shared across all windows)
+    /// Contains only stateless resources: pipeline, bind group layouts
+    pub rect_pipeline: RectPipeline,
+
+    /// Text rendering pipeline (shared across all windows)
+    /// Contains only stateless resources: pipeline, bind group layouts, sampler
+    pub text_pipeline: TextPipeline,
 
     // ========================================
     // Rendering Resources (High-Level)
@@ -39,13 +53,20 @@ pub struct RenderContext {
     /// Text layout engine with dual-mode caching
     /// Shaped text results shared across windows
     pub text_engine: Arc<Mutex<TextEngine>>,
+
+    // ========================================
+    // Surface Configuration
+    // ========================================
+    /// Preferred surface format (sRGB if available, otherwise first supported format)
+    /// Determined once from adapter capabilities and used for all windows
+    pub surface_format: wgpu::TextureFormat,
 }
 
 impl RenderContext {
     /// Create a new render context asynchronously
     ///
     /// This requests a GPU adapter, creates a logical device, and initializes
-    /// shared rendering resources (atlas, fonts, text engine).
+    /// shared rendering resources (atlas, fonts, text engine, pipelines).
     ///
     /// Use `pollster::block_on(RenderContext::new())` in main() for simple blocking init.
     pub async fn new() -> Result<Self, String> {
@@ -86,26 +107,46 @@ impl RenderContext {
         let device = Arc::new(device);
         let queue = Arc::new(queue);
 
-        // Create shared rendering resources (atlas, fonts, text engine)
-        println!("Initializing shared rendering resources (atlas, fonts, text engine)");
+        // Determine preferred surface format by querying adapter
+        // We use Bgra8UnormSrgb as the default preferred format (most common on all platforms)
+        let surface_format = wgpu::TextureFormat::Bgra8UnormSrgb;
+        println!("Using surface format: {:?}", surface_format);
+
+        // Create shared rendering resources (atlas, fonts, text engine, pipelines)
+        println!("Initializing shared rendering resources...");
+
+        // Create shared pipelines (stateless, reused across all windows)
+        println!("  ✓ Creating shared rect pipeline...");
+        let rect_pipeline = RectPipeline::new(&device, surface_format);
+
+        println!("  ✓ Creating shared text pipeline...");
+        let text_pipeline = TextPipeline::new(&device, surface_format);
 
         // Create glyph atlas (2048×2048 with up to 16 pages)
+        println!("  ✓ Creating glyph atlas (2048×2048, 16 pages max)...");
         let glyph_atlas = GlyphAtlas::new(&device, 2048, 16);
 
         // Create font system
+        println!("  ✓ Initializing font system...");
         let font_system = FontSystemWrapper::new();
 
         // Create text engine
+        println!("  ✓ Creating text engine...");
         let text_engine = TextEngine::new();
+
+        println!("Shared rendering resources initialized successfully!");
 
         Ok(RenderContext {
             instance,
             adapter,
             device,
             queue,
+            rect_pipeline,
+            text_pipeline,
             glyph_atlas: Arc::new(Mutex::new(glyph_atlas)),
             font_system: Arc::new(Mutex::new(font_system)),
             text_engine: Arc::new(Mutex::new(text_engine)),
+            surface_format,
         })
     }
 

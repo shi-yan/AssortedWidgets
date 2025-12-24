@@ -37,7 +37,6 @@ pub mod scene_graph;
 pub mod text;
 pub mod types;
 pub mod window;
-pub mod window_render_state;
 
 // Re-export public API
 pub use application::Application;
@@ -56,4 +55,3 @@ pub use types::{
     Vector, WidgetId, WindowId,
 };
 pub use window::Window;
-pub use window_render_state::WindowRenderState;

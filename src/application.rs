@@ -4,7 +4,6 @@ use crate::paint::Color;
 use crate::render::{RenderContext, WindowRenderer};
 use crate::types::{Point, Rect, Size, WidgetId, WindowId};
 use crate::window::Window;
-use crate::window_render_state::WindowRenderState;
 
 #[cfg(target_os = "macos")]
 use crate::platform::{PlatformInput, PlatformWindow, PlatformWindowImpl, WindowCallbacks, WindowOptions};
@@ -58,12 +57,12 @@ pub struct DragState {
 /// **Single Application per Process:**
 /// - Owns the main event loop (`run() -> !`)
 /// - Manages all windows (multi-window support)
-/// - Owns shared rendering context (GPU + atlas + fonts)
+/// - Owns shared rendering context (GPU + pipelines + atlas + fonts)
 ///
 /// **Per-Window State:**
 /// - Each window has its own UI tree (ElementManager, SceneGraph)
-/// - Each window has its own rendering surface (WindowRenderState)
-/// - Windows share the RenderContext (GPU resources + glyph atlas + fonts)
+/// - Each window has its own rendering surface and uniforms (WindowRenderer)
+/// - Windows share the RenderContext (GPU, pipelines, glyph atlas, fonts)
 ///
 /// # Platform Notes
 ///
@@ -129,17 +128,11 @@ impl Application {
     /// Create a window
     #[cfg(target_os = "macos")]
     pub fn create_window(&mut self, options: WindowOptions) -> Result<WindowId, String> {
-        use crate::paint::RectRenderer;
-        use crate::text::TextRenderer;
-
         // Allocate window ID
         let window_id = WindowId::new(self.next_window_id);
         self.next_window_id += 1;
 
         let mut platform_window = PlatformWindowImpl::new(options);
-
-        // Create window renderer (surface + format management)
-        let renderer = WindowRenderer::new(&self.render_context, &platform_window)?;
 
         // Get window content bounds (excludes titlebar) and scale factor
         let content_bounds = platform_window.content_bounds();
@@ -149,30 +142,9 @@ impl Application {
         println!("Creating window {:?} with logical size {:.0}x{:.0}, scale factor: {:.1}x",
                  window_id, window_size.width, window_size.height, scale_factor);
 
-        // Create rectangle renderer (stateless - just pipeline/shaders)
-        let mut rect_renderer = RectRenderer::new(
-            &self.render_context,
-            renderer.format,
-        );
-        // Initialize projection matrix (logical size scaled by scale_factor)
-        rect_renderer.update_screen_size(&self.render_context, window_size, scale_factor as f32);
-
-        // Create text renderer (stateless - just pipeline/shaders)
-        let mut text_renderer = TextRenderer::new(
-            &self.render_context,
-            renderer.format,
-        );
-        // Initialize projection matrix (logical size scaled by scale_factor)
-        text_renderer.update_screen_size(&self.render_context, window_size, scale_factor as f32);
-
-        // Bundle per-window resources
-        let render_state = WindowRenderState::new(
-            renderer,
-            rect_renderer,
-            text_renderer,
-            scale_factor as f32,
-            Arc::clone(&self.render_context),
-        );
+        // Create window renderer (surface + uniforms + instance buffers)
+        // This accepts Arc<RenderContext> which contains shared pipelines
+        let window_renderer = WindowRenderer::new(Arc::clone(&self.render_context), &platform_window)?;
 
         // Clone event queue Arc for callbacks to use
         let event_queue_input_event = self.event_queue.clone();
@@ -208,7 +180,7 @@ impl Application {
         let window = Window::new(
             window_id,
             platform_window,
-            render_state,
+            window_renderer,
             window_size,
             Arc::clone(&self.event_queue),
         );
