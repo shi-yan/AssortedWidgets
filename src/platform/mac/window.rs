@@ -10,10 +10,10 @@ use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2::{define_class, msg_send, DefinedClass, MainThreadOnly};
 use objc2_app_kit::{
-    NSApplication, NSBackingStoreType, NSEvent, NSEventModifierFlags, NSView, NSWindow,
-    NSWindowDelegate, NSWindowStyleMask,
+    NSApplication, NSBackingStoreType, NSEvent, NSEventModifierFlags, NSTextInputClient,
+    NSView, NSWindow, NSWindowDelegate, NSWindowStyleMask,
 };
-use objc2_foundation::{MainThreadMarker, NSNotification, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString};
+use objc2_foundation::{MainThreadMarker, NSNotification, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString, NSRange};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -120,9 +120,20 @@ define_class!(
         // Keyboard events
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
-            if let Some(key_event) = Self::convert_to_key_event(event) {
-                self.invoke_input_event_callback(InputEventEnum::KeyDown(key_event));
+            println!("[IME] keyDown called, calling interpretKeyEvents...");
+
+            // CRITICAL: Call interpretKeyEvents to trigger IME processing
+            // This will call insertText: for committed text or setMarkedText: for preedit
+            unsafe {
+                use objc2_foundation::NSArray;
+
+                // Create array with single event
+                let events = NSArray::from_slice(&[event]);
+                let _: () = msg_send![self, interpretKeyEvents: &*events];
             }
+
+            println!("[IME] interpretKeyEvents finished");
+            // Note: Don't convert/dispatch here - let interpretKeyEvents call insertText/setMarkedText
         }
 
         #[unsafe(method(keyUp:))]
@@ -130,6 +141,119 @@ define_class!(
             if let Some(key_event) = Self::convert_to_key_event(event) {
                 self.invoke_input_event_callback(InputEventEnum::KeyUp(key_event));
             }
+        }
+
+        // View properties
+        #[unsafe(method(acceptsFirstResponder))]
+        fn accepts_first_responder(&self) -> bool {
+            true
+        }
+
+        #[unsafe(method(isFlipped))]
+        fn is_flipped(&self) -> bool {
+            true // Use top-left origin
+        }
+    }
+
+    // SAFETY: NSTextInputClient protocol implementation for IME support
+    unsafe impl NSTextInputClient for CustomView {
+        #[unsafe(method(insertText:replacementRange:))]
+        fn insert_text(&self, string: &NSObject, _replacement_range: NSRange) {
+            println!("[IME] ✅ insertText called!");
+
+            // Convert NSObject to string
+            let text: *const NSString = unsafe { std::mem::transmute(string) };
+            let text_str = unsafe { (*text).to_string() };
+
+            println!("[IME] insertText (commit): '{}'", text_str);
+
+            // Send IME commit event to application
+            // For now, just send as KeyDown events
+            for ch in text_str.chars() {
+                let key_event = KeyEvent::new(Key::Character(ch), Modifiers::default());
+                self.invoke_input_event_callback(InputEventEnum::KeyDown(key_event));
+            }
+        }
+
+        #[unsafe(method(doCommandBySelector:))]
+        fn do_command_by_selector(&self, selector: objc2::runtime::Sel) {
+            println!("[IME] doCommandBySelector: {:?}", selector);
+            // We don't handle any special commands, so just log them
+            // The system will handle special keys (Enter, Tab, etc.)
+        }
+
+        #[unsafe(method(setMarkedText:selectedRange:replacementRange:))]
+        fn set_marked_text(&self, string: &NSObject, _selected_range: NSRange, _replacement_range: NSRange) {
+            println!("[IME] ✅ setMarkedText called!");
+
+            // Convert NSObject to string
+            let text: *const NSString = unsafe { std::mem::transmute(string) };
+            let text_str = unsafe { (*text).to_string() };
+
+            println!("[IME] setMarkedText (preedit): '{}'", text_str);
+
+            // TODO: Send IME preedit event to application
+        }
+
+        #[unsafe(method(unmarkText))]
+        fn unmark_text(&self) {
+            println!("[IME] unmarkText");
+            // TODO: Clear preedit text
+        }
+
+        #[unsafe(method(hasMarkedText))]
+        fn has_marked_text(&self) -> bool {
+            // TODO: Track if we have preedit text
+            false
+        }
+
+        #[unsafe(method(markedRange))]
+        fn marked_range(&self) -> NSRange {
+            // TODO: Return range of preedit text
+            NSRange {location: usize::MAX, length: 0} // NSNotFound
+        }
+
+        #[unsafe(method(selectedRange))]
+        fn selected_range(&self) -> NSRange {
+            // TODO: Return cursor position
+            NSRange {location: 0, length: 0}
+        }
+
+        #[unsafe(method(validAttributesForMarkedText))]
+        fn valid_attributes_for_marked_text(&self) -> *const NSObject {
+            println!("[IME] validAttributesForMarkedText called");
+            // Return empty array
+            unsafe {
+                use objc2_foundation::NSArray;
+                let empty_array: Retained<NSArray<NSObject>> = NSArray::new();
+                Retained::into_raw(empty_array) as *const NSObject
+            }
+        }
+
+        #[unsafe(method(attributedSubstringForProposedRange:actualRange:))]
+        fn attributed_substring_for_proposed_range(
+            &self,
+            _range: NSRange,
+            _actual_range: *mut NSRange,
+        ) -> *const NSObject {
+            println!("[IME] attributedSubstringForProposedRange called");
+            // Return nil - we don't support attributed strings
+            std::ptr::null()
+        }
+
+        #[unsafe(method(firstRectForCharacterRange:actualRange:))]
+        fn first_rect_for_character_range(&self, _range: NSRange, _actual_range: *mut NSRange) -> NSRect {
+            println!("[IME] firstRectForCharacterRange called");
+            // Return position where IME candidate window should appear
+            // For now, return view bounds
+            unsafe { msg_send![self, bounds] }
+        }
+
+        #[unsafe(method(characterIndexForPoint:))]
+        fn character_index_for_point(&self, _point: NSPoint) -> usize {
+            println!("[IME] characterIndexForPoint called");
+            // Return NSNotFound
+            usize::MAX
         }
 
         // View properties

@@ -28,7 +28,7 @@ image = "0.25"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSWindow", "NSView", "NSEvent", "NSScreen", "NSResponder"] }
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSWindow", "NSView", "NSEvent", "NSScreen", "NSResponder", "NSTextInputClient"] }
 objc2-foundation = { version = "0.3", features = ["NSString", "NSDate", "NSRunLoop", "NSGeometry"] }
 
 [lints.rust]
