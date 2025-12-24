@@ -236,7 +236,11 @@ impl<'a> PaintContext<'a> {
     /// );
     /// ```
     pub fn draw_styled_rect(&mut self, rect: Rect, style: ShapeStyle) {
-        self.sdf_commands.push(DrawCommand::Rect { rect, style });
+        self.sdf_commands.push(DrawCommand::Rect {
+            rect,
+            style,
+            z_index: self.z_order as i32,
+        });
         self.z_order += 1;
     }
 

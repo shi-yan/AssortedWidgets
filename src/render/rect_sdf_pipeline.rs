@@ -26,6 +26,7 @@ struct Uniforms {
 pub struct RectSdfPipeline {
     pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
+    clip_bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl RectSdfPipeline {
@@ -35,7 +36,7 @@ impl RectSdfPipeline {
             source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rect_sdf.wgsl").into()),
         });
 
-        // Bind group layout for uniforms
+        // Bind group layout for uniforms (group 0)
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Rect SDF Bind Group Layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -50,9 +51,24 @@ impl RectSdfPipeline {
             }],
         });
 
+        // Bind group layout for clip uniforms (group 1)
+        let clip_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Rect SDF Clip Bind Group Layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Rect SDF Pipeline Layout"),
-            bind_group_layouts: &[&bind_group_layout],
+            bind_group_layouts: &[&bind_group_layout, &clip_bind_group_layout],
             immediate_size: 0,
         });
 
@@ -135,6 +151,7 @@ impl RectSdfPipeline {
         Self {
             pipeline,
             bind_group_layout,
+            clip_bind_group_layout,
         }
     }
 
@@ -146,6 +163,7 @@ impl RectSdfPipeline {
         render_pass: &mut wgpu::RenderPass,
         _uniform_buffer: &wgpu::Buffer,
         uniform_bind_group: &wgpu::BindGroup,
+        clip_bind_group: &wgpu::BindGroup,
         batcher: &PrimitiveBatcher,
     ) {
         if batcher.is_empty() {
@@ -157,7 +175,7 @@ impl RectSdfPipeline {
             .commands()
             .iter()
             .filter_map(|cmd| match cmd {
-                DrawCommand::Rect { rect, style } => {
+                DrawCommand::Rect { rect, style, .. } => {
                     let fill_color = style.fill.to_color();
                     let border_color = style.border.as_ref()
                         .map(|b| b.color)
@@ -175,6 +193,8 @@ impl RectSdfPipeline {
                         _padding: [0.0; 3],
                     })
                 }
+                // Clip commands are not rendered as rectangles
+                DrawCommand::PushClip { .. } | DrawCommand::PopClip => None,
             })
             .collect();
 
@@ -192,6 +212,7 @@ impl RectSdfPipeline {
         // Render
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, uniform_bind_group, &[]);
+        render_pass.set_bind_group(1, clip_bind_group, &[]);
         render_pass.set_vertex_buffer(0, instance_buffer.slice(..));
         render_pass.draw(0..6, 0..instances.len() as u32); // 6 vertices per quad (2 triangles)
     }
@@ -245,5 +266,50 @@ impl RectSdfPipeline {
         };
 
         queue.write_buffer(uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+    }
+
+    /// Create clip uniform buffer (initially with no active clips)
+    pub fn create_clip_uniform_buffer(&self, device: &wgpu::Device) -> wgpu::Buffer {
+        // Buffer size to match WGSL struct layout with alignment:
+        // struct ClipUniforms {
+        //     count: u32,                         // 4 bytes
+        //     _padding: vec3<u32>,                // 12 bytes -> 16 total (aligned)
+        //     regions: array<ClipRegion, 8>,      // 8 * 32 = 256 bytes
+        // }
+        // Shader expects: 16 (header) + 272 (8 regions * 34 bytes with padding) = 288 bytes
+        let size = 288;
+
+        device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Rect SDF Clip Uniform Buffer"),
+            size: size as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        })
+    }
+
+    /// Create bind group for clip uniforms
+    pub fn create_clip_bind_group(
+        &self,
+        device: &wgpu::Device,
+        clip_uniform_buffer: &wgpu::Buffer,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Rect SDF Clip Bind Group"),
+            layout: &self.clip_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: clip_uniform_buffer.as_entire_binding(),
+            }],
+        })
+    }
+
+    /// Update clip uniform buffer from ClipStack
+    pub fn update_clip_uniforms(
+        &self,
+        queue: &wgpu::Queue,
+        clip_uniform_buffer: &wgpu::Buffer,
+        clip_data: &[f32],
+    ) {
+        queue.write_buffer(clip_uniform_buffer, 0, bytemuck::cast_slice(clip_data));
     }
 }

@@ -140,8 +140,35 @@ pub enum DrawCommand {
     Rect {
         rect: Rect,
         style: ShapeStyle,
+        z_index: i32,
     },
+    /// Push a clipping region (rounded rectangle)
+    PushClip {
+        rect: Rect,
+        corner_radius: CornerRadius,
+    },
+    /// Pop the most recent clipping region
+    PopClip,
     // Future commands:
-    // Circle { center: Point, radius: f32, style: ShapeStyle },
-    // Line { p1: Point, p2: Point, stroke: Stroke },
+    // Circle { center: Point, radius: f32, style: ShapeStyle, z_index: i32 },
+    // Line { p1: Point, p2: Point, stroke: Stroke, z_index: i32 },
+}
+
+impl DrawCommand {
+    /// Get the z-index for sorting (clip commands return 0)
+    pub fn z_index(&self) -> i32 {
+        match self {
+            DrawCommand::Rect { z_index, .. } => *z_index,
+            DrawCommand::PushClip { .. } | DrawCommand::PopClip => 0,
+        }
+    }
+
+    /// Get the batch key for grouping (primitives of same type can batch)
+    pub fn batch_key(&self) -> u32 {
+        match self {
+            DrawCommand::Rect { .. } => 0,
+            DrawCommand::PushClip { .. } => u32::MAX - 1,
+            DrawCommand::PopClip => u32::MAX,
+        }
+    }
 }

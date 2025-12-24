@@ -1,0 +1,257 @@
+//! Phase 1 Visual Test - Z-Ordering and Clipping
+//!
+//! This demonstrates the Phase 1 implementation with actual rendering:
+//! 1. Z-ordering with explicit layers (SHADOW, NORMAL, OVERLAY)
+//! 2. Rounded rectangle clipping (shader-based SDF)
+//! 3. Batched rendering with anti-aliasing
+
+use assorted_widgets::paint::{Border, Brush, Color, CornerRadius, ShapeStyle, PrimitiveBatcher, layers};
+use assorted_widgets::types::{Point, Rect, Size, WidgetId};
+use assorted_widgets::{Application, Widget, WindowOptions};
+
+/// Phase 1 visual test widget
+struct Phase1VisualTest {
+    id: WidgetId,
+    bounds: Rect,
+}
+
+impl Phase1VisualTest {
+    fn new(id: WidgetId, bounds: Rect) -> Self {
+        Self { id, bounds }
+    }
+}
+
+impl Widget for Phase1VisualTest {
+    fn id(&self) -> WidgetId {
+        self.id
+    }
+
+    fn bounds(&self) -> Rect {
+        self.bounds
+    }
+
+    fn set_bounds(&mut self, bounds: Rect) {
+        self.bounds = bounds;
+    }
+
+    fn on_message(&mut self, _msg: &assorted_widgets::GuiMessage) -> Vec<assorted_widgets::types::DeferredCommand> {
+        vec![]
+    }
+
+    fn on_event(&mut self, _event: &assorted_widgets::OsEvent) -> Vec<assorted_widgets::types::DeferredCommand> {
+        vec![]
+    }
+
+    fn set_dirty(&mut self, _dirty: bool) {}
+
+    fn is_dirty(&self) -> bool {
+        false
+    }
+
+    fn layout(&self) -> assorted_widgets::layout::Style {
+        Default::default()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn paint(&self, ctx: &mut assorted_widgets::paint::PaintContext) {
+        // Background
+        ctx.draw_styled_rect(
+            self.bounds,
+            ShapeStyle::solid(Color::rgb(0.12, 0.12, 0.15)),
+        );
+
+        // Helper to create Rect with Point + Size
+        let rect = |x: f64, y: f64, w: f64, h: f64| {
+            Rect::new(Point::new(x, y), Size::new(w, h))
+        };
+
+        // ========================================
+        // Test 1: Z-Ordering (Left Section)
+        // ========================================
+
+        // Title
+        ctx.draw_styled_rect(
+            rect(30.0, 20.0, 280.0, 50.0),
+            ShapeStyle::rounded(Color::rgb(0.25, 0.25, 0.30), 8.0),
+        );
+
+        // Red rectangle at SHADOW layer (z=-100) - renders BEHIND
+        let mut batcher = PrimitiveBatcher::new();
+        batcher.draw_rect_z(
+            rect(50.0, 100.0, 180.0, 180.0),
+            ShapeStyle {
+                fill: Brush::Solid(Color::rgb(0.9, 0.2, 0.2)),
+                corner_radius: CornerRadius::uniform(20.0),
+                border: Some(Border::new(Color::rgb(0.7, 0.1, 0.1), 3.0)),
+            },
+            layers::SHADOW,
+        );
+
+        // Blue rectangle at NORMAL layer (z=0) - renders MIDDLE
+        batcher.draw_rect_z(
+            rect(100.0, 150.0, 180.0, 180.0),
+            ShapeStyle {
+                fill: Brush::Solid(Color::rgb(0.2, 0.4, 0.9)),
+                corner_radius: CornerRadius::uniform(20.0),
+                border: Some(Border::new(Color::rgb(0.1, 0.2, 0.7), 3.0)),
+            },
+            layers::NORMAL,
+        );
+
+        // Green rectangle at OVERLAY layer (z=1000) - renders ON TOP
+        batcher.draw_rect_z(
+            rect(150.0, 200.0, 180.0, 180.0),
+            ShapeStyle {
+                fill: Brush::Solid(Color::rgb(0.2, 0.9, 0.4)),
+                corner_radius: CornerRadius::uniform(20.0),
+                border: Some(Border::new(Color::rgb(0.1, 0.7, 0.2), 3.0)),
+            },
+            layers::OVERLAY,
+        );
+
+        // Sort and render
+        batcher.sort_commands();
+
+        // Transfer sorted commands to PaintContext
+        for cmd in batcher.commands() {
+            if let assorted_widgets::paint::DrawCommand::Rect { rect, style, .. } = cmd {
+                ctx.draw_styled_rect(*rect, style.clone());
+            }
+        }
+
+        // ========================================
+        // Test 2: Rounded Clipping (Right Section)
+        // ========================================
+
+        // Title
+        ctx.draw_styled_rect(
+            rect(370.0, 20.0, 380.0, 50.0),
+            ShapeStyle::rounded(Color::rgb(0.25, 0.25, 0.30), 8.0),
+        );
+
+        // White background (unclipped)
+        ctx.draw_styled_rect(
+            rect(400.0, 100.0, 320.0, 280.0),
+            ShapeStyle {
+                fill: Brush::Solid(Color::rgb(0.95, 0.95, 0.98)),
+                corner_radius: CornerRadius::uniform(12.0),
+                border: Some(Border::new(Color::rgb(0.7, 0.7, 0.8), 2.0)),
+            },
+        );
+
+        // Magenta pattern (will be clipped by shader)
+        // NOTE: In Phase 1, clipping is integrated into the shader
+        // This demonstrates the rendering, actual clipping will work when
+        // we integrate ClipStack into the render pipeline
+
+        // For now, we'll draw a magenta rect that SHOULD be clipped
+        let magenta = Color::rgb(0.9, 0.3, 0.9);
+        ctx.draw_styled_rect(
+            rect(420.0, 120.0, 280.0, 240.0),
+            ShapeStyle::rounded(magenta, 30.0)
+                .with_border(Border::new(Color::rgb(0.7, 0.1, 0.7), 2.0)),
+        );
+
+        // Cyan overlay (also should be clipped to inner region)
+        let cyan = Color::rgba(0.2, 0.9, 0.9, 0.6);
+        ctx.draw_styled_rect(
+            rect(460.0, 180.0, 200.0, 120.0),
+            ShapeStyle::rounded(cyan, 20.0),
+        );
+
+        // ========================================
+        // Test 3: Label Overlays (uses z-ordering)
+        // ========================================
+
+        // Labels rendered on top using OVERLAY layer
+        let label_style = ShapeStyle {
+            fill: Brush::Solid(Color::rgba(0.1, 0.1, 0.1, 0.85)),
+            corner_radius: CornerRadius::uniform(6.0),
+            border: Some(Border::new(Color::rgb(0.3, 0.3, 0.35), 1.0)),
+        };
+
+        ctx.draw_styled_rect(rect(55.0, 105.0, 60.0, 24.0), label_style.clone());
+        ctx.draw_styled_rect(rect(105.0, 155.0, 60.0, 24.0), label_style.clone());
+        ctx.draw_styled_rect(rect(155.0, 205.0, 60.0, 24.0), label_style);
+
+        // Footer info
+        ctx.draw_styled_rect(
+            rect(30.0, 420.0, 720.0, 50.0),
+            ShapeStyle::rounded(Color::rgb(0.18, 0.18, 0.22), 8.0)
+                .with_border(Border::new(Color::rgb(0.3, 0.3, 0.35), 1.0)),
+        );
+    }
+}
+
+fn main() {
+    println!("Phase 1 Visual Test - Z-Ordering & Clipping");
+    println!("===========================================");
+    println!();
+    println!("This test showcases:");
+    println!("  • Z-ordering with explicit layers (SHADOW, NORMAL, OVERLAY)");
+    println!("  • Rounded rectangles with SDF anti-aliasing");
+    println!("  • Shader-based clipping (foundation)");
+    println!();
+
+    #[cfg(target_os = "macos")]
+    {
+        let mut app = pollster::block_on(async { Application::new().await })
+            .expect("Failed to initialize application");
+
+        let window_id = app
+            .create_window(WindowOptions {
+                bounds: Rect::new(Point::new(100.0, 100.0), Size::new(800.0, 500.0)),
+                title: "Phase 1 Visual Test - Z-Ordering & Clipping".to_string(),
+                titlebar: None,
+                borderless: false,
+                transparent: false,
+                always_on_top: false,
+                utility: false,
+            })
+            .expect("Failed to create window");
+
+        // Create the test widget
+        let demo = Phase1VisualTest::new(
+            WidgetId::new(1),
+            Rect::new(Point::new(0.0, 0.0), Size::new(800.0, 500.0)),
+        );
+
+        // Get window reference and add root widget
+        {
+            let window = app.window_mut(window_id).expect("Window not found");
+
+            // Use add_root to properly register in all internal systems
+            use assorted_widgets::layout::{Style, Display};
+            window.add_root(
+                Box::new(demo),
+                Style {
+                    display: Display::Block,
+                    size: taffy::Size {
+                        width: taffy::Dimension::length(800.0),
+                        height: taffy::Dimension::length(500.0),
+                    },
+                    ..Default::default()
+                },
+            ).expect("Failed to add root widget");
+        }
+
+        println!("✓ Window created");
+        println!("✓ Demo element added");
+        println!();
+        println!("Close the window to exit.");
+
+        app.run();
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        println!("This example currently only runs on macOS");
+    }
+}

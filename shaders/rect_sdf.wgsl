@@ -6,6 +6,21 @@ struct Uniforms {
 @group(0) @binding(0)
 var<uniform> uniforms: Uniforms;
 
+// Clip region uniform (max 8 nested clips)
+struct ClipRegion {
+    rect: vec4<f32>,           // x, y, width, height
+    corner_radius: vec4<f32>,  // top_left, top_right, bottom_right, bottom_left
+}
+
+struct ClipUniforms {
+    count: u32,                 // Number of active clip regions (0-8)
+    _padding: vec3<u32>,        // Align to 16 bytes
+    regions: array<ClipRegion, 8>,
+}
+
+@group(1) @binding(0)
+var<uniform> clip_uniforms: ClipUniforms;
+
 // Per-instance data (uploaded via instance buffer)
 struct RectInstance {
     @location(0) rect: vec4<f32>,           // x, y, width, height
@@ -23,6 +38,7 @@ struct VertexOutput {
     @location(3) fill_color: vec4<f32>,
     @location(4) border_color: vec4<f32>,
     @location(5) border_width: f32,
+    @location(6) world_pos: vec2<f32>,      // World position for clipping
 }
 
 // Vertex shader: Generate quad from instance data
@@ -64,6 +80,7 @@ fn vs_main(
     out.fill_color = instance.fill_color;
     out.border_color = instance.border_color;
     out.border_width = instance.border_width;
+    out.world_pos = world_pos;
 
     return out;
 }
@@ -92,9 +109,36 @@ fn sdf_rounded_box(p: vec2<f32>, size: vec2<f32>, radius: vec4<f32>) -> f32 {
     return min(max(q.x, q.y), 0.0) + length(max(q, vec2<f32>(0.0))) - r;
 }
 
+// Check if a point is inside all active clip regions (returns true if clipped OUT)
+fn apply_clipping(world_pos: vec2<f32>) -> bool {
+    for (var i = 0u; i < clip_uniforms.count; i++) {
+        let region = clip_uniforms.regions[i];
+
+        // Calculate position relative to clip region center
+        let center = region.rect.xy + region.rect.zw * 0.5;
+        let local_pos = world_pos - center;
+        let half_size = region.rect.zw * 0.5;
+
+        // Evaluate SDF for this clip region
+        let dist = sdf_rounded_box(local_pos, half_size, region.corner_radius);
+
+        // If outside this clip region, discard the fragment
+        if (dist > 0.0) {
+            return true; // Clipped out
+        }
+    }
+
+    return false; // Inside all clips
+}
+
 // Fragment shader: Render SDF with anti-aliasing
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    // Apply clipping (discard if outside any clip region)
+    if (apply_clipping(in.world_pos)) {
+        discard;
+    }
+
     // Calculate SDF distance
     let dist = sdf_rounded_box(in.local_pos, in.size, in.corner_radius);
 

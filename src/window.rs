@@ -992,8 +992,8 @@ impl Window {
                 // Create a temporary batcher from the collected commands
                 let mut sdf_batcher = crate::paint::PrimitiveBatcher::new();
                 for cmd in &sdf_commands {
-                    if let crate::paint::DrawCommand::Rect { rect, style } = cmd {
-                        sdf_batcher.draw_rect(*rect, style.clone());
+                    if let crate::paint::DrawCommand::Rect { rect, style, z_index } = cmd {
+                        sdf_batcher.draw_rect_z(*rect, style.clone(), *z_index);
                     }
                 }
                 self.window_renderer.render_sdf_rects(&mut render_pass, &sdf_batcher);

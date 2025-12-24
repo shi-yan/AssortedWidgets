@@ -66,6 +66,10 @@ pub struct WindowRenderer {
     rect_sdf_uniform_buffer: wgpu::Buffer,
     rect_sdf_uniform_bind_group: wgpu::BindGroup,
 
+    /// SDF rect clip uniforms (clip regions for fragment shader)
+    rect_sdf_clip_uniform_buffer: wgpu::Buffer,
+    rect_sdf_clip_uniform_bind_group: wgpu::BindGroup,
+
     // ========================================
     // Per-Window Instance Buffers (Dynamic)
     // ========================================
@@ -180,6 +184,10 @@ impl WindowRenderer {
         let rect_sdf_uniform_buffer = context.rect_sdf_pipeline.create_uniform_buffer(device, width, height);
         let rect_sdf_uniform_bind_group = context.rect_sdf_pipeline.create_bind_group(device, &rect_sdf_uniform_buffer);
 
+        // Create SDF rect clip uniforms and bind group (initially empty)
+        let rect_sdf_clip_uniform_buffer = context.rect_sdf_pipeline.create_clip_uniform_buffer(device);
+        let rect_sdf_clip_uniform_bind_group = context.rect_sdf_pipeline.create_clip_bind_group(device, &rect_sdf_clip_uniform_buffer);
+
         Ok(WindowRenderer {
             surface,
             config,
@@ -190,6 +198,8 @@ impl WindowRenderer {
             text_uniform_bind_group,
             rect_sdf_uniform_buffer,
             rect_sdf_uniform_bind_group,
+            rect_sdf_clip_uniform_buffer,
+            rect_sdf_clip_uniform_bind_group,
             rect_instance_buffer: None,
             rect_instance_capacity: 0,
             text_instance_buffer: None,
@@ -369,12 +379,16 @@ impl WindowRenderer {
         render_pass: &mut wgpu::RenderPass,
         batcher: &crate::paint::PrimitiveBatcher,
     ) {
+        // TODO: Extract clip stack from batcher and update clip uniform buffer
+        // For now, we render with empty clip stack (will be integrated in visual test)
+
         self.render_context.rect_sdf_pipeline.render(
             &self.render_context.device,
             &self.render_context.queue,
             render_pass,
             &self.rect_sdf_uniform_buffer,
             &self.rect_sdf_uniform_bind_group,
+            &self.rect_sdf_clip_uniform_bind_group,
             batcher,
         );
     }
