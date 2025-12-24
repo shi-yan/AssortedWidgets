@@ -8,7 +8,10 @@ use crate::paint::RectRenderer;
 use crate::render::{WindowRenderer, RenderContext};
 use crate::text::TextRenderer;
 use std::sync::Arc;
-
+// todo: why isn't this file in the render folder?
+// todo: why can't the uniform buffer for window size be here?
+// todo: why can't the text renderer and the rect renderer be inside the context?
+// tody: why do we have window_render_state and window_renderer? I think we only need to have one. these two should be merged?
 /// Bundle of rendering resources for a single window
 ///
 /// # Architecture

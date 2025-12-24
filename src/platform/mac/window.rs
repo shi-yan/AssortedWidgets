@@ -161,9 +161,22 @@ define_class!(
         fn insert_text(&self, string: &NSObject, _replacement_range: NSRange) {
             println!("[IME] ✅ insertText called!");
 
-            // Convert NSObject to string
-            let text: *const NSString = unsafe { std::mem::transmute(string) };
-            let text_str = unsafe { (*text).to_string() };
+            // Extract string - can be NSString or NSAttributedString
+            let text_str = unsafe {
+                // Check class name to determine type
+                let class_name: *const NSString = msg_send![string, className];
+                let class_name_str = (*class_name).to_string();
+
+                if class_name_str.contains("AttributedString") {
+                    // It's an NSAttributedString - extract the string property
+                    let ns_str: *const NSString = msg_send![string, string];
+                    (*ns_str).to_string()
+                } else {
+                    // It's a plain NSString - cast directly
+                    let ns_str: *const NSString = std::mem::transmute(string);
+                    (*ns_str).to_string()
+                }
+            };
 
             println!("[IME] insertText (commit): '{}'", text_str);
 
@@ -186,9 +199,22 @@ define_class!(
         fn set_marked_text(&self, string: &NSObject, _selected_range: NSRange, _replacement_range: NSRange) {
             println!("[IME] ✅ setMarkedText called!");
 
-            // Convert NSObject to string
-            let text: *const NSString = unsafe { std::mem::transmute(string) };
-            let text_str = unsafe { (*text).to_string() };
+            // Extract string - can be NSString or NSAttributedString
+            let text_str = unsafe {
+                // Check class name to determine type
+                let class_name: *const NSString = msg_send![string, className];
+                let class_name_str = (*class_name).to_string();
+
+                if class_name_str.contains("AttributedString") {
+                    // It's an NSAttributedString - extract the string property
+                    let ns_str: *const NSString = msg_send![string, string];
+                    (*ns_str).to_string()
+                } else {
+                    // It's a plain NSString - cast directly
+                    let ns_str: *const NSString = std::mem::transmute(string);
+                    (*ns_str).to_string()
+                }
+            };
 
             println!("[IME] setMarkedText (preedit): '{}'", text_str);
 
@@ -254,17 +280,6 @@ define_class!(
             println!("[IME] characterIndexForPoint called");
             // Return NSNotFound
             usize::MAX
-        }
-
-        // View properties
-        #[unsafe(method(acceptsFirstResponder))]
-        fn accepts_first_responder(&self) -> bool {
-            true
-        }
-
-        #[unsafe(method(isFlipped))]
-        fn is_flipped(&self) -> bool {
-            true // Use top-left origin
         }
     }
 );

@@ -20,6 +20,7 @@ pub struct RectRenderer {
     instance_capacity: usize,
 }
 
+// todo: should we have a renderer trait?
 impl RectRenderer {
     pub fn new(context: &RenderContext, surface_format: wgpu::TextureFormat) -> Self {
         let device = context.device();
@@ -30,6 +31,7 @@ impl RectRenderer {
             source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rect.wgsl").into()),
         });
 
+        // todo: one window should have one shared uniform buffer for window size. not per rect renderer. the window uniform should be passed in as a param.
         // Create uniform buffer
         let uniforms = RectUniforms {
             screen_size: [800.0, 600.0],  // Will be updated on resize
@@ -136,6 +138,7 @@ impl RectRenderer {
         }
     }
 
+    // todo: the window should be updating the window size, not this.
     /// Update screen size uniform
     pub fn update_screen_size(&mut self, context: &RenderContext, size: Size, scale_factor: f32) {
         // Scale logical size by scale_factor to match physical viewport
@@ -155,6 +158,7 @@ impl RectRenderer {
         );
     }
 
+    // todo: window size uniform should be passed in as a param
     /// Render rectangles
     pub fn render(
         &mut self,

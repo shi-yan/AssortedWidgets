@@ -44,6 +44,8 @@ pub struct Window {
     // ========================================
     element_manager: ElementManager,
     scene_graph: SceneGraph,
+    // todo: should we have a global layout manager?
+    // todo: only the container elements need to have layout support, why do we have a global layout manager?
     layout_manager: LayoutManager,
     window_size: Size,
     needs_layout: bool,

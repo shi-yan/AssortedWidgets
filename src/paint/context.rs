@@ -3,6 +3,8 @@ use crate::paint::primitives::{Color, RectInstance};
 use crate::text::{TextInstance, TextLayout, GlyphAtlas, FontSystemWrapper, TextEngine, TextStyle};
 use crate::types::{Point, Rect, Size, WidgetId};
 
+
+// todo: do we need this? I thought we should use euclid for 2d math?
 /// Calculate the intersection of two rectangles
 fn intersect_rects(a: Rect, b: Rect) -> Rect {
     let x1 = a.origin.x.max(b.origin.x);
