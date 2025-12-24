@@ -118,19 +118,19 @@ impl Element for DraggableRect {
 
         // Draw label in center
         let text_pos = Point::new(
-            self.bounds.origin.x + self.bounds.size.width / 2.0 - 40.0,
-            self.bounds.origin.y + self.bounds.size.height / 2.0 - 10.0,
+            self.bounds.origin.x + self.bounds.size.width / 2.0 - 60.0,
+            self.bounds.origin.y + self.bounds.size.height / 2.0 - 20.0,
         );
-        let label_style = TextStyle::new().size(16.0).color(Color::WHITE);
+        let label_style = TextStyle::new().size(48.0).color(Color::WHITE);
         ctx.draw_text(&self.label, &label_style, text_pos, None);
 
         // Draw "DRAG ME" hint
         let hint_pos = Point::new(
-            self.bounds.origin.x + self.bounds.size.width / 2.0 - 30.0,
-            self.bounds.origin.y + self.bounds.size.height / 2.0 + 10.0,
+            self.bounds.origin.x + self.bounds.size.width / 2.0 - 50.0,
+            self.bounds.origin.y + self.bounds.size.height / 2.0 + 30.0,
         );
         let hint_style = TextStyle::new()
-            .size(12.0)
+            .size(24.0)
             .color(Color::rgba(200.0/255.0, 200.0/255.0, 200.0/255.0, 1.0));
         ctx.draw_text("DRAG ME", &hint_style, hint_pos, None);
     }
@@ -170,10 +170,12 @@ impl Element for DraggableRect {
 
 impl MouseHandler for DraggableRect {
     fn on_mouse_down(&mut self, event: &mut MouseEvent) -> EventResponse {
-        println!(
-            "[DraggableRect '{}'] Mouse down at ({}, {})",
-            self.label, event.position.x, event.position.y
-        );
+        println!("═══════════════════════════════════════════════════════");
+        println!("[DRAG DETECT] Mouse down on rect '{}'", self.label);
+        println!("  Mouse Position: ({:.1}, {:.1})", event.position.x, event.position.y);
+        println!("  Rect Bounds: ({:.1}, {:.1}) size {}x{}",
+                 self.bounds.origin.x, self.bounds.origin.y,
+                 self.bounds.size.width, self.bounds.size.height);
 
         // Start drag
         self.is_dragging = true;
@@ -183,10 +185,9 @@ impl MouseHandler for DraggableRect {
             event.position.y - self.bounds.origin.y,
         );
 
-        println!(
-            "[DraggableRect '{}'] Starting drag - offset: ({}, {})",
-            self.label, self.drag_offset.x, self.drag_offset.y
-        );
+        println!("  Drag Offset: ({:.1}, {:.1})", self.drag_offset.x, self.drag_offset.y);
+        println!("  Status: Dragging started");
+        println!("═══════════════════════════════════════════════════════");
 
         // Note: Mouse capture will be handled by the window
         // The window needs to call mouse_capture.capture(self.id)

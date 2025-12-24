@@ -94,10 +94,6 @@ impl Element for ClickableRect {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
-        // IMPORTANT: Register hitbox BEFORE drawing
-        // This ensures the z-order matches the visual layering
-        ctx.register_hitbox(self.id, self.bounds);
-
         // Draw the rectangle with current color (hover or normal)
         let current_color = if self.is_hovered {
             self.hover_color

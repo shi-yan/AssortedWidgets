@@ -32,11 +32,7 @@ pub use mac::init;
 
 /// Callbacks invoked by the platform window
 pub struct WindowCallbacks {
-    /// Called when the window receives an input event (mouse, keyboard, etc.) - LEGACY
-    /// This is deprecated in favor of input_event callback
-    pub input: Option<Box<dyn FnMut(PlatformInput) + Send>>,
-
-    /// Called when the window receives an input event (new event system)
+    /// Called when the window receives an input event
     pub input_event: Option<Box<dyn FnMut(crate::event::InputEventEnum) + Send>>,
 
     /// Called when the window needs to be redrawn
@@ -58,7 +54,6 @@ pub struct WindowCallbacks {
 impl std::fmt::Debug for WindowCallbacks {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WindowCallbacks")
-            .field("input", &self.input.as_ref().map(|_| "<callback>"))
             .field("input_event", &self.input_event.as_ref().map(|_| "<callback>"))
             .field("request_frame", &self.request_frame.as_ref().map(|_| "<callback>"))
             .field("resize", &self.resize.as_ref().map(|_| "<callback>"))
@@ -72,7 +67,6 @@ impl std::fmt::Debug for WindowCallbacks {
 impl Default for WindowCallbacks {
     fn default() -> Self {
         Self {
-            input: None,
             input_event: None,
             request_frame: None,
             resize: None,
@@ -198,6 +192,9 @@ pub trait PlatformWindow {
 
     /// Set callbacks for window events
     fn set_callbacks(&mut self, callbacks: WindowCallbacks);
+
+    /// Set window position in screen coordinates
+    fn set_position(&mut self, position: Point);
 
     /// Set the IME cursor area (for positioning the IME composition window)
     ///

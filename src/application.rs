@@ -1,4 +1,4 @@
-use crate::event::GuiEvent;
+use crate::event::{GuiEvent, InputEventEnum};
 use crate::handle::GuiHandle;
 use crate::paint::Color;
 use crate::render::{RenderContext, WindowRenderer};
@@ -175,7 +175,6 @@ impl Application {
         );
 
         // Clone event queue Arc for callbacks to use
-        let event_queue_input = self.event_queue.clone();
         let event_queue_input_event = self.event_queue.clone();
         let event_queue_frame = self.event_queue.clone();
         let event_queue_resize = self.event_queue.clone();
@@ -183,9 +182,6 @@ impl Application {
 
         // Set up callbacks to push events to queue (tagged with window_id)
         let callbacks = WindowCallbacks {
-            input: Some(Box::new(move |input| {
-                event_queue_input.lock().unwrap().push_back((window_id, GuiEvent::Input(input)));
-            })),
             input_event: Some(Box::new(move |input_event| {
                 event_queue_input_event.lock().unwrap().push_back((window_id, GuiEvent::InputEvent(input_event)));
             })),
@@ -209,7 +205,13 @@ impl Application {
         platform_window.set_callbacks(callbacks);
 
         // Create window (uses logical size for layout calculations)
-        let window = Window::new(window_id, platform_window, render_state, window_size);
+        let window = Window::new(
+            window_id,
+            platform_window,
+            render_state,
+            window_size,
+            Arc::clone(&self.event_queue),
+        );
 
         // Store window
         self.windows.insert(window_id, window);
@@ -284,7 +286,47 @@ impl Application {
         // Create proxy window
         let proxy_id = self.create_window(proxy_options)?;
 
-        println!("[Drag] Created proxy window {:?}", proxy_id);
+        println!("═══════════════════════════════════════════════════════");
+        println!("[PROXY CREATE] Lifted rect into new floating window");
+        println!("  Proxy Window ID: {:?}", proxy_id);
+        println!("  Size: {}x{}", drag_data.size.width, drag_data.size.height);
+        println!("  Position: ({:.1}, {:.1})", proxy_bounds.origin.x, proxy_bounds.origin.y);
+        println!("  Label: {}", drag_data.label);
+        println!("  Drag Offset: ({:.1}, {:.1})", drag_data.drag_offset.x, drag_data.drag_offset.y);
+        println!("═══════════════════════════════════════════════════════");
+
+        // Add draggable rect to proxy window to visualize the dragged element
+        {
+            use crate::element::Element;
+            use crate::elements::DraggableRect;
+            use crate::scene_graph::SceneNode;
+
+            let proxy_window = self.windows.get_mut(&proxy_id).ok_or("Proxy window not found")?;
+
+            // Create a visual representation of the dragged element
+            // Position it at (0, 0) since the proxy window itself is positioned at the drag location
+            let proxy_rect = DraggableRect::new(
+                WidgetId::new(9999), // Special ID for proxy
+                Rect::new(Point::new(0.0, 0.0), drag_data.size),
+                drag_data.color,
+                &drag_data.label,
+            );
+            let proxy_rect_id = proxy_rect.id();
+
+            // Add to element manager
+            proxy_window.element_manager_mut().add_element(Box::new(proxy_rect));
+
+            // Create layout node
+            proxy_window.layout_manager_mut()
+                .create_node(proxy_rect_id, taffy::Style::default())
+                .map_err(|e| format!("Failed to create layout node: {}", e))?;
+
+            // Set up scene graph
+            let root = SceneNode::new(proxy_rect_id);
+            proxy_window.scene_graph_mut().set_root(root);
+            proxy_window.layout_manager_mut().set_root(proxy_rect_id)
+                .map_err(|e| format!("Failed to set layout root: {}", e))?;
+        }
 
         // Store drag state
         self.drag_state = Some(DragState {
@@ -313,11 +355,13 @@ impl Application {
                         screen_position.y - drag_state.drag_data.drag_offset.y,
                     );
 
-                    // Update proxy window position
-                    // Note: We'd need to add a method to set window position
-                    // For now, just log
-                    println!("[Drag] Update proxy position to ({:.1}, {:.1})",
+                    println!("[DRAG MOVE] Mouse: ({:.1}, {:.1}) → Window Position: ({:.1}, {:.1})",
+                             screen_position.x, screen_position.y,
                              new_origin.x, new_origin.y);
+
+                    // Update proxy window position
+                    #[cfg(target_os = "macos")]
+                    proxy_window.platform_window_mut().set_position(new_origin);
                 }
             }
         }
@@ -337,34 +381,115 @@ impl Application {
     pub fn end_drag(&mut self, screen_position: Point) -> Option<WindowId> {
         let drag_state = self.drag_state.take()?;
 
-        println!("[Drag] Ending drag at screen ({:.1}, {:.1})",
+        println!("═══════════════════════════════════════════════════════");
+        println!("[MOUSE RELEASE] Drag ended at screen ({:.1}, {:.1})",
                  screen_position.x, screen_position.y);
 
         // Close proxy window
         if let Some(proxy_id) = drag_state.proxy_window {
-            println!("[Drag] Closing proxy window {:?}", proxy_id);
+            println!("  [c] Deleting proxy window {:?}", proxy_id);
             self.windows.remove(&proxy_id);
         }
 
         // Find target window under cursor
-        let target_window = self.get_window_at_screen_position(screen_position)?;
+        println!("  [a] Checking if mouse is over an app window...");
+        let target_window = match self.get_window_at_screen_position(screen_position) {
+            Some(win) => {
+                println!("  [a] ✓ Found target window: {:?}", win);
+                win
+            }
+            None => {
+                println!("  [a] ✗ No window at cursor position - drag cancelled");
+                println!("═══════════════════════════════════════════════════════");
+                return None;
+            }
+        };
 
         // Don't allow dropping on source window
         if target_window == drag_state.source_window {
-            println!("[Drag] Dropped on source window - cancelling");
+            println!("  [a] ✗ Target is source window - drag cancelled");
+            println!("═══════════════════════════════════════════════════════");
             return None;
         }
 
-        println!("[Drag] Dropped on window {:?}", target_window);
+        // Calculate offset on target window and transfer widget
+        let target_origin = self.windows.get(&target_window)
+            .map(|w| w.platform_window().window_screen_origin())?;
 
-        // Transfer widget from source to target
-        // TODO: Implement widget transfer logic
-        // This requires:
-        // 1. Remove widget from source window's ElementManager
-        // 2. Update widget bounds to target window coordinates
-        // 3. Add widget to target window's ElementManager
-        // 4. Update scene graphs and layout managers
+        // Convert screen position to target window coordinates
+        let target_window_pos = self.windows.get(&target_window)
+            .map(|w| w.platform_window().screen_to_window(screen_position))?;
 
+        println!("  [b] Target window origin: ({:.1}, {:.1})", target_origin.x, target_origin.y);
+        println!("  [b] Mouse position on target window: ({:.1}, {:.1})",
+                 target_window_pos.x, target_window_pos.y);
+
+        // Calculate the position for the new rect (accounting for drag offset)
+        let rect_x = target_window_pos.x - drag_state.drag_data.drag_offset.x;
+        let rect_y = target_window_pos.y - drag_state.drag_data.drag_offset.y;
+        println!("  [d] Creating new rect at target window position: ({:.1}, {:.1})", rect_x, rect_y);
+
+        // Transfer widget: Remove from source, add to target
+        {
+            use crate::element::Element;
+            use crate::elements::DraggableRect;
+            use crate::scene_graph::SceneNode;
+
+            // 1. Remove widget from source window
+            if let Some(source_window) = self.windows.get_mut(&drag_state.source_window) {
+                println!("  [d] Removing widget {:?} from source window {:?}",
+                         drag_state.drag_data.widget_id, drag_state.source_window);
+
+                source_window.element_manager_mut().remove_element(drag_state.drag_data.widget_id);
+                source_window.layout_manager_mut().remove_node(drag_state.drag_data.widget_id).ok();
+
+                // Clear scene graph from source window (simple case: root was the dragged element)
+                source_window.scene_graph_mut().set_root(SceneNode::new(WidgetId::new(0)));
+            }
+
+            // 2. Create new widget at calculated position on target window
+            if let Some(target_window_mut) = self.windows.get_mut(&target_window) {
+                println!("  [d] Adding widget to target window {:?} at ({:.1}, {:.1})",
+                         target_window, rect_x, rect_y);
+
+                // Create new rect at the drop position
+                let new_rect = DraggableRect::new(
+                    drag_state.drag_data.widget_id,
+                    Rect::new(Point::new(rect_x, rect_y), drag_state.drag_data.size),
+                    drag_state.drag_data.color,
+                    &drag_state.drag_data.label,
+                );
+                let new_rect_id = new_rect.id();
+
+                // Add to element manager
+                target_window_mut.element_manager_mut().add_element(Box::new(new_rect));
+
+                // Create layout node with explicit size
+                target_window_mut.layout_manager_mut()
+                    .create_node(new_rect_id, taffy::Style {
+                        margin: taffy::Rect {
+                            left: taffy::LengthPercentageAuto::length(rect_x as f32),
+                            top: taffy::LengthPercentageAuto::length(rect_y as f32),
+                            right: taffy::LengthPercentageAuto::auto(),
+                            bottom: taffy::LengthPercentageAuto::auto(),
+                        },
+                        size: taffy::Size {
+                            width: taffy::Dimension::length(drag_state.drag_data.size.width as f32),
+                            height: taffy::Dimension::length(drag_state.drag_data.size.height as f32),
+                        },
+                        ..Default::default()
+                    })
+                    .ok();
+
+                // Set up scene graph
+                target_window_mut.scene_graph_mut().set_root(SceneNode::new(new_rect_id));
+                target_window_mut.layout_manager_mut().set_root(new_rect_id).ok();
+
+                println!("  [d] ✓ Widget transferred successfully!");
+            }
+        }
+
+        println!("═══════════════════════════════════════════════════════");
         Some(target_window)
     }
 
@@ -483,21 +608,33 @@ impl Application {
                             window.platform_window_mut().invalidate();
                         }
                     }
-                    Some((window_id, GuiEvent::Input(input))) => {
-                        // Handle input events (LEGACY)
-                        match input {
-                            PlatformInput::MouseDown { position, button, .. } => {
-                                println!("Window {:?}: Mouse {:?} clicked at ({:.1}, {:.1})",
-                                         window_id, button, position.x, position.y);
-                            }
-                            PlatformInput::KeyDown { key, .. } => {
-                                println!("Window {:?}: Key pressed: {}", window_id, key);
-                            }
-                            _ => {}
-                        }
-                        // TODO: Convert to OsEvent and dispatch to ElementManager
-                    }
                     Some((window_id, GuiEvent::InputEvent(input_event))) => {
+                        // Check if there's an active drag and this is a mouse up event
+                        if self.drag_state.is_some() {
+                            if let InputEventEnum::MouseUp(mouse_event) = &input_event {
+                                // Mouse up during active drag - end the drag!
+                                println!("[App] Mouse up detected during active drag on window {:?}", window_id);
+
+                                // Convert window coordinates to screen coordinates
+                                if let Some(window) = self.windows.get(&window_id) {
+                                    let screen_pos = window.platform_window().window_to_screen(mouse_event.position);
+
+                                    println!("[App] Triggering end drag at screen ({:.1}, {:.1})",
+                                             screen_pos.x, screen_pos.y);
+
+                                    // End the drag
+                                    if let Some(target_window) = self.end_drag(screen_pos) {
+                                        println!("[App] Drag completed - dropped on window {:?}", target_window);
+                                    } else {
+                                        println!("[App] Drag cancelled");
+                                    }
+                                }
+
+                                // Don't dispatch this event to the window - we've handled it
+                                continue;
+                            }
+                        }
+
                         // Dispatch event to window's element manager
                         if let Some(window) = self.windows.get_mut(&window_id) {
                             window.dispatch_input_event(input_event);

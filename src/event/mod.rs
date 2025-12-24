@@ -41,12 +41,7 @@ pub enum GuiEvent {
     /// Window was resized
     Resize(Rect),
 
-    /// Platform input event (mouse, keyboard, etc.) - LEGACY
-    /// This will be replaced by InputEvent variant
-    #[cfg(target_os = "macos")]
-    Input(PlatformInput),
-
-    /// New input event system
+    /// Input event system
     InputEvent(InputEventEnum),
 
     /// Window close requested

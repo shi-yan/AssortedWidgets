@@ -73,18 +73,51 @@ fn main() {
 
         // Setup Window 1
         {
+            use assorted_widgets::layout::Style;
+
             let window = app.window_mut(window1_id).expect("Window 1 not found");
 
             window.element_manager_mut().add_element(Box::new(red_rect));
             window.element_manager_mut().add_element(Box::new(blue_rect));
 
-            window.layout_manager_mut().create_node(red_id, taffy::Style::default())
-                .expect("Failed to create layout node");
-            window.layout_manager_mut().create_node(blue_id, taffy::Style::default())
-                .expect("Failed to create layout node");
+            // Create layout nodes with absolute positioning
+            window.layout_manager_mut().create_node(red_id, Style {
+                position: taffy::Position::Absolute,
+                inset: taffy::Rect {
+                    left: taffy::LengthPercentageAuto::Length(50.0),
+                    top: taffy::LengthPercentageAuto::Length(50.0),
+                    ..Default::default()
+                },
+                size: taffy::Size {
+                    width: taffy::Dimension::Length(200.0),
+                    height: taffy::Dimension::Length(150.0),
+                },
+                ..Default::default()
+            })
+            .expect("Failed to create layout node");
 
+            window.layout_manager_mut().create_node(blue_id, Style {
+                position: taffy::Position::Absolute,
+                inset: taffy::Rect {
+                    left: taffy::LengthPercentageAuto::Length(300.0),
+                    top: taffy::LengthPercentageAuto::Length(50.0),
+                    ..Default::default()
+                },
+                size: taffy::Size {
+                    width: taffy::Dimension::Length(200.0),
+                    height: taffy::Dimension::Length(150.0),
+                },
+                ..Default::default()
+            })
+            .expect("Failed to create layout node");
+
+            // Build scene graph: red is root, blue is child
             let mut root = SceneNode::new(red_id);
             root.add_child(SceneNode::new(blue_id));
+
+            // Sync layout hierarchy with scene graph (THIS IS THE KEY!)
+            window.layout_manager_mut().add_child(red_id, blue_id)
+                .expect("Failed to add layout child");
 
             window.scene_graph_mut().set_root(root);
             window.layout_manager_mut().set_root(red_id)
@@ -128,18 +161,51 @@ fn main() {
 
         // Setup Window 2
         {
+            use assorted_widgets::layout::Style;
+
             let window = app.window_mut(window2_id).expect("Window 2 not found");
 
             window.element_manager_mut().add_element(Box::new(green_rect));
             window.element_manager_mut().add_element(Box::new(yellow_rect));
 
-            window.layout_manager_mut().create_node(green_id, taffy::Style::default())
-                .expect("Failed to create layout node");
-            window.layout_manager_mut().create_node(yellow_id, taffy::Style::default())
-                .expect("Failed to create layout node");
+            // Create layout nodes with absolute positioning
+            window.layout_manager_mut().create_node(green_id, Style {
+                position: taffy::Position::Absolute,
+                inset: taffy::Rect {
+                    left: taffy::LengthPercentageAuto::Length(50.0),
+                    top: taffy::LengthPercentageAuto::Length(50.0),
+                    ..Default::default()
+                },
+                size: taffy::Size {
+                    width: taffy::Dimension::Length(200.0),
+                    height: taffy::Dimension::Length(150.0),
+                },
+                ..Default::default()
+            })
+            .expect("Failed to create layout node");
 
+            window.layout_manager_mut().create_node(yellow_id, Style {
+                position: taffy::Position::Absolute,
+                inset: taffy::Rect {
+                    left: taffy::LengthPercentageAuto::Length(300.0),
+                    top: taffy::LengthPercentageAuto::Length(50.0),
+                    ..Default::default()
+                },
+                size: taffy::Size {
+                    width: taffy::Dimension::Length(200.0),
+                    height: taffy::Dimension::Length(150.0),
+                },
+                ..Default::default()
+            })
+            .expect("Failed to create layout node");
+
+            // Build scene graph: green is root, yellow is child
             let mut root = SceneNode::new(green_id);
             root.add_child(SceneNode::new(yellow_id));
+
+            // Sync layout hierarchy with scene graph (THIS IS THE KEY!)
+            window.layout_manager_mut().add_child(green_id, yellow_id)
+                .expect("Failed to add layout child");
 
             window.scene_graph_mut().set_root(root);
             window.layout_manager_mut().set_root(green_id)

@@ -1,11 +1,13 @@
 use crate::element_manager::ElementManager;
-use crate::event::{FocusManager, HitTester, InputEventEnum, MouseCapture};
+use crate::event::{FocusManager, GuiEvent, HitTester, InputEventEnum, MouseCapture};
 use crate::layout::LayoutManager;
 use crate::paint::PaintContext;
 use crate::render::RenderContext;
 use crate::scene_graph::SceneGraph;
 use crate::types::{FrameInfo, Point, Size, WindowId};
 use crate::window_render_state::WindowRenderState;
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 #[cfg(target_os = "macos")]
@@ -74,6 +76,9 @@ pub struct Window {
 
     /// Mouse capture for drag operations
     mouse_capture: MouseCapture,
+
+    /// Event queue for posting events back to application (cross-window drag, etc.)
+    event_queue: Arc<Mutex<VecDeque<(WindowId, GuiEvent)>>>,
 }
 
 impl Window {
@@ -84,6 +89,7 @@ impl Window {
         platform_window: PlatformWindowImpl,
         render_state: WindowRenderState,
         window_size: Size,
+        event_queue: Arc<Mutex<VecDeque<(WindowId, GuiEvent)>>>,
     ) -> Self {
         Window {
             id,
@@ -99,6 +105,7 @@ impl Window {
             hit_tester: HitTester::new(),
             focus_manager: FocusManager::new(),
             mouse_capture: MouseCapture::new(),
+            event_queue,
         }
     }
 
@@ -238,13 +245,19 @@ impl Window {
         match &event {
             InputEventEnum::MouseDown(mouse_event) => {
                 let position = mouse_event.position;
+                println!("[DISPATCH] Window {:?} received MouseDown at ({:.1}, {:.1})",
+                         self.id, position.x, position.y);
 
                 // Check if mouse is captured
                 let target = if let Some(captured_id) = self.mouse_capture.captured_id() {
+                    println!("[HIT TEST] Mouse captured by widget {:?}", captured_id);
                     Some(captured_id)
                 } else {
                     // Hit test using z-order: find topmost element at this position
-                    self.hit_tester.hit_test(position)
+                    let hit = self.hit_tester.hit_test(position);
+                    println!("[HIT TEST] Hit test at ({:.1}, {:.1}) -> {:?}",
+                             position.x, position.y, hit);
+                    hit
                 };
 
                 if let Some(widget_id) = target {
@@ -266,6 +279,33 @@ impl Window {
                                 // Capture mouse for this widget (for drag operations)
                                 self.mouse_capture.capture(widget_id);
                                 println!("[Window {:?}] Mouse captured by {:?}", self.id, widget_id);
+
+                                // Check if this is a DraggableRect and start cross-window drag
+                                use crate::elements::DraggableRect;
+                                if let Some(draggable) = element.as_any().downcast_ref::<DraggableRect>() {
+                                    if draggable.is_dragging() {
+                                        // Convert window coordinates to screen coordinates
+                                        let screen_pos = self.platform_window.window_to_screen(position);
+
+                                        // Get widget bounds and properties
+                                        let bounds = element.bounds();
+
+                                        println!("[Window {:?}] Starting cross-window drag for {:?}", self.id, widget_id);
+
+                                        // Emit StartCrossWindowDrag event
+                                        self.event_queue.lock().unwrap().push_back((
+                                            self.id,
+                                            GuiEvent::StartCrossWindowDrag {
+                                                widget_id,
+                                                color: draggable.color(),
+                                                label: draggable.label().to_string(),
+                                                size: bounds.size,
+                                                drag_offset: draggable.drag_offset(),
+                                                screen_position: screen_pos,
+                                            },
+                                        ));
+                                    }
+                                }
                             }
                             EventResponse::PassThrough => {
                                 // TODO Phase 3: Bubble to parent
@@ -287,12 +327,38 @@ impl Window {
                 };
 
                 if let Some(widget_id) = target {
+                    // Check if this was a dragging DraggableRect before dispatching
+                    let was_dragging = if let Some(element) = self.element_manager.get(widget_id) {
+                        use crate::elements::DraggableRect;
+                        element.as_any().downcast_ref::<DraggableRect>()
+                            .map(|d| d.is_dragging())
+                            .unwrap_or(false)
+                    } else {
+                        false
+                    };
+
                     if let Some(element) = self.element_manager.get_mut(widget_id) {
                         let response = element.dispatch_mouse_event(&mut event);
 
                         match response {
                             EventResponse::Handled => {
                                 println!("[Window {:?}] Element {:?} handled mouse up", self.id, widget_id);
+
+                                // If this was a dragging DraggableRect, emit EndCrossWindowDrag
+                                if was_dragging {
+                                    // Convert window coordinates to screen coordinates
+                                    let screen_pos = self.platform_window.window_to_screen(position);
+
+                                    println!("[Window {:?}] Ending cross-window drag for {:?}", self.id, widget_id);
+
+                                    // Emit EndCrossWindowDrag event
+                                    self.event_queue.lock().unwrap().push_back((
+                                        self.id,
+                                        GuiEvent::EndCrossWindowDrag {
+                                            screen_position: screen_pos,
+                                        },
+                                    ));
+                                }
 
                                 // Release mouse capture
                                 if self.mouse_capture.is_captured_by(widget_id) {
@@ -320,6 +386,23 @@ impl Window {
                 if let Some(widget_id) = target {
                     if let Some(element) = self.element_manager.get_mut(widget_id) {
                         element.dispatch_mouse_event(&mut event);
+
+                        // If this is a dragging DraggableRect, emit UpdateCrossWindowDrag
+                        use crate::elements::DraggableRect;
+                        if let Some(draggable) = element.as_any().downcast_ref::<DraggableRect>() {
+                            if draggable.is_dragging() {
+                                // Convert window coordinates to screen coordinates
+                                let screen_pos = self.platform_window.window_to_screen(position);
+
+                                // Emit UpdateCrossWindowDrag event
+                                self.event_queue.lock().unwrap().push_back((
+                                    self.id,
+                                    GuiEvent::UpdateCrossWindowDrag {
+                                        screen_position: screen_pos,
+                                    },
+                                ));
+                            }
+                        }
                     }
                 }
             }
@@ -454,6 +537,7 @@ impl Window {
         &mut self,
         render_context: &RenderContext,
     ) {
+
         // Get surface texture
         let surface_texture = match self.render_state.renderer.get_current_texture() {
             Ok(texture) => texture,
@@ -547,14 +631,32 @@ impl Window {
             self.needs_layout = false;
         }
 
-        // 2. Paint elements in tree order (collect draw commands)
+        // 2. Build hit test cache from element bounds and z-order
+        // This happens AFTER layout (bounds are known) but BEFORE paint
+        // Separates spatial/event concerns from rendering
+        self.hit_tester.clear();
+        if let Some(root) = self.scene_graph.root() {
+            let mut z_order = 0u32;
+            root.traverse(&mut |widget_id| {
+                if let Some(element) = self.element_manager.get(widget_id) {
+                    // Only register interactive elements for hit testing
+                    if element.is_interactive() {
+                        self.hit_tester.add(widget_id, element.bounds(), z_order);
+                        z_order += 1;
+                    }
+                }
+            });
+        }
+        self.hit_tester.finalize();
+
+        // 3. Paint elements in tree order (collect draw commands)
         let scale_factor = self.platform_window.scale_factor() as f32;
 
         // Begin new frame for render state (atlas + text engine)
         self.render_state.begin_frame();
 
         // Paint phase - collect draw commands
-        let (rect_instances, text_instances, hit_tester) = {
+        let (rect_instances, text_instances) = {
             // Lock shared resources for the duration of the frame
             let mut atlas_lock = render_context.glyph_atlas.lock().unwrap();
             let mut font_system_lock = render_context.font_system.lock().unwrap();
@@ -580,7 +682,7 @@ impl Window {
                 });
             }
 
-            // Extract instances and hit tester before paint_ctx is dropped
+            // Extract instances before paint_ctx is dropped
             let mut rect_instances = paint_ctx.rect_instances().to_vec();
             let mut text_instances = paint_ctx.text_instances().to_vec();
 
@@ -590,15 +692,8 @@ impl Window {
             rect_instances.sort_by_key(|inst| inst.z_order);
             text_instances.sort_by_key(|inst| inst.z_order);
 
-            // Finalize and clone hit tester for event dispatch
-            let hit_tester = paint_ctx.finalized_hit_tester();
-
-            (rect_instances, text_instances, hit_tester)
+            (rect_instances, text_instances)
         };
-
-        // Update window's hit tester with the one from this paint pass
-        // This ensures hit testing uses the same z-order as rendering
-        self.hit_tester = hit_tester;
 
         // Rebuild focus manager to sync with current element tree
         // This ensures focusable widgets are up-to-date for Tab navigation

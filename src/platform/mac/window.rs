@@ -71,93 +71,48 @@ define_class!(
         // Mouse events
         #[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &NSEvent) {
-            // Legacy callback
-            if let Some(input) = self.convert_mouse_event(event, MouseButton::Left, true) {
-                self.invoke_input_callback(input);
-            }
-            // New event system
             let mouse_event = self.convert_to_mouse_event(event, MouseButton::Left);
+            println!("[NATIVE] mouseDown detected at ({:.1}, {:.1})",
+                     mouse_event.position.x, mouse_event.position.y);
             self.invoke_input_event_callback(InputEventEnum::MouseDown(mouse_event));
         }
 
         #[unsafe(method(mouseUp:))]
         fn mouse_up(&self, event: &NSEvent) {
-            // Legacy callback
-            if let Some(input) = self.convert_mouse_event(event, MouseButton::Left, false) {
-                self.invoke_input_callback(input);
-            }
-            // New event system
             let mouse_event = self.convert_to_mouse_event(event, MouseButton::Left);
+            println!("[NATIVE] mouseUp detected at ({:.1}, {:.1})",
+                     mouse_event.position.x, mouse_event.position.y);
             self.invoke_input_event_callback(InputEventEnum::MouseUp(mouse_event));
         }
 
         #[unsafe(method(rightMouseDown:))]
         fn right_mouse_down(&self, event: &NSEvent) {
-            // Legacy callback
-            if let Some(input) = self.convert_mouse_event(event, MouseButton::Right, true) {
-                self.invoke_input_callback(input);
-            }
-            // New event system
             let mouse_event = self.convert_to_mouse_event(event, MouseButton::Right);
             self.invoke_input_event_callback(InputEventEnum::MouseDown(mouse_event));
         }
 
         #[unsafe(method(rightMouseUp:))]
         fn right_mouse_up(&self, event: &NSEvent) {
-            // Legacy callback
-            if let Some(input) = self.convert_mouse_event(event, MouseButton::Right, false) {
-                self.invoke_input_callback(input);
-            }
-            // New event system
             let mouse_event = self.convert_to_mouse_event(event, MouseButton::Right);
             self.invoke_input_event_callback(InputEventEnum::MouseUp(mouse_event));
         }
 
         #[unsafe(method(mouseMoved:))]
         fn mouse_moved(&self, event: &NSEvent) {
-            // Legacy callback
-            let position = self.get_mouse_position(event);
-            let modifiers = Self::get_modifiers(event);
-            let input = PlatformInput::MouseMove {
-                position,
-                modifiers,
-            };
-            self.invoke_input_callback(input);
-
-            // New event system (use Left button for move events, though button isn't meaningful)
             let mouse_event = self.convert_to_mouse_event(event, MouseButton::Left);
             self.invoke_input_event_callback(InputEventEnum::MouseMove(mouse_event));
         }
 
         #[unsafe(method(mouseDragged:))]
         fn mouse_dragged(&self, event: &NSEvent) {
-            // Legacy callback
-            let position = self.get_mouse_position(event);
-            let modifiers = Self::get_modifiers(event);
-            let input = PlatformInput::MouseMove {
-                position,
-                modifiers,
-            };
-            self.invoke_input_callback(input);
-
-            // New event system (use Left button for dragged events)
             let mouse_event = self.convert_to_mouse_event(event, MouseButton::Left);
+            println!("[NATIVE] mouseDragged at ({:.1}, {:.1})",
+                     mouse_event.position.x, mouse_event.position.y);
             self.invoke_input_event_callback(InputEventEnum::MouseMove(mouse_event));
         }
 
         #[unsafe(method(scrollWheel:))]
         fn scroll_wheel(&self, event: &NSEvent) {
-            // Legacy callback
-            let delta_x = event.scrollingDeltaX();
-            let delta_y = event.scrollingDeltaY();
-            let modifiers = Self::get_modifiers(event);
-            let input = PlatformInput::MouseWheel {
-                delta: vector(delta_x, delta_y),
-                modifiers,
-            };
-            self.invoke_input_callback(input);
-
-            // New event system
             let wheel_event = self.convert_to_wheel_event(event);
             self.invoke_input_event_callback(InputEventEnum::Wheel(wheel_event));
         }
@@ -165,11 +120,6 @@ define_class!(
         // Keyboard events
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
-            // Legacy callback
-            if let Some(input) = Self::convert_key_event(event, true) {
-                self.invoke_input_callback(input);
-            }
-            // New event system
             if let Some(key_event) = Self::convert_to_key_event(event) {
                 self.invoke_input_event_callback(InputEventEnum::KeyDown(key_event));
             }
@@ -177,11 +127,6 @@ define_class!(
 
         #[unsafe(method(keyUp:))]
         fn key_up(&self, event: &NSEvent) {
-            // Legacy callback
-            if let Some(input) = Self::convert_key_event(event, false) {
-                self.invoke_input_callback(input);
-            }
-            // New event system
             if let Some(key_event) = Self::convert_to_key_event(event) {
                 self.invoke_input_event_callback(InputEventEnum::KeyUp(key_event));
             }
@@ -258,13 +203,6 @@ impl CustomView {
         } else {
             PlatformInput::KeyUp { key, modifiers }
         })
-    }
-
-    fn invoke_input_callback(&self, input: PlatformInput) {
-        let mut state = self.ivars().state.borrow_mut();
-        if let Some(callback) = state.callbacks.input.as_mut() {
-            callback(input);
-        }
     }
 
     fn invoke_input_event_callback(&self, event: InputEventEnum) {
@@ -552,6 +490,19 @@ impl PlatformWindow for MacWindow {
         self.state.borrow_mut().callbacks = callbacks;
     }
 
+    fn set_position(&mut self, position: Point) {
+        // Convert to NSPoint
+        let ns_point = NSPoint {
+            x: position.x,
+            y: position.y,
+        };
+
+        // Set the window's frame origin (bottom-left corner in screen coordinates)
+        unsafe {
+            self.native_window.setFrameOrigin(ns_point);
+        }
+    }
+
     fn set_ime_cursor_area(&mut self, x: f64, y: f64, width: f64, height: f64) {
         // Store IME cursor area in window state
         let mut state = self.state.borrow_mut();
@@ -574,6 +525,43 @@ impl PlatformWindow for MacWindow {
         // macOS uses bottom-left origin for screen coordinates
         // The frame.origin gives us the bottom-left corner directly
         point(frame.origin.x, frame.origin.y)
+    }
+
+    fn window_to_screen(&self, window_pos: Point) -> Point {
+        // Get window frame in screen coordinates
+        let frame = self.native_window.frame();
+
+        // window_pos is in top-left origin (because view is flipped)
+        // screen coordinates are in bottom-left origin (macOS standard)
+        //
+        // To convert:
+        // 1. frame.origin is the bottom-left corner of the window in screen coords
+        // 2. window_pos.y is from the top of the window
+        // 3. So screen_y = frame.origin.y + (frame.size.height - window_pos.y)
+
+        let screen_x = frame.origin.x + window_pos.x;
+        let screen_y = frame.origin.y + (frame.size.height - window_pos.y);
+
+        point(screen_x, screen_y)
+    }
+
+    fn screen_to_window(&self, screen_pos: Point) -> Point {
+        // Get window frame in screen coordinates
+        let frame = self.native_window.frame();
+
+        // screen_pos is in bottom-left origin (macOS standard)
+        // window coordinates are in top-left origin (because view is flipped)
+        //
+        // To convert:
+        // 1. frame.origin is the bottom-left corner in screen coords
+        // 2. Calculate offset from bottom-left: offset_y = screen_pos.y - frame.origin.y
+        // 3. Flip to top-left: window_y = frame.size.height - offset_y
+
+        let window_x = screen_pos.x - frame.origin.x;
+        let offset_y = screen_pos.y - frame.origin.y;
+        let window_y = frame.size.height - offset_y;
+
+        point(window_x, window_y)
     }
 }
 

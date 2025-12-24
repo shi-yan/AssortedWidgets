@@ -166,9 +166,6 @@ impl RectRenderer {
             return;
         }
 
-        if instances.len() > 0 {
-            println!("rect {:?} ", instances);
-        }
         let device = context.device();
 
         // Create or resize instance buffer if needed
