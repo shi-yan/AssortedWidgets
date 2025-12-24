@@ -1,7 +1,7 @@
 # AssortedWidgets - Technical Architecture
 
-> **Last Updated:** 2025-12-22
-> **Status:** Phase 3.2 Complete (Text Rendering with Shared Resource Architecture), Theme System Planned
+> **Last Updated:** 2025-12-24
+> **Status:** Phase 4.0 - Architectural Refactor (Widget System Unification)
 
 ## Table of Contents
 
@@ -38,7 +38,7 @@ graph TD
     C -->|Pump RunLoop| C
     C -->|Drain Queue| B
     B --> D[Event Processing]
-    D --> E[Element Manager]
+    D --> E[Widget Manager]
     D --> F[Render Function]
     F --> G[WebGPU Surface]
 ```
@@ -76,43 +76,176 @@ event_loop.set_render_fn(move |renderer, ctx| {
 });
 ```
 
+### 3. Widget System Architecture (✅ Phase 4.0 Complete)
+
+The widget system uses a **three-system architecture** that separates concerns while providing a unified developer API.
+
+```mermaid
+graph TB
+    subgraph "Developer API (Public)"
+        W[Window Methods]
+        W1[add_widget]
+        W2[remove_widget]
+        W3[set_parent]
+        W4[add_floating_widget]
+        W --> W1
+        W --> W2
+        W --> W3
+        W --> W4
+    end
+
+    subgraph "Internal Implementation (Hidden)"
+        WM[WidgetManager<br/>HashMap storage]
+        WT[WidgetTree<br/>Parent-child hierarchy]
+        LM[LayoutManager<br/>Taffy layout tree]
+    end
+
+    W1 --> WM
+    W1 --> WT
+    W1 --> LM
+    W2 --> WM
+    W2 --> WT
+    W2 --> LM
+    W3 --> WT
+    W4 --> WT
+```
+
+**Three Internal Systems:**
+
+1. **WidgetManager**: Flat HashMap storage
+   - Maps `WidgetId` → `Box<dyn Widget>`
+   - Fast O(1) lookup by ID
+   - No hierarchy information
+   - Single source of truth for widget data
+
+2. **WidgetTree**: Parent-child hierarchy
+   - Maps `WidgetId` → `Vec<WidgetId>` (children)
+   - Supports both normal and floating widgets
+   - Used for event propagation and traversal
+   - Independent of layout system
+
+3. **LayoutManager**: Taffy integration
+   - Maps `WidgetId` → `taffy::NodeId`
+   - Handles layout computation (Flexbox/Grid)
+   - Separate from hierarchy (floating widgets skip layout)
+   - Provides measure functions for text
+
+**Key Design Decision: WidgetId vs NodeId**
+
+We keep `WidgetId` and `taffy::NodeId` separate for important architectural reasons:
+
+```rust
+// ✅ Current design: Separate IDs
+pub struct WidgetManager {
+    widgets: HashMap<WidgetId, Box<dyn Widget>>, // Our ID space
+}
+
+pub struct LayoutManager {
+    taffy: Taffy,
+    widget_to_node: HashMap<WidgetId, NodeId>,   // Mapping layer
+    node_to_widget: HashMap<NodeId, WidgetId>,
+}
+```
+
+**Why separate IDs?**
+- **Floating widgets exist without layout**: Tooltips, context menus don't participate in layout
+- **Conditional layout**: Widgets can be hidden (removed from Taffy) without destroying them
+- **Different lifecycles**: Widget creation/destruction is independent of layout tree updates
+- **Taffy is an implementation detail**: Could swap layout engines without changing WidgetId API
+- **Clear separation of concerns**: Widget identity ≠ Layout node identity
+
+**Developer API (Window Methods)**
+
+Developers NEVER access `WidgetManager`, `WidgetTree`, or `LayoutManager` directly. All operations go through `Window` methods:
+
+```rust
+// Public API - clean and simple
+impl Window {
+    pub fn add_widget(&mut self, widget: Box<dyn Widget>, parent: Option<WidgetId>) -> WidgetId {
+        // Internally coordinates all three systems:
+        // 1. Add to WidgetManager
+        // 2. Add to WidgetTree hierarchy
+        // 3. Create Taffy node in LayoutManager
+    }
+
+    pub fn remove_widget(&mut self, id: WidgetId) {
+        // Removes from all three systems atomically
+    }
+
+    pub fn set_parent(&mut self, child: WidgetId, new_parent: Option<WidgetId>) {
+        // Updates WidgetTree and LayoutManager
+    }
+
+    pub fn add_floating_widget(&mut self, widget: Box<dyn Widget>) -> WidgetId {
+        // Adds to WidgetManager and WidgetTree, skips LayoutManager
+    }
+}
+```
+
+**Benefits of This Architecture:**
+
+- ✅ **Clean API**: Developers work with simple Window methods
+- ✅ **Hidden complexity**: Internal systems are implementation details
+- ✅ **Atomic operations**: Window methods keep all three systems in sync
+- ✅ **Flexibility**: Can optimize/refactor internals without breaking API
+- ✅ **Type safety**: WidgetId is opaque, prevents mixing with NodeId
+- ✅ **Floating widgets**: Natural support for non-layout widgets
+- ✅ **Performance**: HashMap lookup is O(1), tree traversal is O(children)
+
+**Data Flow Example:**
+
+```rust
+// Developer code
+let button_id = window.add_widget(Box::new(Button::new("Click me")), Some(panel_id));
+
+// What happens internally:
+// 1. WidgetManager: widgets.insert(button_id, button_widget)
+// 2. WidgetTree: parents.insert(button_id, panel_id)
+//                children[panel_id].push(button_id)
+// 3. LayoutManager: node_id = taffy.new_leaf(button_style)
+//                   widget_to_node.insert(button_id, node_id)
+//                   taffy.add_child(panel_node, node_id)
+```
+
 ---
 
 ## Planned Architecture
 
 ### 1. Layout System (Taffy Integration)
 
-We will use [Taffy](https://github.com/DioxusLabs/taffy) for layout calculations.
+We use [Taffy](https://github.com/DioxusLabs/taffy) for layout calculations, integrated via `LayoutManager`.
 
 ```mermaid
 graph LR
-    A[Element Tree<br/>ID-based] --> B[Taffy Tree<br/>NodeId]
+    A[Widget Tree<br/>WidgetId-based] --> B[Taffy Tree<br/>NodeId]
     B --> C[compute_layout]
     C --> D[Layout Results<br/>x, y, width, height]
-    D --> E[Update Element<br/>cached_bounds]
+    D --> E[Update Widget<br/>cached_bounds]
     F[Style Changes] -->|mark_dirty| B
 ```
 
 **Integration Strategy:**
 
 1. **Syncing Trees:**
-   - Each `Element` stores a `taffy::NodeId`
-   - `ElementManager` creates/removes Taffy nodes alongside elements
+   - `LayoutManager` maintains bidirectional `WidgetId ↔ NodeId` mapping
+   - `Window::add_widget()` creates Taffy nodes alongside widgets
+   - Floating widgets skip Taffy entirely (no NodeId mapping)
 
 2. **Layout Pass:**
    ```rust
-   // Before rendering
+   // Before rendering (inside Window)
    if dirty {
-       taffy.compute_layout(root_id, window_size)?;
-       for element in elements {
-           let layout = taffy.layout(element.taffy_node)?;
-           element.cached_bounds = layout.into();
+       layout_manager.compute_layout(root_widget_id, window_size)?;
+       for widget_id in widget_tree.traverse() {
+           if let Some(layout) = layout_manager.get_layout(widget_id) {
+               widget_manager.get_mut(widget_id).set_bounds(layout);
+           }
        }
    }
    ```
 
 3. **Measure Functions:**
-   - Text elements provide measure functions
+   - Text widgets provide measure functions
    - Taffy queries text renderer for intrinsic sizes
    - Handles bi-directional constraint solving
 
@@ -188,7 +321,7 @@ pub struct PaintContext<'a> {
     pub renderer: &'a GlobalRenderer,
 }
 
-pub trait Element {
+pub trait Widget {
     fn paint(&self, ctx: &mut PaintContext, theme: &Theme);
 }
 ```
@@ -196,7 +329,7 @@ pub trait Element {
 **Example: Mixed Rendering**
 
 ```rust
-impl Element for My3DWidget {
+impl Widget for My3DWidget {
     fn paint(&self, ctx: &mut PaintContext, theme: &Theme) {
         // 1. Themed background (batched)
         ctx.primitives.draw_rect(self.bounds, theme.panel_bg);
@@ -225,7 +358,7 @@ graph LR
     A[Theme Struct] --> B[CPU Memory]
     A --> C[GPU Uniform Buffer]
     D[UI Shaders] -->|Bind| C
-    E[Element::paint] -->|Read| B
+    E[Widget::paint] -->|Read| B
     F[Theme Toggle] -->|Update| A
 ```
 
@@ -270,7 +403,7 @@ pub struct ThemeUniforms {
 
 **Benefits:**
 - Single uniform buffer update changes entire UI theme
-- Elements read theme for semantic colors (not hardcoded)
+- Widgets read theme for semantic colors (not hardcoded)
 - GPU shaders share theme data automatically
 
 ### 4. Text Rendering System (✅ Phase 3.2 Complete + Refactored)
@@ -439,6 +572,81 @@ windows: HashMap<WindowId, Window>
 - Accessed via `raw-window-handle` trait when needed (e.g., surface creation)
 - Separation of concerns: logical ID vs platform handle
 
+### Why Separate WidgetId and NodeId?
+
+**Problem:** Should widgets use Taffy's `NodeId` directly as their identity?
+
+**Rejected: Use NodeId directly**
+```rust
+// ❌ Couples widget identity to layout system
+pub struct WidgetManager {
+    widgets: HashMap<taffy::NodeId, Box<dyn Widget>>,
+}
+
+// ❌ Floating widgets (tooltips, menus) must still create dummy Taffy nodes
+// ❌ Can't hide/show widgets without destroying layout nodes
+// ❌ Tight coupling makes swapping layout engines impossible
+```
+
+**Chosen: Separate ID spaces with mapping layer**
+```rust
+// ✅ Widget identity independent of layout
+pub struct WidgetManager {
+    widgets: HashMap<WidgetId, Box<dyn Widget>>,
+}
+
+pub struct LayoutManager {
+    taffy: Taffy,
+    widget_to_node: HashMap<WidgetId, NodeId>,
+    node_to_widget: HashMap<NodeId, WidgetId>,
+}
+```
+
+**Benefits:**
+- ✅ **Floating widgets**: Tooltips, context menus, overlays exist without layout nodes
+- ✅ **Conditional layout**: Hide widgets by removing from Taffy, keeping widget alive
+- ✅ **Clear separation**: Widget lifecycle ≠ Layout lifecycle
+- ✅ **Swappable engines**: Could replace Taffy without changing WidgetId API
+- ✅ **Type safety**: Compiler prevents mixing WidgetId with NodeId
+
+### Why Three Systems (WidgetManager, WidgetTree, LayoutManager)?
+
+**Problem:** How to organize widget storage, hierarchy, and layout?
+
+**Rejected: Single monolithic system**
+```rust
+// ❌ Mixing concerns in one structure
+pub struct WidgetSystem {
+    widgets: HashMap<WidgetId, WidgetData>,  // storage
+    parents: HashMap<WidgetId, WidgetId>,    // hierarchy
+    children: HashMap<WidgetId, Vec<WidgetId>>, // hierarchy
+    taffy: Taffy,                            // layout
+    widget_to_node: HashMap<WidgetId, NodeId>, // layout
+}
+```
+
+**Chosen: Three separate systems coordinated by Window**
+```rust
+// ✅ Each system has single responsibility
+pub struct WidgetManager { /* storage only */ }
+pub struct WidgetTree { /* hierarchy only */ }
+pub struct LayoutManager { /* layout only */ }
+
+pub struct Window {
+    widget_manager: WidgetManager,    // internal
+    widget_tree: WidgetTree,          // internal
+    layout_manager: LayoutManager,    // internal
+}
+```
+
+**Benefits:**
+- ✅ **Single responsibility**: Each system does one thing well
+- ✅ **Independent evolution**: Can optimize/refactor each system separately
+- ✅ **Flexible composition**: Floating widgets use WidgetManager + WidgetTree, skip LayoutManager
+- ✅ **Clean API**: Window methods hide complexity, provide atomic operations
+- ✅ **Testability**: Can test each system in isolation
+- ✅ **Performance**: Each system optimized for its access patterns (HashMap vs tree vs Taffy)
+
 ---
 
 ## Implementation Notes
@@ -450,13 +658,15 @@ src/
   lib.rs              # Public API exports
   main.rs             # Triangle demo
   types.rs            # Core types (WidgetId, Point, Rect, etc.)
-  element.rs          # Element trait
+  widget.rs           # Widget trait (renamed from element.rs)
   event.rs            # GuiEvent, OsEvent
-  scene_graph.rs      # Tree structure
+  widget_tree.rs      # Parent-child hierarchy (renamed from scene_graph.rs)
   connection.rs       # Signal/slot system
-  element_manager.rs  # Flat hash table storage
+  widget_manager.rs   # Flat hash table storage (renamed from element_manager.rs)
+  layout_manager.rs   # Taffy integration wrapper
   handle.rs           # Thread-safe GuiHandle
   event_loop.rs       # Event queue + manual runloop
+  window.rs           # Window API (hides internal systems)
   platform/
     mod.rs            # Platform abstraction
     mac/
@@ -465,22 +675,32 @@ src/
     mod.rs
     context.rs        # Shared GPU state
     window_renderer.rs # Per-window surface
-  layout/            # TODO: Taffy integration
-  paint/             # TODO: Multi-tiered context
-  text/              # TODO: Glyph atlas
+  layout/             # TODO: Layout styles and constraints
+  paint/              # TODO: Multi-tiered context
+  text/               # ✅ Glyph atlas and text rendering (COMPLETE)
 shaders/
   triangle.wgsl       # Demo shader
+  rect.wgsl           # Rectangle shader
+  text.wgsl           # Text rendering shader
 ```
 
 ### Next Implementation Steps
 
-1. **Taffy Integration** ([src/layout/](src/layout/))
-   - Add taffy dependency
-   - Create `LayoutManager` wrapping Taffy tree
-   - Sync with `ElementManager` on add/remove
-   - Implement measure functions for text
+1. **Widget System** ([src/widget_manager.rs](src/widget_manager.rs), [src/widget_tree.rs](src/widget_tree.rs), [src/layout_manager.rs](src/layout_manager.rs)) - ✅ COMPLETE (Phase 4.0)
+   - ✅ Renamed Element → Widget throughout codebase
+   - ✅ Created three-system architecture (WidgetManager, WidgetTree, LayoutManager)
+   - ✅ Implemented WidgetId ↔ NodeId mapping in LayoutManager
+   - ✅ Built Window API that hides internal systems
+   - ✅ Added floating widget support (skip layout)
+   - ✅ Implemented measure functions for text widgets
 
-2. **Text Rendering** ([src/text/](src/text/)) - ✅ COMPLETE
+2. **Layout System Completion** ([src/layout/](src/layout/))
+   - Add layout style definitions (Flexbox/Grid parameters)
+   - Implement `Widget::layout_style()` method
+   - Create layout constraint types
+   - Add incremental layout dirty tracking
+
+3. **Text Rendering** ([src/text/](src/text/)) - ✅ COMPLETE (Phase 3.2)
    - ✅ Integrated `cosmic-text` for shaping and rasterization
    - ✅ Implemented glyph atlas with dynamic page growth (multi-page texture array)
    - ✅ Created text shaping cache via `TextEngine` (dual-mode: managed + manual)
@@ -488,13 +708,14 @@ shaders/
    - ✅ **Refactored to shared resources** (Arc<Mutex<>> for atlas/fonts/text engine)
    - ✅ Added `scale_factor` to GlyphKey for multi-DPI support
 
-3. **Paint Context** ([src/paint/](src/paint/))
+4. **Paint Context** ([src/paint/](src/paint/))
    - Define `PaintContext` struct
    - Implement `PrimitiveBatcher` for high-level calls
    - Create batching system (collect → sort → draw)
    - Build shader pipeline for primitives
+   - Integrate with `Widget::paint()` trait method
 
-4. **Theme System** ([src/theme/](src/theme/))
+5. **Theme System** ([src/theme/](src/theme/))
    - Define `Theme` struct
    - Create GPU uniform buffer layout
    - Implement theme switching

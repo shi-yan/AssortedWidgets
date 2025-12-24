@@ -1,22 +1,23 @@
 # AssortedWidgets Architecture
 
-> **Last Updated:** 2025-12-22
-> **Status:** Phase 3.3 Complete (Text Rendering + Animation System)
+> **Last Updated:** 2025-12-24
+> **Status:** Phase 4.0 - Architectural Refactor (Widget System Unification)
 
 This document describes the current architecture of AssortedWidgets and planned future features.
 
 ## Table of Contents
 
 1. [Core Principles](#core-principles)
-2. [Event System](#event-system)
-3. [Layout System](#layout-system)
-4. [Rendering Architecture](#rendering-architecture)
-5. [Text Rendering](#text-rendering)
-6. [Animation System](#animation-system)
-7. [Theme System](#theme-system)
-8. [Multi-Window Architecture](#multi-window-architecture)
-9. [Memory Management](#memory-management)
-10. [Performance Considerations](#performance-considerations)
+2. [Widget System Architecture](#widget-system-architecture)
+3. [Event System](#event-system)
+4. [Layout System](#layout-system)
+5. [Rendering Architecture](#rendering-architecture)
+6. [Text Rendering](#text-rendering)
+7. [Animation System](#animation-system)
+8. [Theme System](#theme-system)
+9. [Multi-Window Architecture](#multi-window-architecture)
+10. [Memory Management](#memory-management)
+11. [Performance Considerations](#performance-considerations)
 
 ---
 
@@ -30,6 +31,201 @@ Event queue with direct ownership instead of RefCell/Rc. No runtime borrow check
 
 ### 3. Cross-Platform Consistency
 Manual event loop control works the same on macOS, Windows, and Linux.
+
+### 4. Clean Developer API
+Internal complexity hidden behind minimal, intuitive public APIs. Developers work with widgets, not internal data structures.
+
+---
+
+## Widget System Architecture
+
+**Philosophy:** Developers should only work with a clean widget API. Internal data structures (WidgetManager, WidgetTree, LayoutManager) are implementation details and completely hidden.
+
+### Three-System Architecture
+
+AssortedWidgets maintains three coordinated systems internally:
+
+```mermaid
+graph TB
+    A[Window API<br/>Public Interface] --> B[WidgetManager<br/>Storage]
+    A --> C[WidgetTree<br/>Hierarchy]
+    A --> D[LayoutManager<br/>Taffy Integration]
+
+    B -->|Stores| E[HashMap WidgetId → Widget]
+    C -->|Maintains| F[Tree WidgetId<br/>Parent-Child]
+    D -->|Manages| G[Taffy Tree<br/>Layout Calculation]
+
+    style A fill:#90EE90
+    style B fill:#FFE4B5
+    style C fill:#FFE4B5
+    style D fill:#FFE4B5
+```
+
+#### 1. WidgetManager (Storage)
+```rust
+// Internal - not exposed to developers
+struct WidgetManager {
+    widgets: HashMap<WidgetId, Box<dyn Widget>>,
+}
+```
+
+**Purpose:** Store widget data (O(1) lookup by ID)
+
+#### 2. WidgetTree (Hierarchy)
+```rust
+// Internal - not exposed to developers
+struct WidgetTree {
+    root: Option<TreeNode>,
+}
+
+struct TreeNode {
+    widget_id: WidgetId,
+    children: Vec<TreeNode>,
+}
+```
+
+**Purpose:** Maintain parent-child relationships for ALL widgets (normal + floating)
+
+**Why needed:**
+- Event bubbling (child → parent → grandparent)
+- Z-order / paint order (tree traversal)
+- Parent context (tooltips know their parent button)
+
+#### 3. LayoutManager (Taffy Integration)
+```rust
+// Internal - not exposed to developers
+struct LayoutManager {
+    taffy: Taffy,
+    widget_to_node: HashMap<WidgetId, NodeId>,
+}
+```
+
+**Purpose:** Layout calculation for layout-participating widgets only
+
+**Note:** Floating widgets (tooltips, modals) are NOT in Taffy, only in WidgetTree.
+
+---
+
+### WidgetId vs NodeId Design Decision
+
+**Question:** Why not use Taffy's `NodeId` directly as `WidgetId`?
+
+**Answer:** They serve different purposes and must remain separate.
+
+#### Problems with using NodeId as WidgetId:
+
+1. **Not Serializable**
+   - `NodeId` is tied to a specific Taffy instance
+   - Can't save/restore widget IDs across sessions
+   - Can't share widget IDs between contexts
+
+2. **Taffy-Owned Generation**
+   - Only Taffy can create `NodeId`s
+   - Can't create widgets without immediately adding to layout
+   - Couples widget lifecycle to layout participation
+
+3. **Floating Widgets**
+   - Tooltips, modals, popups don't participate in layout
+   - Would need fake Taffy nodes with `Display::None`
+   - Awkward and error-prone
+
+4. **Lifecycle Independence**
+   - Widgets should exist before being added to layout
+   - Widgets can be removed from layout but kept alive
+   - Widget identity shouldn't depend on layout state
+
+#### Benefits of separate WidgetId:
+
+- ✅ **Decoupling:** Widget identity independent of layout system
+- ✅ **Flexibility:** Create widgets before layout, remove from layout but keep alive
+- ✅ **Floating elements:** Tooltips/modals don't need layout nodes
+- ✅ **Serialization:** Can save/restore widget IDs
+- ✅ **Simplicity:** Mapping is trivial (`HashMap<WidgetId, NodeId>`)
+
+#### Floating Widget Support:
+
+Taffy supports `Display::None`, but for truly floating widgets (modals, tooltips, drag previews), we simply don't create Taffy nodes for them. They exist in:
+- ✅ WidgetManager (storage)
+- ✅ WidgetTree (hierarchy for events)
+- ❌ LayoutManager (no layout participation)
+
+---
+
+### Clean Developer API
+
+**Design Principle:** Developers NEVER manipulate internal data structures directly. All operations go through a minimal Window API.
+
+```rust
+// Public API - simple and intuitive
+impl Window {
+    /// Add a root widget to the window
+    /// Automatically registers in all three internal systems
+    pub fn add_root(&mut self, widget: Box<dyn Widget>, style: Style) -> WidgetId;
+
+    /// Add a child widget under a parent
+    /// Automatically registers in all three internal systems
+    pub fn add_child(&mut self, parent: WidgetId, widget: Box<dyn Widget>, style: Style) -> WidgetId;
+
+    /// Add a floating widget (tooltip, modal, popup)
+    /// Registers in WidgetManager and WidgetTree, but NOT in layout
+    pub fn add_floating(&mut self, parent: WidgetId, widget: Box<dyn Widget>) -> WidgetId;
+
+    /// Remove a widget and all its children
+    /// Automatically removes from all internal systems
+    pub fn remove(&mut self, widget_id: WidgetId);
+
+    /// Get immutable widget reference
+    pub fn get(&self, widget_id: WidgetId) -> Option<&dyn Widget>;
+
+    /// Get mutable widget reference
+    pub fn get_mut(&mut self, widget_id: WidgetId) -> Option<&mut dyn Widget>;
+}
+```
+
+**Internal Implementation (hidden from developers):**
+```rust
+// Inside Window::add_child() - developers never see this
+fn add_child(&mut self, parent: WidgetId, widget: Box<dyn Widget>, style: Style) -> WidgetId {
+    let widget_id = widget.id();
+
+    // 1. Add to WidgetManager (storage)
+    self.widget_manager.add(widget);
+
+    // 2. Add to WidgetTree (hierarchy)
+    self.widget_tree.add_child(parent, widget_id);
+
+    // 3. Add to LayoutManager if has layout style (Taffy)
+    if style.display != Display::None {
+        self.layout_manager.create_node(widget_id, style);
+        self.layout_manager.add_child(parent, widget_id);
+    }
+
+    widget_id
+}
+```
+
+**Key Benefits:**
+- ✅ Single point of truth (Window API)
+- ✅ No manual synchronization needed
+- ✅ Impossible to create inconsistent state
+- ✅ Compile-time safety (can't access internal structures)
+- ✅ Simple mental model for developers
+
+---
+
+### Terminology Update
+
+**Old naming (inconsistent):**
+- `Element` trait - confusing, borrowed from HTML
+- `ElementManager` - but widgets have `WidgetId` (??)
+- Project called "AssortedWidgets" but no Widget concept
+
+**New naming (consistent):**
+- `Widget` trait - clear, matches domain
+- `WidgetManager` - manages widgets with `WidgetId` ✅
+- Aligns with "AssortedWidgets" branding ✅
+
+**Rationale:** HTML uses "element" because it's a document model (nested `<div>`, `<span>`, etc.). We're building a GUI framework where widgets paint themselves. No need for sub-widget granularity. Widget is the atomic unit.
 
 ---
 
@@ -52,9 +248,14 @@ graph TB
 - Main loop polls platform events and drains queue with direct mutable access
 - No RefCell - compile-time borrow checking only
 
+**Event Bubbling via WidgetTree:**
+- Click on child widget → bubble to parent → bubble to grandparent
+- WidgetTree provides parent-child relationships for bubbling
+- Works for both normal and floating widgets (tooltips bubble to their parent)
+
 **IME Support:**
 - Marked text ranges for candidate selection
-- Composition events sent to focused element
+- Composition events sent to focused widget
 - Platform-specific IME coordinate conversions
 
 ---
@@ -67,17 +268,17 @@ graph TB
 
 **Flow 1: Window Resize (Root → Leaves)**
 ```
-Window Resize → Taffy compute_layout() → Update Element Bounds
+Window Resize → Taffy compute_layout() → Update Widget Bounds
 ```
 
 **Flow 2: Content Change (Leaves → Root)**
 ```
-Element.mark_needs_layout() → Set Dirty Flag → Taffy Recompute → Update Bounds
+Widget.mark_needs_layout() → Set Dirty Flag → Taffy Recompute → Update Bounds
 ```
 
 ### Measure Functions
 
-Elements with intrinsic size (text, images) implement measure functions:
+Widgets with intrinsic size (text, images) implement measure functions:
 
 ```rust
 fn measure(
@@ -91,9 +292,10 @@ Taffy calls measure functions during layout to query content-based dimensions.
 
 ### Integration
 
-- Each `Element` stores a `taffy::NodeId`
-- `LayoutManager` wraps Taffy tree and syncs with `ElementManager`
+- Each layout-participating `Widget` has a `NodeId` in LayoutManager
+- `LayoutManager` wraps Taffy tree and maintains `WidgetId → NodeId` mapping
 - Layout runs before rendering if dirty flag is set
+- Floating widgets (tooltips, modals) don't have Taffy nodes
 
 ---
 
@@ -104,23 +306,24 @@ Taffy calls measure functions during layout to query content-based dimensions.
 ### Tier 1: High-Level Primitives
 ```rust
 pub struct PaintContext<'a> {
-    // Batched 2D primitives (future)
-    pub primitives: &'a mut PrimitiveBatcher,
-
-    // Current implementation: direct text/rect rendering
+    // Batched 2D primitives
+    rects: Vec<RectInstance>,
+    sdf_commands: Vec<DrawCommand>,
+    text: Vec<TextInstance>,
     // ...
 }
 ```
 
 **Current Methods:**
 - `draw_rect()` - filled rectangles
+- `draw_styled_rect()` - rounded corners with borders (SDF)
 - `draw_text()` - managed text with caching
 - `draw_layout()` - manual text layout control
 - `create_text_layout()` - text shaping with truncation
 
-### Tier 2: Raw WebGPU Access
+### Tier 2: Raw WebGPU Access (Future)
 ```rust
-impl Element for My3DWidget {
+impl Widget for My3DWidget {
     fn paint(&self, ctx: &mut PaintContext) {
         // Custom rendering with direct WebGPU access (future)
         ctx.render_pass.set_pipeline(&self.custom_pipeline);
@@ -135,6 +338,15 @@ Shared resources across all windows:
 - `GlyphAtlas` - texture atlas for text rendering
 - `FontSystem` - font loading and fallback
 - `TextEngine` - text shaping and layout cache
+
+### Paint Order via WidgetTree
+
+Widgets are painted in tree traversal order:
+1. Parent painted first (background)
+2. Children painted on top (in order)
+3. Floating widgets painted last (tooltips, modals on top)
+
+Z-order is determined by WidgetTree hierarchy, ensuring correct overlapping.
 
 ---
 
@@ -204,20 +416,20 @@ pub struct GlyphKey {
 
 **Architecture:** Frame-Based Updates with Optimization
 
-### Element Animation API
+### Widget Animation API
 
-Elements that need animation implement:
+Widgets that need animation implement:
 
 ```rust
-pub trait Element {
-    /// Update element state each frame before layout
+pub trait Widget {
+    /// Update widget state each frame before layout
     fn update(&mut self, frame: &FrameInfo) {
         // Default: no update logic
     }
 
-    /// Check if this element needs continuous frame updates
+    /// Check if this widget needs continuous frame updates
     fn needs_continuous_updates(&self) -> bool {
-        false // Default: static element
+        false // Default: static widget
     }
 }
 
@@ -233,9 +445,9 @@ pub struct FrameInfo {
 ```mermaid
 graph TD
     A[Window::render] --> B[Calculate Frame Timing]
-    B --> C{For each element}
+    B --> C{For each widget}
     C --> D{needs_continuous_updates?}
-    D -->|Yes| E[Call element.update frame_info]
+    D -->|Yes| E[Call widget.update frame_info]
     D -->|No| F[Skip update]
     E --> G[Mark layout dirty if needed]
     F --> G
@@ -246,7 +458,7 @@ graph TD
 ### Frame-Rate Independent Animation
 
 ```rust
-impl Element for AnimatedRect {
+impl Widget for AnimatedRect {
     fn update(&mut self, frame: &FrameInfo) {
         // Use dt for frame-rate independence
         self.rotation += self.angular_velocity * frame.dt;
@@ -268,113 +480,19 @@ impl Element for AnimatedRect {
 ### Optimization: Selective Updates
 
 **Performance Strategy:**
-- Window only calls `update()` on elements that return `needs_continuous_updates() = true`
-- Static elements skip update pass entirely
-- Elements can toggle `needs_continuous_updates()` for one-shot animations:
-
-```rust
-impl Element for PopupAnimation {
-    fn update(&mut self, frame: &FrameInfo) {
-        if self.animation_progress >= 1.0 {
-            self.animating = false; // Stop continuous updates
-            return;
-        }
-        self.animation_progress += frame.dt / self.duration;
-        self.mark_needs_layout();
-    }
-
-    fn needs_continuous_updates(&self) -> bool {
-        self.animating
-    }
-}
-```
-
-### Animation vs Window Resize
-
-**Update Flow (Time-Based):**
-- Triggered by frame timer (60fps)
-- Animations, physics, time-based state changes
-- Elements call `mark_needs_layout()` if intrinsic size changes
-
-**Resize Flow (Space-Based):**
-- Triggered by window resize event
-- Taffy recomputes layout with new available space
-- No update() calls - layout drives changes
-
-These flows are independent and complementary.
+- Window only calls `update()` on widgets returning `needs_continuous_updates() = true`
+- Static widgets skip update pass entirely
+- Widgets can toggle `needs_continuous_updates()` for one-shot animations
 
 ### Implementation Status
 
 - ✅ FrameInfo struct with dt, timestamp, frame_number
-- ✅ Element::update() and needs_continuous_updates() hooks
+- ✅ Widget::update() and needs_continuous_updates() hooks
 - ✅ Window calls update() before layout each frame
 - ✅ AnimatedTextLabel demo showing text truncation animation
 - ⏳ Transition animations (planned)
 - ⏳ Physics-based animations (planned)
 - ⏳ Spring animations with damping (planned)
-
-### AnimationManager (Future Optimization - Optional)
-
-**Current Implementation:**
-The Window iterates through all elements and calls `update()` only on those returning `needs_continuous_updates() = true`.
-
-```rust
-// Current: O(n) where n = all elements
-for widget_id in widget_ids {
-    if let Some(element) = self.element_manager.get_mut(widget_id) {
-        if element.needs_continuous_updates() {  // Fast check
-            element.update(&frame_info);
-        }
-    }
-}
-```
-
-**Potential Optimization: AnimationManager**
-
-A dedicated AnimationManager could track which widgets need updates, avoiding iteration over static elements:
-
-```rust
-pub struct AnimationManager {
-    /// WidgetIds that need continuous updates
-    animating_widgets: HashSet<WidgetId>,
-}
-
-// Optimized: O(m) where m = animating elements only
-for widget_id in animation_manager.animating_widgets() {
-    if let Some(element) = self.element_manager.get_mut(widget_id) {
-        element.update(&frame_info);
-    }
-}
-```
-
-**Trade-offs:**
-
-| Aspect | Current (No Manager) | With AnimationManager |
-|--------|---------------------|----------------------|
-| **Iteration** | O(n) all elements | O(m) animating only |
-| **Check Cost** | Virtual call per element | HashSet lookup |
-| **Maintenance** | Zero overhead | Add/remove on animation start/stop |
-| **Complexity** | Simple, no tracking | Need to sync with element lifecycle |
-| **Memory** | Zero | HashSet storage (~8 bytes per animating widget) |
-
-**When AnimationManager Makes Sense:**
-- UI has >1000 elements with <10 animating (rare)
-- Profile shows update() iteration is a bottleneck (unlikely)
-
-**When Current Approach Is Better:**
-- Most UIs have <100 elements (current approach is negligible)
-- `needs_continuous_updates()` is a fast bool check (no allocation)
-- Simpler code, fewer bugs
-
-**Recommendation:**
-Keep the current simple approach unless profiling shows it's a bottleneck. The virtual call overhead for `needs_continuous_updates()` is minimal compared to actual animation work.
-
-**Future Enhancement:**
-If we add an AnimationManager later, it could provide:
-- Easing functions (ease-in, ease-out, cubic-bezier)
-- Spring physics (damping, stiffness)
-- Animation sequencing (play A, then B)
-- Pause/resume all animations
 
 ---
 
@@ -428,7 +546,7 @@ pub struct ThemeUniforms {
 **Benefits:**
 - Single uniform buffer update changes entire UI theme
 - Shaders automatically use theme colors
-- Elements read theme for semantic colors (not hardcoded)
+- Widgets read theme for semantic colors (not hardcoded)
 
 ---
 
@@ -447,6 +565,7 @@ pub struct RenderContext {
     // Shared Rendering Pipelines (Stateless, Created Once)
     pub rect_pipeline: RectPipeline,
     pub text_pipeline: TextPipeline,
+    pub rect_sdf_pipeline: RectSdfPipeline,
     pub surface_format: wgpu::TextureFormat,
 
     // Rendering Resources (Arc<Mutex<>>)
@@ -457,7 +576,7 @@ pub struct RenderContext {
 ```
 
 **Shared Across All Windows:**
-- Rendering pipelines (rect, text) - stateless, created once, reused by all windows
+- Rendering pipelines (rect, text, SDF) - stateless, created once, reused by all windows
 - Single glyph atlas (~16MB) vs per-window (~80MB for 5 windows)
 - Font system initialized once (~10MB saved)
 - Text shaping cache reused across windows
@@ -476,6 +595,8 @@ pub struct WindowRenderer {
     rect_uniform_bind_group: wgpu::BindGroup,
     text_uniform_buffer: wgpu::Buffer,
     text_uniform_bind_group: wgpu::BindGroup,
+    rect_sdf_uniform_buffer: wgpu::Buffer,
+    rect_sdf_uniform_bind_group: wgpu::BindGroup,
 
     // Dynamic Instance Buffers (reused each frame)
     rect_instance_buffer: Option<wgpu::Buffer>,
@@ -523,23 +644,24 @@ loop {
 
 ## Memory Management
 
-### Element Storage
+### Widget Storage
 
 **Flat Hash Table:**
 ```rust
-pub struct ElementManager {
-    elements: HashMap<WidgetId, Box<dyn Element>>,
+pub struct WidgetManager {
+    widgets: HashMap<WidgetId, Box<dyn Widget>>,
 }
 ```
 
 **Separate Trees:**
-- Scene graph: Rendering hierarchy (Z-order, clipping)
-- Layout tree: Taffy nodes (Flexbox/Grid)
+- WidgetTree: Hierarchy for ALL widgets (normal + floating), events, paint order
+- Taffy tree: Layout calculation for layout-participating widgets only
 
 **Benefits:**
 - Fast O(1) lookup by ID
 - Trees store IDs only (cheap to clone/restructure)
-- Elements can exist in multiple trees
+- Widgets can exist in WidgetTree but not Taffy (floating widgets)
+- Clean separation: storage vs hierarchy vs layout
 
 ### Memory Budget
 
@@ -547,6 +669,7 @@ pub struct ElementManager {
 - **Font System:** ~10MB (system fonts, fallback chains)
 - **Layout Cache:** Minimal (Taffy is efficient)
 - **Text Shaping Cache:** Grows with unique (text, style, width) combinations
+- **WidgetTree:** Lightweight (just IDs and pointers)
 
 ---
 
@@ -568,7 +691,7 @@ pub struct ElementManager {
    - Incremental updates where possible
 
 2. **Batching**
-   - Primitives batched by type (rects, text)
+   - Primitives batched by type (rects, SDF, text)
    - State changes minimized via sorting
    - Single atlas bind for all text
 
@@ -578,25 +701,38 @@ pub struct ElementManager {
    - Layout results cached until dirty
 
 4. **Animation Optimization**
-   - Only call update() on elements with needs_continuous_updates() = true
-   - Static elements skip update pass entirely
-   - Elements can toggle flag for one-shot animations
+   - Only call update() on widgets with needs_continuous_updates() = true
+   - Static widgets skip update pass entirely
+   - Widgets can toggle flag for one-shot animations
 
 5. **Atlas Management**
    - Multi-page texture array (no reallocation)
    - Lazy LRU eviction for unused glyphs
    - Per-DPI caching for smooth transitions
 
+6. **Unified Tree Traversal**
+   - Single WidgetTree traversal for painting
+   - Z-order determined by tree order (no sorting needed)
+   - Event bubbling follows tree structure (no lookups)
+
 ---
 
 ## Conclusion
 
 AssortedWidgets provides a flexible, performant foundation for GUI applications with:
-- Compile-time safety (no RefCell panics)
-- Low-level access (WebGPU escape hatch)
-- Industry-standard layout (Taffy)
-- Efficient text rendering (shared atlas, multi-DPI)
-- Frame-rate independent animation system
-- Multi-window support with shared resources
+- **Clean API:** Developers work with simple Window methods, not internal structures
+- **Compile-time safety:** No RefCell panics
+- **Low-level access:** WebGPU escape hatch for custom rendering
+- **Industry-standard layout:** Taffy (Flexbox/Grid)
+- **Efficient text rendering:** Shared atlas, multi-DPI support
+- **Frame-rate independent animation system**
+- **Multi-window support:** Shared resources save memory
+- **Unified hierarchy:** WidgetTree handles events, painting, and parent-child relationships
 
-Future work includes primitive batching, theme system GPU integration, and advanced animation helpers.
+**Architectural Advantages:**
+- Three coordinated systems (WidgetManager, WidgetTree, LayoutManager) hidden behind clean API
+- WidgetId independent of NodeId (supports floating widgets, serialization, decoupling)
+- Consistent naming (Widget everywhere, not Element)
+- Single point of truth (all operations through Window API)
+
+Future work includes primitive batching optimizations, theme system GPU integration, and advanced animation helpers.
