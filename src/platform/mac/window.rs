@@ -247,7 +247,7 @@ define_class!(
 
         #[unsafe(method(validAttributesForMarkedText))]
         fn valid_attributes_for_marked_text(&self) -> *const NSObject {
-            println!("[IME] validAttributesForMarkedText called");
+            //println!("[IME] validAttributesForMarkedText called");
             // Return empty array
             unsafe {
                 use objc2_foundation::NSArray;

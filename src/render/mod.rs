@@ -35,8 +35,10 @@
 
 mod context;
 mod pipelines;
+mod rect_sdf_pipeline;
 mod window_renderer;
 
 pub use context::RenderContext;
 pub use pipelines::{RectPipeline, TextPipeline};
+pub use rect_sdf_pipeline::RectSdfPipeline;
 pub use window_renderer::WindowRenderer;

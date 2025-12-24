@@ -1,5 +1,6 @@
 use crate::event::HitTester;
 use crate::paint::primitives::{Color, RectInstance};
+use crate::paint::types::{DrawCommand, ShapeStyle};
 use crate::text::{TextInstance, TextLayout, GlyphAtlas, FontSystemWrapper, TextEngine, TextStyle};
 use crate::types::{Point, Rect, Size, WidgetId};
 
@@ -63,8 +64,11 @@ pub struct RenderBundle<'a> {
 /// - Elements drawn later have higher z-order (rendered last, appear on top)
 /// - The z-order is used for both rendering and hit testing
 pub struct PaintContext<'a> {
-    /// Collected rectangle instances
+    /// Collected rectangle instances (simple rects, no rounded corners)
     rects: Vec<RectInstance>,
+
+    /// Collected SDF draw commands (rounded rects with borders)
+    sdf_commands: Vec<DrawCommand>,
 
     /// Collected text glyph instances
     text: Vec<TextInstance>,
@@ -93,6 +97,7 @@ impl<'a> PaintContext<'a> {
     pub fn new(window_size: Size, bundle: RenderBundle<'a>) -> Self {
         PaintContext {
             rects: Vec::new(),
+            sdf_commands: Vec::new(),
             text: Vec::new(),
             window_size,
             clip_stack: Vec::new(),
@@ -214,6 +219,25 @@ impl<'a> PaintContext<'a> {
         self.z_order += 1;
 
         self.rects.push(instance);
+    }
+
+    /// Draw a styled rectangle with rounded corners and borders
+    ///
+    /// This uses the SDF pipeline for smooth anti-aliased rendering.
+    /// For simple solid-color rectangles without rounded corners, prefer `draw_rect()`
+    /// which uses a simpler pipeline.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// ctx.draw_styled_rect(
+    ///     bounds,
+    ///     ShapeStyle::rounded(Color::rgb(0.2, 0.4, 0.8), 12.0)
+    ///         .with_border(Border::new(Color::rgb(0.1, 0.2, 0.6), 2.0)),
+    /// );
+    /// ```
+    pub fn draw_styled_rect(&mut self, rect: Rect, style: ShapeStyle) {
+        self.sdf_commands.push(DrawCommand::Rect { rect, style });
+        self.z_order += 1;
     }
 
     /// Draw a single text glyph
@@ -601,9 +625,15 @@ impl<'a> PaintContext<'a> {
         &self.text
     }
 
+    /// Get the collected SDF draw commands (rounded rects with borders)
+    pub fn sdf_commands(&self) -> &[DrawCommand] {
+        &self.sdf_commands
+    }
+
     /// Clear all collected primitives
     pub fn clear(&mut self) {
         self.rects.clear();
+        self.sdf_commands.clear();
         self.text.clear();
     }
 

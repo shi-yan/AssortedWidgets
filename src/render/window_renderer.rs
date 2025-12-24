@@ -62,6 +62,10 @@ pub struct WindowRenderer {
     text_uniform_buffer: wgpu::Buffer,
     text_uniform_bind_group: wgpu::BindGroup,
 
+    /// SDF rect uniforms (contains screen_size specific to this window)
+    rect_sdf_uniform_buffer: wgpu::Buffer,
+    rect_sdf_uniform_bind_group: wgpu::BindGroup,
+
     // ========================================
     // Per-Window Instance Buffers (Dynamic)
     // ========================================
@@ -172,6 +176,10 @@ impl WindowRenderer {
             }],
         });
 
+        // Create SDF rect uniforms and bind group
+        let rect_sdf_uniform_buffer = context.rect_sdf_pipeline.create_uniform_buffer(device, width, height);
+        let rect_sdf_uniform_bind_group = context.rect_sdf_pipeline.create_bind_group(device, &rect_sdf_uniform_buffer);
+
         Ok(WindowRenderer {
             surface,
             config,
@@ -180,6 +188,8 @@ impl WindowRenderer {
             rect_uniform_bind_group,
             text_uniform_buffer,
             text_uniform_bind_group,
+            rect_sdf_uniform_buffer,
+            rect_sdf_uniform_bind_group,
             rect_instance_buffer: None,
             rect_instance_capacity: 0,
             text_instance_buffer: None,
@@ -236,6 +246,16 @@ impl WindowRenderer {
             &self.text_uniform_buffer,
             0,
             bytemuck::cast_slice(&[text_uniforms]),
+        );
+
+        // Update SDF rect uniforms
+        let width = (size.width * scale_factor as f64) as u32;
+        let height = (size.height * scale_factor as f64) as u32;
+        self.render_context.rect_sdf_pipeline.update_uniforms(
+            self.render_context.queue(),
+            &self.rect_sdf_uniform_buffer,
+            width,
+            height,
         );
 
         println!("[WindowRenderer] Updated uniforms: logical = {:.0}x{:.0}, scale = {:.1}x, physical = {:.0}x{:.0}",
@@ -341,6 +361,22 @@ impl WindowRenderer {
         render_pass.set_bind_group(1, &texture_bind_group, &[]);
         render_pass.set_vertex_buffer(0, instance_buffer.slice(..));
         render_pass.draw(0..4, 0..instances.len() as u32);
+    }
+
+    /// Render SDF rectangles (rounded rects with borders) using the SDF pipeline
+    pub fn render_sdf_rects(
+        &mut self,
+        render_pass: &mut wgpu::RenderPass,
+        batcher: &crate::paint::PrimitiveBatcher,
+    ) {
+        self.render_context.rect_sdf_pipeline.render(
+            &self.render_context.device,
+            &self.render_context.queue,
+            render_pass,
+            &self.rect_sdf_uniform_buffer,
+            &self.rect_sdf_uniform_bind_group,
+            batcher,
+        );
     }
 
     /// Begin a new rendering frame

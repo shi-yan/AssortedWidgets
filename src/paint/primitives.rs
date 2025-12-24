@@ -18,6 +18,11 @@ impl Color {
         Color { r, g, b, a }
     }
 
+    /// Convert to array for GPU upload
+    pub fn to_array(&self) -> [f32; 4] {
+        [self.r, self.g, self.b, self.a]
+    }
+
     // Common colors
     pub const BLACK: Color = Color::rgb(0.0, 0.0, 0.0);
     pub const WHITE: Color = Color::rgb(1.0, 1.0, 1.0);

@@ -3,6 +3,7 @@
 use std::sync::{Arc, Mutex};
 use crate::text::{GlyphAtlas, FontSystemWrapper, TextEngine};
 use crate::render::pipelines::{RectPipeline, TextPipeline};
+use crate::render::RectSdfPipeline;
 
 /// Shared rendering context containing GPU resources and rendering state
 ///
@@ -38,6 +39,10 @@ pub struct RenderContext {
     /// Text rendering pipeline (shared across all windows)
     /// Contains only stateless resources: pipeline, bind group layouts, sampler
     pub text_pipeline: TextPipeline,
+
+    /// Rounded rectangle SDF pipeline (shared across all windows)
+    /// Used for drawing rectangles with rounded corners and borders
+    pub rect_sdf_pipeline: RectSdfPipeline,
 
     // ========================================
     // Rendering Resources (High-Level)
@@ -122,6 +127,9 @@ impl RenderContext {
         println!("  ✓ Creating shared text pipeline...");
         let text_pipeline = TextPipeline::new(&device, surface_format);
 
+        println!("  ✓ Creating shared rect SDF pipeline...");
+        let rect_sdf_pipeline = RectSdfPipeline::new(&device, surface_format);
+
         // Create glyph atlas (2048×2048 with up to 16 pages)
         println!("  ✓ Creating glyph atlas (2048×2048, 16 pages max)...");
         let glyph_atlas = GlyphAtlas::new(&device, 2048, 16);
@@ -143,6 +151,7 @@ impl RenderContext {
             queue,
             rect_pipeline,
             text_pipeline,
+            rect_sdf_pipeline,
             glyph_atlas: Arc::new(Mutex::new(glyph_atlas)),
             font_system: Arc::new(Mutex::new(font_system)),
             text_engine: Arc::new(Mutex::new(text_engine)),

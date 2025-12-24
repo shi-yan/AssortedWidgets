@@ -868,7 +868,7 @@ impl Window {
         self.window_renderer.begin_frame();
 
         // Paint phase - collect draw commands
-        let (rect_instances, text_instances) = {
+        let (rect_instances, sdf_commands, text_instances) = {
             // Lock shared resources for the duration of the frame
             let mut atlas_lock = render_context.glyph_atlas.lock().unwrap();
             let mut font_system_lock = render_context.font_system.lock().unwrap();
@@ -896,6 +896,7 @@ impl Window {
 
             // Extract instances before paint_ctx is dropped
             let mut rect_instances = paint_ctx.rect_instances().to_vec();
+            let sdf_commands = paint_ctx.sdf_commands().to_vec();
             let mut text_instances = paint_ctx.text_instances().to_vec();
 
             // Sort by z-order (low to high) for correct overlapping
@@ -904,7 +905,7 @@ impl Window {
             rect_instances.sort_by_key(|inst| inst.z_order);
             text_instances.sort_by_key(|inst| inst.z_order);
 
-            (rect_instances, text_instances)
+            (rect_instances, sdf_commands, text_instances)
         };
 
         // Rebuild focus manager to sync with current element tree
@@ -944,6 +945,18 @@ impl Window {
 
             // Render all rectangles using shared pipeline
             self.window_renderer.render_rects(&mut render_pass, &rect_instances);
+
+            // Render all SDF rectangles (rounded corners with borders)
+            if !sdf_commands.is_empty() {
+                // Create a temporary batcher from the collected commands
+                let mut sdf_batcher = crate::paint::PrimitiveBatcher::new();
+                for cmd in &sdf_commands {
+                    if let crate::paint::DrawCommand::Rect { rect, style } = cmd {
+                        sdf_batcher.draw_rect(*rect, style.clone());
+                    }
+                }
+                self.window_renderer.render_sdf_rects(&mut render_pass, &sdf_batcher);
+            }
 
             // Render all text using shared pipeline and atlas
             let atlas_lock = render_context.glyph_atlas.lock().unwrap();
