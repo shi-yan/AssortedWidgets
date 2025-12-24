@@ -1,472 +1,458 @@
 # Z-Order Architecture for AssortedWidgets
 
-> **Status:** Phase 2 Implementation (CPU Sorting)
-> **Next Step:** Phase 2.1 - Two-Pass Rendering with Depth Buffer
-> **Last Updated:** 2025-12-23
+> **Status:** Design Phase - Unified Architecture
+> **Approach:** Layered BoundsTree + Two-Pass Rendering + Depth Buffer
+> **Last Updated:** 2025-12-24
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Current Implementation](#current-implementation)
-3. [Planned Architecture](#planned-architecture)
-4. [Design Decisions](#design-decisions)
-5. [Implementation Guide](#implementation-guide)
-6. [Performance Considerations](#performance-considerations)
+2. [Final Architecture](#final-architecture)
+3. [Implementation Phases](#implementation-phases)
+4. [Design Rationale](#design-rationale)
+5. [Performance Analysis](#performance-analysis)
 
 ---
 
 ## Overview
 
-Z-order (depth ordering) in AssortedWidgets ensures that UI elements are rendered and interact in the correct visual layering order. The system must handle both rendering (what appears on top) and hit testing (which element receives mouse clicks) consistently.
+Z-order (depth ordering) in AssortedWidgets ensures UI elements render and interact in the correct visual layering order. After extensive analysis and expert consultation, we've designed a **hybrid architecture** that combines:
+
+1. **Explicit layer control** (predictable, user-specified)
+2. **Automatic batching optimization** (BoundsTree within layers)
+3. **GPU depth testing** (hardware-accelerated for opaque elements)
+4. **Correct transparency** (two-pass rendering)
 
 ### Design Goals
 
-1. **Visual Consistency**: Rendering and hit testing use the same z-order
-2. **Automatic Assignment**: Z-order is assigned automatically during paint traversal
-3. **Simplicity**: Depth-first scene graph traversal determines natural z-order
-4. **Performance**: Efficient for typical UI scenarios (< 10,000 elements)
-5. **3D Compatibility**: Architecture supports future integration with 3D content
+1. **Predictable Layering**: Shadows always behind, tooltips always on top
+2. **Automatic Batching**: Non-overlapping elements batch together (minimal draw calls)
+3. **Correct Transparency**: Proper alpha blending for semi-transparent UI
+4. **3D Integration Ready**: Depth buffer supports embedded 3D content
+5. **High Performance**: GPU handles 95% of UI, CPU sorts only 5% (transparent elements)
 
 ---
 
-## Current Implementation
+## Final Architecture
 
-### Phase 2: CPU-Side Sorting (Current)
-
-**Status:** ✅ Implemented and working
-
-The current implementation uses CPU-side sorting with automatic z-order assignment:
+### Three-Layer System
 
 ```rust
-// During paint pass:
-pub struct PaintContext {
-    z_order: u32,  // Auto-increments with each draw call
-    hit_tester: HitTester,  // Collects hitboxes with z-order
+// Layer 1: User API (Explicit Layers)
+// =====================================
+// Developers specify semantic layers for predictable z-ordering
+
+ctx.draw_rect(bounds, style, layers::SHADOW);   // Layer -100
+ctx.draw_rect(bounds, style, layers::NORMAL);   // Layer 0
+ctx.draw_rect(bounds, style, layers::OVERLAY);  // Layer 1000
+
+pub mod layers {
+    pub const BACKGROUND: i32 = -1000;
+    pub const SHADOW: i32 = -100;
+    pub const NORMAL: i32 = 0;
+    pub const FOREGROUND: i32 = 100;
+    pub const OVERLAY: i32 = 1000;
+    pub const MODAL: i32 = 10000;
+}
+```
+
+```rust
+// Layer 2: BoundsTree (Automatic Z-Value Assignment)
+// ===================================================
+// Internal optimization: assigns minimal z-values WITHIN each layer
+
+struct LayeredBoundsTree {
+    layers: HashMap<i32, BoundsTree>,  // One BoundsTree per layer
 }
 
-// Elements register hitboxes and draw
-ctx.register_hitbox(self.id, self.bounds);  // z_order captured here
-ctx.draw_rect(self.bounds, color);           // z_order assigned here
+impl LayeredBoundsTree {
+    fn insert(&mut self, bounds: Rect, layer: i32) -> f32 {
+        let tree = self.layers.entry(layer).or_default();
+        let offset = tree.insert(bounds);  // Returns 0, 0, 1, 0, 2, etc.
 
-// After paint pass:
-// 1. Sort primitives by z-order
-rect_instances.sort_by_key(|inst| inst.z_order);
-text_instances.sort_by_key(|inst| inst.z_order);
+        // Map to final z-value: layer + fine-grained offset
+        // Layer -100, offset 0 → z = -100.00000
+        // Layer -100, offset 0 → z = -100.00000 (non-overlapping, reused!)
+        // Layer -100, offset 1 → z = -100.00001
+        layer as f32 + (offset as f32 / 100000.0)
+    }
+}
 
-// 2. Render sorted primitives
-render_all_rects();  // One batched draw call
-render_all_text();   // One batched draw call
-
-// 3. Extract hit tester with same z-order values
-let hit_tester = paint_ctx.finalized_hit_tester();
+// Example batching within layers:
+//   Shadow A (50, 50)   → z = -100.00000
+//   Shadow B (200, 50)  → z = -100.00000 (no overlap, reused!)
+//   Shadow C (60, 60)   → z = -100.00001 (overlaps A)
+//
+//   Result: Batch [A, B] at z=-100.00000 → Single draw call!
 ```
-
-### Z-Order Assignment Strategy
-
-**Depth-First Traversal:**
-
-```
-Scene Graph:          Z-Order Assignment:
-    Root                  z=0 (Root painted first)
-    ├── Child A           z=1 (Child A painted second)
-    │   ├── Child A1      z=2 (Child A1 painted third)
-    │   └── Child A2      z=3 (Child A2 painted fourth)
-    └── Child B           z=4 (Child B painted last - appears on top)
-```
-
-**Key Properties:**
-- Later elements in depth-first order get higher z-order
-- Parent painted before children (parent behind children)
-- Siblings painted in order (later siblings on top of earlier)
-
-### Benefits of Current Approach
-
-✅ **Correct**: Rendering and hit testing perfectly synchronized
-✅ **Simple**: No shader changes required
-✅ **Transparent-Friendly**: Works for both opaque and transparent elements
-✅ **Debuggable**: Easy to understand z-order assignment
-✅ **Phase 2 Complete**: Hit testing validated with demo
-
-### Limitations
-
-❌ **CPU Overhead**: Sorting 10,000 primitives takes ~0.2ms
-❌ **Not Optimal for Batching**: Sorting by z-order can break material batching
-❌ **No GPU Depth Testing**: Not leveraging hardware z-buffer
-❌ **3D Integration**: Difficult to composite 3D content with 2D UI
-
----
-
-## Planned Architecture
-
-### Phase 2.1: Two-Pass Rendering with Depth Buffer
-
-**Status:** 📅 Planned (Next Implementation)
-
-This is the recommended production architecture based on industry best practices and expert consultation.
-
-#### The Two-Pass Strategy
 
 ```rust
-// Pass 1: Opaque Elements (Depth-Tested, Unsorted)
-// ================================================
-// - Depth write: ENABLED
-// - Depth test: ENABLED (LessOrEqual)
-// - Draw order: ANY (or batched by material)
-// - GPU automatically handles z-ordering via depth buffer
-
-let opaque_rects: Vec<_> = rect_instances
-    .iter()
-    .filter(|r| r.color[3] >= 0.99)  // alpha >= 0.99 = opaque
-    .cloned()
-    .collect();
-
-render_opaque_rects(&opaque_rects);  // Batched, no sorting needed!
-render_opaque_text(&opaque_text);
-
-// Pass 2: Transparent Elements (Sorted Back-to-Front)
+// Layer 3: Two-Pass Rendering (Opaque + Transparent)
 // ===================================================
-// - Depth write: DISABLED (don't block what's behind)
-// - Depth test: ENABLED (respect opaque depth)
-// - Draw order: SORTED (back-to-front for correct alpha blending)
+// Separate opaque (depth-tested) from transparent (sorted)
 
-let mut transparent_rects: Vec<_> = rect_instances
-    .iter()
-    .filter(|r| r.color[3] < 0.99)
-    .cloned()
-    .collect();
+// Pass 1: Opaque Elements (95% of UI)
+depth_write: true,
+depth_test: Less,
+// GPU handles z-ordering automatically via depth buffer
+// Render in ANY order (batch by material for performance)
 
-transparent_rects.sort_by_key(|r| std::cmp::Reverse(r.z_order));
-render_transparent_rects(&transparent_rects);
-render_transparent_text(&transparent_text);
+// Pass 2: Transparent Elements (5% of UI)
+depth_write: false,  // Don't block what's behind
+depth_test: Less,    // Still respect opaque depth
+// CPU sort back-to-front (required for correct alpha blending)
 ```
 
-#### Shader Changes Required
+### Complete Data Flow
+
+```mermaid
+graph TD
+    A[Widget Paint] -->|ctx.draw_rect z=layers::SHADOW| B[DrawCommand]
+    B --> C[LayeredBoundsTree::insert]
+    C --> D[BoundsTree for layer -100]
+    D --> E[Assign z-value: -100.00000]
+    E --> F[Classify: Opaque or Transparent?]
+
+    F -->|Opaque alpha >= 0.99| G[Opaque Pass]
+    F -->|Transparent alpha < 0.99| H[Transparent Pass]
+
+    G --> I[Group by z-value + material]
+    I --> J[Batch: All rects at z=-100.00000]
+    J --> K[GPU Draw with depth write ON]
+
+    H --> L[CPU Sort back-to-front]
+    L --> M[Render sorted with depth write OFF]
+```
+
+### Shader Integration
 
 ```wgsl
-// Rect Shader (shaders/rect.wgsl)
+// Vertex shader: Map z-value to depth
 @vertex
-fn vs_main(instance: RectInstance, @builtin(vertex_index) vertex_index: u32) -> VertexOutput {
+fn vs_main(instance: RectInstance) -> VertexOutput {
     var out: VertexOutput;
 
-    // Convert z_order to normalized depth (0.0 = far, 1.0 = near)
-    // Use reverse mapping so higher z_order = closer to camera
-    let depth = 1.0 - (f32(instance.z_order) / 10000.0);
+    // Map z-value to [0.0, 1.0] depth range
+    // Higher z-value = lower depth = closer to camera
+    let depth = z_value_to_depth(instance.z_value);
 
-    out.clip_position = vec4<f32>(world_pos, depth, 1.0);
+    out.clip_position = vec4(world_pos.xy, depth, 1.0);
     out.color = instance.color;
     return out;
 }
-```
 
-#### Pipeline Configuration
+fn z_value_to_depth(z: f32) -> f32 {
+    const MIN_Z: f32 = -10000.0;
+    const MAX_Z: f32 = 10000.0;
+    1.0 - ((z - MIN_Z) / (MAX_Z - MIN_Z))
+}
 
-```rust
-// Create depth texture
-let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
-    format: wgpu::TextureFormat::Depth24Plus,
-    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-    // ...
-});
+// Opaque pass fragment shader
+@fragment
+fn fs_opaque(in: VertexOutput) -> @location(0) vec4<f32> {
+    var color = compute_shape_color(in);
 
-// Opaque pass pipeline
-depth_stencil: Some(wgpu::DepthStencilState {
-    format: wgpu::TextureFormat::Depth24Plus,
-    depth_write_enabled: true,
-    depth_compare: wgpu::CompareFunction::LessOrEqual,
-    // ...
-}),
+    // Alpha testing: discard edge pixels
+    // (Rendered in transparent pass instead)
+    if color.a < 0.99 {
+        discard;
+    }
 
-// Transparent pass pipeline
-depth_stencil: Some(wgpu::DepthStencilState {
-    format: wgpu::TextureFormat::Depth24Plus,
-    depth_write_enabled: false,  // Don't write depth!
-    depth_compare: wgpu::CompareFunction::LessOrEqual,
-    // ...
-}),
-```
+    return color;
+}
 
-### Phase 5: BoundsTree Optimization (Future)
-
-**Status:** 📅 Future Optimization
-
-Port gpui's `BoundsTree` for advanced batching optimization.
-
-#### What is BoundsTree?
-
-An R-tree variant that:
-- **Assigns minimal z-values**: Non-overlapping elements can share the same z-order
-- **Enables batching**: Elements with same z-order can be drawn in one call
-- **Optimizes queries**: O(1) fast-path for finding max z-order in overlapping bounds
-
-#### Example Benefit
-
-```
-Without BoundsTree:
-  Rect A (50,50):    z=1
-  Text A (50,50):    z=2
-  Rect B (200,50):   z=3  ← Doesn't overlap A, but gets higher z!
-  Text B (200,50):   z=4
-
-  Result: 4 draw calls (Rect, Text, Rect, Text - constant switching)
-
-With BoundsTree:
-  Rect A (50,50):    z=1
-  Text A (50,50):    z=2
-  Rect B (200,50):   z=1  ← Can reuse z=1! No overlap!
-  Text B (200,50):   z=2  ← Can reuse z=2!
-
-  Result: 2 draw calls (All Rects at z=1, All Text at z=2)
+// Transparent pass fragment shader
+@fragment
+fn fs_transparent(in: VertexOutput) -> @location(0) vec4<f32> {
+    // Render all pixels, including semi-transparent
+    return compute_shape_color(in);
+}
 ```
 
 ---
 
-## Design Decisions
+## Implementation Phases
 
-### Why Not Use Depth Buffer in Phase 2?
+### Phase 1: Explicit Layers + CPU Sorting (Foundation)
 
-**Decision:** Start with CPU sorting, add depth buffer in Phase 2.1
+**Status:** 🎯 Start Here
 
-**Reasoning:**
-1. **Validate Hit Testing First**: Phase 2 goal was hit testing - now validated ✅
-2. **Transparency Complication**: Need two-pass rendering for transparency anyway
-3. **Incremental Complexity**: Add one feature at a time
-4. **Rapid Iteration**: Easier to debug without GPU depth testing
+**Goal:** Get basic layered z-ordering working without complexity.
 
-**Counter-Argument (from expert consultation):**
-- "Adding depth buffer later = shader refactoring pain"
-- "3D integration requires depth buffer - do it now"
-- **Verdict**: Add depth buffer in Phase 2.1 (next step!)
+**Implementation:**
+```rust
+// Simple approach: User specifies layer, CPU sorts everything
+impl PrimitiveBatcher {
+    pub fn flush(&mut self, render_pass: &mut RenderPass) {
+        // 1. Sort by layer (user-specified z-index)
+        self.commands.sort_by_key(|cmd| cmd.z_index());
 
-### Why Not Implement BoundsTree Now?
+        // 2. Group by type for batching
+        for batch in self.group_by_type() {
+            render_batch(batch);
+        }
+    }
+}
+```
 
-**Decision:** Defer BoundsTree to Phase 5 optimization
+**Files to Create:**
+- `src/paint/types.rs` - Add `z_index: i32` to `DrawCommand`
+- `src/paint/layers.rs` - Define layer constants
+- Update shaders - No depth buffer yet (2D only)
 
-**Reasoning:**
-1. **Premature Optimization**: Current sorting is fast enough (< 1ms for 10k elements)
-2. **Complexity**: BoundsTree adds ~500 lines of complex R-tree code
-3. **Diminishing Returns**: Most UIs have < 1000 elements
-4. **Clear Optimization Target**: Add when profiling shows sorting bottleneck
+**Success Criteria:**
+- ✅ Shadows render behind buttons (z=-100 < z=0)
+- ✅ Tooltips render on top (z=1000 > z=0)
+- ✅ Explicit layer control works
+- ✅ Basic batching by type
 
-**When to Add BoundsTree:**
-- Profiling shows z-order sorting is a bottleneck
-- UI has > 5000 interactive elements
-- Material batching becomes critical for performance
-
-### Why Depth-First Z-Order Assignment?
-
-**Decision:** Use scene graph depth-first traversal order for z-order
-
-**Alternatives Considered:**
-1. **Manual z-index properties**: Requires manual management, error-prone
-2. **BoundsTree assignment**: Optimal but complex, deferred to Phase 5
-3. **Layer system**: Adds conceptual complexity
-
-**Chosen Approach:**
-- Natural, predictable ordering (parent behind children)
-- Matches developer intuition (paint order = z-order)
-- Zero configuration required
+**Limitations:**
+- ❌ All CPU sorting (not optimal)
+- ❌ No automatic batching optimization
+- ❌ No 3D integration support
 
 ---
 
-## Implementation Guide
+### Phase 2: Add Depth Buffer + Two-Pass Rendering
 
-### For Element Authors
+**Status:** 📅 After Phase 1
 
-#### Making an Element Interactive
+**Goal:** Use GPU depth buffer for opaque elements, CPU sort only transparent.
 
+**Implementation:**
 ```rust
-impl Element for MyButton {
-    fn paint(&self, ctx: &mut PaintContext) {
-        // 1. Register hitbox FIRST (before drawing)
-        //    This captures the current z-order
-        ctx.register_hitbox(self.id, self.bounds);
+impl PrimitiveBatcher {
+    pub fn flush(&mut self, render_pass: &mut RenderPass) {
+        // 1. Classify primitives
+        let (opaque, transparent) = self.classify_by_alpha();
 
-        // 2. Draw visual representation
-        //    Z-order auto-increments here
-        ctx.draw_rect(self.bounds, self.color);
-        ctx.draw_text("Click Me", &style, position, None);
-    }
+        // 2. Pass 1: Render opaque (depth write ON)
+        render_pass.set_pipeline(&self.opaque_pipeline);
+        for batch in self.group_by_material(&opaque) {
+            render_batch(batch);  // GPU handles z-order
+        }
 
-    fn is_interactive(&self) -> bool {
-        true  // This element handles mouse events
-    }
-}
-
-impl MouseHandler for MyButton {
-    fn on_mouse_down(&mut self, event: &mut MouseEvent) -> EventResponse {
-        println!("Button clicked!");
-        EventResponse::Handled  // Stop propagation
+        // 3. Pass 2: Render transparent (depth write OFF)
+        render_pass.set_pipeline(&self.transparent_pipeline);
+        transparent.sort_by_key(|cmd| OrderedFloat(cmd.z_value()));
+        for batch in self.group_by_type(&transparent) {
+            render_batch(batch);
+        }
     }
 }
 ```
 
-#### Understanding Z-Order in Hierarchies
+**Files to Modify:**
+- `src/render/context.rs` - Create depth texture (Depth24Plus)
+- `shaders/rect.wgsl` - Add depth output to vertex shader
+- `src/paint/batcher.rs` - Implement two-pass rendering
+- Create separate pipelines for opaque/transparent
 
-```rust
-// Parent-Child Hierarchy:
-Container (z=0) {
-    Background Rect (z=1)      ← Painted first (behind)
-    Child Panel (z=2) {
-        Panel Background (z=3)
-        Button (z=4)            ← Painted last (on top)
-    }
-}
+**Success Criteria:**
+- ✅ Opaque elements render without CPU sorting
+- ✅ Transparent elements (shadows, AA edges) blend correctly
+- ✅ 10× faster for typical UI (95% opaque)
+- ✅ Can embed 3D content with depth buffer
 
-// Click at button position:
-// Hit test returns Button (z=4) - highest z-order at that point
-```
-
-### For Renderer Developers
-
-#### Current Rendering Flow
-
-```rust
-// In Window::render_frame()
-
-// 1. Paint pass - collect primitives with z-order
-let (mut rect_instances, mut text_instances, hit_tester) = {
-    let paint_ctx = PaintContext::new(window_size, bundle);
-
-    // Traverse scene graph (depth-first)
-    scene_graph.traverse(|widget_id| {
-        element.paint(&mut paint_ctx);  // z_order increments
-    });
-
-    // Extract primitives and hit tester
-    (paint_ctx.rect_instances(), paint_ctx.text_instances(), paint_ctx.finalized_hit_tester())
-};
-
-// 2. Sort primitives by z-order (low to high)
-rect_instances.sort_by_key(|inst| inst.z_order);
-text_instances.sort_by_key(|inst| inst.z_order);
-
-// 3. Render sorted primitives
-render_rects(&rect_instances);
-render_text(&text_instances);
-
-// 4. Update hit tester for event dispatch
-self.hit_tester = hit_tester;
-```
+**Limitations:**
+- ❌ Still sorting by layer, not optimal batching
 
 ---
 
-## Performance Considerations
+### Phase 3: Add LayeredBoundsTree (Batching Optimization)
 
-### Current Performance (Phase 2)
+**Status:** 📅 After Phase 2 (Optional - only if profiling shows need)
 
-**Measured:**
-- Z-order assignment: ~0 overhead (counter increment)
-- Sorting 1,000 primitives: ~0.05ms
-- Sorting 10,000 primitives: ~0.2ms
-- Hit testing (linear scan): ~0.01ms for 1000 elements
+**Goal:** Reuse z-values for non-overlapping elements → better batching.
 
-**Bottlenecks:**
-- CPU sorting becomes noticeable at > 5000 primitives
-- Not leveraging GPU depth buffer hardware
+**Implementation:**
+```rust
+struct LayeredBoundsTree {
+    layers: HashMap<i32, BoundsTree>,
+}
 
-### Estimated Performance (Phase 2.1 with Depth Buffer)
+impl PrimitiveBatcher {
+    pub fn flush(&mut self, render_pass: &mut RenderPass, bounds_tree: &mut LayeredBoundsTree) {
+        // 1. Assign fine-grained z-values using BoundsTree
+        for cmd in &mut self.commands {
+            let layer = cmd.z_index();  // User layer: -100, 0, 1000, etc.
+            let z_value = bounds_tree.insert(cmd.bounds(), layer);
+            cmd.set_z_value(z_value);  // Fine-grained: -100.00000, -100.00001, etc.
+        }
 
-**Expected:**
-- Opaque pass: No CPU sorting! GPU handles depth automatically
-- Transparent pass: Only sort ~5% of primitives (most UI is opaque)
-- Overall sorting: 10x faster for typical UIs
+        // 2. Classify and render (same as Phase 2)
+        let (opaque, transparent) = self.classify_by_alpha();
+
+        // 3. Opaque pass: batch by z-value + material
+        for batch in self.group_by_z_and_material(&opaque) {
+            render_batch(batch);  // Many elements share same z-value!
+        }
+
+        // 4. Transparent pass: sort and batch
+        transparent.sort_by_key(|cmd| OrderedFloat(cmd.z_value()));
+        for batch in self.group_by_z_and_type(&transparent) {
+            render_batch(batch);
+        }
+    }
+}
+```
+
+**Files to Create:**
+- `src/paint/bounds_tree.rs` - Port GPUI's BoundsTree (350 lines)
+- `src/paint/layered_bounds_tree.rs` - Wrapper for per-layer trees
+
+**Success Criteria:**
+- ✅ Non-overlapping shadows batch together (10 shadows → 1 draw call)
+- ✅ Non-overlapping buttons batch together
+- ✅ 2-5× fewer draw calls for complex UIs
+- ✅ Z-value reuse within layers
+
+**When to Implement:**
+- Profile shows > 50 draw calls per frame
+- UI has > 1000 elements
+- Batching is critical for target performance
+
+---
+
+## Design Rationale
+
+### Why Explicit Layers?
+
+**Chosen:** User specifies layer (SHADOW, NORMAL, OVERLAY)
+
+**Alternatives Rejected:**
+1. **Fully automatic (paint order = z-order)**: Fragile, paint order changes break layering
+2. **Fully manual (fine-grained z-values)**: Error-prone, hard to maintain
+
+**Benefits:**
+- ✅ Predictable: Shadows always at z=-100, tooltips always at z=1000
+- ✅ Refactor-safe: Changing paint order doesn't break layering
+- ✅ Simple mental model: Matches CSS z-index, Unity layers
+
+### Why BoundsTree Within Layers?
+
+**Chosen:** BoundsTree assigns z-values WITHIN each layer
+
+**Benefits:**
+- ✅ Best of both worlds: Explicit layer control + automatic batching
+- ✅ Non-overlapping elements batch together
+- ✅ Transparent to user API (internal optimization)
 
 **Example:**
 ```
-Typical UI: 10,000 primitives
-  - 9,500 opaque (95%)
-  - 500 transparent (5%)
+User code (explicit layers):
+  ctx.draw_rect(rect_a, style, layers::SHADOW);  // (50, 50)
+  ctx.draw_rect(rect_b, style, layers::SHADOW);  // (200, 50)
+  ctx.draw_rect(rect_c, style, layers::SHADOW);  // (60, 60)
 
-Phase 2 (current):
-  Sort 10,000 primitives = 0.2ms
+Internal (BoundsTree assigns z-values):
+  Rect A → z = -100.00000
+  Rect B → z = -100.00000 (reused! no overlap)
+  Rect C → z = -100.00001 (overlaps A)
 
-Phase 2.1 (depth buffer):
-  Sort 500 transparent primitives = 0.01ms
-  GPU handles 9,500 opaque primitives = 0ms
+GPU batching:
+  Batch 1: [A, B] at z=-100.00000 → Single draw call
+  Batch 2: [C] at z=-100.00001 → Separate draw call
 ```
 
-### Future Performance (Phase 5 with BoundsTree)
+### Why Two-Pass Rendering?
 
-**Expected:**
-- Batching optimization: 2-5x fewer draw calls
-- Z-value reuse: Non-overlapping elements share z-order
-- Memory efficiency: Smaller z-order range (better precision)
+**Problem:** Depth buffer + transparency = conflict
+
+**Solution:** Separate opaque (depth write ON) from transparent (depth write OFF)
+
+**Benefits:**
+- ✅ 95% of UI is opaque (solid backgrounds, text, buttons)
+- ✅ Opaque pass: No CPU sorting, GPU handles via depth buffer
+- ✅ Transparent pass: Only sort ~5% of primitives
+- ✅ Correct alpha blending for shadows, AA edges, glass effects
+
+---
+
+## Performance Analysis
+
+### Typical UI Breakdown
+
+```
+UI with 1000 primitives:
+  - 950 opaque (solid colors, no shadows, alpha = 1.0)
+  - 50 transparent (shadows, AA edges, glass effects)
+```
+
+### Performance Comparison
+
+| Approach | Opaque (950) | Transparent (50) | Total |
+|----------|--------------|------------------|-------|
+| **Phase 1: CPU Sort All** | Sort 950 = 0.19ms | Sort 50 (included) | **0.19ms** |
+| **Phase 2: Depth Buffer** | GPU (0ms) | Sort 50 = 0.01ms | **0.01ms (19× faster)** |
+| **Phase 3: + BoundsTree** | GPU (0ms) | Sort 50 = 0.01ms | **0.01ms + batching** |
+
+### Draw Call Reduction (Phase 3 with BoundsTree)
+
+```
+Without BoundsTree:
+  10 shadows at different z-values → 10 draw calls
+  50 buttons at different z-values → 50 draw calls
+  Total: 60 draw calls
+
+With BoundsTree (z-value reuse):
+  10 non-overlapping shadows → 1 draw call (same z-value!)
+  50 non-overlapping buttons → 1 draw call
+  Total: ~5-10 draw calls (5-10× reduction)
+```
+
+---
+
+## Implementation Checklist
+
+### Phase 1 Tasks
+
+- [ ] Add `z_index: i32` to all `DrawCommand` variants
+- [ ] Create `src/paint/layers.rs` with layer constants
+- [ ] Implement `PrimitiveBatcher::flush()` with layer sorting
+- [ ] Update all `draw_*()` methods to accept z-index
+- [ ] Test: Shadows render behind buttons
+- [ ] Test: Tooltips render on top
+
+### Phase 2 Tasks
+
+- [ ] Create depth texture (Depth24Plus) in `RenderContext`
+- [ ] Add depth output to vertex shaders
+- [ ] Create opaque pipeline (depth write ON)
+- [ ] Create transparent pipeline (depth write OFF)
+- [ ] Implement `classify_by_alpha()` in batcher
+- [ ] Implement two-pass rendering in `flush()`
+- [ ] Add alpha testing to opaque fragment shader
+- [ ] Test: 3D viewport integration
+
+### Phase 3 Tasks (Optional)
+
+- [ ] Port GPUI's `BoundsTree` (~350 lines)
+- [ ] Create `LayeredBoundsTree` wrapper
+- [ ] Integrate z-value assignment in `flush()`
+- [ ] Update batching to group by z-value + material
+- [ ] Profile: Measure draw call reduction
+- [ ] Test: Non-overlapping elements batch together
 
 ---
 
 ## References
 
-### Industry Best Practices
+### Industry Standards
 
-1. **Two-Pass Rendering**
-   - Standard technique in game engines (Unity, Unreal, Godot)
-   - Separates opaque (depth-tested) from transparent (sorted)
-   - [Order your graphics draw calls around!](https://realtimecollisiondetection.net/blog/?p=86)
-
-2. **Depth Buffer Usage**
-   - WebGPU: Depth24Plus format for 24-bit precision
-   - Maps z-order to 0.0-1.0 range
-   - Hardware z-test faster than CPU sorting
-
-3. **BoundsTree / R-Tree**
-   - [gpui's BoundsTree](https://github.com/zed-industries/zed/blob/main/crates/gpui/src/bounds_tree.rs)
-   - R-tree spatial index for overlap queries
-   - Enables z-value recycling for non-overlapping elements
+- **Two-Pass Rendering**: Unity, Unreal, Godot (standard for transparent objects)
+- **Depth Buffer**: WebGPU Depth24Plus (24-bit precision, hardware z-test)
+- **R-Tree Spatial Index**: GPUI's BoundsTree ([source](https://github.com/zed-industries/zed/blob/main/crates/gpui/src/bounds_tree.rs))
 
 ### Related Documents
 
+- `2D_API.md` - User-facing paint API design
 - `CLAUDE.md` - Overall architecture
-- `EVENT_HANDLING.md` - Event system design
-- Phase 2 commits: b39ac1e, 97ae5e7, 13c2a3d, 4a43345
-
----
-
-## Appendix: Common Scenarios
-
-### Scenario 1: Tooltip Over Button
-
-```
-Button (z=5)
-  Background Rect (z=6)
-  Label Text (z=7)
-
-Tooltip (z=8) ← Created after button, appears on top
-  Background Rect (z=9)
-  Tooltip Text (z=10)
-```
-
-Click on tooltip → Hits Tooltip (z=8+), not Button
-
-### Scenario 2: Overlapping Windows
-
-```
-Window 1 (z=0)
-  Content (z=1-100)
-
-Window 2 (z=101) ← Brought to front
-  Content (z=102-200)
-```
-
-Click on overlap → Hits Window 2 (higher z-order range)
-
-### Scenario 3: 3D Viewport in UI Panel
-
-```
-UI Panel (z=0)
-  Panel Background (z=1)
-
-  3D Viewport (z=2)
-    3D Scene: Uses GPU depth buffer internally
-    (z-order 2 reserves this "layer" for 3D)
-
-  Close Button (z=3) ← Drawn on top of viewport
-```
-
-This is why depth buffer is important - it allows 3D content to use GPU depth testing while still respecting UI z-order!
+- Phase 2 commits: b39ac1e, 97ae5e7 (CPU sorting implementation)
 
 ---
 
 **Next Steps:**
-1. ✅ Phase 2 Complete: Hit testing with z-order validated
-2. 🎯 Phase 2.1: Implement two-pass rendering with depth buffer
-3. 📅 Phase 5: Add BoundsTree optimization if profiling shows need
+1. 🎯 **Implement Phase 1** (Explicit layers + CPU sorting)
+2. 📅 **Then Phase 2** (Depth buffer + two-pass rendering)
+3. 📅 **Maybe Phase 3** (BoundsTree optimization - only if profiling shows need)
