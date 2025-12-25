@@ -27,6 +27,14 @@ struct TextUniforms {
     _padding: [f32; 2],  // Align to 16 bytes
 }
 
+/// Uniforms for the path shader (per-window - contains screen_size)
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct PathUniforms {
+    screen_size: [f32; 2],
+    _padding: [f32; 2],  // Align to 16 bytes
+}
+
 /// Per-window rendering resources
 ///
 /// This struct consolidates all window-specific rendering state.
@@ -69,6 +77,20 @@ pub struct WindowRenderer {
     /// SDF rect clip uniforms (clip regions for fragment shader)
     rect_sdf_clip_uniform_buffer: wgpu::Buffer,
     rect_sdf_clip_uniform_bind_group: wgpu::BindGroup,
+
+    /// Path uniforms (contains screen_size specific to this window)
+    path_uniform_buffer: wgpu::Buffer,
+    path_uniform_bind_group: wgpu::BindGroup,
+
+    // ========================================
+    // MSAA (Multisample Anti-Aliasing)
+    // ========================================
+    /// Multisampled texture for MSAA (rendering target)
+    /// This is rendered to first, then resolved to the surface texture
+    msaa_texture: Option<wgpu::Texture>,
+
+    /// MSAA texture view (public for render pass configuration)
+    pub msaa_view: Option<wgpu::TextureView>,
 
     // ========================================
     // Per-Window Instance Buffers (Dynamic)
@@ -188,6 +210,32 @@ impl WindowRenderer {
         let rect_sdf_clip_uniform_buffer = context.rect_sdf_pipeline.create_clip_uniform_buffer(device);
         let rect_sdf_clip_uniform_bind_group = context.rect_sdf_pipeline.create_clip_bind_group(device, &rect_sdf_clip_uniform_buffer);
 
+        // Create path uniforms and bind group
+        let path_uniform_buffer = context.path_pipeline.create_uniform_buffer(device, width, height);
+        let path_uniform_bind_group = context.path_pipeline.create_bind_group(device, &path_uniform_buffer);
+
+        // Create MSAA texture if sample count > 1
+        let (msaa_texture, msaa_view) = if context.sample_count > 1 {
+            let texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("MSAA Texture"),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: context.sample_count,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            (Some(texture), Some(view))
+        } else {
+            (None, None)
+        };
+
         Ok(WindowRenderer {
             surface,
             config,
@@ -200,6 +248,10 @@ impl WindowRenderer {
             rect_sdf_uniform_bind_group,
             rect_sdf_clip_uniform_buffer,
             rect_sdf_clip_uniform_bind_group,
+            path_uniform_buffer,
+            path_uniform_bind_group,
+            msaa_texture,
+            msaa_view,
             rect_instance_buffer: None,
             rect_instance_capacity: 0,
             text_instance_buffer: None,
@@ -222,6 +274,28 @@ impl WindowRenderer {
 
             // Update scale factor
             self.scale_factor = scale_factor as f32;
+
+            // Recreate MSAA texture with new size
+            if self.render_context.sample_count > 1 {
+                let device = self.render_context.device();
+                let texture = device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("MSAA Texture"),
+                    size: wgpu::Extent3d {
+                        width,
+                        height,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: self.render_context.sample_count,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: self.format,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    view_formats: &[],
+                });
+                let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+                self.msaa_texture = Some(texture);
+                self.msaa_view = Some(view);
+            }
 
             // Update uniform buffers with new screen size
             self.update_screen_size(new_bounds.size, scale_factor as f32);
@@ -264,6 +338,14 @@ impl WindowRenderer {
         self.render_context.rect_sdf_pipeline.update_uniforms(
             self.render_context.queue(),
             &self.rect_sdf_uniform_buffer,
+            width,
+            height,
+        );
+
+        // Update path uniforms
+        self.render_context.path_pipeline.update_uniforms(
+            self.render_context.queue(),
+            &self.path_uniform_buffer,
             width,
             height,
         );
@@ -407,6 +489,20 @@ impl WindowRenderer {
             &self.rect_sdf_uniform_buffer,
             &self.rect_sdf_uniform_bind_group,
             &self.rect_sdf_clip_uniform_bind_group,
+            batcher,
+        );
+    }
+
+    /// Render paths (lines, bezier curves) using the path pipeline
+    pub fn render_paths(
+        &mut self,
+        render_pass: &mut wgpu::RenderPass,
+        batcher: &crate::paint::PrimitiveBatcher,
+    ) {
+        self.render_context.path_pipeline.render(
+            &self.render_context.device,
+            render_pass,
+            &self.path_uniform_bind_group,
             batcher,
         );
     }

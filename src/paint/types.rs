@@ -1,6 +1,7 @@
-use crate::types::Rect;
-pub use super::primitives::Color;
+use crate::types::{Point, Rect};
 pub use super::gradient::{LinearGradient, RadialGradient};
+pub use super::path::{Path, Stroke};
+pub use super::primitives::Color;
 
 /// Fill brush (solid color or gradient)
 #[derive(Debug, Clone, PartialEq)]
@@ -176,6 +177,20 @@ pub enum DrawCommand {
         style: ShapeStyle,
         z_index: i32,
     },
+    /// Draw a line segment
+    Line {
+        p1: Point,
+        p2: Point,
+        stroke: Stroke,
+        z_index: i32,
+    },
+    /// Draw a custom path (filled or stroked)
+    Path {
+        path: Path,
+        fill: Option<Color>,
+        stroke: Option<Stroke>,
+        z_index: i32,
+    },
     /// Push a clipping region (rounded rectangle)
     PushClip {
         rect: Rect,
@@ -183,9 +198,6 @@ pub enum DrawCommand {
     },
     /// Pop the most recent clipping region
     PopClip,
-    // Future commands:
-    // Circle { center: Point, radius: f32, style: ShapeStyle, z_index: i32 },
-    // Line { p1: Point, p2: Point, stroke: Stroke, z_index: i32 },
 }
 
 impl DrawCommand {
@@ -193,6 +205,8 @@ impl DrawCommand {
     pub fn z_index(&self) -> i32 {
         match self {
             DrawCommand::Rect { z_index, .. } => *z_index,
+            DrawCommand::Line { z_index, .. } => *z_index,
+            DrawCommand::Path { z_index, .. } => *z_index,
             DrawCommand::PushClip { .. } | DrawCommand::PopClip => 0,
         }
     }
@@ -201,6 +215,8 @@ impl DrawCommand {
     pub fn batch_key(&self) -> u32 {
         match self {
             DrawCommand::Rect { .. } => 0,
+            DrawCommand::Line { .. } => 1,
+            DrawCommand::Path { .. } => 2,
             DrawCommand::PushClip { .. } => u32::MAX - 1,
             DrawCommand::PopClip => u32::MAX,
         }

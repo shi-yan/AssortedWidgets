@@ -1,6 +1,8 @@
+use super::path::{Path, Stroke};
+use super::primitives::Color;
 use super::types::{CornerRadius, DrawCommand, ShapeStyle};
 use super::layers::layers;
-use crate::types::Rect;
+use crate::types::{Point, Rect};
 
 /// Batches 2D primitive draw calls for efficient GPU rendering
 ///
@@ -32,6 +34,71 @@ impl PrimitiveBatcher {
     /// - `layers::OVERLAY` (1000) for tooltips and popovers
     pub fn draw_rect_z(&mut self, rect: Rect, style: ShapeStyle, z_index: i32) {
         self.commands.push(DrawCommand::Rect { rect, style, z_index });
+    }
+
+    // === Lines ===
+
+    /// Draw a line segment at the default layer (NORMAL = 0)
+    pub fn draw_line(&mut self, p1: Point, p2: Point, stroke: Stroke) {
+        self.draw_line_z(p1, p2, stroke, layers::NORMAL);
+    }
+
+    /// Draw a line segment with explicit z-index
+    pub fn draw_line_z(&mut self, p1: Point, p2: Point, stroke: Stroke, z_index: i32) {
+        self.commands.push(DrawCommand::Line { p1, p2, stroke, z_index });
+    }
+
+    // === Paths ===
+
+    /// Draw a filled path at the default layer (NORMAL = 0)
+    pub fn fill_path(&mut self, path: Path, color: Color) {
+        self.fill_path_z(path, color, layers::NORMAL);
+    }
+
+    /// Draw a filled path with explicit z-index
+    pub fn fill_path_z(&mut self, path: Path, color: Color, z_index: i32) {
+        self.commands.push(DrawCommand::Path {
+            path,
+            fill: Some(color),
+            stroke: None,
+            z_index,
+        });
+    }
+
+    /// Draw a stroked path at the default layer (NORMAL = 0)
+    pub fn stroke_path(&mut self, path: Path, stroke: Stroke) {
+        self.stroke_path_z(path, stroke, layers::NORMAL);
+    }
+
+    /// Draw a stroked path with explicit z-index
+    pub fn stroke_path_z(&mut self, path: Path, stroke: Stroke, z_index: i32) {
+        self.commands.push(DrawCommand::Path {
+            path,
+            fill: None,
+            stroke: Some(stroke),
+            z_index,
+        });
+    }
+
+    /// Draw a path with both fill and stroke
+    pub fn draw_path(&mut self, path: Path, fill: Option<Color>, stroke: Option<Stroke>) {
+        self.draw_path_z(path, fill, stroke, layers::NORMAL);
+    }
+
+    /// Draw a path with both fill and stroke with explicit z-index
+    pub fn draw_path_z(
+        &mut self,
+        path: Path,
+        fill: Option<Color>,
+        stroke: Option<Stroke>,
+        z_index: i32,
+    ) {
+        self.commands.push(DrawCommand::Path {
+            path,
+            fill,
+            stroke,
+            z_index,
+        });
     }
 
     // === Clipping ===

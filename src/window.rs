@@ -909,7 +909,7 @@ impl Window {
         self.window_renderer.begin_frame();
 
         // Paint phase - collect draw commands
-        let (rect_instances, sdf_commands, text_instances) = {
+        let (rect_instances, sdf_commands, path_commands, text_instances) = {
             // Lock shared resources for the duration of the frame
             let mut atlas_lock = render_context.glyph_atlas.lock().unwrap();
             let mut font_system_lock = render_context.font_system.lock().unwrap();
@@ -938,6 +938,7 @@ impl Window {
             // Extract instances before paint_ctx is dropped
             let mut rect_instances = paint_ctx.rect_instances().to_vec();
             let sdf_commands = paint_ctx.sdf_commands().to_vec();
+            let path_commands = paint_ctx.path_commands().to_vec();
             let mut text_instances = paint_ctx.text_instances().to_vec();
 
             // Sort by z-order (low to high) for correct overlapping
@@ -946,7 +947,7 @@ impl Window {
             rect_instances.sort_by_key(|inst| inst.z_order);
             text_instances.sort_by_key(|inst| inst.z_order);
 
-            (rect_instances, sdf_commands, text_instances)
+            (rect_instances, sdf_commands, path_commands, text_instances)
         };
 
         // Rebuild focus manager to sync with current element tree
@@ -962,11 +963,23 @@ impl Window {
         });
 
         {
+            // Configure MSAA if enabled
+            let (render_view, resolve_target) = if render_context.sample_count > 1 {
+                // Render to MSAA texture, resolve to surface
+                (
+                    self.window_renderer.msaa_view.as_ref().unwrap(),
+                    Some(&view),
+                )
+            } else {
+                // Render directly to surface
+                (&view, None)
+            };
+
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Scene Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
+                    view: render_view,
+                    resolve_target,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.1,
@@ -1002,6 +1015,26 @@ impl Window {
 
                 // Then render the shapes themselves
                 self.window_renderer.render_sdf_rects(&mut render_pass, &sdf_batcher);
+            }
+
+            // Render all paths (lines, bezier curves)
+            if !path_commands.is_empty() {
+                // Create a temporary batcher from the collected path commands
+                let mut path_batcher = crate::paint::PrimitiveBatcher::new();
+                for cmd in &path_commands {
+                    match cmd {
+                        crate::paint::DrawCommand::Line { p1, p2, stroke, z_index } => {
+                            path_batcher.draw_line_z(*p1, *p2, stroke.clone(), *z_index);
+                        }
+                        crate::paint::DrawCommand::Path { path, fill, stroke, z_index } => {
+                            path_batcher.draw_path_z(path.clone(), *fill, stroke.clone(), *z_index);
+                        }
+                        _ => {}
+                    }
+                }
+                path_batcher.sort_commands();
+
+                self.window_renderer.render_paths(&mut render_pass, &path_batcher);
             }
 
             // Render all text using shared pipeline and atlas

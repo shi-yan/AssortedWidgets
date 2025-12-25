@@ -3,7 +3,7 @@
 use std::sync::{Arc, Mutex};
 use crate::text::{GlyphAtlas, FontSystemWrapper, TextEngine};
 use crate::render::pipelines::{RectPipeline, TextPipeline};
-use crate::render::{RectSdfPipeline, ShadowSdfPipeline};
+use crate::render::{RectSdfPipeline, ShadowSdfPipeline, PathPipeline};
 
 /// Shared rendering context containing GPU resources and rendering state
 ///
@@ -48,6 +48,10 @@ pub struct RenderContext {
     /// Used for rendering analytical soft drop shadows
     pub shadow_sdf_pipeline: ShadowSdfPipeline,
 
+    /// Path rendering pipeline (shared across all windows)
+    /// Used for rendering vector graphics (lines, bezier curves)
+    pub path_pipeline: PathPipeline,
+
     // ========================================
     // Rendering Resources (High-Level)
     // ========================================
@@ -69,6 +73,10 @@ pub struct RenderContext {
     /// Preferred surface format (sRGB if available, otherwise first supported format)
     /// Determined once from adapter capabilities and used for all windows
     pub surface_format: wgpu::TextureFormat,
+
+    /// MSAA sample count (1 = no MSAA, 4 = 4x MSAA, 8 = 8x MSAA)
+    /// 4x MSAA is a good balance between quality and performance
+    pub sample_count: u32,
 }
 
 impl RenderContext {
@@ -121,21 +129,28 @@ impl RenderContext {
         let surface_format = wgpu::TextureFormat::Bgra8UnormSrgb;
         println!("Using surface format: {:?}", surface_format);
 
+        // Use 4x MSAA for better anti-aliasing
+        let sample_count = 4;
+        println!("Using {}x MSAA for anti-aliasing", sample_count);
+
         // Create shared rendering resources (atlas, fonts, text engine, pipelines)
         println!("Initializing shared rendering resources...");
 
         // Create shared pipelines (stateless, reused across all windows)
         println!("  ✓ Creating shared rect pipeline...");
-        let rect_pipeline = RectPipeline::new(&device, surface_format);
+        let rect_pipeline = RectPipeline::new(&device, surface_format, sample_count);
 
         println!("  ✓ Creating shared text pipeline...");
-        let text_pipeline = TextPipeline::new(&device, surface_format);
+        let text_pipeline = TextPipeline::new(&device, surface_format, sample_count);
 
         println!("  ✓ Creating shared rect SDF pipeline...");
-        let rect_sdf_pipeline = RectSdfPipeline::new(&device, surface_format);
+        let rect_sdf_pipeline = RectSdfPipeline::new(&device, surface_format, sample_count);
 
         println!("  ✓ Creating shared shadow SDF pipeline...");
-        let shadow_sdf_pipeline = ShadowSdfPipeline::new(&device, surface_format);
+        let shadow_sdf_pipeline = ShadowSdfPipeline::new(&device, surface_format, sample_count);
+
+        println!("  ✓ Creating shared path pipeline...");
+        let path_pipeline = PathPipeline::new(&device, surface_format, sample_count);
 
         // Create glyph atlas (2048×2048 with up to 16 pages)
         println!("  ✓ Creating glyph atlas (2048×2048, 16 pages max)...");
@@ -160,10 +175,12 @@ impl RenderContext {
             text_pipeline,
             rect_sdf_pipeline,
             shadow_sdf_pipeline,
+            path_pipeline,
             glyph_atlas: Arc::new(Mutex::new(glyph_atlas)),
             font_system: Arc::new(Mutex::new(font_system)),
             text_engine: Arc::new(Mutex::new(text_engine)),
             surface_format,
+            sample_count,
         })
     }
 

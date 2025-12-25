@@ -30,7 +30,7 @@ pub struct ShadowSdfPipeline {
 }
 
 impl ShadowSdfPipeline {
-    pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
+    pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat, sample_count: u32) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shadow SDF Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/shadow_sdf.wgsl").into()),
@@ -146,7 +146,7 @@ impl ShadowSdfPipeline {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
-                count: 1,
+                count: sample_count,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -194,8 +194,11 @@ impl ShadowSdfPipeline {
                         }
                     })
                 }
-                // Clip commands don't cast shadows
-                DrawCommand::PushClip { .. } | DrawCommand::PopClip => None,
+                // Other commands don't cast shadows (lines and paths could, but not implemented yet)
+                DrawCommand::Line { .. }
+                | DrawCommand::Path { .. }
+                | DrawCommand::PushClip { .. }
+                | DrawCommand::PopClip => None,
             })
             .collect();
 

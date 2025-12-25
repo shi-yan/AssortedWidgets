@@ -3,6 +3,7 @@ pub mod clip;
 pub mod context;
 pub mod gradient;
 pub mod layers;
+pub mod path;
 pub mod primitives;
 pub mod types;
 
@@ -12,5 +13,6 @@ pub use context::{PaintContext, RenderBundle};
 pub use gradient::{ColorStop, LinearGradient, RadialGradient, MAX_GRADIENT_STOPS};
 // Re-export layer constants at module level
 pub use layers::*;
+pub use path::{LineCap, LineJoin, Path, PathCommand, Stroke};
 pub use primitives::{Color, RectInstance};
 pub use types::{Border, Brush, CornerRadius, DrawCommand, ShapeStyle, Shadow};

@@ -39,7 +39,7 @@ pub struct RectSdfPipeline {
 }
 
 impl RectSdfPipeline {
-    pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
+    pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat, sample_count: u32) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Rect SDF Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rect_sdf.wgsl").into()),
@@ -203,7 +203,7 @@ impl RectSdfPipeline {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
-                count: 1,
+                count: sample_count,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -343,8 +343,11 @@ impl RectSdfPipeline {
 
                     Some(instance)
                 }
-                // Clip commands are not rendered as rectangles
-                DrawCommand::PushClip { .. } | DrawCommand::PopClip => None,
+                // Other commands are not rendered by this pipeline
+                DrawCommand::Line { .. }
+                | DrawCommand::Path { .. }
+                | DrawCommand::PushClip { .. }
+                | DrawCommand::PopClip => None,
             })
             .collect();
 

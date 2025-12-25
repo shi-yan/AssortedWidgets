@@ -29,6 +29,7 @@ bytemuck = { version = "1.24", features = ["derive"] }
 cosmic-text = "0.15.0"
 etagere = "0.2.15"
 image = "0.25"
+lyon = "1.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

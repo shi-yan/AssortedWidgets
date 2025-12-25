@@ -70,6 +70,9 @@ pub struct PaintContext<'a> {
     /// Collected SDF draw commands (rounded rects with borders)
     sdf_commands: Vec<DrawCommand>,
 
+    /// Collected path draw commands (lines and vector paths)
+    path_commands: Vec<DrawCommand>,
+
     /// Collected text glyph instances
     text: Vec<TextInstance>,
 
@@ -98,6 +101,7 @@ impl<'a> PaintContext<'a> {
         PaintContext {
             rects: Vec::new(),
             sdf_commands: Vec::new(),
+            path_commands: Vec::new(),
             text: Vec::new(),
             window_size,
             clip_stack: Vec::new(),
@@ -239,6 +243,115 @@ impl<'a> PaintContext<'a> {
         self.sdf_commands.push(DrawCommand::Rect {
             rect,
             style,
+            z_index: self.z_order as i32,
+        });
+        self.z_order += 1;
+    }
+
+    /// Draw a line segment
+    ///
+    /// This uses the path pipeline with Lyon tessellation for smooth anti-aliased rendering.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use assorted_widgets::paint::{Stroke, LineCap};
+    ///
+    /// ctx.draw_line(
+    ///     Point::new(10.0, 10.0),
+    ///     Point::new(100.0, 50.0),
+    ///     Stroke::new(Color::rgb(0.9, 0.4, 0.4), 5.0).with_cap(LineCap::Round),
+    /// );
+    /// ```
+    pub fn draw_line(&mut self, p1: Point, p2: Point, stroke: crate::paint::Stroke) {
+        self.path_commands.push(DrawCommand::Line {
+            p1,
+            p2,
+            stroke,
+            z_index: self.z_order as i32,
+        });
+        self.z_order += 1;
+    }
+
+    /// Draw a filled path
+    ///
+    /// This uses the path pipeline with Lyon tessellation.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use assorted_widgets::paint::Path;
+    ///
+    /// let mut triangle = Path::new();
+    /// triangle.move_to(Point::new(50.0, 10.0))
+    ///     .line_to(Point::new(90.0, 90.0))
+    ///     .line_to(Point::new(10.0, 90.0))
+    ///     .close();
+    ///
+    /// ctx.fill_path(triangle, Color::rgb(0.9, 0.4, 0.4));
+    /// ```
+    pub fn fill_path(&mut self, path: crate::paint::Path, color: Color) {
+        self.path_commands.push(DrawCommand::Path {
+            path,
+            fill: Some(color),
+            stroke: None,
+            z_index: self.z_order as i32,
+        });
+        self.z_order += 1;
+    }
+
+    /// Draw a stroked path
+    ///
+    /// This uses the path pipeline with Lyon tessellation.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use assorted_widgets::paint::{Path, Stroke};
+    ///
+    /// let mut curve = Path::new();
+    /// curve.move_to(Point::new(0.0, 100.0))
+    ///     .cubic_to(
+    ///         Point::new(50.0, 0.0),
+    ///         Point::new(150.0, 200.0),
+    ///         Point::new(200.0, 100.0),
+    ///     );
+    ///
+    /// ctx.stroke_path(curve, Stroke::new(Color::rgb(0.6, 0.3, 0.9), 4.0));
+    /// ```
+    pub fn stroke_path(&mut self, path: crate::paint::Path, stroke: crate::paint::Stroke) {
+        self.path_commands.push(DrawCommand::Path {
+            path,
+            fill: None,
+            stroke: Some(stroke),
+            z_index: self.z_order as i32,
+        });
+        self.z_order += 1;
+    }
+
+    /// Draw a path with both fill and stroke
+    ///
+    /// This uses the path pipeline with Lyon tessellation.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use assorted_widgets::paint::{Path, Stroke};
+    ///
+    /// let circle = Path::circle(Point::new(150.0, 150.0), 50.0);
+    ///
+    /// ctx.draw_path(
+    ///     circle,
+    ///     Some(Color::rgb(0.3, 0.7, 0.9)),  // Fill
+    ///     Some(Stroke::new(Color::rgb(0.1, 0.3, 0.5), 3.0)),  // Stroke
+    /// );
+    /// ```
+    pub fn draw_path(
+        &mut self,
+        path: crate::paint::Path,
+        fill: Option<Color>,
+        stroke: Option<crate::paint::Stroke>,
+    ) {
+        self.path_commands.push(DrawCommand::Path {
+            path,
+            fill,
+            stroke,
             z_index: self.z_order as i32,
         });
         self.z_order += 1;
@@ -634,10 +747,16 @@ impl<'a> PaintContext<'a> {
         &self.sdf_commands
     }
 
+    /// Get the collected path draw commands (lines and vector paths)
+    pub fn path_commands(&self) -> &[DrawCommand] {
+        &self.path_commands
+    }
+
     /// Clear all collected primitives
     pub fn clear(&mut self) {
         self.rects.clear();
         self.sdf_commands.clear();
+        self.path_commands.clear();
         self.text.clear();
     }
 
