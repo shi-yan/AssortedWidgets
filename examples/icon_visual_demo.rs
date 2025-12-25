@@ -48,17 +48,13 @@ impl IconShowcase {
 }
 
 impl Widget for IconShowcase {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
+    // Note: Can't use impl_widget_essentials!() because this widget has custom dirty tracking
 
-    fn bounds(&self) -> Rect {
-        self.bounds
-    }
-
-    fn set_bounds(&mut self, bounds: Rect) {
-        self.bounds = bounds;
-    }
+    fn id(&self) -> WidgetId { self.id }
+    fn bounds(&self) -> Rect { self.bounds }
+    fn set_bounds(&mut self, bounds: Rect) { self.bounds = bounds; }
+    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
 
     fn paint(&self, ctx: &mut PaintContext) {
         // Background
@@ -274,33 +270,9 @@ impl Widget for IconShowcase {
         ctx.draw_icon("settings", Point::new(210.0, 705.0), 72.0, Color::rgb(0.8, 0.8, 0.8));
     }
 
-    fn on_message(&mut self, _msg: &GuiMessage) -> Vec<DeferredCommand> {
-        vec![]
-    }
-
-    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
-        vec![]
-    }
-
-    fn set_dirty(&mut self, _dirty: bool) {
-        self.is_dirty = _dirty;
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.is_dirty
-    }
-
-    fn layout(&self) -> Style {
-        Default::default()
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
+    // Custom dirty tracking (overrides defaults)
+    fn set_dirty(&mut self, dirty: bool) { self.is_dirty = dirty; }
+    fn is_dirty(&self) -> bool { self.is_dirty }
 }
 
 fn main() {

@@ -25,49 +25,7 @@ impl Phase3GradientsTest {
 }
 
 impl Widget for Phase3GradientsTest {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
-    fn bounds(&self) -> Rect {
-        self.bounds
-    }
-
-    fn set_bounds(&mut self, bounds: Rect) {
-        self.bounds = bounds;
-    }
-
-    fn on_message(
-        &mut self,
-        _msg: &assorted_widgets::GuiMessage,
-    ) -> Vec<assorted_widgets::types::DeferredCommand> {
-        vec![]
-    }
-
-    fn on_event(
-        &mut self,
-        _event: &assorted_widgets::OsEvent,
-    ) -> Vec<assorted_widgets::types::DeferredCommand> {
-        vec![]
-    }
-
-    fn set_dirty(&mut self, _dirty: bool) {}
-
-    fn is_dirty(&self) -> bool {
-        false
-    }
-
-    fn layout(&self) -> assorted_widgets::layout::Style {
-        Default::default()
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
+    assorted_widgets::impl_widget_essentials!();
 
     fn paint(&self, ctx: &mut assorted_widgets::paint::PaintContext) {
         // Background

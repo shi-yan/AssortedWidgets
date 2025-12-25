@@ -7,6 +7,59 @@ use crate::paint::PaintContext;
 use taffy::AvailableSpace;
 
 // ============================================================================
+// Widget Boilerplate Macro
+// ============================================================================
+
+/// Implements the common boilerplate methods for a widget.
+///
+/// This macro assumes your widget struct has the following fields:
+/// - `id: WidgetId`
+/// - `bounds: Rect`
+///
+/// # Usage
+/// ```ignore
+/// impl Widget for MyWidget {
+///     impl_widget_essentials!();
+///
+///     fn paint(&self, ctx: &mut PaintContext) {
+///         // Your custom paint logic...
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! impl_widget_essentials {
+    () => {
+        fn id(&self) -> $crate::types::WidgetId {
+            self.id
+        }
+
+        fn bounds(&self) -> $crate::types::Rect {
+            self.bounds
+        }
+
+        fn set_bounds(&mut self, bounds: $crate::types::Rect) {
+            self.bounds = bounds;
+        }
+
+        fn set_dirty(&mut self, _dirty: bool) {
+            // Default: no dirty tracking
+        }
+
+        fn is_dirty(&self) -> bool {
+            false // Default: never dirty
+        }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+    };
+}
+
+// ============================================================================
 // Widget Trait
 // ============================================================================
 
@@ -19,10 +72,18 @@ pub trait Widget {
     fn id(&self) -> WidgetId;
 
     /// Handle incoming messages (the "slot" function)
-    fn on_message(&mut self, message: &GuiMessage) -> Vec<DeferredCommand>;
+    ///
+    /// Default: ignores all messages (returns empty command list)
+    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
+        vec![]
+    }
 
     /// Handle OS events (mouse, keyboard, etc.)
-    fn on_event(&mut self, event: &OsEvent) -> Vec<DeferredCommand>;
+    ///
+    /// Default: ignores all events (returns empty command list)
+    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
+        vec![]
+    }
 
     /// Get widget bounds for hit testing (set by layout system)
     fn bounds(&self) -> Rect;
@@ -39,7 +100,11 @@ pub trait Widget {
     /// Get layout style for Taffy
     ///
     /// This defines how the element should be laid out (flex, grid, size, etc.)
-    fn layout(&self) -> Style;
+    ///
+    /// Default: returns default style (block layout with auto sizing)
+    fn layout(&self) -> Style {
+        Style::default()
+    }
 
     /// Paint the widget
     ///
