@@ -62,18 +62,20 @@ graph TD
 - `WindowRenderer`: Per-window surface configuration
 - Platform window handles exposed via `raw-window-handle` traits
 
-**Current Triangle Demo:**
-- Creates render pipeline with WGSL shader
-- Renders continuously at ~60fps
-- Direct access to wgpu::RenderPass via callback
+**Current Application API:**
+- `Application::new()` initializes the framework
+- `app.create_window(options)` creates windows
+- `window.add_root(widget, style)` adds widgets
+- `app.run()` starts the event loop
 
 ```rust
-event_loop.set_render_fn(move |renderer, ctx| {
-    // Direct access to WebGPU - no abstractions
-    let surface_texture = renderer.get_current_texture()?;
-    let mut encoder = ctx.device.create_command_encoder(...);
-    // ... custom rendering
-});
+let mut app = Application::new().await?;
+let window_id = app.create_window(WindowOptions { ... })?;
+
+let window = app.window_mut(window_id)?;
+window.add_root(Box::new(my_widget), style)?;
+
+app.run();
 ```
 
 ### 3. Widget System Architecture (✅ Phase 4.0 Complete)
@@ -307,44 +309,44 @@ graph TB
 **Rendering Context API:**
 
 ```rust
-pub struct PaintContext<'a> {
-    /// High-level 2D primitives (batched, themed)
-    pub primitives: &'a mut PrimitiveBatcher,
-
-    /// Direct WebGPU access for custom rendering
-    pub render_pass: &'a mut wgpu::RenderPass<'a>,
-
-    /// GPU device for dynamic buffer creation
-    pub device: &'a wgpu::Device,
-
-    /// Global systems (text, atlases)
-    pub renderer: &'a GlobalRenderer,
+pub struct PaintContext {
+    // Batched rendering commands
+    // Internal state hidden from users
 }
 
 pub trait Widget {
-    fn paint(&self, ctx: &mut PaintContext, theme: &Theme);
+    fn paint(&self, ctx: &mut PaintContext);
+    // Other required methods...
 }
 ```
 
-**Example: Mixed Rendering**
+**Example: Widget Rendering**
 
 ```rust
-impl Widget for My3DWidget {
-    fn paint(&self, ctx: &mut PaintContext, theme: &Theme) {
-        // 1. Themed background (batched)
-        ctx.primitives.draw_rect(self.bounds, theme.panel_bg);
-
-        // 2. Custom 3D rendering (immediate)
-        ctx.render_pass.set_pipeline(&self.custom_3d_pipeline);
-        ctx.render_pass.set_bind_group(0, &self.scene_uniforms, &[]);
-        ctx.render_pass.draw(0..self.mesh.vertex_count, 0..1);
-
-        // 3. Themed text overlay (batched)
-        ctx.primitives.draw_text(
-            self.bounds.origin,
-            &format!("FPS: {}", self.fps),
-            theme.text_color
+impl Widget for MyCustomWidget {
+    fn paint(&self, ctx: &mut PaintContext) {
+        // Styled rectangles with rounded corners, borders, shadows
+        ctx.draw_styled_rect(
+            self.bounds,
+            ShapeStyle::solid(Color::rgb(0.2, 0.2, 0.25))
+                .with_corner_radius(8.0)
+                .with_border(2.0, Color::rgb(0.4, 0.4, 0.5))
+                .with_shadow(4.0, Color::rgba(0.0, 0.0, 0.0, 0.5)),
         );
+
+        // Text rendering
+        ctx.draw_text(
+            Point::new(20.0, 20.0),
+            "Hello",
+            Color::WHITE,
+            16.0,
+        );
+
+        // Vector graphics
+        let mut path = Path::new();
+        path.move_to(Point::new(50.0, 50.0));
+        path.line_to(Point::new(100.0, 100.0));
+        ctx.stroke_path(path, Stroke::new(Color::RED, 2.0));
     }
 }
 ```
@@ -498,28 +500,25 @@ pub struct GlyphKey {
 
 ### Why Event Queue over Callbacks?
 
-**Rejected: RefCell/Rc Pattern (gpui's approach)**
+**Rejected: RefCell/Rc Pattern**
 ```rust
 // ❌ Requires runtime borrow checking
-let renderer = Rc::new(RefCell::new(window_renderer));
-let renderer_clone = renderer.clone();
-callbacks.request_frame = Box::new(move || {
-    let mut r = renderer_clone.borrow_mut(); // Can panic!
-    render_frame(&mut r);
+let state = Rc::new(RefCell::new(app_state));
+callbacks.on_event = Box::new(move || {
+    let mut s = state.borrow_mut(); // Can panic!
+    handle_event(&mut s);
 });
 ```
 
-**Chosen: Event Queue**
+**Chosen: Event Queue with Direct Access**
 ```rust
-// ✅ Compile-time borrow checking
-callbacks.request_frame = Box::new(move || {
-    event_queue.lock().unwrap().push_back(GuiEvent::RedrawRequested);
-});
-
-// Later in main loop - direct mutable access
+// ✅ Compile-time borrow checking, direct mutable access
 loop {
-    let event = self.event_queue.lock().unwrap().pop_front();
-    // self.renderer is &mut - no RefCell needed!
+    platform.poll_events();
+    for event in event_queue.drain() {
+        self.handle_event(event); // Direct &mut self access
+    }
+    self.render(); // No RefCell needed
 }
 ```
 
@@ -656,16 +655,15 @@ pub struct Window {
 ```
 src/
   lib.rs              # Public API exports
-  main.rs             # Triangle demo
   types.rs            # Core types (WidgetId, Point, Rect, etc.)
-  widget.rs           # Widget trait (renamed from element.rs)
+  widget.rs           # Widget trait
   event.rs            # GuiEvent, OsEvent
-  widget_tree.rs      # Parent-child hierarchy (renamed from scene_graph.rs)
+  widget_tree.rs      # Parent-child hierarchy
   connection.rs       # Signal/slot system
-  widget_manager.rs   # Flat hash table storage (renamed from element_manager.rs)
+  widget_manager.rs   # Flat hash table storage
   layout_manager.rs   # Taffy integration wrapper
   handle.rs           # Thread-safe GuiHandle
-  event_loop.rs       # Event queue + manual runloop
+  application.rs      # Application and event loop
   window.rs           # Window API (hides internal systems)
   platform/
     mod.rs            # Platform abstraction
@@ -675,51 +673,64 @@ src/
     mod.rs
     context.rs        # Shared GPU state
     window_renderer.rs # Per-window surface
-  layout/             # TODO: Layout styles and constraints
-  paint/              # TODO: Multi-tiered context
-  text/               # ✅ Glyph atlas and text rendering (COMPLETE)
+    rect_pipeline.rs  # Rectangle rendering
+    rect_sdf_pipeline.rs # SDF rectangles with shadows
+    shadow_sdf_pipeline.rs # Analytical shadow rendering
+    image_pipeline.rs # Image and icon rendering
+  layout/
+    mod.rs            # Layout styles (Taffy wrapper)
+  paint/
+    mod.rs
+    context.rs        # PaintContext implementation
+    batcher.rs        # Batched rendering
+    types.rs          # Color, Stroke, Path, etc.
+  text/
+    mod.rs
+    atlas.rs          # Glyph atlas
+    engine.rs         # Text shaping and layout
+    pipeline.rs       # Text rendering pipeline
+  icon/
+    mod.rs
+    atlas.rs          # Icon texture atlas
+  image/
+    mod.rs
+    atlas.rs          # Image texture atlas
 shaders/
-  triangle.wgsl       # Demo shader
   rect.wgsl           # Rectangle shader
+  rect_sdf.wgsl       # SDF rectangle shader
+  shadow_sdf.wgsl     # Analytical shadow shader
   text.wgsl           # Text rendering shader
+  image.wgsl          # Image rendering shader
 ```
 
-### Next Implementation Steps
+### Implementation Status
 
-1. **Widget System** ([src/widget_manager.rs](src/widget_manager.rs), [src/widget_tree.rs](src/widget_tree.rs), [src/layout_manager.rs](src/layout_manager.rs)) - ✅ COMPLETE (Phase 4.0)
-   - ✅ Renamed Element → Widget throughout codebase
-   - ✅ Created three-system architecture (WidgetManager, WidgetTree, LayoutManager)
-   - ✅ Implemented WidgetId ↔ NodeId mapping in LayoutManager
-   - ✅ Built Window API that hides internal systems
-   - ✅ Added floating widget support (skip layout)
-   - ✅ Implemented measure functions for text widgets
+**✅ Phase 1-4 Complete:**
+1. **Widget System** - Three-system architecture (WidgetManager, WidgetTree, LayoutManager)
+2. **Text Rendering** - Shared glyph atlas with multi-DPI support
+3. **Paint Context** - Batched rendering with primitives
+4. **Vector Graphics** - Lines, paths, bezier curves
+5. **SDF Rendering** - Rounded rectangles with borders and analytical shadows
+6. **Image/Icon Rendering** - Texture atlas-based rendering
 
-2. **Layout System Completion** ([src/layout/](src/layout/))
-   - Add layout style definitions (Flexbox/Grid parameters)
-   - Implement `Widget::layout_style()` method
-   - Create layout constraint types
-   - Add incremental layout dirty tracking
-
-3. **Text Rendering** ([src/text/](src/text/)) - ✅ COMPLETE (Phase 3.2)
-   - ✅ Integrated `cosmic-text` for shaping and rasterization
-   - ✅ Implemented glyph atlas with dynamic page growth (multi-page texture array)
-   - ✅ Created text shaping cache via `TextEngine` (dual-mode: managed + manual)
-   - ✅ Built instanced quad renderer with atlas texture binding
-   - ✅ **Refactored to shared resources** (Arc<Mutex<>> for atlas/fonts/text engine)
-   - ✅ Added `scale_factor` to GlyphKey for multi-DPI support
-
-4. **Paint Context** ([src/paint/](src/paint/))
-   - Define `PaintContext` struct
-   - Implement `PrimitiveBatcher` for high-level calls
-   - Create batching system (collect → sort → draw)
-   - Build shader pipeline for primitives
-   - Integrate with `Widget::paint()` trait method
-
-5. **Theme System** ([src/theme/](src/theme/))
-   - Define `Theme` struct
+**🚧 Next Steps:**
+1. **Theme System** ([src/theme/](src/theme/))
+   - Define `Theme` struct with semantic colors
    - Create GPU uniform buffer layout
    - Implement theme switching
    - Build default themes (Light/Dark)
+
+2. **Standard Widgets** ([src/widgets/](src/widgets/))
+   - Button with hover/press states
+   - Label with text styling
+   - TextInput with cursor and selection
+   - Checkbox, Radio, Slider
+   - ScrollView with scrollbars
+
+3. **Animation Helpers**
+   - Spring animations with damping
+   - Easing functions (cubic, elastic, etc.)
+   - Transition system for property changes
 
 ### Performance Considerations
 

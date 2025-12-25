@@ -967,21 +967,597 @@ let surface_config = wgpu::SurfaceConfiguration {
 - Custom paths (bezier curves, etc.)
 - Vector icons render smoothly
 
-### Phase 5: Images + Texture Atlas
+### Phase 5: Icons + Images
+
+**Overview:**
+
+This phase implements two distinct rendering systems:
+1. **Icons**: Vector icon font (Google Material Icons) rendered via shared glyph atlas
+2. **Images**: Individual textures for photos/avatars (PNG/JPG/WebP)
+
+**Architecture Decision: Icons as Font (Not Texture Atlas)**
+
+Icons use Google Material Icons font (`icon.woff2`) rendered through the **shared GlyphAtlas** infrastructure:
+
+```
+┌─────────────────────────────────────────────┐
+│         Shared GlyphAtlas                    │
+│  (Arc<Mutex<GlyphAtlas>> in RenderContext)  │
+│                                              │
+│  ┌─────────────┐  ┌─────────────┐          │
+│  │ Text Glyphs │  │ Icon Glyphs │          │
+│  │ font_id:    │  │ font_id:    │          │
+│  │ 0, 1, 2...  │  │ 999         │          │
+│  └─────────────┘  └─────────────┘          │
+└─────────────────────────────────────────────┘
+         ▲                    ▲
+         │                    │
+    TextEngine           IconEngine
+    (complex shaping)    (simple lookup)
+```
+
+**Why Share GlyphAtlas?**
+- ✅ **Efficiency**: Icons and text use same rendering pipeline (instanced quads)
+- ✅ **Memory**: Single atlas texture instead of separate icon atlas
+- ✅ **Batching**: Text and icons batch together (same draw call)
+- ✅ **DPI Support**: Icons scale with `scale_factor` like text
+- ✅ **Already Implemented**: GlyphAtlas is already shared (`Arc<Mutex<>>`)
+
+**Why Separate IconEngine from TextEngine?**
+- ✅ **Simplicity**: Icons don't need text shaping, bidi, line breaking
+- ✅ **API Clarity**: `draw_icon("search", size)` vs `draw_text("search text")`
+- ✅ **Performance**: Direct glyph ID lookup, skip shaping overhead
+- ✅ **Type Safety**: Icon IDs are compile-time strings, prevent typos
+
+**Architecture Decision: Images as Individual Textures (Not Atlas)**
+
+Large images (avatars, photos) use **individual GPU textures** with LRU caching:
+
+```
+┌─────────────────────────────────────┐
+│       ImageCache                    │
+│  HashMap<ImageId, Texture>          │
+│                                     │
+│  ┌──────────┐  ┌──────────┐        │
+│  │ Avatar 1 │  │ Photo 1  │        │
+│  │ 512×512  │  │ 1024×768 │        │
+│  └──────────┘  └──────────┘        │
+│                                     │
+│  LRU eviction for unused images     │
+└─────────────────────────────────────┘
+```
+
+**Why NOT Texture Atlas for Images?**
+- ❌ **Size**: Avatar (512×512) consumes 1/16 of 4096×4096 atlas
+- ❌ **Waste**: Most images don't fit standard sizes (no packing benefit)
+- ❌ **Flexibility**: Large photos (1920×1080) exceed atlas capacity
+- ✅ **Individual Textures**: Efficient memory, per-image mipmaps, flexible sizes
+
+---
 
 **Files to Create:**
-- `src/render/image_pipeline.rs` - Texture rendering
+
+**Icon System:**
+- `src/icon/mod.rs` - Public icon API
+- `src/icon/engine.rs` - IconEngine implementation
+- `src/icon/mapping.rs` - Icon ID → Unicode codepoint mapping
+- `src/icon/embedded.rs` - Rust-embed integration
+- `icons/icon.woff2` - Google Material Icons font (embedded)
+- `icons/icon_mapping.json` - Icon ID → codepoint map (embedded)
+
+**Image System:**
+- `src/image/mod.rs` - Public image API
+- `src/image/cache.rs` - ImageCache with LRU eviction
+- `src/image/loader.rs` - PNG/JPG/WebP decoding (via `image` crate)
+- `src/render/image_pipeline.rs` - Textured quad rendering
+
+---
+
+**Icon System Implementation**
+
+**1. Embedded Resources (rust-embed)**
+
+```rust
+// src/icon/embedded.rs
+use rust_embed::RustEmbed;
+
+#[derive(RustEmbed)]
+#[folder = "icons/"]
+pub struct IconAssets;
+
+impl IconAssets {
+    /// Load icon.woff2 font file
+    pub fn icon_font() -> &'static [u8] {
+        IconAssets::get("icon.woff2")
+            .expect("icon.woff2 not found")
+            .data
+            .as_ref()
+    }
+
+    /// Load icon_mapping.json
+    pub fn icon_mapping() -> IconMapping {
+        let json = IconAssets::get("icon_mapping.json")
+            .expect("icon_mapping.json not found")
+            .data;
+        serde_json::from_slice(&json).expect("Invalid icon mapping JSON")
+    }
+}
+```
+
+**2. Icon Mapping Format**
+
+```json
+// icons/icon_mapping.json
+{
+  "search": "e8b6",
+  "home": "e88a",
+  "settings": "e8b8",
+  "menu": "e5d2",
+  "close": "e5cd",
+  "check": "e5ca",
+  "add": "e145",
+  "delete": "e872",
+  "edit": "e3c9",
+  "favorite": "e87d",
+  "star": "e838",
+  "person": "e7fd",
+  "notifications": "e7f4",
+  "arrow_back": "e5c4",
+  "arrow_forward": "e5c8",
+  "arrow_drop_down": "e5c5",
+  "arrow_drop_up": "e5c7",
+  "refresh": "e5d5",
+  "visibility": "e8f4",
+  "visibility_off": "e8f5"
+}
+```
+
+**3. IconEngine (Shares GlyphAtlas)**
+
+```rust
+// src/icon/engine.rs
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use cosmic_text::{fontdb, FontSystem};
+
+pub struct IconEngine {
+    /// Icon ID → Unicode codepoint mapping
+    mapping: HashMap<String, char>,
+
+    /// Font ID in FontSystem (for GlyphKey)
+    icon_font_id: fontdb::ID,
+
+    /// Shared font system (for font loading)
+    font_system: Arc<Mutex<FontSystemWrapper>>,
+
+    /// Shared glyph atlas (for rasterization)
+    glyph_atlas: Arc<Mutex<GlyphAtlas>>,
+}
+
+impl IconEngine {
+    pub fn new(
+        font_system: Arc<Mutex<FontSystemWrapper>>,
+        glyph_atlas: Arc<Mutex<GlyphAtlas>>,
+    ) -> Self {
+        // Load embedded font
+        let font_data = IconAssets::icon_font();
+
+        // Register font with cosmic-text
+        let mut fs = font_system.lock().unwrap();
+        let icon_font_id = fs.font_system.db_mut()
+            .load_font_data(font_data.to_vec());
+
+        // Load icon mapping
+        let mapping = IconAssets::icon_mapping();
+
+        Self {
+            mapping,
+            icon_font_id,
+            font_system,
+            glyph_atlas,
+        }
+    }
+
+    /// Get glyph for icon ID at given size
+    /// Returns None if icon ID not found
+    pub fn get_icon_glyph(
+        &self,
+        icon_id: &str,
+        size: f32,
+        scale_factor: f32,
+    ) -> Option<GlyphInstance> {
+        // 1. Lookup codepoint
+        let codepoint = self.mapping.get(icon_id)?;
+
+        // 2. Create GlyphKey (uses reserved font_id for icons)
+        let key = GlyphKey {
+            font_id: 999, // Reserved for icon font
+            size_bits: (size * 64.0) as u32,
+            character: *codepoint,
+            subpixel_offset: 0,
+            scale_factor: (scale_factor * 100.0) as u8,
+        };
+
+        // 3. Check atlas cache
+        let mut atlas = self.glyph_atlas.lock().unwrap();
+        if let Some(glyph_info) = atlas.get_glyph(&key) {
+            return Some(GlyphInstance {
+                position: (0.0, 0.0), // Caller fills this in
+                atlas_pos: glyph_info.atlas_position,
+                size: glyph_info.size,
+            });
+        }
+
+        // 4. Rasterize and cache (if not found)
+        let mut font_system = self.font_system.lock().unwrap();
+        let raster_result = font_system.rasterize_glyph(
+            self.icon_font_id,
+            *codepoint,
+            size,
+            scale_factor,
+        )?;
+
+        let glyph_info = atlas.insert_glyph(key, raster_result)?;
+
+        Some(GlyphInstance {
+            position: (0.0, 0.0),
+            atlas_pos: glyph_info.atlas_position,
+            size: glyph_info.size,
+        })
+    }
+}
+```
+
+**4. PrimitiveBatcher API**
+
+```rust
+impl PrimitiveBatcher {
+    /// Draw an icon by ID (e.g., "search", "home", "settings")
+    /// Uses Google Material Icons font
+    pub fn draw_icon(
+        &mut self,
+        icon_id: &str,
+        position: Point,
+        size: f32,
+        color: Color,
+    ) {
+        self.draw_icon_z(icon_id, position, size, color, 0);
+    }
+
+    /// Draw an icon with explicit z-index
+    pub fn draw_icon_z(
+        &mut self,
+        icon_id: &str,
+        position: Point,
+        size: f32,
+        color: Color,
+        z_index: i32,
+    ) {
+        self.commands.push(DrawCommand::Icon {
+            icon_id: icon_id.to_string(),
+            position,
+            size,
+            color,
+            z_index,
+        });
+    }
+}
+```
+
+**5. Rendering Integration**
+
+Icons render using the **same text pipeline** (instanced quads + atlas texture):
+
+```rust
+// In render loop
+let mut text_instances = Vec::new();
+
+for cmd in commands {
+    match cmd {
+        DrawCommand::Text { text, position, style, z_index } => {
+            // Shape text, add glyph instances
+            let glyphs = text_engine.shape_text(text, style)?;
+            text_instances.extend(glyphs);
+        }
+        DrawCommand::Icon { icon_id, position, size, color, z_index } => {
+            // Look up icon glyph (no shaping needed!)
+            if let Some(mut glyph) = icon_engine.get_icon_glyph(icon_id, size, scale_factor) {
+                glyph.position = position;
+                glyph.color = color;
+                text_instances.push(glyph);
+            }
+        }
+    }
+}
+
+// Single draw call for both text and icons!
+render_text_instances(&text_instances, &glyph_atlas);
+```
+
+---
+
+**Image System Implementation**
+
+**1. Image Cache**
+
+```rust
+// src/image/cache.rs
+use lru::LruCache;
+use std::path::PathBuf;
+
+pub struct ImageCache {
+    /// Cached textures
+    cache: LruCache<ImageId, CachedImage>,
+
+    /// GPU device for texture creation
+    device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
+
+    /// Maximum cache size (in MB)
+    max_size_mb: usize,
+}
+
+pub struct CachedImage {
+    texture: wgpu::Texture,
+    view: wgpu::TextureView,
+    size: (u32, u32),
+    format: wgpu::TextureFormat,
+}
+
+#[derive(Hash, Eq, PartialEq, Clone)]
+pub enum ImageId {
+    File(PathBuf),
+    Url(String),
+    Embedded(&'static str),
+}
+
+impl ImageCache {
+    /// Load image from disk/network, cache texture
+    pub fn get_or_load(
+        &mut self,
+        id: ImageId,
+    ) -> Result<&CachedImage, ImageError> {
+        if let Some(img) = self.cache.get(&id) {
+            return Ok(img);
+        }
+
+        // Decode image (PNG/JPG/WebP)
+        let image_data = self.load_image_data(&id)?;
+        let rgba = image_data.to_rgba8();
+
+        // Create GPU texture
+        let size = (rgba.width(), rgba.height());
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: size.0,
+                height: size.1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            label: Some("image_texture"),
+        });
+
+        // Upload pixels
+        self.queue.write_texture(
+            texture.as_image_copy(),
+            &rgba,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * size.0),
+                rows_per_image: None,
+            },
+            wgpu::Extent3d {
+                width: size.0,
+                height: size.1,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let cached = CachedImage {
+            texture,
+            view,
+            size,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        };
+
+        self.cache.put(id.clone(), cached);
+        Ok(self.cache.get(&id).unwrap())
+    }
+
+    fn load_image_data(&self, id: &ImageId) -> Result<DynamicImage, ImageError> {
+        match id {
+            ImageId::File(path) => {
+                image::open(path).map_err(|e| ImageError::LoadFailed(e))
+            }
+            ImageId::Url(url) => {
+                // Fetch from network (TODO: async)
+                todo!("Network image loading")
+            }
+            ImageId::Embedded(name) => {
+                // Load from rust-embed
+                todo!("Embedded image loading")
+            }
+        }
+    }
+}
+```
+
+**2. Image Rendering Pipeline**
+
+```rust
+// src/render/image_pipeline.rs
+
+/// Textured quad pipeline (different from SDF rect pipeline)
+pub struct ImagePipeline {
+    pipeline: wgpu::RenderPipeline,
+    sampler: wgpu::Sampler,
+}
+
+impl ImagePipeline {
+    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("image_shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/image.wgsl").into()),
+        });
+
+        // Simple textured quad (no SDF)
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            // ... standard texture sampling pipeline
+        });
+
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            // ...
+        });
+
+        Self { pipeline, sampler }
+    }
+}
+```
+
+**3. PrimitiveBatcher API**
+
+```rust
+impl PrimitiveBatcher {
+    /// Draw an image/photo from file
+    pub fn draw_image(
+        &mut self,
+        image_id: ImageId,
+        rect: Rect,
+        tint: Option<Color>,
+    ) {
+        self.draw_image_z(image_id, rect, tint, 0);
+    }
+
+    /// Draw an image with explicit z-index
+    pub fn draw_image_z(
+        &mut self,
+        image_id: ImageId,
+        rect: Rect,
+        tint: Option<Color>,
+        z_index: i32,
+    ) {
+        self.commands.push(DrawCommand::Image {
+            image_id,
+            rect,
+            tint,
+            z_index,
+        });
+    }
+}
+```
+
+---
 
 **Tasks:**
-1. ✅ Create texture atlas for images/icons
-2. ✅ Implement `draw_image()` with tinting
-3. ✅ Add to batching system with z-ordering
-4. ✅ Test: Icons and textures render correctly
+
+**Icon System:**
+1. ✅ Set up rust-embed for `icons/` folder
+2. ✅ Create `icons/icon_mapping.json` with Material Icons codepoints
+3. ✅ Implement `IconEngine` with shared `GlyphAtlas`
+4. ✅ Add icon font loading to `RenderContext` initialization
+5. ✅ Implement `draw_icon()` API in `PrimitiveBatcher`
+6. ✅ Test: Render icons at multiple sizes and DPI scales
+
+**Image System:**
+7. ✅ Implement `ImageCache` with LRU eviction
+8. ✅ Create image loading pipeline (PNG/JPG/WebP via `image` crate)
+9. ✅ Build `ImagePipeline` for textured quad rendering
+10. ✅ Implement `draw_image()` API in `PrimitiveBatcher`
+11. ✅ Add to batching system with z-ordering
+12. ✅ Test: Load and display avatar image (Tzuyu2.png)
+
+---
 
 **Success Criteria:**
-- Can render image textures
-- Optional color tinting for icons
-- Images participate in z-ordering
+
+**Icons:**
+- ✅ Can render Material Icons by ID: `draw_icon("search", pos, 24.0, color)`
+- ✅ Icons share glyph atlas with text (efficient batching)
+- ✅ Icons scale correctly at different DPI (1.0x, 2.0x, etc.)
+- ✅ No code duplication with text rendering (shared atlas/pipeline)
+- ✅ Icon font embedded in binary (no external file dependencies)
+- ✅ Human-readable icon IDs (not raw codepoints)
+
+**Images:**
+- ✅ Can load and render PNG/JPG images: `draw_image(ImageId::File("avatar.png"), rect, None)`
+- ✅ Images use individual textures (not atlas-based)
+- ✅ LRU cache prevents memory leaks
+- ✅ Optional color tinting for images
+- ✅ Images participate in z-ordering
+- ✅ Support for large images (no size limitations)
+
+---
+
+**Dependencies to Add:**
+
+```toml
+[dependencies]
+# Icon font embedding
+rust-embed = "8.0"
+serde_json = "1.0"
+
+# Image loading
+image = { version = "0.24", default-features = false, features = ["png", "jpeg"] }
+
+# LRU cache for images
+lru = "0.12"
+```
+
+---
+
+**Example Usage:**
+
+```rust
+impl Button {
+    fn paint(&self, ctx: &mut PaintContext, theme: &Theme) {
+        // Background
+        ctx.primitives.draw_rect(self.bounds, theme.button_bg);
+
+        // Icon (uses shared glyph atlas, batches with text)
+        ctx.primitives.draw_icon(
+            "search",  // Human-readable ID
+            self.bounds.origin + Vector::new(8.0, 8.0),
+            20.0,      // Size
+            theme.icon_color,
+        );
+
+        // Text (batches with icon in same draw call!)
+        ctx.primitives.draw_text(
+            self.bounds.origin + Vector::new(36.0, 8.0),
+            "Search",
+            TextStyle::default(),
+        );
+    }
+}
+
+impl AvatarWidget {
+    fn paint(&self, ctx: &mut PaintContext) {
+        // Rounded clipping region
+        ctx.primitives.push_clip_rounded(
+            self.bounds,
+            CornerRadius::uniform(self.bounds.width / 2.0),  // Circle
+        );
+
+        // Avatar image (individual texture, not atlas)
+        ctx.primitives.draw_image(
+            ImageId::File(PathBuf::from("Tzuyu2.png")),
+            self.bounds,
+            None,  // No tint
+        );
+
+        ctx.primitives.pop_clip();
+    }
+}
+```
 
 ---
 
@@ -1007,8 +1583,9 @@ Phase 3: Gradients
 Phase 4: Lines + Paths
   └─ Lyon tessellation for vector graphics
 
-Phase 5: Images
-  └─ Texture atlas rendering
+Phase 5: Icons + Images
+  ├─ Icons: Font-based (shared GlyphAtlas with text)
+  └─ Images: Individual textures (LRU cache)
 
 Future Optimizations (see Section 6 for details):
   ├─ Depth Buffer + Two-Pass Rendering (10× speedup)

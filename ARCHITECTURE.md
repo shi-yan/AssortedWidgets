@@ -305,29 +305,40 @@ Taffy calls measure functions during layout to query content-based dimensions.
 
 ### Tier 1: High-Level Primitives
 ```rust
-pub struct PaintContext<'a> {
-    // Batched 2D primitives
-    rects: Vec<RectInstance>,
-    sdf_commands: Vec<DrawCommand>,
-    text: Vec<TextInstance>,
-    // ...
+pub struct PaintContext {
+    // Internal batched rendering state (hidden from users)
 }
 ```
 
 **Current Methods:**
-- `draw_rect()` - filled rectangles
-- `draw_styled_rect()` - rounded corners with borders (SDF)
-- `draw_text()` - managed text with caching
-- `draw_layout()` - manual text layout control
-- `create_text_layout()` - text shaping with truncation
 
-### Tier 2: Raw WebGPU Access (Future)
 ```rust
-impl Widget for My3DWidget {
+impl Widget for MyWidget {
     fn paint(&self, ctx: &mut PaintContext) {
-        // Custom rendering with direct WebGPU access (future)
-        ctx.render_pass.set_pipeline(&self.custom_pipeline);
-        ctx.render_pass.draw(...);
+        // Rectangles
+        ctx.draw_rect(bounds, color);
+        ctx.draw_styled_rect(
+            bounds,
+            ShapeStyle::solid(color)
+                .with_corner_radius(8.0)
+                .with_border(2.0, border_color)
+                .with_shadow(4.0, shadow_color),
+        );
+
+        // Text rendering
+        ctx.draw_text(pos, "text", color, size);
+        let layout = ctx.create_text_layout(text, style, width, truncate);
+        ctx.draw_layout(&layout, pos, color);
+
+        // Vector graphics
+        ctx.draw_line(start, end, Stroke::new(color, width));
+        ctx.fill_path(path, fill_color);
+        ctx.stroke_path(path, Stroke::new(color, width));
+        ctx.draw_path(path, Some(fill), Some(stroke));
+
+        // Images and icons
+        ctx.draw_image(image_id, bounds);
+        ctx.draw_icon(icon_id, bounds, tint_color);
     }
 }
 ```
@@ -489,10 +500,10 @@ impl Widget for AnimatedRect {
 - ✅ FrameInfo struct with dt, timestamp, frame_number
 - ✅ Widget::update() and needs_continuous_updates() hooks
 - ✅ Window calls update() before layout each frame
-- ✅ AnimatedTextLabel demo showing text truncation animation
-- ⏳ Transition animations (planned)
-- ⏳ Physics-based animations (planned)
-- ⏳ Spring animations with damping (planned)
+- ✅ Frame-rate independent animation support
+- 🚧 Transition animations (planned)
+- 🚧 Physics-based animations (planned)
+- 🚧 Spring animations with damping (planned)
 
 ---
 
@@ -721,9 +732,10 @@ pub struct WidgetManager {
 
 AssortedWidgets provides a flexible, performant foundation for GUI applications with:
 - **Clean API:** Developers work with simple Window methods, not internal structures
-- **Compile-time safety:** No RefCell panics
-- **Low-level access:** WebGPU escape hatch for custom rendering
+- **Compile-time safety:** No RefCell panics, event queue architecture
+- **Efficient rendering:** GPU-accelerated SDF rendering, batched primitives
 - **Industry-standard layout:** Taffy (Flexbox/Grid)
+- **Vector graphics:** Lines, paths, bezier curves with configurable styles
 - **Efficient text rendering:** Shared atlas, multi-DPI support
 - **Frame-rate independent animation system**
 - **Multi-window support:** Shared resources save memory
@@ -732,7 +744,10 @@ AssortedWidgets provides a flexible, performant foundation for GUI applications 
 **Architectural Advantages:**
 - Three coordinated systems (WidgetManager, WidgetTree, LayoutManager) hidden behind clean API
 - WidgetId independent of NodeId (supports floating widgets, serialization, decoupling)
-- Consistent naming (Widget everywhere, not Element)
+- Consistent naming (Widget everywhere throughout codebase)
 - Single point of truth (all operations through Window API)
 
-Future work includes primitive batching optimizations, theme system GPU integration, and advanced animation helpers.
+**Next Steps:**
+- Theme system with GPU uniform buffers
+- Standard widget library (Button, Label, TextInput, etc.)
+- Animation helpers (springs, easing, transitions)

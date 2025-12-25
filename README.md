@@ -30,53 +30,73 @@ Add to your `Cargo.toml`:
 assorted_widgets = "0.1"
 ```
 
-### Hello Triangle
+### Hello Widget
 
 ```rust
-use assorted_widgets::{GuiEventLoop, WindowOptions};
+use assorted_widgets::{Application, WindowOptions, Widget};
+use assorted_widgets::paint::{PaintContext, Color, ShapeStyle};
+use assorted_widgets::types::{Point, Rect, Size, WidgetId};
+use assorted_widgets::layout::{Display, Style};
+
+struct MyWidget {
+    id: WidgetId,
+    bounds: Rect,
+}
+
+impl Widget for MyWidget {
+    fn paint(&self, ctx: &mut PaintContext) {
+        // Draw a rectangle
+        ctx.draw_styled_rect(
+            self.bounds,
+            ShapeStyle::solid(Color::rgb(0.2, 0.4, 0.8)),
+        );
+
+        // Draw some text
+        ctx.draw_text(
+            Point::new(20.0, 20.0),
+            "Hello, AssortedWidgets!",
+            Color::WHITE,
+            16.0,
+        );
+    }
+
+    // ... other Widget trait methods
+}
 
 fn main() {
-    let mut event_loop = pollster::block_on(async {
-        GuiEventLoop::new_with_window(WindowOptions {
-            title: "Hello Triangle".to_string(),
+    let mut app = pollster::block_on(async { Application::new().await })
+        .expect("Failed to initialize");
+
+    let window_id = app
+        .create_window(WindowOptions {
+            bounds: Rect::new(Point::new(100.0, 100.0), Size::new(800.0, 600.0)),
+            title: "Hello Widget".to_string(),
             ..Default::default()
         })
-        .await
-    })
-    .expect("Failed to initialize");
+        .expect("Failed to create window");
 
-    // Create render pipeline
-    let pipeline = create_triangle_pipeline(&event_loop);
-
-    // Set render function (called every frame)
-    event_loop.set_render_fn(move |renderer, ctx| {
-        let surface_texture = renderer.get_current_texture().unwrap();
-        let view = surface_texture.texture.create_view(&Default::default());
-
-        let mut encoder = ctx.device.create_command_encoder(&Default::default());
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
+    // Add widget to window
+    {
+        let window = app.window_mut(window_id).expect("Window not found");
+        window
+            .add_root(
+                Box::new(MyWidget {
+                    id: WidgetId::new(1),
+                    bounds: Rect::new(Point::ZERO, Size::new(800.0, 600.0))
+                }),
+                Style {
+                    display: Display::Block,
+                    size: taffy::Size {
+                        width: taffy::Dimension::length(800.0),
+                        height: taffy::Dimension::length(600.0),
                     },
-                })],
-                ..Default::default()
-            });
+                    ..Default::default()
+                },
+            )
+            .expect("Failed to add root widget");
+    }
 
-            render_pass.set_pipeline(&pipeline);
-            render_pass.draw(0..3, 0..1);
-        }
-
-        ctx.queue.submit([encoder.finish()]);
-        surface_texture.present();
-    });
-
-    // Run event loop (never returns)
-    event_loop.run();
+    app.run();
 }
 ```
 
@@ -89,10 +109,10 @@ graph TB
     end
 
     subgraph "Framework Layer"
-        B[Element Manager<br/>Flat Hash Table]
-        C[Scene Graph<br/>Tree Structure]
-        D[Layout Engine<br/>Taffy]
-        E[Event Loop<br/>Event Queue]
+        B[Widget Manager<br/>Flat Hash Table]
+        C[Widget Tree<br/>Tree Structure]
+        D[Layout Manager<br/>Taffy]
+        E[Application<br/>Event Queue]
     end
 
     subgraph "Rendering Layer"
@@ -128,47 +148,46 @@ graph TB
 
 ### Multi-Tiered Rendering
 
-AssortedWidgets supports both high-level themed UI and low-level custom graphics:
+AssortedWidgets supports high-level themed UI primitives:
 
 ```rust
-impl Element for MyWidget {
-    fn paint(&self, ctx: &mut PaintContext, theme: &Theme) {
-        // High-level: Themed background (batched)
-        ctx.primitives.draw_rect(self.bounds, theme.panel_bg);
+impl Widget for MyWidget {
+    fn paint(&self, ctx: &mut PaintContext) {
+        // Solid and styled rectangles
+        ctx.draw_styled_rect(
+            self.bounds,
+            ShapeStyle::solid(Color::rgb(0.2, 0.2, 0.25))
+                .with_corner_radius(8.0)
+                .with_border(2.0, Color::rgb(0.4, 0.4, 0.5)),
+        );
 
-        // Low-level: Custom 3D rendering (immediate)
-        ctx.render_pass.set_pipeline(&self.custom_pipeline);
-        ctx.render_pass.draw(...);
+        // Text rendering
+        ctx.draw_text(pos, "Hello", Color::WHITE, 16.0);
 
-        // High-level: Themed text overlay (batched)
-        ctx.primitives.draw_text(pos, "Hello", theme.text_color);
+        // Vector paths
+        ctx.draw_line(start, end, Stroke::new(Color::RED, 2.0));
+        ctx.fill_path(path, Color::BLUE);
     }
 }
 ```
 
-### Event Queue Architecture
+### Widget System
 
-Unlike callback-based systems, AssortedWidgets uses an event queue for clean separation:
+AssortedWidgets uses a three-system architecture internally:
 
-```mermaid
-sequenceDiagram
-    participant P as Platform
-    participant Q as Event Queue
-    participant L as Event Loop
-    participant R as Renderer
+- **WidgetManager**: Flat HashMap for O(1) widget lookup
+- **WidgetTree**: Parent-child hierarchy for event propagation and paint order
+- **LayoutManager**: Taffy integration for Flexbox/Grid layout
 
-    P->>Q: Push Input Event
-    P->>Q: Push Resize Event
-    P->>Q: Push Redraw Event
+All three systems are hidden behind a clean Window API:
 
-    loop Every Frame
-        L->>L: Poll Platform Events
-        L->>Q: Drain Queue
-        Q->>L: Events
-        L->>L: Process Events
-        L->>R: Render Frame
-        R->>P: Present
-    end
+```rust
+// Add widgets through simple Window methods
+let widget_id = window.add_root(widget, style)?;
+let child_id = window.add_child(parent_id, child_widget, child_style)?;
+
+// Floating widgets (tooltips, modals) skip layout
+let tooltip_id = window.add_floating(parent_id, tooltip_widget)?;
 ```
 
 ### Layout System
@@ -266,11 +285,9 @@ pub struct Theme {
 
 See the `examples/` directory:
 
-- `triangle.rs` - Basic WebGPU rendering
-- `layout.rs` - Flexbox layout demonstration
-- `themed_ui.rs` - Standard UI widgets with theming
-- `3d_viewport.rs` - Custom 3D rendering in a widget
-- `text_editor.rs` - Advanced text rendering
+- `phase4_paths_test.rs` - Vector graphics with lines, curves, and paths
+- `icons_and_images.rs` - Icon and image rendering demo
+- `icon_visual_demo.rs` - Visual icon demonstration
 
 ## Documentation
 
@@ -309,27 +326,32 @@ See the `examples/` directory:
 - [x] Event queue architecture
 - [x] WebGPU integration
 - [x] Manual runloop (macOS)
+- [x] Widget system (WidgetManager, WidgetTree, LayoutManager)
 - [x] Text rendering (cosmic-text with shared atlas)
-- [x] Paint context implementation
-- [ ] Taffy layout integration (partial - LayoutManager exists)
-- [ ] Theme system
-- [ ] Standard widgets (Button, Label, etc.)
+- [x] Paint context with batched primitives
+- [x] Vector graphics (lines, paths, bezier curves)
+- [x] SDF-based rounded rectangles with borders and shadows
+- [x] Image and icon rendering
+- [ ] Theme system (GPU uniform buffers)
+- [ ] Standard widgets (Button, Label, TextInput, etc.)
+- [ ] Animation helpers (springs, easing)
 - [ ] Linux support (Wayland)
 - [ ] Windows support
 
 ### Recent Updates (Dec 2024)
 
-**Phase 3.3 Complete - Pipeline Sharing Refactor:**
-- ✅ Shared rendering pipelines across all windows (created once, not per-window)
-- ✅ Consolidated WindowRenderer (merged WindowRenderState + per-window uniforms)
-- ✅ Eliminated redundant pipeline creation (5 windows = 1× creation instead of 5×)
-- ✅ Cleaner architecture: WindowRenderer now contains all per-window state
+**Phase 4 Complete - Vector Graphics:**
+- ✅ Line rendering with configurable caps and joins
+- ✅ Path API with bezier curves (quadratic and cubic)
+- ✅ Fill and stroke operations
+- ✅ Vector icon support
 
-**Phase 3.2 Complete - Text Rendering Refactor:**
-- ✅ Shared resource architecture for glyph atlas, fonts, and text engine
-- ✅ Multi-DPI support via `scale_factor` in GlyphKey
-- ✅ Massive memory savings: Single 16MB atlas vs ~80MB for 5 windows
-- ✅ Seamless DPI transitions: Window moves between Retina/non-Retina? Both cached!
+**Phase 3 Complete - Rendering Infrastructure:**
+- ✅ Shared rendering pipelines across windows
+- ✅ SDF-based rounded rectangles with analytical shadows
+- ✅ Text rendering with shared glyph atlas
+- ✅ Multi-DPI support with per-scale glyph caching
+- ✅ Image and icon rendering with texture atlas
 
 ## Contributing
 
