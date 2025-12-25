@@ -160,10 +160,11 @@ impl WindowRenderer {
         surface.configure(device, &config);
 
         // Create per-window uniform buffers (screen_size specific to this window)
-        let physical_size = [width as f32, height as f32];
+        // Use LOGICAL size for coordinate transformation (widgets use logical pixels)
+        let logical_size = [bounds.size.width as f32, bounds.size.height as f32];
 
         let rect_uniforms = RectUniforms {
-            screen_size: physical_size,
+            screen_size: logical_size,
             _padding: [0.0, 0.0],
         };
 
@@ -183,7 +184,7 @@ impl WindowRenderer {
         });
 
         let text_uniforms = TextUniforms {
-            screen_size: physical_size,
+            screen_size: logical_size,
             _padding: [0.0, 0.0],
         };
 
@@ -202,16 +203,18 @@ impl WindowRenderer {
             }],
         });
 
-        // Create SDF rect uniforms and bind group
-        let rect_sdf_uniform_buffer = context.rect_sdf_pipeline.create_uniform_buffer(device, width, height);
+        // Create SDF rect uniforms and bind group (use logical dimensions)
+        let logical_width = bounds.size.width as u32;
+        let logical_height = bounds.size.height as u32;
+        let rect_sdf_uniform_buffer = context.rect_sdf_pipeline.create_uniform_buffer(device, logical_width, logical_height);
         let rect_sdf_uniform_bind_group = context.rect_sdf_pipeline.create_bind_group(device, &rect_sdf_uniform_buffer);
 
         // Create SDF rect clip uniforms and bind group (initially empty)
         let rect_sdf_clip_uniform_buffer = context.rect_sdf_pipeline.create_clip_uniform_buffer(device);
         let rect_sdf_clip_uniform_bind_group = context.rect_sdf_pipeline.create_clip_bind_group(device, &rect_sdf_clip_uniform_buffer);
 
-        // Create path uniforms and bind group
-        let path_uniform_buffer = context.path_pipeline.create_uniform_buffer(device, width, height);
+        // Create path uniforms and bind group (use logical dimensions)
+        let path_uniform_buffer = context.path_pipeline.create_uniform_buffer(device, logical_width, logical_height);
         let path_uniform_bind_group = context.path_pipeline.create_bind_group(device, &path_uniform_buffer);
 
         // Create MSAA texture if sample count > 1
@@ -307,12 +310,12 @@ impl WindowRenderer {
 
     /// Update screen size in uniform buffers
     pub fn update_screen_size(&mut self, size: Size, scale_factor: f32) {
-        // Scale logical size by scale_factor to match physical viewport
-        let physical_size = [size.width as f32 * scale_factor, size.height as f32 * scale_factor];
+        // Use LOGICAL size for coordinate transformation (widgets use logical pixels)
+        let logical_size = [size.width as f32, size.height as f32];
 
         // Update rect uniforms
         let rect_uniforms = RectUniforms {
-            screen_size: physical_size,
+            screen_size: logical_size,
             _padding: [0.0, 0.0],
         };
         self.render_context.queue().write_buffer(
@@ -323,7 +326,7 @@ impl WindowRenderer {
 
         // Update text uniforms
         let text_uniforms = TextUniforms {
-            screen_size: physical_size,
+            screen_size: logical_size,
             _padding: [0.0, 0.0],
         };
         self.render_context.queue().write_buffer(
@@ -332,9 +335,9 @@ impl WindowRenderer {
             bytemuck::cast_slice(&[text_uniforms]),
         );
 
-        // Update SDF rect uniforms
-        let width = (size.width * scale_factor as f64) as u32;
-        let height = (size.height * scale_factor as f64) as u32;
+        // Update SDF rect uniforms (use logical dimensions)
+        let width = size.width as u32;
+        let height = size.height as u32;
         self.render_context.rect_sdf_pipeline.update_uniforms(
             self.render_context.queue(),
             &self.rect_sdf_uniform_buffer,
@@ -342,7 +345,7 @@ impl WindowRenderer {
             height,
         );
 
-        // Update path uniforms
+        // Update path uniforms (use logical dimensions)
         self.render_context.path_pipeline.update_uniforms(
             self.render_context.queue(),
             &self.path_uniform_buffer,
@@ -350,6 +353,7 @@ impl WindowRenderer {
             height,
         );
 
+        let physical_size = [size.width as f32 * scale_factor, size.height as f32 * scale_factor];
         println!("[WindowRenderer] Updated uniforms: logical = {:.0}x{:.0}, scale = {:.1}x, physical = {:.0}x{:.0}",
             size.width, size.height, scale_factor, physical_size[0], physical_size[1]);
     }
