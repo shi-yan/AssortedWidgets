@@ -1,27 +1,50 @@
 use crate::types::Rect;
 pub use super::primitives::Color;
+pub use super::gradient::{LinearGradient, RadialGradient};
 
 /// Fill brush (solid color or gradient)
 #[derive(Debug, Clone, PartialEq)]
 pub enum Brush {
     Solid(Color),
-    // Future: gradients
-    // LinearGradient(LinearGradient),
-    // RadialGradient(RadialGradient),
+    LinearGradient(LinearGradient),
+    RadialGradient(RadialGradient),
 }
 
 impl Brush {
-    /// Get solid color (for Phase 1, gradients will panic)
+    /// Get solid color (only valid for solid brush)
     pub fn to_color(&self) -> Color {
         match self {
             Brush::Solid(color) => *color,
+            _ => panic!("to_color() called on gradient brush"),
         }
+    }
+
+    /// Check if this is a solid color
+    pub fn is_solid(&self) -> bool {
+        matches!(self, Brush::Solid(_))
+    }
+
+    /// Check if this is a gradient
+    pub fn is_gradient(&self) -> bool {
+        !self.is_solid()
     }
 }
 
 impl From<Color> for Brush {
     fn from(color: Color) -> Self {
         Brush::Solid(color)
+    }
+}
+
+impl From<LinearGradient> for Brush {
+    fn from(gradient: LinearGradient) -> Self {
+        Brush::LinearGradient(gradient)
+    }
+}
+
+impl From<RadialGradient> for Brush {
+    fn from(gradient: RadialGradient) -> Self {
+        Brush::RadialGradient(gradient)
     }
 }
 

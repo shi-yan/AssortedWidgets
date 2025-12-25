@@ -25,9 +25,18 @@ var<uniform> clip_uniforms: ClipUniforms;
 struct RectInstance {
     @location(0) rect: vec4<f32>,           // x, y, width, height
     @location(1) corner_radius: vec4<f32>,  // top_left, top_right, bottom_right, bottom_left
-    @location(2) fill_color: vec4<f32>,     // rgba
+    @location(2) fill_color: vec4<f32>,     // rgba (for solid) or gradient_type/stop_count
     @location(3) border_color: vec4<f32>,   // rgba
     @location(4) border_width: f32,
+    @location(5) gradient_start_end: vec4<f32>, // start.xy, end.xy (linear) or center.xy, radius, _
+    @location(6) gradient_stop_0: vec4<f32>, // offset, r, g, b
+    @location(7) gradient_stop_1: vec4<f32>,
+    @location(8) gradient_stop_2: vec4<f32>,
+    @location(9) gradient_stop_3: vec4<f32>,
+    @location(10) gradient_stop_4: vec4<f32>,
+    @location(11) gradient_stop_5: vec4<f32>,
+    @location(12) gradient_stop_6: vec4<f32>,
+    @location(13) gradient_stop_7: vec4<f32>,
 }
 
 struct VertexOutput {
@@ -39,6 +48,16 @@ struct VertexOutput {
     @location(4) border_color: vec4<f32>,
     @location(5) border_width: f32,
     @location(6) world_pos: vec2<f32>,      // World position for clipping
+    @location(7) uv: vec2<f32>,             // UV coordinates (0-1) for gradient sampling
+    @location(8) gradient_start_end: vec4<f32>,
+    @location(9) gradient_stop_0: vec4<f32>,
+    @location(10) gradient_stop_1: vec4<f32>,
+    @location(11) gradient_stop_2: vec4<f32>,
+    @location(12) gradient_stop_3: vec4<f32>,
+    @location(13) gradient_stop_4: vec4<f32>,
+    @location(14) gradient_stop_5: vec4<f32>,
+    @location(15) gradient_stop_6: vec4<f32>,
+    @location(16) gradient_stop_7: vec4<f32>,
 }
 
 // Vertex shader: Generate quad from instance data
@@ -81,6 +100,18 @@ fn vs_main(
     out.border_color = instance.border_color;
     out.border_width = instance.border_width;
     out.world_pos = world_pos;
+    out.uv = pos; // UV coordinates (0-1) for gradient sampling
+
+    // Pass through gradient data
+    out.gradient_start_end = instance.gradient_start_end;
+    out.gradient_stop_0 = instance.gradient_stop_0;
+    out.gradient_stop_1 = instance.gradient_stop_1;
+    out.gradient_stop_2 = instance.gradient_stop_2;
+    out.gradient_stop_3 = instance.gradient_stop_3;
+    out.gradient_stop_4 = instance.gradient_stop_4;
+    out.gradient_stop_5 = instance.gradient_stop_5;
+    out.gradient_stop_6 = instance.gradient_stop_6;
+    out.gradient_stop_7 = instance.gradient_stop_7;
 
     return out;
 }
@@ -107,6 +138,70 @@ fn sdf_rounded_box(p: vec2<f32>, size: vec2<f32>, radius: vec4<f32>) -> f32 {
     // SDF calculation
     let q = abs(p) - size + r;
     return min(max(q.x, q.y), 0.0) + length(max(q, vec2<f32>(0.0))) - r;
+}
+
+// Sample a linear gradient at UV coordinate
+fn sample_linear_gradient(
+    uv: vec2<f32>,
+    start_end: vec4<f32>,
+    stops: array<vec4<f32>, 8>,
+    stop_count: u32,
+) -> vec4<f32> {
+    let start = start_end.xy;
+    let end = start_end.zw;
+
+    // Calculate t along gradient direction
+    let dir = end - start;
+    let t = clamp(dot(uv - start, dir) / dot(dir, dir), 0.0, 1.0);
+
+    // Find surrounding stops and interpolate
+    for (var i = 0u; i < stop_count - 1u; i++) {
+        let stop_a = stops[i];
+        let stop_b = stops[i + 1u];
+
+        if (t >= stop_a.x && t <= stop_b.x) {
+            let local_t = (t - stop_a.x) / (stop_b.x - stop_a.x);
+            let color_a = vec4<f32>(stop_a.yzw, 1.0);
+            let color_b = vec4<f32>(stop_b.yzw, 1.0);
+            return mix(color_a, color_b, local_t);
+        }
+    }
+
+    // Return last color if we're past all stops
+    let last_stop = stops[stop_count - 1u];
+    return vec4<f32>(last_stop.yzw, 1.0);
+}
+
+// Sample a radial gradient at UV coordinate
+fn sample_radial_gradient(
+    uv: vec2<f32>,
+    center_radius: vec4<f32>,
+    stops: array<vec4<f32>, 8>,
+    stop_count: u32,
+) -> vec4<f32> {
+    let center = center_radius.xy;
+    let radius = center_radius.z;
+
+    // Calculate distance from center normalized by radius
+    let dist = length(uv - center) / radius;
+    let t = clamp(dist, 0.0, 1.0);
+
+    // Find surrounding stops and interpolate
+    for (var i = 0u; i < stop_count - 1u; i++) {
+        let stop_a = stops[i];
+        let stop_b = stops[i + 1u];
+
+        if (t >= stop_a.x && t <= stop_b.x) {
+            let local_t = (t - stop_a.x) / (stop_b.x - stop_a.x);
+            let color_a = vec4<f32>(stop_a.yzw, 1.0);
+            let color_b = vec4<f32>(stop_b.yzw, 1.0);
+            return mix(color_a, color_b, local_t);
+        }
+    }
+
+    // Return last color if we're past all stops
+    let last_stop = stops[stop_count - 1u];
+    return vec4<f32>(last_stop.yzw, 1.0);
 }
 
 // Check if a point is inside all active clip regions (returns true if clipped OUT)
