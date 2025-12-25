@@ -25,7 +25,7 @@ impl IconEngine {
         font_system: Arc<Mutex<FontSystemWrapper>>,
         _glyph_atlas: Arc<Mutex<GlyphAtlas>>,  // Not used, icons use text rendering
     ) -> Self {
-        // Load embedded icon font
+        // Load embedded icon font (TTF format)
         let font_data = super::embedded::IconAssets::icon_font();
 
         println!("=== Icon Font Loading (Direct Rasterization) ===");
@@ -70,9 +70,9 @@ impl IconEngine {
             }
         }
 
-        println!("  Loaded {} font face(s) from icon.woff2", faces_loaded);
+        println!("  Loaded {} font face(s) from icon.ttf", faces_loaded);
 
-        let font_id = font_id.expect("Failed to load icon.woff2 - no font faces returned");
+        let font_id = font_id.expect("Failed to load icon.ttf - no font faces returned");
 
         drop(fs); // Release lock before loading mapping
 
@@ -106,7 +106,10 @@ impl IconEngine {
     /// // Use with TextEngine to render: text_engine.render_text(&icon_char.to_string(), ...)
     /// ```
     pub fn get_icon_char(&self, icon_id: &str) -> Option<char> {
-        self.mapping.get(icon_id).copied()
+        println!("[IconEngine] get_icon_char called for: {}", icon_id);
+        let result = self.mapping.get(icon_id).copied();
+        println!("[IconEngine] get_icon_char result: {:?}", result);
+        result
     }
 
     /// Check if an icon ID exists in the mapping
@@ -125,16 +128,17 @@ impl IconEngine {
     /// This bypasses the font fallback system by forcing the icon font.
     ///
     /// # Arguments
+    /// * `font_system_wrapper` - Already-locked FontSystemWrapper (to avoid deadlock)
     /// * `icon_char` - The Unicode character to rasterize
     /// * `size` - Font size in points
     ///
     /// # Returns
     /// CacheKey for use with FontSystemWrapper::rasterize_glyph()
-    pub fn get_cache_key(&self, icon_char: char, size: f64) -> Option<cosmic_text::CacheKey> {
+    pub fn get_cache_key(&self, font_system_wrapper: &mut FontSystemWrapper, icon_char: char, size: f64) -> Option<cosmic_text::CacheKey> {
         use cosmic_text::{Attrs, Buffer, Metrics, Shaping, Family};
 
-        let mut fs = self.font_system.lock().unwrap();
-        let font_system = fs.font_system_mut();
+        println!("[IconEngine] get_cache_key called for char: {:?}, size: {}", icon_char, size);
+        let font_system = font_system_wrapper.font_system_mut();
 
         // Create a buffer with forced font using Family::Name
         // Query the font name from the database using our font_id

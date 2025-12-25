@@ -7,10 +7,10 @@ use std::collections::HashMap;
 pub struct IconAssets;
 
 impl IconAssets {
-    /// Load icon.woff2 font file
+    /// Load icon.ttf font file
     pub fn icon_font() -> Vec<u8> {
-        IconAssets::get("icon.woff2")
-            .expect("icon.woff2 not found in embedded assets")
+        IconAssets::get("icon.ttf")
+            .expect("icon.ttf not found in embedded assets")
             .data
             .to_vec()
     }
@@ -46,8 +46,10 @@ mod tests {
     fn test_load_icon_font() {
         let font_data = IconAssets::icon_font();
         assert!(!font_data.is_empty(), "Icon font should not be empty");
-        // WOFF2 magic number check
-        assert_eq!(&font_data[0..4], b"wOF2", "Should be valid WOFF2 file");
+        // TTF/OTF magic number check (TrueType starts with 0x00 0x01 0x00 0x00 or "OTTO")
+        let is_ttf = font_data.len() >= 4 &&
+            (font_data[0..4] == [0x00, 0x01, 0x00, 0x00] || &font_data[0..4] == b"OTTO");
+        assert!(is_ttf, "Should be valid TTF/OTF file");
     }
 
     #[test]

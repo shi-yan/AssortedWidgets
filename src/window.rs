@@ -1062,7 +1062,8 @@ impl Window {
                         if let Some(icon_char) = icon_engine.get_icon_char(icon_id) {
                             // DIRECT RASTERIZATION: Bypass font fallback entirely
                             // Get the CacheKey directly from IconEngine using the icon font
-                            if let Some(cache_key) = icon_engine.get_cache_key(icon_char, *size as f64) {
+                            // Pass the already-locked font_system to avoid deadlock
+                            if let Some(cache_key) = icon_engine.get_cache_key(&mut font_system_lock, icon_char, *size as f64) {
                                 // Create glyph key for atlas (hash the font_id for consistent caching)
                                 use std::hash::{Hash, Hasher};
                                 use std::collections::hash_map::DefaultHasher;

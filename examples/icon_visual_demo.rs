@@ -18,15 +18,23 @@ struct IconShowcase {
     bounds: Rect,
     is_dirty: bool,
     image_id: Option<ImageId>,
+    image_size: Option<(f64, f64)>, // (width, height) of the actual image
 }
 
 impl IconShowcase {
     fn new(id: WidgetId) -> Self {
         // Try to load Tzuyu2.png if it exists
-        let image_id = if PathBuf::from("Tzuyu2.png").exists() {
-            Some(ImageId::from_file(PathBuf::from("Tzuyu2.png")))
+        let (image_id, image_size) = if PathBuf::from("Tzuyu2.png").exists() {
+            let id = ImageId::from_file(PathBuf::from("Tzuyu2.png"));
+            // Load the image to get its dimensions
+            if let Ok(img) = image::open("Tzuyu2.png") {
+                let (w, h) = (img.width() as f64, img.height() as f64);
+                (Some(id), Some((w, h)))
+            } else {
+                (Some(id), None)
+            }
         } else {
-            None
+            (None, None)
         };
 
         Self {
@@ -34,6 +42,7 @@ impl IconShowcase {
             bounds: Rect::new(Point::new(0.0, 0.0), Size::new(1000.0, 800.0)),
             is_dirty: true,
             image_id,
+            image_size,
         }
     }
 }
@@ -90,27 +99,82 @@ impl Widget for IconShowcase {
                 None,
             );
 
-            // Draw the image at 200x200
+            // Calculate scaled size maintaining aspect ratio
+            let (display_width, display_height) = if let Some((orig_w, orig_h)) = self.image_size {
+                // Scale to fit in 250px height while maintaining aspect ratio
+                let max_height = 250.0;
+                let scale = max_height / orig_h;
+                (orig_w * scale, orig_h * scale)
+            } else {
+                // Fallback to square if we don't know the size
+                (200.0, 200.0)
+            };
+
+            // Draw the image at actual aspect ratio
             let image_rect = Rect::new(
                 Point::new(550.0, 170.0),
-                Size::new(200.0, 200.0),
+                Size::new(display_width, display_height),
             );
             ctx.draw_image(image_id.clone(), image_rect, None);
 
-            // Label below image
+            // Label below image with actual dimensions
+            let label = if let Some((w, h)) = self.image_size {
+                format!("{}×{} (aspect ratio preserved)", w as u32, h as u32)
+            } else {
+                "GPU texture".to_string()
+            };
             ctx.draw_text(
-                "Individual texture (ImageCache + ImagePipeline)",
+                &label,
                 &assorted_widgets::text::TextStyle::new()
-                    .size(11.0)
+                    .size(14.0)
                     .color(Color::rgb(0.6, 0.6, 0.6)),
-                Point::new(550.0, 380.0),
+                Point::new(580.0, 170.0 + display_height + 10.0),
+                None,
+            );
+
+            // Tinted version
+            let tinted_y = 170.0 + display_height + 60.0;
+            ctx.draw_text(
+                "Tinted Version",
+                &assorted_widgets::text::TextStyle::new()
+                    .size(18.0)
+                    .color(Color::rgb(0.9, 0.9, 0.9)),
+                Point::new(550.0, tinted_y),
+                None,
+            );
+
+            // Smaller tinted version (scale to 150px height)
+            let (tinted_width, tinted_height) = if let Some((orig_w, orig_h)) = self.image_size {
+                let max_height = 150.0;
+                let scale = max_height / orig_h;
+                (orig_w * scale, orig_h * scale)
+            } else {
+                (150.0, 150.0)
+            };
+
+            let tinted_rect = Rect::new(
+                Point::new(550.0, tinted_y + 40.0),
+                Size::new(tinted_width, tinted_height),
+            );
+            ctx.draw_image(
+                image_id.clone(),
+                tinted_rect,
+                Some(Color::rgba(0.3, 0.6, 1.0, 0.7)),
+            );
+
+            ctx.draw_text(
+                &format!("{:.0}×{:.0} (blue tint)", tinted_width, tinted_height),
+                &assorted_widgets::text::TextStyle::new()
+                    .size(14.0)
+                    .color(Color::rgb(0.6, 0.6, 0.6)),
+                Point::new(570.0, tinted_y + 40.0 + tinted_height + 10.0),
                 None,
             );
         }
 
-        // Section 1: Large Icons
+        // ===== ICON RENDERING DEMO (Phase 5) =====
         ctx.draw_text(
-            "Large Icons (48pt)",
+            "Material Icons (Font-Based Rendering)",
             &assorted_widgets::text::TextStyle::new()
                 .size(18.0)
                 .color(Color::rgb(0.9, 0.9, 0.9)),
@@ -118,143 +182,108 @@ impl Widget for IconShowcase {
             None,
         );
 
-        let large_icons = vec![
-            ("search", 50.0, 170.0, Color::rgb(0.3, 0.6, 0.9)),     // Blue
-            ("home", 120.0, 170.0, Color::rgb(0.3, 0.8, 0.4)),      // Green
-            ("settings", 190.0, 170.0, Color::rgb(0.9, 0.5, 0.2)),  // Orange
-            ("favorite", 260.0, 170.0, Color::rgb(0.9, 0.2, 0.3)),  // Red
-            ("star", 330.0, 170.0, Color::rgb(1.0, 0.9, 0.2)),      // Yellow
-            ("person", 400.0, 170.0, Color::rgb(0.6, 0.3, 0.9)),    // Purple
+        // Icon grid - 4x3 grid of common icons
+        let icons = vec![
+            ("search", "search"),
+            ("home", "home"),
+            ("favorite", "favorite"),
+            ("star", "star"),
+            ("settings", "settings"),
+            ("person", "person"),
+            ("menu", "menu"),
+            ("close", "close"),
+            ("check", "check"),
+            ("add", "add"),
+            ("remove", "remove"),
+            ("info", "info"),
         ];
 
-        for (icon_id, x, y, color) in large_icons {
-            ctx.draw_icon(icon_id, Point::new(x, y), 48.0, color);
+        let start_x = 50.0;
+        let start_y = 170.0;
+        let icon_size = 48.0;
+        let grid_spacing_x = 110.0;
+        let grid_spacing_y = 120.0;
+
+        for (i, (icon_id, label)) in icons.iter().enumerate() {
+            let col = i % 4;
+            let row = i / 4;
+
+            let x = start_x + (col as f64 * grid_spacing_x);
+            let y = start_y + (row as f64 * grid_spacing_y);
+
+            // Draw the icon
+            ctx.draw_icon(
+                icon_id,
+                Point::new(x + 10.0, y),
+                icon_size,
+                Color::rgb(1.0, 1.0, 1.0),
+            );
 
             // Label below icon
             ctx.draw_text(
-                icon_id,
+                label,
                 &assorted_widgets::text::TextStyle::new()
-                    .size(11.0)
-                    .color(Color::rgb(0.6, 0.6, 0.6)),
-                Point::new(x - 5.0, y + 55.0),
+                    .size(12.0)
+                    .color(Color::rgb(0.7, 0.7, 0.7)),
+                Point::new(x, y + icon_size as f64 + 10.0),
                 None,
             );
         }
 
-        // Section 2: Medium Icons
+        // Colored icons demo
         ctx.draw_text(
-            "Medium Icons (32pt)",
+            "Colored Icons",
             &assorted_widgets::text::TextStyle::new()
                 .size(18.0)
                 .color(Color::rgb(0.9, 0.9, 0.9)),
-            Point::new(50.0, 280.0),
+            Point::new(50.0, 570.0),
             None,
         );
 
-        let medium_icons = vec![
-            ("notifications", 50.0, 320.0),
-            ("email", 110.0, 320.0),
-            ("calendar", 170.0, 320.0),
-            ("location", 230.0, 320.0),
-            ("phone", 290.0, 320.0),
-            ("camera", 350.0, 320.0),
-            ("music", 410.0, 320.0),
-            ("video", 470.0, 320.0),
+        let colored_icons = vec![
+            ("favorite", Color::rgb(1.0, 0.3, 0.3)), // Red
+            ("star", Color::rgb(1.0, 0.8, 0.2)),     // Yellow
+            ("check", Color::rgb(0.3, 1.0, 0.3)),    // Green
+            ("info", Color::rgb(0.3, 0.6, 1.0)),     // Blue
         ];
 
-        for (icon_id, x, y) in medium_icons {
-            ctx.draw_icon(icon_id, Point::new(x, y), 32.0, Color::rgb(0.7, 0.7, 0.7));
-        }
-
-        // Section 3: Small Icons
-        ctx.draw_text(
-            "Small Icons (24pt) - UI Controls",
-            &assorted_widgets::text::TextStyle::new()
-                .size(18.0)
-                .color(Color::rgb(0.9, 0.9, 0.9)),
-            Point::new(50.0, 400.0),
-            None,
-        );
-
-        let small_icons = vec![
-            ("check", 50.0, 440.0, Color::rgb(0.3, 0.8, 0.4)),       // Green checkmark
-            ("close", 90.0, 440.0, Color::rgb(0.9, 0.2, 0.3)),       // Red X
-            ("add", 130.0, 440.0, Color::rgb(0.3, 0.6, 0.9)),        // Blue plus
-            ("remove", 170.0, 440.0, Color::rgb(0.9, 0.5, 0.2)),     // Orange minus
-            ("edit", 210.0, 440.0, Color::rgb(0.6, 0.3, 0.9)),       // Purple edit
-            ("delete", 250.0, 440.0, Color::rgb(0.9, 0.2, 0.3)),     // Red delete
-            ("save", 290.0, 440.0, Color::rgb(0.3, 0.8, 0.4)),       // Green save
-            ("refresh", 330.0, 440.0, Color::rgb(0.3, 0.6, 0.9)),    // Blue refresh
-        ];
-
-        for (icon_id, x, y, color) in small_icons {
-            ctx.draw_icon(icon_id, Point::new(x, y), 24.0, color);
-        }
-
-        // Section 4: Icon Grid
-        ctx.draw_text(
-            "Icon Grid - All Available Icons",
-            &assorted_widgets::text::TextStyle::new()
-                .size(18.0)
-                .color(Color::rgb(0.9, 0.9, 0.9)),
-            Point::new(50.0, 510.0),
-            None,
-        );
-
-        // Draw a grid of all available icons
-        let grid_start_x = 50.0;
-        let grid_start_y = 550.0;
-        let icon_spacing = 50.0;
-        let icons_per_row = 15;
-
-        let all_icons = vec![
-            "search", "home", "settings", "favorite", "star", "person",
-            "notifications", "email", "calendar", "location", "phone",
-            "camera", "music", "video", "check", "close", "add", "remove",
-            "edit", "delete", "save", "refresh", "download", "upload",
-            "share", "link", "lock", "unlock", "visibility", "visibility_off",
-            "help", "info", "warning", "error", "done", "arrow_back",
-            "arrow_forward", "arrow_up", "arrow_down", "arrow_drop_down",
-            "arrow_drop_up", "menu", "more", "more_vert", "expand_more",
-            "expand_less", "folder", "insert_drive_file", "image", "audio",
-            "play", "pause",
-        ];
-
-        for (i, icon_id) in all_icons.iter().enumerate() {
-            let row = i / icons_per_row;
-            let col = i % icons_per_row;
-            let x = grid_start_x + (col as f64 * icon_spacing);
-            let y = grid_start_y + (row as f64 * icon_spacing);
+        for (i, (icon_id, color)) in colored_icons.iter().enumerate() {
+            let x = 50.0 + (i as f64 * 80.0);
+            let y = 610.0;
 
             ctx.draw_icon(
                 icon_id,
-                Point::new(x, y),
-                20.0,
-                Color::rgb(0.5, 0.5, 0.5),
+                Point::new(x + 5.0, y),
+                64.0,
+                *color,
             );
         }
 
-        // Footer
+        // Size variations
         ctx.draw_text(
-            "✅ Phase 5 Complete: Icons via TextPipeline • Images via ImagePipeline",
+            "Size Variations (24px, 48px, 72px)",
             &assorted_widgets::text::TextStyle::new()
-                .size(12.0)
-                .color(Color::rgb(0.5, 0.7, 0.3)),
-            Point::new(50.0, 750.0),
+                .size(14.0)
+                .color(Color::rgb(0.7, 0.7, 0.7)),
+            Point::new(50.0, 710.0),
             None,
         );
+
+        ctx.draw_icon("settings", Point::new(60.0, 735.0), 24.0, Color::rgb(0.8, 0.8, 0.8));
+        ctx.draw_icon("settings", Point::new(120.0, 723.0), 48.0, Color::rgb(0.8, 0.8, 0.8));
+        ctx.draw_icon("settings", Point::new(210.0, 705.0), 72.0, Color::rgb(0.8, 0.8, 0.8));
     }
 
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()
+    fn on_message(&mut self, _msg: &GuiMessage) -> Vec<DeferredCommand> {
+        vec![]
     }
 
     fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
+        vec![]
     }
 
-    fn set_dirty(&mut self, dirty: bool) {
-        self.is_dirty = dirty;
+    fn set_dirty(&mut self, _dirty: bool) {
+        self.is_dirty = _dirty;
     }
 
     fn is_dirty(&self) -> bool {
@@ -262,13 +291,7 @@ impl Widget for IconShowcase {
     }
 
     fn layout(&self) -> Style {
-        Style {
-            size: taffy::Size {
-                width: taffy::Dimension::length(self.bounds.size.width as f32),
-                height: taffy::Dimension::length(self.bounds.size.height as f32),
-            },
-            ..Default::default()
-        }
+        Default::default()
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -313,13 +336,26 @@ fn main() {
     }
     println!();
 
-    // Create showcase widget
-    let showcase = IconShowcase::new(WidgetId::new(1));
+    // Create showcase widget and add to window
+    {
+        let showcase = IconShowcase::new(WidgetId::new(1));
+        let window = app.window_mut(window_id).expect("Window not found");
 
-    // Add to window using clean API
-    let window = app.window_mut(window_id).expect("Window not found");
-    window.add_root(Box::new(showcase), Style::default())
-        .expect("Failed to add root widget");
+        use assorted_widgets::layout::Display;
+        window
+            .add_root(
+                Box::new(showcase),
+                Style {
+                    display: Display::Block,
+                    size: taffy::Size {
+                        width: taffy::Dimension::length(1000.0),
+                        height: taffy::Dimension::length(800.0),
+                    },
+                    ..Default::default()
+                },
+            )
+            .expect("Failed to add root widget");
+    }
 
     println!("Phase 5 showcase ready!");
     println!("Press Cmd+Q to quit.\n");
