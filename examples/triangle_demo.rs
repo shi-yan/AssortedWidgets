@@ -38,7 +38,6 @@ fn main() {
             // Create simple triangle widget
             println!("Creating triangle widget...");
             let triangle = SimpleTriangle::new(
-                assorted_widgets::types::WidgetId::new(1),
                 device,
                 queue,
                 surface_format,
@@ -47,12 +46,7 @@ fn main() {
             println!("  ✓ Pipeline created\n");
 
             app.spawn_window("Triangle Demo - RawSurface Test", 600.0, 600.0, |window| {
-                // Create container
-                let container = Container::new(
-                    assorted_widgets::types::WidgetId::new(100),
-                    taffy::Style::default(),
-                );
-
+                // Create container with layout style
                 let container_style = taffy::Style {
                     display: taffy::Display::Flex,
                     flex_direction: taffy::FlexDirection::Column,
@@ -65,30 +59,27 @@ fn main() {
                     ..Default::default()
                 };
 
-                window.add_root(Box::new(container), container_style)
-                    .expect("Failed to add container");
-
-                let container_id = assorted_widgets::types::WidgetId::new(100);
+                // ✅ Capture the container ID returned by add_root()
+                let container_id = window.add_root(
+                    Box::new(Container::new(taffy::Style::default())),
+                    container_style
+                ).expect("Failed to add container");
 
                 // Add title
-                let title = TextLabel::new(
-                    assorted_widgets::types::WidgetId::new(2),
-                    "Simple Triangle Test",
-                ).with_style(TextStyle::new().size(24.0).color(Color::WHITE));
+                let title = TextLabel::new("Simple Triangle Test")
+                    .with_style(TextStyle::new().size(24.0).color(Color::WHITE));
 
                 window.add_child(Box::new(title), taffy::Style::default(), container_id)
                     .expect("Failed to add title");
 
-                // Add FPS counter (will be updated via signal/slot system)
-                let fps_label = TextLabel::new(
-                    assorted_widgets::types::WidgetId::new(3),
-                    "FPS: 0",
-                ).with_style(TextStyle::new().size(20.0).color(Color::rgb(0.0, 1.0, 0.0)));
+                // Add FPS counter - capture the ID for signal connection
+                let fps_label = TextLabel::new("FPS: 0")
+                    .with_style(TextStyle::new().size(20.0).color(Color::rgb(0.0, 1.0, 0.0)));
 
-                window.add_child(Box::new(fps_label), taffy::Style::default(), container_id)
+                let fps_label_id = window.add_child(Box::new(fps_label), taffy::Style::default(), container_id)
                     .expect("Failed to add FPS label");
 
-                // Add triangle with explicit size
+                // Add triangle with explicit size - capture the ID for signal connection
                 let triangle_style = taffy::Style {
                     size: taffy::Size {
                         width: taffy::Dimension::length(400.0),
@@ -97,12 +88,10 @@ fn main() {
                     ..Default::default()
                 };
 
-                window.add_child(Box::new(triangle), triangle_style, container_id)
+                let triangle_id = window.add_child(Box::new(triangle), triangle_style, container_id)
                     .expect("Failed to add triangle");
 
                 // Connect triangle's FPS signal to FPS label (testing signal/slot system)
-                let triangle_id = assorted_widgets::types::WidgetId::new(1);
-                let fps_label_id = assorted_widgets::types::WidgetId::new(3);
                 window.connect(triangle_id, "fps_update".to_string(), fps_label_id);
 
                 println!("✅ Demo setup complete!\n");

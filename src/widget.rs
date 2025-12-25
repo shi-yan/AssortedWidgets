@@ -33,6 +33,10 @@ macro_rules! impl_widget_essentials {
             self.id
         }
 
+        fn set_id(&mut self, id: $crate::types::WidgetId) {
+            self.id = id;
+        }
+
         fn bounds(&self) -> $crate::types::Rect {
             self.bounds
         }
@@ -70,6 +74,12 @@ macro_rules! impl_widget_essentials {
 pub trait Widget {
     /// Returns the unique ID of this widget
     fn id(&self) -> WidgetId;
+
+    /// Set the widget ID (called by Window when adding widget)
+    ///
+    /// This is called by the window system when a widget is added to the UI tree.
+    /// Developers should NOT call this directly - IDs are managed by the framework.
+    fn set_id(&mut self, id: WidgetId);
 
     /// Handle incoming messages (the "slot" function)
     ///

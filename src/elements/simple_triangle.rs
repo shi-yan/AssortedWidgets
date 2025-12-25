@@ -31,12 +31,12 @@ pub struct SimpleTriangle {
 
 impl SimpleTriangle {
     pub fn new(
-        id: WidgetId,
         device: Arc<wgpu::Device>,
         queue: Arc<wgpu::Queue>,
         format: wgpu::TextureFormat,
         sample_count: u32,
     ) -> Self {
+        let id = WidgetId::new(0); // Placeholder, set by Window
         // Load shader
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Simple Triangle Shader"),
@@ -182,6 +182,10 @@ impl RawSurface for SimpleTriangle {
 impl Widget for SimpleTriangle {
     fn id(&self) -> WidgetId {
         self.id
+    }
+
+    fn set_id(&mut self, id: WidgetId) {
+        self.id = id;
     }
 
     fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {

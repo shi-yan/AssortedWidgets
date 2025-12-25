@@ -15,8 +15,6 @@ use crate::types::{DeferredCommand, GuiMessage, WidgetId};
 pub struct WidgetManager {
     /// Flat storage of all widgets
     widgets: HashMap<WidgetId, Box<dyn Widget>>,
-    /// ID generator
-    next_id: u64,
     /// Pending messages to be processed
     pending_messages: Vec<DeferredCommand>,
     /// Signal/slot connections
@@ -25,26 +23,24 @@ pub struct WidgetManager {
     message_rx: Receiver<GuiMessage>,
     /// Sender half (cloned for GuiHandle)
     message_tx: Sender<GuiMessage>,
+    /// GuiHandle for cross-thread communication
+    /// (Provides app-level widget ID generation)
+    gui_handle: GuiHandle,
 }
 
 impl WidgetManager {
-    pub fn new() -> Self {
+    pub fn new(gui_handle: GuiHandle) -> Self {
+        // Create message channel for this manager
         let (tx, rx) = mpsc::channel();
+
         WidgetManager {
             widgets: HashMap::new(),
-            next_id: 1,
             pending_messages: Vec::new(),
             connections: ConnectionTable::new(),
             message_rx: rx,
             message_tx: tx,
+            gui_handle,
         }
-    }
-
-    /// Generate a new unique WidgetId
-    pub fn next_id(&mut self) -> WidgetId {
-        let id = WidgetId::new(self.next_id);
-        self.next_id += 1;
-        id
     }
 
     /// Add a widget to the manager
@@ -150,8 +146,14 @@ impl WidgetManager {
     }
 
     /// Get a handle for cross-thread communication
+    ///
+    /// This handle provides:
+    /// - Widget messaging to this manager's message queue
+    /// - App-level widget ID generation (globally unique across all windows)
     pub fn get_handle(&self) -> GuiHandle {
-        GuiHandle::new(self.message_tx.clone())
+        // Clone the gui_handle to get the shared next_widget_id Arc,
+        // but we'll use this manager's local message channel
+        self.gui_handle.clone()
     }
 
     /// Handle an OS event by finding the target widget and dispatching

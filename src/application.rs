@@ -9,7 +9,9 @@ use crate::window::Window;
 use crate::platform::{PlatformWindow, PlatformWindowImpl, WindowCallbacks, WindowOptions};
 
 use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc;
 
 // ============================================================================
 // Drag State (for cross-window drag-drop)
@@ -86,6 +88,14 @@ pub struct Application {
     /// Created once, shared across all windows via Arc
     render_context: Arc<RenderContext>,
 
+    /// App-level widget ID counter (shared across all windows)
+    /// Ensures globally unique widget IDs in multi-window applications
+    next_widget_id: Arc<AtomicU64>,
+
+    /// Thread-safe handle for GUI operations (cloned and passed to windows)
+    /// Provides app-level widget ID generation and cross-thread messaging
+    gui_handle: GuiHandle,
+
     // ========================================
     // Event Queue (Application-wide)
     // ========================================
@@ -116,10 +126,21 @@ impl Application {
         let render_context = RenderContext::new().await?;
         let render_context_arc = Arc::new(render_context);
 
+        // Create app-level widget ID counter (starts at 1)
+        let next_widget_id = Arc::new(AtomicU64::new(1));
+
+        // Create message channel for cross-thread communication
+        let (message_tx, _message_rx) = mpsc::channel();
+
+        // Create GuiHandle with app-level ID generation
+        let gui_handle = GuiHandle::new(message_tx, Arc::clone(&next_widget_id));
+
         Ok(Application {
             windows: HashMap::new(),
             next_window_id: 1,
             render_context: render_context_arc,
+            next_widget_id,
+            gui_handle,
             event_queue: Arc::new(Mutex::new(VecDeque::new())),
             drag_state: None,
         })
@@ -177,12 +198,14 @@ impl Application {
         platform_window.set_callbacks(callbacks);
 
         // Create window (uses logical size for layout calculations)
+        // Pass cloned GuiHandle for app-level widget ID generation
         let window = Window::new(
             window_id,
             platform_window,
             window_renderer,
             window_size,
             Arc::clone(&self.event_queue),
+            self.gui_handle.clone(),
         );
 
         // Store window
@@ -203,10 +226,11 @@ impl Application {
 
     /// Get handle for interacting with UI elements
     ///
-    /// For now, this returns the handle from the first window.
-    /// In a multi-window app, you'd specify which window's handle you want.
-    pub fn get_handle(&self) -> Option<GuiHandle> {
-        self.windows.values().next().map(|w| w.get_handle())
+    /// Returns the app-level GuiHandle which provides:
+    /// - App-level widget ID generation (globally unique across all windows)
+    /// - Cross-thread messaging to GUI thread
+    pub fn get_handle(&self) -> GuiHandle {
+        self.gui_handle.clone()
     }
 
     /// Get reference to shared render context

@@ -56,6 +56,10 @@ impl Widget for ClickableRect {
         self.id
     }
 
+    fn set_id(&mut self, id: WidgetId) {
+        self.id = id;
+    }
+
     fn bounds(&self) -> Rect {
         self.bounds
     }

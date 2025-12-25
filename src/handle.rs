@@ -1,5 +1,7 @@
 use std::any::Any;
 use std::sync::mpsc::Sender;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use crate::types::{GuiMessage, WidgetId};
 
@@ -8,14 +10,29 @@ use crate::types::{GuiMessage, WidgetId};
 // ============================================================================
 
 /// Thread-safe handle for sending messages to the GUI from other threads
+///
+/// Also provides app-level widget ID generation to ensure globally unique IDs
+/// across all windows in a multi-window application.
 #[derive(Clone)]
 pub struct GuiHandle {
     tx: Sender<GuiMessage>,
+    /// App-level widget ID counter (shared across all windows)
+    /// Ensures globally unique widget IDs in multi-window applications
+    next_widget_id: Arc<AtomicU64>,
 }
 
 impl GuiHandle {
-    pub(crate) fn new(tx: Sender<GuiMessage>) -> Self {
-        GuiHandle { tx }
+    pub(crate) fn new(tx: Sender<GuiMessage>, next_widget_id: Arc<AtomicU64>) -> Self {
+        GuiHandle { tx, next_widget_id }
+    }
+
+    /// Generate a new globally unique WidgetId (app-level)
+    ///
+    /// This method is thread-safe and can be called from any window.
+    /// IDs are guaranteed to be unique across all windows in the application.
+    pub fn next_widget_id(&self) -> WidgetId {
+        let id = self.next_widget_id.fetch_add(1, Ordering::Relaxed);
+        WidgetId::new(id)
     }
 
     /// Send a message to the GUI thread

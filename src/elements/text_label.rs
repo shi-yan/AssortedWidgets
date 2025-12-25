@@ -41,9 +41,9 @@ pub struct TextLabel {
 
 impl TextLabel {
     /// Create a new text label
-    pub fn new(id: WidgetId, text: impl Into<String>) -> Self {
+    pub fn new(text: impl Into<String>) -> Self {
         Self {
-            id,
+            id: WidgetId::new(0), // Placeholder, set by Window
             bounds: Rect::default(),
             dirty: true,
             style: Style::default(),
@@ -158,6 +158,10 @@ impl TextLabel {
 impl Widget for TextLabel {
     fn id(&self) -> WidgetId {
         self.id
+    }
+
+    fn set_id(&mut self, id: WidgetId) {
+        self.id = id;
     }
 
     fn on_message(&mut self, message: &GuiMessage) -> Vec<DeferredCommand> {

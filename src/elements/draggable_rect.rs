@@ -68,6 +68,10 @@ impl Widget for DraggableRect {
         self.id
     }
 
+    fn set_id(&mut self, id: WidgetId) {
+        self.id = id;
+    }
+
     fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
         Vec::new()
     }

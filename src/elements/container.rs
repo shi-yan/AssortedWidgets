@@ -18,9 +18,9 @@ pub struct Container {
 }
 
 impl Container {
-    pub fn new(id: WidgetId, style: Style) -> Self {
+    pub fn new(style: Style) -> Self {
         Container {
-            id,
+            id: WidgetId::new(0), // Placeholder, set by Window
             bounds: Rect::default(),
             dirty: true,
             style,
@@ -31,6 +31,10 @@ impl Container {
 impl Widget for Container {
     fn id(&self) -> WidgetId {
         self.id
+    }
+
+    fn set_id(&mut self, id: WidgetId) {
+        self.id = id;
     }
 
     fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {

@@ -1,6 +1,7 @@
 use crate::widget::Widget;
 use crate::widget_manager::WidgetManager;
 use crate::event::{FocusManager, GuiEvent, HitTester, InputEventEnum, MouseCapture};
+use crate::handle::GuiHandle;
 use crate::layout::LayoutManager;
 use crate::paint::PaintContext;
 use crate::render::{RenderContext, WindowRenderer};
@@ -98,11 +99,12 @@ impl Window {
         window_renderer: WindowRenderer,
         window_size: Size,
         event_queue: Arc<Mutex<VecDeque<(WindowId, GuiEvent)>>>,
+        gui_handle: GuiHandle,
     ) -> Self {
         Window {
             id,
             platform_window,
-            widgets: WidgetManager::new(),
+            widgets: WidgetManager::new(gui_handle),
             widget_tree: WidgetTree::new(),
             layout_manager: LayoutManager::new(),
             window_size,
@@ -207,9 +209,10 @@ impl Window {
     /// Add a widget as the root of the window
     ///
     /// This is the clean API that coordinates three internal systems:
-    /// 1. Adds widget to WidgetManager
-    /// 2. Creates root node in LayoutManager
-    /// 3. Sets root in WidgetTree
+    /// 1. Generates unique widget ID (app-level, globally unique)
+    /// 2. Adds widget to WidgetManager
+    /// 3. Creates root node in LayoutManager
+    /// 4. Sets root in WidgetTree
     ///
     /// # Arguments
     /// * `widget` - The widget to add (must implement Widget trait)
@@ -217,8 +220,8 @@ impl Window {
     ///
     /// # Example
     /// ```ignore
-    /// let panel = Panel::new(WidgetId::new(1));
-    /// window.add_root(Box::new(panel), Style {
+    /// let panel = Panel::new();  // No ID needed!
+    /// let panel_id = window.add_root(Box::new(panel), Style {
     ///     display: Display::Flex,
     ///     flex_direction: FlexDirection::Column,
     ///     ..Default::default()
@@ -226,10 +229,14 @@ impl Window {
     /// ```
     pub fn add_root(
         &mut self,
-        widget: Box<dyn Widget>,
+        mut widget: Box<dyn Widget>,
         style: crate::layout::Style,
     ) -> Result<WidgetId, String> {
-        let widget_id = widget.id();
+        // Generate app-level unique widget ID
+        let widget_id = self.widgets.get_handle().next_widget_id();
+
+        // Assign ID to widget
+        widget.set_id(widget_id);
 
         // 1. Add to WidgetManager
         self.widgets.add_widget(widget);
@@ -257,9 +264,10 @@ impl Window {
     /// Add a widget as a child of an existing parent widget
     ///
     /// This is the clean API that coordinates three internal systems:
-    /// 1. Adds widget to WidgetManager
-    /// 2. Creates child node in LayoutManager and establishes parent-child relationship
-    /// 3. Adds child to parent in WidgetTree
+    /// 1. Generates unique widget ID (app-level, globally unique)
+    /// 2. Adds widget to WidgetManager
+    /// 3. Creates child node in LayoutManager and establishes parent-child relationship
+    /// 4. Adds child to parent in WidgetTree
     ///
     /// # Arguments
     /// * `widget` - The widget to add (must implement Widget trait)
@@ -268,8 +276,8 @@ impl Window {
     ///
     /// # Example
     /// ```ignore
-    /// let button = Button::new(WidgetId::new(2));
-    /// window.add_child(Box::new(button), Style {
+    /// let button = Button::new();  // No ID needed!
+    /// let button_id = window.add_child(Box::new(button), Style {
     ///     size: Size {
     ///         width: Dimension::Length(100.0),
     ///         height: Dimension::Length(30.0),
@@ -279,11 +287,15 @@ impl Window {
     /// ```
     pub fn add_child(
         &mut self,
-        widget: Box<dyn Widget>,
+        mut widget: Box<dyn Widget>,
         style: crate::layout::Style,
         parent_id: WidgetId,
     ) -> Result<WidgetId, String> {
-        let widget_id = widget.id();
+        // Generate app-level unique widget ID
+        let widget_id = self.widgets.get_handle().next_widget_id();
+
+        // Assign ID to widget
+        widget.set_id(widget_id);
 
         // 1. Add to WidgetManager
         self.widgets.add_widget(widget);
@@ -339,11 +351,15 @@ impl Window {
     ///
     /// # Example
     /// ```ignore
-    /// let tooltip = Tooltip::new(WidgetId::new(3), "Hello!".to_string());
-    /// window.add_floating(Box::new(tooltip))?;
+    /// let tooltip = Tooltip::new("Hello!".to_string());  // No ID needed!
+    /// let tooltip_id = window.add_floating(Box::new(tooltip))?;
     /// ```
-    pub fn add_floating(&mut self, widget: Box<dyn Widget>) -> Result<WidgetId, String> {
-        let widget_id = widget.id();
+    pub fn add_floating(&mut self, mut widget: Box<dyn Widget>) -> Result<WidgetId, String> {
+        // Generate app-level unique widget ID
+        let widget_id = self.widgets.get_handle().next_widget_id();
+
+        // Assign ID to widget
+        widget.set_id(widget_id);
 
         // 1. Add to WidgetManager
         self.widgets.add_widget(widget);

@@ -9,7 +9,7 @@
 use assorted_widgets::paint::{
     Color, LineCap, LineJoin, Path, Stroke,
 };
-use assorted_widgets::types::{Point, Rect, Size, WidgetId};
+use assorted_widgets::types::{Point, Rect, WidgetId};
 use assorted_widgets::{Application, Widget};
 
 /// Phase 4 visual test widget
@@ -19,8 +19,11 @@ struct Phase4PathsTest {
 }
 
 impl Phase4PathsTest {
-    fn new(id: WidgetId, bounds: Rect) -> Self {
-        Self { id, bounds }
+    fn new() -> Self {
+        Self {
+            id: WidgetId::new(0), // Placeholder, will be set by Window
+            bounds: Rect::default(),
+        }
     }
 }
 
@@ -266,11 +269,8 @@ fn main() {
         // ✨ New ergonomic API - no pollster::block_on, no window ID juggling!
         Application::launch(|app| {
             app.spawn_window("Phase 4 - Lines and Paths", 750.0, 480.0, |window| {
-                // Create and set the main widget
-                let demo = Phase4PathsTest::new(
-                    WidgetId::new(1),
-                    Rect::new(Point::new(0.0, 0.0), Size::new(750.0, 480.0)),
-                );
+                // ✅ Create widget without manual ID or bounds - Window manages them!
+                let demo = Phase4PathsTest::new();
 
                 window.set_main_widget(demo);
 
