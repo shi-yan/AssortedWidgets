@@ -82,6 +82,10 @@ pub struct WindowRenderer {
     path_uniform_buffer: wgpu::Buffer,
     path_uniform_bind_group: wgpu::BindGroup,
 
+    /// Image uniforms (contains screen_size specific to this window) - Phase 5
+    image_uniform_buffer: wgpu::Buffer,
+    image_uniform_bind_group: wgpu::BindGroup,
+
     // ========================================
     // MSAA (Multisample Anti-Aliasing)
     // ========================================
@@ -217,6 +221,26 @@ impl WindowRenderer {
         let path_uniform_buffer = context.path_pipeline.create_uniform_buffer(device, logical_width, logical_height);
         let path_uniform_bind_group = context.path_pipeline.create_bind_group(device, &path_uniform_buffer);
 
+        // Create image uniforms and bind group (Phase 5)
+        // IMPORTANT: Use logical size (not physical pixels) to match coordinate system
+        let image_uniforms = TextUniforms {
+            screen_size: logical_size,
+            _padding: [0.0, 0.0],
+        };
+        let image_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Image Uniform Buffer"),
+            contents: bytemuck::cast_slice(&[image_uniforms]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let image_uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Image Uniform Bind Group"),
+            layout: &context.image_pipeline.uniform_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: image_uniform_buffer.as_entire_binding(),
+            }],
+        });
+
         // Create MSAA texture if sample count > 1
         let (msaa_texture, msaa_view) = if context.sample_count > 1 {
             let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -253,6 +277,8 @@ impl WindowRenderer {
             rect_sdf_clip_uniform_bind_group,
             path_uniform_buffer,
             path_uniform_bind_group,
+            image_uniform_buffer,
+            image_uniform_bind_group,
             msaa_texture,
             msaa_view,
             rect_instance_buffer: None,
@@ -516,6 +542,57 @@ impl WindowRenderer {
         // Lock shared resources briefly to update frame counters
         self.render_context.glyph_atlas.lock().unwrap().begin_frame();
         self.render_context.text_engine.lock().unwrap().begin_frame();
+    }
+
+    /// Render a single image (Phase 5)
+    ///
+    /// This renders an image using the ImagePipeline with a textured quad.
+    ///
+    /// # Arguments
+    /// * `render_pass` - Active render pass
+    /// * `instance` - Image instance data (position, size, tint, clip)
+    /// * `texture` - GPU texture containing the image data
+    /// * `texture_view` - Texture view for binding
+    /// * `image_pipeline` - Shared image rendering pipeline
+    pub fn render_image(
+        &mut self,
+        render_pass: &mut wgpu::RenderPass,
+        instance: &crate::render::ImageInstance,
+        texture: &wgpu::Texture,
+        texture_view: &wgpu::TextureView,
+        image_pipeline: &crate::render::ImagePipeline,
+    ) {
+        let device = self.render_context.device();
+
+        // Create instance buffer
+        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Image Instance Buffer"),
+            contents: bytemuck::cast_slice(&[*instance]),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        // Create texture bind group for this specific image
+        let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Image Texture Bind Group"),
+            layout: &image_pipeline.texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&image_pipeline.sampler),
+                },
+            ],
+        });
+
+        // Render the image
+        render_pass.set_pipeline(&image_pipeline.pipeline);
+        render_pass.set_bind_group(0, &self.image_uniform_bind_group, &[]);
+        render_pass.set_bind_group(1, &texture_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, instance_buffer.slice(..));
+        render_pass.draw(0..4, 0..1); // 4 vertices for quad (triangle strip)
     }
 }
 

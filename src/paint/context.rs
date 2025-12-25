@@ -76,6 +76,12 @@ pub struct PaintContext<'a> {
     /// Collected text glyph instances
     text: Vec<TextInstance>,
 
+    /// Collected icon draw commands (Phase 5)
+    icon_commands: Vec<DrawCommand>,
+
+    /// Collected image draw commands (Phase 5)
+    image_commands: Vec<DrawCommand>,
+
     /// Window size (for projection matrix)
     window_size: Size,
 
@@ -103,6 +109,8 @@ impl<'a> PaintContext<'a> {
             sdf_commands: Vec::new(),
             path_commands: Vec::new(),
             text: Vec::new(),
+            icon_commands: Vec::new(),
+            image_commands: Vec::new(),
             window_size,
             clip_stack: Vec::new(),
             bundle,
@@ -357,6 +365,59 @@ impl<'a> PaintContext<'a> {
         self.z_order += 1;
     }
 
+    /// Draw an icon from the Material Icons font (Phase 5)
+    ///
+    /// Icons are rendered as glyphs from the embedded icon font, sharing the
+    /// same GlyphAtlas infrastructure as text rendering for efficient batching.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// // Draw a search icon
+    /// ctx.draw_icon(
+    ///     "search",
+    ///     Point::new(10.0, 10.0),
+    ///     24.0,  // size in points
+    ///     Color::rgb(0.3, 0.6, 0.9),
+    /// );
+    /// ```
+    pub fn draw_icon(&mut self, icon_id: &str, position: Point, size: f32, color: Color) {
+        self.icon_commands.push(DrawCommand::Icon {
+            icon_id: icon_id.to_string(),
+            position,
+            size,
+            color,
+            z_index: self.z_order as i32,
+        });
+        self.z_order += 1;
+    }
+
+    /// Draw an image (Phase 5)
+    ///
+    /// Images are rendered using individual GPU textures with LRU caching.
+    /// Supports PNG, JPG, WebP formats.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use assorted_widgets::image::ImageId;
+    /// use std::path::PathBuf;
+    ///
+    /// let image_id = ImageId::from_file(PathBuf::from("avatar.png"));
+    /// ctx.draw_image(
+    ///     image_id,
+    ///     Rect::new(Point::new(50.0, 50.0), Size::new(200.0, 200.0)),
+    ///     None,  // No tinting
+    /// );
+    /// ```
+    pub fn draw_image(&mut self, image_id: crate::image::ImageId, rect: Rect, tint: Option<Color>) {
+        self.image_commands.push(DrawCommand::Image {
+            image_id,
+            rect,
+            tint,
+            z_index: self.z_order as i32,
+        });
+        self.z_order += 1;
+    }
+
     /// Draw a single text glyph
     ///
     /// For Phase 3.1, this is used to draw individual characters manually positioned.
@@ -560,7 +621,9 @@ impl<'a> PaintContext<'a> {
 
     /// Internal method for rendering text layouts (static to avoid borrow issues)
     /// Takes individual fields instead of bundle to avoid double-borrow issues
-    fn render_text_layout_internal(
+    ///
+    /// This is public to allow icon rendering (which uses the same text pipeline)
+    pub fn render_text_layout_internal(
         layout: &TextLayout,
         position: Point,
         color: Color,
@@ -752,12 +815,24 @@ impl<'a> PaintContext<'a> {
         &self.path_commands
     }
 
+    /// Get the collected icon draw commands (Phase 5)
+    pub fn icon_commands(&self) -> &[DrawCommand] {
+        &self.icon_commands
+    }
+
+    /// Get the collected image draw commands (Phase 5)
+    pub fn image_commands(&self) -> &[DrawCommand] {
+        &self.image_commands
+    }
+
     /// Clear all collected primitives
     pub fn clear(&mut self) {
         self.rects.clear();
         self.sdf_commands.clear();
         self.path_commands.clear();
         self.text.clear();
+        self.icon_commands.clear();
+        self.image_commands.clear();
     }
 
     /// Get window size

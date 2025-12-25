@@ -1,4 +1,5 @@
 use crate::types::{Point, Rect};
+use crate::image::ImageId;
 pub use super::gradient::{LinearGradient, RadialGradient};
 pub use super::path::{Path, Stroke};
 pub use super::primitives::Color;
@@ -191,6 +192,21 @@ pub enum DrawCommand {
         stroke: Option<Stroke>,
         z_index: i32,
     },
+    /// Draw an icon by ID (from Material Icons font)
+    Icon {
+        icon_id: String,
+        position: Point,
+        size: f32,
+        color: Color,
+        z_index: i32,
+    },
+    /// Draw an image (photo, avatar, etc.)
+    Image {
+        image_id: ImageId,
+        rect: Rect,
+        tint: Option<Color>,
+        z_index: i32,
+    },
     /// Push a clipping region (rounded rectangle)
     PushClip {
         rect: Rect,
@@ -207,6 +223,8 @@ impl DrawCommand {
             DrawCommand::Rect { z_index, .. } => *z_index,
             DrawCommand::Line { z_index, .. } => *z_index,
             DrawCommand::Path { z_index, .. } => *z_index,
+            DrawCommand::Icon { z_index, .. } => *z_index,
+            DrawCommand::Image { z_index, .. } => *z_index,
             DrawCommand::PushClip { .. } | DrawCommand::PopClip => 0,
         }
     }
@@ -217,6 +235,8 @@ impl DrawCommand {
             DrawCommand::Rect { .. } => 0,
             DrawCommand::Line { .. } => 1,
             DrawCommand::Path { .. } => 2,
+            DrawCommand::Icon { .. } => 3,
+            DrawCommand::Image { .. } => 4,
             DrawCommand::PushClip { .. } => u32::MAX - 1,
             DrawCommand::PopClip => u32::MAX,
         }

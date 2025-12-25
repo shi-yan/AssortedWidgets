@@ -34,6 +34,7 @@
 //! ```
 
 mod context;
+mod image_pipeline;
 mod path_pipeline;
 mod pipelines;
 mod rect_sdf_pipeline;
@@ -41,6 +42,7 @@ mod shadow_sdf_pipeline;
 mod window_renderer;
 
 pub use context::RenderContext;
+pub use image_pipeline::{ImageInstance, ImagePipeline};
 pub use path_pipeline::PathPipeline;
 pub use pipelines::{RectPipeline, TextPipeline};
 pub use rect_sdf_pipeline::RectSdfPipeline;

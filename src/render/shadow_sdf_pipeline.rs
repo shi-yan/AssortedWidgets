@@ -197,6 +197,8 @@ impl ShadowSdfPipeline {
                 // Other commands don't cast shadows (lines and paths could, but not implemented yet)
                 DrawCommand::Line { .. }
                 | DrawCommand::Path { .. }
+                | DrawCommand::Icon { .. }
+                | DrawCommand::Image { .. }
                 | DrawCommand::PushClip { .. }
                 | DrawCommand::PopClip => None,
             })

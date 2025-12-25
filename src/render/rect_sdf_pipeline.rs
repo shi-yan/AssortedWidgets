@@ -346,6 +346,8 @@ impl RectSdfPipeline {
                 // Other commands are not rendered by this pipeline
                 DrawCommand::Line { .. }
                 | DrawCommand::Path { .. }
+                | DrawCommand::Icon { .. }
+                | DrawCommand::Image { .. }
                 | DrawCommand::PushClip { .. }
                 | DrawCommand::PopClip => None,
             })

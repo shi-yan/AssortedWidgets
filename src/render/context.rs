@@ -3,7 +3,9 @@
 use std::sync::{Arc, Mutex};
 use crate::text::{GlyphAtlas, FontSystemWrapper, TextEngine};
 use crate::render::pipelines::{RectPipeline, TextPipeline};
-use crate::render::{RectSdfPipeline, ShadowSdfPipeline, PathPipeline};
+use crate::render::{RectSdfPipeline, ShadowSdfPipeline, PathPipeline, ImagePipeline};
+use crate::icon::IconEngine;
+use crate::image::ImageCache;
 
 /// Shared rendering context containing GPU resources and rendering state
 ///
@@ -52,11 +54,16 @@ pub struct RenderContext {
     /// Used for rendering vector graphics (lines, bezier curves)
     pub path_pipeline: PathPipeline,
 
+    /// Image rendering pipeline (shared across all windows)
+    /// Used for rendering textured quads (photos, avatars, etc.)
+    pub image_pipeline: ImagePipeline,
+
     // ========================================
     // Rendering Resources (High-Level)
     // ========================================
     /// Multi-page glyph atlas (thread-safe, shared across windows)
     /// Contains glyphs at all scale factors (1.0x, 2.0x, etc.)
+    /// Shared between TextEngine and IconEngine
     pub glyph_atlas: Arc<Mutex<GlyphAtlas>>,
 
     /// Font system for discovery and rasterization
@@ -66,6 +73,14 @@ pub struct RenderContext {
     /// Text layout engine with dual-mode caching
     /// Shaped text results shared across windows
     pub text_engine: Arc<Mutex<TextEngine>>,
+
+    /// Icon rendering engine (Material Icons font)
+    /// Shares glyph atlas with text for efficient batching
+    pub icon_engine: Arc<Mutex<IconEngine>>,
+
+    /// Image cache (LRU eviction for photos/avatars)
+    /// Individual textures, not atlas-based
+    pub image_cache: Arc<Mutex<ImageCache>>,
 
     // ========================================
     // Surface Configuration
@@ -152,17 +167,35 @@ impl RenderContext {
         println!("  ✓ Creating shared path pipeline...");
         let path_pipeline = PathPipeline::new(&device, surface_format, sample_count);
 
+        println!("  ✓ Creating shared image pipeline...");
+        let image_pipeline = ImagePipeline::new(&device, surface_format, sample_count);
+
         // Create glyph atlas (2048×2048 with up to 16 pages)
         println!("  ✓ Creating glyph atlas (2048×2048, 16 pages max)...");
-        let glyph_atlas = GlyphAtlas::new(&device, 2048, 16);
+        let glyph_atlas = Arc::new(Mutex::new(GlyphAtlas::new(&device, 2048, 16)));
 
         // Create font system
         println!("  ✓ Initializing font system...");
-        let font_system = FontSystemWrapper::new();
+        let font_system = Arc::new(Mutex::new(FontSystemWrapper::new()));
 
         // Create text engine
         println!("  ✓ Creating text engine...");
-        let text_engine = TextEngine::new();
+        let text_engine = Arc::new(Mutex::new(TextEngine::new()));
+
+        // Create icon engine (shares glyph atlas and font system)
+        println!("  ✓ Creating icon engine (Material Icons)...");
+        let icon_engine = Arc::new(Mutex::new(IconEngine::new(
+            font_system.clone(),
+            glyph_atlas.clone(),
+        )));
+
+        // Create image cache (256 MB default)
+        println!("  ✓ Creating image cache (256 MB)...");
+        let image_cache = Arc::new(Mutex::new(ImageCache::new(
+            device.clone(),
+            queue.clone(),
+            256, // 256 MB max cache size
+        )));
 
         println!("Shared rendering resources initialized successfully!");
 
@@ -176,9 +209,12 @@ impl RenderContext {
             rect_sdf_pipeline,
             shadow_sdf_pipeline,
             path_pipeline,
-            glyph_atlas: Arc::new(Mutex::new(glyph_atlas)),
-            font_system: Arc::new(Mutex::new(font_system)),
-            text_engine: Arc::new(Mutex::new(text_engine)),
+            image_pipeline,
+            glyph_atlas,
+            font_system,
+            text_engine,
+            icon_engine,
+            image_cache,
             surface_format,
             sample_count,
         })

@@ -101,6 +101,62 @@ impl PrimitiveBatcher {
         });
     }
 
+    // === Icons ===
+
+    /// Draw an icon at the default layer (NORMAL = 0)
+    ///
+    /// Icons are rendered as glyphs from the Material Icons font.
+    /// Use human-readable icon IDs like "search", "home", "settings", etc.
+    ///
+    /// # Arguments
+    /// * `icon_id` - Human-readable icon identifier (e.g., "search")
+    /// * `position` - Top-left position of the icon
+    /// * `size` - Font size for the icon (in points)
+    /// * `color` - Icon color
+    pub fn draw_icon(&mut self, icon_id: &str, position: Point, size: f32, color: Color) {
+        self.draw_icon_z(icon_id, position, size, color, layers::NORMAL);
+    }
+
+    /// Draw an icon with explicit z-index
+    pub fn draw_icon_z(&mut self, icon_id: &str, position: Point, size: f32, color: Color, z_index: i32) {
+        self.commands.push(DrawCommand::Icon {
+            icon_id: icon_id.to_string(),
+            position,
+            size,
+            color,
+            z_index,
+        });
+    }
+
+    // === Images ===
+
+    /// Draw an image at the default layer (NORMAL = 0)
+    ///
+    /// Images are rendered using individual GPU textures (not atlas-based).
+    /// Supports PNG, JPG, WebP formats.
+    ///
+    /// # Arguments
+    /// * `image_id` - Image identifier (from ImageId::from_file)
+    /// * `rect` - Destination rectangle (position and size)
+    pub fn draw_image(&mut self, image_id: crate::image::ImageId, rect: Rect) {
+        self.draw_image_z(image_id, rect, None, layers::NORMAL);
+    }
+
+    /// Draw an image with color tinting
+    pub fn draw_image_tinted(&mut self, image_id: crate::image::ImageId, rect: Rect, tint: Color) {
+        self.draw_image_z(image_id, rect, Some(tint), layers::NORMAL);
+    }
+
+    /// Draw an image with explicit z-index and optional tinting
+    pub fn draw_image_z(&mut self, image_id: crate::image::ImageId, rect: Rect, tint: Option<Color>, z_index: i32) {
+        self.commands.push(DrawCommand::Image {
+            image_id,
+            rect,
+            tint,
+            z_index,
+        });
+    }
+
     // === Clipping ===
 
     /// Push a rectangular clipping region (axis-aligned, no rounding)

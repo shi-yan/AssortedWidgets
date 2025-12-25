@@ -909,7 +909,7 @@ impl Window {
         self.window_renderer.begin_frame();
 
         // Paint phase - collect draw commands
-        let (rect_instances, sdf_commands, path_commands, text_instances) = {
+        let (rect_instances, sdf_commands, path_commands, text_instances, icon_commands, image_commands) = {
             // Lock shared resources for the duration of the frame
             let mut atlas_lock = render_context.glyph_atlas.lock().unwrap();
             let mut font_system_lock = render_context.font_system.lock().unwrap();
@@ -940,6 +940,8 @@ impl Window {
             let sdf_commands = paint_ctx.sdf_commands().to_vec();
             let path_commands = paint_ctx.path_commands().to_vec();
             let mut text_instances = paint_ctx.text_instances().to_vec();
+            let icon_commands = paint_ctx.icon_commands().to_vec();
+            let image_commands = paint_ctx.image_commands().to_vec();
 
             // Sort by z-order (low to high) for correct overlapping
             // Elements with lower z-order are drawn first (appear behind)
@@ -947,7 +949,7 @@ impl Window {
             rect_instances.sort_by_key(|inst| inst.z_order);
             text_instances.sort_by_key(|inst| inst.z_order);
 
-            (rect_instances, sdf_commands, path_commands, text_instances)
+            (rect_instances, sdf_commands, path_commands, text_instances, icon_commands, image_commands)
         };
 
         // Rebuild focus manager to sync with current element tree
@@ -1042,6 +1044,163 @@ impl Window {
             let atlas_texture_view = atlas_lock.texture_view();
             self.window_renderer.render_text(&mut render_pass, &text_instances, atlas_texture_view);
             drop(atlas_lock);
+
+            // Render all icons (Phase 5)
+            // Icons are rendered as text glyphs from the Material Icons font
+            if !icon_commands.is_empty() {
+                let mut icon_text_instances = Vec::new();
+
+                // Lock shared resources for icon rendering
+                let icon_engine = render_context.icon_engine.lock().unwrap();
+                let mut atlas_lock = render_context.glyph_atlas.lock().unwrap();
+                let mut font_system_lock = render_context.font_system.lock().unwrap();
+                let mut text_engine_lock = render_context.text_engine.lock().unwrap();
+
+                for cmd in &icon_commands {
+                    if let crate::paint::DrawCommand::Icon { icon_id, position, size, color, z_index } = cmd {
+                        // Get Unicode character for this icon
+                        if let Some(icon_char) = icon_engine.get_icon_char(icon_id) {
+                            // DIRECT RASTERIZATION: Bypass font fallback entirely
+                            // Get the CacheKey directly from IconEngine using the icon font
+                            if let Some(cache_key) = icon_engine.get_cache_key(icon_char, *size as f64) {
+                                // Create glyph key for atlas (hash the font_id for consistent caching)
+                                use std::hash::{Hash, Hasher};
+                                use std::collections::hash_map::DefaultHasher;
+
+                                let mut hasher = DefaultHasher::new();
+                                cache_key.font_id.hash(&mut hasher);
+                                cache_key.glyph_id.hash(&mut hasher);
+                                let font_id_hash = hasher.finish() as usize;
+
+                                let glyph_key = crate::text::GlyphKey {
+                                    font_id: font_id_hash,
+                                    size_bits: (*size * 1024.0) as u32,
+                                    character: icon_char,
+                                    subpixel_offset: 0,
+                                    scale_factor: (scale_factor * 100.0) as u8,
+                                };
+
+                                // Get or rasterize the glyph
+                                let location = if let Some(&loc) = atlas_lock.get(&glyph_key) {
+                                    atlas_lock.mark_glyph_used(&glyph_key);
+                                    loc
+                                } else {
+                                    // Rasterize using the cache_key from IconEngine
+                                    if let Some(rasterized) = font_system_lock.rasterize_glyph(cache_key) {
+                                        match atlas_lock.insert(
+                                            &render_context.queue,
+                                            glyph_key,
+                                            &rasterized.pixels,
+                                            rasterized.width,
+                                            rasterized.height,
+                                            rasterized.offset_x,
+                                            rasterized.offset_y,
+                                            rasterized.is_color,
+                                            scale_factor,
+                                        ) {
+                                            Ok(loc) => loc,
+                                            Err(e) => {
+                                                eprintln!("❌ Failed to insert icon glyph '{}': {}", icon_id, e);
+                                                continue;
+                                            }
+                                        }
+                                    } else {
+                                        eprintln!("❌ Failed to rasterize icon '{}'", icon_id);
+                                        continue;
+                                    }
+                                };
+
+                                // Create text instance for the icon
+                                let glyph_x = position.x as f32 + location.logical_offset_x;
+                                let glyph_y = position.y as f32 - location.logical_offset_y;
+
+                                // Full window clip rect (no clipping for icons)
+                                let clip_rect = [0.0, 0.0, self.window_size.width as f32, self.window_size.height as f32];
+
+                                let instance = crate::text::TextInstance::new(
+                                    glyph_x,
+                                    glyph_y,
+                                    location.logical_width,
+                                    location.logical_height,
+                                    location.uv_rect.min_x,
+                                    location.uv_rect.min_y,
+                                    location.uv_rect.max_x,
+                                    location.uv_rect.max_y,
+                                    *color,
+                                    location.page_index,
+                                    location.is_color,
+                                    clip_rect,
+                                ).with_z_order(*z_index as u32);
+
+                                icon_text_instances.push(instance);
+                            } else {
+                                eprintln!("❌ Failed to get cache key for icon '{}'", icon_id);
+                            }
+                        }
+                    }
+                }
+
+                drop(icon_engine);
+                drop(text_engine_lock);
+                drop(font_system_lock);
+
+                // Render icons using text pipeline
+                if !icon_text_instances.is_empty() {
+                    let atlas_texture_view = atlas_lock.texture_view();
+                    self.window_renderer.render_text(&mut render_pass, &icon_text_instances, atlas_texture_view);
+                }
+
+                drop(atlas_lock);
+            }
+
+            // Render all images (Phase 5)
+            // Images use ImagePipeline for textured quad rendering with individual textures
+            if !image_commands.is_empty() {
+                // Lock shared ImageCache
+                let mut image_cache = render_context.image_cache.lock().unwrap();
+
+                for cmd in &image_commands {
+                    if let crate::paint::DrawCommand::Image { image_id, rect, tint, z_index } = cmd {
+                        // Load image from cache (or disk if not cached)
+                        match image_cache.get_or_load(image_id) {
+                            Ok(cached_image) => {
+                                // Create image instance with position, size, tint, and clipping
+                                let default_tint = crate::paint::Color::rgba(1.0, 1.0, 1.0, 1.0);
+                                let tint_color = tint.unwrap_or(default_tint);
+
+                                // Use full window as default clip region
+                                let clip_rect = [0.0, 0.0, self.window_size.width as f32, self.window_size.height as f32];
+
+                                let instance = crate::render::ImageInstance {
+                                    position: [rect.origin.x as f32, rect.origin.y as f32],
+                                    size: [rect.size.width as f32, rect.size.height as f32],
+                                    tint: [tint_color.r, tint_color.g, tint_color.b, tint_color.a],
+                                    clip_rect,
+                                };
+
+                                println!("🖼️  Rendering image at ({}, {}) with size {}×{} (texture: {}×{})",
+                                    rect.origin.x, rect.origin.y,
+                                    rect.size.width, rect.size.height,
+                                    cached_image.size.0, cached_image.size.1);
+
+                                // Render the image using WindowRenderer
+                                self.window_renderer.render_image(
+                                    &mut render_pass,
+                                    &instance,
+                                    &cached_image.texture,
+                                    &cached_image.view,
+                                    &render_context.image_pipeline,
+                                );
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to load image {:?}: {}", image_id, e);
+                            }
+                        }
+                    }
+                }
+
+                drop(image_cache);
+            }
         }
 
         // Submit commands

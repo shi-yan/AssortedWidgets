@@ -29,6 +29,8 @@ pub mod widget_manager;
 pub mod elements;
 pub mod event;
 pub mod handle;
+pub mod icon;
+pub mod image;
 pub mod layout;
 pub mod paint;
 pub mod platform;
