@@ -34,6 +34,7 @@ pub mod image;
 pub mod layout;
 pub mod paint;
 pub mod platform;
+pub mod raw_surface;  // RawSurface for custom GPU rendering
 pub mod render;
 pub mod widget_tree;
 pub mod text;

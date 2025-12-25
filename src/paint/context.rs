@@ -99,6 +99,16 @@ pub struct PaintContext<'a> {
     /// Hit tester for registering interactive element bounds
     /// This is built during the paint pass and used for hit testing later
     hit_tester: HitTester,
+
+    /// Custom render callbacks for low-level WebGPU access
+    /// These are executed during the render pass, allowing widgets to perform
+    /// custom GPU rendering (3D graphics, compute shaders, etc.)
+    /// Note: Callbacks must be 'static because they're executed after PaintContext is dropped
+    custom_render_callbacks: Vec<Box<dyn FnOnce(&mut wgpu::RenderPass) + 'static>>,
+
+    /// Pending signals to be emitted after paint completes
+    /// Widgets can emit signals during paint() which will be processed by the Window
+    pending_signals: Vec<(WidgetId, crate::types::GuiMessage)>,
 }
 
 impl<'a> PaintContext<'a> {
@@ -116,6 +126,8 @@ impl<'a> PaintContext<'a> {
             bundle,
             z_order: 0,
             hit_tester: HitTester::new(),
+            custom_render_callbacks: Vec::new(),
+            pending_signals: Vec::new(),
         }
     }
 
@@ -843,5 +855,75 @@ impl<'a> PaintContext<'a> {
     /// Set window size (call this on resize)
     pub fn set_window_size(&mut self, size: Size) {
         self.window_size = size;
+    }
+
+    // ========================================================================
+    // Low-Level WebGPU Access (Tier 2 Rendering)
+    // ========================================================================
+
+    /// Register a custom render callback for low-level WebGPU access
+    ///
+    /// This allows widgets to perform custom GPU rendering (3D graphics, compute
+    /// shaders, custom pipelines, etc.) by directly accessing the WebGPU RenderPass.
+    ///
+    /// The callback will be executed during the render pass, after all standard
+    /// primitives have been rendered. Multiple callbacks are executed in the order
+    /// they were registered.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// impl Widget for My3DWidget {
+    ///     fn paint(&self, ctx: &mut PaintContext) {
+    ///         // Register custom render callback
+    ///         ctx.register_custom_render(|render_pass| {
+    ///             // Direct WebGPU access for 3D rendering
+    ///             render_pass.set_pipeline(&self.pipeline);
+    ///             render_pass.set_bind_group(0, &self.bind_group, &[]);
+    ///             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+    ///             render_pass.draw(0..self.vertex_count, 0..1);
+    ///         });
+    ///     }
+    /// }
+    /// ```
+    pub fn register_custom_render<F>(&mut self, callback: F)
+    where
+        F: FnOnce(&mut wgpu::RenderPass) + 'static,
+    {
+        self.custom_render_callbacks.push(Box::new(callback));
+    }
+
+    /// Take the custom render callbacks for execution
+    ///
+    /// This is called by the Window during the render pass to execute all
+    /// registered custom render callbacks. After this call, the callback
+    /// list is empty.
+    pub fn take_custom_render_callbacks(&mut self) -> Vec<Box<dyn FnOnce(&mut wgpu::RenderPass) + 'static>> {
+        std::mem::take(&mut self.custom_render_callbacks)
+    }
+
+    /// Emit a signal from a widget during paint
+    ///
+    /// The signal will be processed after painting completes, allowing widgets
+    /// to communicate via the signal/slot system.
+    pub fn emit_signal(&mut self, source: WidgetId, message: crate::types::GuiMessage) {
+        self.pending_signals.push((source, message));
+    }
+
+    /// Take all pending signals (called by Window after paint)
+    pub fn take_pending_signals(&mut self) -> Vec<(WidgetId, crate::types::GuiMessage)> {
+        std::mem::take(&mut self.pending_signals)
+    }
+
+    /// Get access to the WebGPU device and queue for creating GPU resources
+    ///
+    /// This allows widgets to create their own buffers, textures, pipelines, etc.
+    /// Use this in conjunction with register_custom_render() for full custom rendering.
+    pub fn device(&self) -> &wgpu::Device {
+        self.bundle.device
+    }
+
+    /// Get access to the WebGPU queue for uploading data
+    pub fn queue(&self) -> &wgpu::Queue {
+        self.bundle.queue
     }
 }

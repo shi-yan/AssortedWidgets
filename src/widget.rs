@@ -209,6 +209,16 @@ pub trait Widget {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
+    /// Downcast to RawSurface for framebuffer compositing
+    ///
+    /// Widgets that render to their own framebuffer should override this to return Some.
+    /// The framework uses this to detect and composite RawSurface widgets.
+    ///
+    /// Default: None (widget does not use RawSurface)
+    fn as_raw_surface(&self) -> Option<&dyn crate::raw_surface::RawSurface> {
+        None
+    }
+
     // ========================================
     // Event Dispatch Methods (Phase 1)
     // ========================================

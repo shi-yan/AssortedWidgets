@@ -7,6 +7,7 @@
 //! - Cached layout management
 
 use std::any::Any;
+use std::cell::RefCell;
 
 use crate::widget::Widget;
 use crate::event::OsEvent;
@@ -33,8 +34,9 @@ pub struct TextLabel {
     truncate: Truncate,
 
     // Cached layout (invalidated on text/width change)
-    cached_layout: Option<TextLayout>,
-    cached_max_width: Option<f32>,
+    // Uses RefCell for interior mutability during measurement
+    cached_layout: RefCell<Option<TextLayout>>,
+    cached_max_width: RefCell<Option<f32>>,
 }
 
 impl TextLabel {
@@ -48,22 +50,22 @@ impl TextLabel {
             text: text.into(),
             text_style: TextStyle::new(),
             truncate: Truncate::None,
-            cached_layout: None,
-            cached_max_width: None,
+            cached_layout: RefCell::new(None),
+            cached_max_width: RefCell::new(None),
         }
     }
 
     /// Set text content (builder pattern)
     pub fn with_text(mut self, text: impl Into<String>) -> Self {
         self.text = text.into();
-        self.cached_layout = None; // Invalidate cache
+        *self.cached_layout.borrow_mut() = None; // Invalidate cache
         self
     }
 
     /// Set text style (builder pattern)
     pub fn with_style(mut self, text_style: TextStyle) -> Self {
         self.text_style = text_style;
-        self.cached_layout = None; // Invalidate cache
+        *self.cached_layout.borrow_mut() = None; // Invalidate cache
         self
     }
 
@@ -76,14 +78,14 @@ impl TextLabel {
     /// Set truncation mode (builder pattern)
     pub fn with_truncate(mut self, truncate: Truncate) -> Self {
         self.truncate = truncate;
-        self.cached_layout = None; // Invalidate cache
+        *self.cached_layout.borrow_mut() = None; // Invalidate cache
         self
     }
 
     /// Set font size (builder pattern)
     pub fn with_font_size(mut self, size: f32) -> Self {
         self.text_style.font_size = size;
-        self.cached_layout = None; // Invalidate cache
+        *self.cached_layout.borrow_mut() = None; // Invalidate cache
         self
     }
 
@@ -96,7 +98,7 @@ impl TextLabel {
     /// Set text alignment (builder pattern)
     pub fn with_alignment(mut self, alignment: TextAlign) -> Self {
         self.text_style.alignment = alignment;
-        self.cached_layout = None; // Invalidate cache
+        *self.cached_layout.borrow_mut() = None; // Invalidate cache
         self
     }
 
@@ -105,7 +107,7 @@ impl TextLabel {
         let new_text = text.into();
         if self.text != new_text {
             self.text = new_text;
-            self.cached_layout = None; // Invalidate cache
+            *self.cached_layout.borrow_mut() = None; // Invalidate cache
             self.dirty = true; // Trigger layout recalculation
         }
     }
@@ -114,40 +116,42 @@ impl TextLabel {
     ///
     /// This is called from both paint() and measure() to ensure
     /// we have a valid layout before using it.
-    fn ensure_layout(&mut self, engine: &mut TextEngine, max_width: Option<f32>) {
+    fn ensure_layout(&self, engine: &mut TextEngine, max_width: Option<f32>) {
         // Only re-shape if text or width changed
-        let needs_reshape = self.cached_layout.is_none() || self.cached_max_width != max_width;
+        let needs_reshape = self.cached_layout.borrow().is_none()
+            || *self.cached_max_width.borrow() != max_width;
 
         if needs_reshape {
-            self.cached_layout = Some(engine.create_layout(
+            let layout = engine.create_layout(
                 &self.text,
                 &self.text_style,
                 max_width,
                 self.truncate,
-            ));
-            self.cached_max_width = max_width;
+            );
+            *self.cached_layout.borrow_mut() = Some(layout);
+            *self.cached_max_width.borrow_mut() = max_width;
         }
     }
 
-    /// Measure text for a given max_width (called by measure())
+    /// Measure text for a given max_width (called by Window layout system)
     ///
     /// This is exposed so external code (like the window) can call measure
     /// and pass the TextEngine.
     pub fn measure_with_engine(
-        &mut self,
+        &self,
         engine: &mut TextEngine,
         known_dimensions: taffy::Size<Option<f32>>,
     ) -> Size {
         // Case 1: Width is known → wrap to that width
         if let Some(width) = known_dimensions.width {
             self.ensure_layout(engine, Some(width));
-            let size = self.cached_layout.as_ref().unwrap().size();
+            let size = self.cached_layout.borrow().as_ref().unwrap().size();
             return Size::new(width as f64, size.height);
         }
 
         // Case 2: Width is auto → return intrinsic size (no wrapping)
         self.ensure_layout(engine, None);
-        self.cached_layout.as_ref().unwrap().size()
+        self.cached_layout.borrow().as_ref().unwrap().size()
     }
 }
 
@@ -156,7 +160,17 @@ impl Widget for TextLabel {
         self.id
     }
 
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
+    fn on_message(&mut self, message: &GuiMessage) -> Vec<DeferredCommand> {
+        // Handle FPS update signals
+        if let GuiMessage::Custom { source: _, signal_type, data } = message {
+            if signal_type == "fps_update" {
+                // Extract FPS value from the signal data
+                if let Some(fps) = data.downcast_ref::<f64>() {
+                    // Use set_text() to properly invalidate cached layout
+                    self.set_text(format!("FPS: {:.1}", fps));
+                }
+            }
+        }
         Vec::new()
     }
 
@@ -187,7 +201,8 @@ impl Widget for TextLabel {
     fn paint(&self, ctx: &mut PaintContext) {
         // Use high-level API for simplicity
         // Note: The layout was already computed during measure phase
-        if let Some(layout) = &self.cached_layout {
+        let cached_layout = self.cached_layout.borrow();
+        if let Some(layout) = cached_layout.as_ref() {
             ctx.draw_layout(layout, self.bounds.origin, self.text_style.text_color);
         } else {
             // Fallback: Use high-level API if no cached layout
@@ -195,7 +210,7 @@ impl Widget for TextLabel {
                 &self.text,
                 &self.text_style,
                 self.bounds.origin,
-                self.cached_max_width,
+                *self.cached_max_width.borrow(),
             );
         }
     }
@@ -211,11 +226,10 @@ impl Widget for TextLabel {
     ) -> Option<Size> {
         // NOTE: This method signature doesn't allow us to access TextEngine!
         // The actual measurement happens in measure_with_engine() which is
-        // called by the window's layout system.
+        // called by the window's layout system via downcast detection.
         //
-        // This method just signals that we need measurement.
-        // The real work is done in Window::compute_layout() which calls
-        // measure_with_engine() directly.
+        // This method just signals that we need measurement (via needs_measure()).
+        // The real work is done in Window::render_frame() during layout computation.
         None
     }
 

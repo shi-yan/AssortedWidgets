@@ -5,7 +5,8 @@ use crate::layout::LayoutManager;
 use crate::paint::PaintContext;
 use crate::render::{RenderContext, WindowRenderer};
 use crate::widget_tree::{WidgetTree, TreeNode};
-use crate::types::{FrameInfo, Point, Size, WidgetId, WindowId};
+use crate::types::{FrameInfo, GuiMessage, Point, Size, WidgetId, WindowId};
+use crate::elements::TextLabel;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -80,6 +81,12 @@ pub struct Window {
 
     /// Event queue for posting events back to application (cross-window drag, etc.)
     event_queue: Arc<Mutex<VecDeque<(WindowId, GuiEvent)>>>,
+
+    // ========================================
+    // Signal/Slot Communication
+    // ========================================
+    /// Connection table for signal/slot system
+    connection_table: crate::connection::ConnectionTable,
 }
 
 impl Window {
@@ -107,6 +114,7 @@ impl Window {
             focus_manager: FocusManager::new(),
             mouse_capture: MouseCapture::new(),
             event_queue,
+            connection_table: crate::connection::ConnectionTable::new(),
         }
     }
 
@@ -752,6 +760,28 @@ impl Window {
         self.widgets.process_messages();
     }
 
+    /// Connect a signal from source widget to target widget
+    ///
+    /// When the source widget emits a signal of the given type, the target widget
+    /// will receive it via on_message().
+    pub fn connect(&mut self, source: WidgetId, signal_type: String, target: WidgetId) {
+        self.connection_table.connect(source, signal_type, target);
+    }
+
+    /// Emit a signal from a widget
+    ///
+    /// This will send the message to all connected target widgets.
+    pub fn emit_signal(&mut self, source: WidgetId, message: &GuiMessage) {
+        if let GuiMessage::Custom { source: _, signal_type, data: _ } = message {
+            let targets = self.connection_table.get_targets(source, signal_type);
+            for target in targets {
+                if let Some(widget) = self.widgets.get_mut(target) {
+                    widget.on_message(message);
+                }
+            }
+        }
+    }
+
     /// Update IME cursor position based on focused widget
     ///
     /// This should be called each frame to keep the IME window positioned correctly.
@@ -844,6 +874,9 @@ impl Window {
                 }
             }
 
+            // Lock TextEngine once for all text measurements
+            let mut text_engine_lock = render_context.text_engine.lock().unwrap();
+
             // Use compute_layout_with_measure to support elements with dynamic sizing
             if let Err(e) = self.layout_manager.compute_layout_with_measure(
                 self.window_size,
@@ -853,6 +886,16 @@ impl Window {
                         if ctx.needs_measure {
                             // Look up element and call its measure() method
                             if let Some(element) = self.widgets.get(ctx.widget_id) {
+                                // Special case for TextLabel: use measure_with_engine()
+                                if let Some(text_label) = element.as_any().downcast_ref::<TextLabel>() {
+                                    let size = text_label.measure_with_engine(&mut *text_engine_lock, known);
+                                    return taffy::Size {
+                                        width: size.width as f32,
+                                        height: size.height as f32,
+                                    };
+                                }
+
+                                // Fallback to normal measure for other widgets
                                 if let Some(size) = element.measure(known, available) {
                                     return taffy::Size {
                                         width: size.width as f32,
@@ -867,8 +910,11 @@ impl Window {
                 },
             ) {
                 eprintln!("Layout computation failed: {}", e);
+                drop(text_engine_lock); // Ensure lock is dropped before returning
                 return;
             }
+
+            drop(text_engine_lock); // Release TextEngine lock after layout
 
             // Apply layout results to elements
             let widget_ids: Vec<_> = self.widgets.widget_ids().collect();
@@ -909,7 +955,7 @@ impl Window {
         self.window_renderer.begin_frame();
 
         // Paint phase - collect draw commands
-        let (rect_instances, sdf_commands, path_commands, text_instances, icon_commands, image_commands) = {
+        let (rect_instances, sdf_commands, path_commands, text_instances, icon_commands, image_commands, custom_render_callbacks, pending_signals) = {
             // Lock shared resources for the duration of the frame
             let mut atlas_lock = render_context.glyph_atlas.lock().unwrap();
             let mut font_system_lock = render_context.font_system.lock().unwrap();
@@ -942,6 +988,8 @@ impl Window {
             let mut text_instances = paint_ctx.text_instances().to_vec();
             let icon_commands = paint_ctx.icon_commands().to_vec();
             let image_commands = paint_ctx.image_commands().to_vec();
+            let custom_render_callbacks = paint_ctx.take_custom_render_callbacks();
+            let pending_signals = paint_ctx.take_pending_signals();
 
             // Sort by z-order (low to high) for correct overlapping
             // Elements with lower z-order are drawn first (appear behind)
@@ -949,8 +997,13 @@ impl Window {
             rect_instances.sort_by_key(|inst| inst.z_order);
             text_instances.sort_by_key(|inst| inst.z_order);
 
-            (rect_instances, sdf_commands, path_commands, text_instances, icon_commands, image_commands)
+            (rect_instances, sdf_commands, path_commands, text_instances, icon_commands, image_commands, custom_render_callbacks, pending_signals)
         };
+
+        // Process pending signals from paint phase
+        for (source, message) in pending_signals {
+            self.emit_signal(source, &message);
+        }
 
         // Rebuild focus manager to sync with current element tree
         // This ensures focusable widgets are up-to-date for Tab navigation
@@ -984,9 +1037,9 @@ impl Window {
                     resolve_target,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.1,
-                            b: 0.1,
+                            r: 1.0,  // RED test
+                            g: 0.0,
+                            b: 0.0,
                             a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,
@@ -1201,6 +1254,62 @@ impl Window {
                 }
 
                 drop(image_cache);
+            }
+
+            // Render RawSurface widgets' framebuffers as textured quads
+            // This composites widgets that render to their own framebuffers (3D views, etc.)
+            if let Some(root) = self.widget_tree.root() {
+                root.traverse(&mut |widget_id| {
+                    if let Some(widget) = self.widgets.get(widget_id) {
+                        // Check if widget implements RawSurface trait
+                        if let Some(raw_surface) = widget.as_raw_surface() {
+                            // Get the widget's bounds for positioning
+                            let bounds = widget.bounds();
+
+                            // Get framebuffer size from RawSurface
+                            let fb_size = raw_surface.framebuffer_size();
+
+                            // Only render if framebuffer has valid size
+                            if fb_size.width > 0.0 && fb_size.height > 0.0 {
+                                // Try to downcast to SimpleTriangle to get the framebuffer
+                                // TODO: Generalize this for all RawSurface implementations
+                                if let Some(triangle) = widget.as_any().downcast_ref::<crate::elements::SimpleTriangle>() {
+                                    // Access framebuffer through public field
+                                    let fb_borrow = triangle.framebuffer.borrow();
+                                    if let Some(ref fb) = *fb_borrow {
+                                        println!("[Window] Compositing RawSurface at {:?}", bounds);
+
+                                        // Create ImageInstance for this framebuffer
+                                        let instance = crate::render::ImageInstance {
+                                            position: [bounds.origin.x as f32, bounds.origin.y as f32],
+                                            size: [bounds.size.width as f32, bounds.size.height as f32],
+                                            tint: [1.0, 1.0, 1.0, 1.0], // No tint
+                                            clip_rect: [0.0, 0.0, f32::MAX, f32::MAX], // No clipping
+                                        };
+
+                                        // Render using WindowRenderer's image rendering
+                                        self.window_renderer.render_image(
+                                            &mut render_pass,
+                                            &instance,
+                                            &fb.texture,
+                                            &fb.view,
+                                            &render_context.image_pipeline,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Execute custom render callbacks (Tier 2: Low-level WebGPU access)
+            // This allows widgets to perform custom GPU rendering (3D graphics, etc.)
+            if !custom_render_callbacks.is_empty() {
+                println!("[Window] Executing {} callbacks", custom_render_callbacks.len());
+            }
+            for callback in custom_render_callbacks {
+                callback(&mut render_pass);
             }
         }
 

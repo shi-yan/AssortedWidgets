@@ -285,9 +285,16 @@ pub struct Theme {
 
 See the `examples/` directory:
 
+- **`cube_3d_demo.rs`** - 3D rotating cube with low-level WebGPU RenderPass access ⭐ NEW!
 - `phase4_paths_test.rs` - Vector graphics with lines, curves, and paths
 - `icons_and_images.rs` - Icon and image rendering demo
 - `icon_visual_demo.rs` - Visual icon demonstration
+- `ime_demo.rs` - Input Method Editor and focus testing
+
+Run an example:
+```bash
+cargo run --example cube_3d_demo
+```
 
 ## Documentation
 
@@ -332,6 +339,7 @@ See the `examples/` directory:
 - [x] Vector graphics (lines, paths, bezier curves)
 - [x] SDF-based rounded rectangles with borders and shadows
 - [x] Image and icon rendering
+- [x] Low-level WebGPU RenderPass access (Tier 2 rendering)
 - [ ] Theme system (GPU uniform buffers)
 - [ ] Standard widgets (Button, Label, TextInput, etc.)
 - [ ] Animation helpers (springs, easing)
@@ -339,6 +347,13 @@ See the `examples/` directory:
 - [ ] Windows support
 
 ### Recent Updates (Dec 2024)
+
+**Tier 2 Rendering - Low-Level WebGPU Access:**
+- ✅ Direct RenderPass access for custom 3D graphics
+- ✅ Custom render callback system via `register_custom_render()`
+- ✅ 3D cube demo with rotating geometry
+- ✅ Integration of custom GPU pipelines with standard UI
+- ✅ Demonstrates unique capability vs gpui/iced
 
 **Phase 4 Complete - Vector Graphics:**
 - ✅ Line rendering with configurable caps and joins

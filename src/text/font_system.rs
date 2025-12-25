@@ -54,7 +54,7 @@ impl FontSystemWrapper {
             .get_image(&mut self.font_system, cache_key)
             .as_ref()
             .map(|image| {
-                println!("rasterize image size: {}x{}", image.placement.width, image.placement.height);
+                //println!("rasterize image size: {}x{}", image.placement.width, image.placement.height);
                 RasterizedGlyph::from_swash_image(image)})
     }
 }
