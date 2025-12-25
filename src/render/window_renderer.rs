@@ -11,26 +11,13 @@ use crate::text::TextInstance;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
-/// Uniforms for the rect shader (per-window - contains screen_size)
+/// Window uniforms shared by all rendering pipelines (per-window - contains screen_size)
+///
+/// This uniform buffer is shared across all pipelines (rect, text, path, rect_sdf, shadow_sdf, image)
+/// since they all need the same screen_size data for coordinate transformation.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct RectUniforms {
-    screen_size: [f32; 2],
-    _padding: [f32; 2],  // Align to 16 bytes
-}
-
-/// Uniforms for the text shader (per-window - contains screen_size)
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct TextUniforms {
-    screen_size: [f32; 2],
-    _padding: [f32; 2],  // Align to 16 bytes
-}
-
-/// Uniforms for the path shader (per-window - contains screen_size)
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct PathUniforms {
+struct WindowUniforms {
     screen_size: [f32; 2],
     _padding: [f32; 2],  // Align to 16 bytes
 }
@@ -62,29 +49,17 @@ pub struct WindowRenderer {
     // ========================================
     // Per-Window Uniforms (Screen Size)
     // ========================================
-    /// Rectangle uniforms (contains screen_size specific to this window)
-    rect_uniform_buffer: wgpu::Buffer,
-    rect_uniform_bind_group: wgpu::BindGroup,
+    /// Shared window uniform buffer (contains screen_size for coordinate transformation)
+    /// This buffer is shared by ALL pipelines: rect, text, path, rect_sdf, shadow_sdf, image
+    window_uniform_buffer: wgpu::Buffer,
 
-    /// Text uniforms (contains screen_size specific to this window)
-    text_uniform_buffer: wgpu::Buffer,
-    text_uniform_bind_group: wgpu::BindGroup,
+    /// Shared window uniform bind group (@group(0) @binding(0) for all pipelines)
+    /// All pipelines now use VERTEX | FRAGMENT visibility, so one bind group works for all
+    window_uniform_bind_group: wgpu::BindGroup,
 
-    /// SDF rect uniforms (contains screen_size specific to this window)
-    rect_sdf_uniform_buffer: wgpu::Buffer,
-    rect_sdf_uniform_bind_group: wgpu::BindGroup,
-
-    /// SDF rect clip uniforms (clip regions for fragment shader)
+    /// SDF rect clip uniforms (clip regions for fragment shader) - DIFFERENT data, separate buffer
     rect_sdf_clip_uniform_buffer: wgpu::Buffer,
     rect_sdf_clip_uniform_bind_group: wgpu::BindGroup,
-
-    /// Path uniforms (contains screen_size specific to this window)
-    path_uniform_buffer: wgpu::Buffer,
-    path_uniform_bind_group: wgpu::BindGroup,
-
-    /// Image uniforms (contains screen_size specific to this window) - Phase 5
-    image_uniform_buffer: wgpu::Buffer,
-    image_uniform_bind_group: wgpu::BindGroup,
 
     // ========================================
     // MSAA (Multisample Anti-Aliasing)
@@ -163,83 +138,37 @@ impl WindowRenderer {
 
         surface.configure(device, &config);
 
-        // Create per-window uniform buffers (screen_size specific to this window)
+        // Create SHARED window uniform buffer (screen_size for coordinate transformation)
         // Use LOGICAL size for coordinate transformation (widgets use logical pixels)
+        // This single buffer is shared by ALL pipelines: rect, text, path, rect_sdf, shadow_sdf, image
         let logical_size = [bounds.size.width as f32, bounds.size.height as f32];
 
-        let rect_uniforms = RectUniforms {
+        let window_uniforms = WindowUniforms {
             screen_size: logical_size,
             _padding: [0.0, 0.0],
         };
 
-        let rect_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Rect Uniform Buffer"),
-            contents: bytemuck::cast_slice(&[rect_uniforms]),
+        let window_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Window Uniform Buffer (Shared)"),
+            contents: bytemuck::cast_slice(&[window_uniforms]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let rect_uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Rect Bind Group"),
+        // Create SHARED bind group for window uniforms (@group(0) @binding(0) for all pipelines)
+        // Since all pipelines now have identical bind group layouts (VERTEX | FRAGMENT visibility),
+        // we can use ANY pipeline's layout - they're all the same!
+        let window_uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Window Uniform Bind Group (Shared)"),
             layout: &context.rect_pipeline.bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: rect_uniform_buffer.as_entire_binding(),
+                resource: window_uniform_buffer.as_entire_binding(),
             }],
         });
 
-        let text_uniforms = TextUniforms {
-            screen_size: logical_size,
-            _padding: [0.0, 0.0],
-        };
-
-        let text_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Text Uniform Buffer"),
-            contents: bytemuck::cast_slice(&[text_uniforms]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let text_uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Text Uniform Bind Group"),
-            layout: &context.text_pipeline.uniform_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: text_uniform_buffer.as_entire_binding(),
-            }],
-        });
-
-        // Create SDF rect uniforms and bind group (use logical dimensions)
-        let logical_width = bounds.size.width as u32;
-        let logical_height = bounds.size.height as u32;
-        let rect_sdf_uniform_buffer = context.rect_sdf_pipeline.create_uniform_buffer(device, logical_width, logical_height);
-        let rect_sdf_uniform_bind_group = context.rect_sdf_pipeline.create_bind_group(device, &rect_sdf_uniform_buffer);
-
-        // Create SDF rect clip uniforms and bind group (initially empty)
+        // Create SDF rect clip uniforms and bind group (DIFFERENT data - separate buffer)
         let rect_sdf_clip_uniform_buffer = context.rect_sdf_pipeline.create_clip_uniform_buffer(device);
         let rect_sdf_clip_uniform_bind_group = context.rect_sdf_pipeline.create_clip_bind_group(device, &rect_sdf_clip_uniform_buffer);
-
-        // Create path uniforms and bind group (use logical dimensions)
-        let path_uniform_buffer = context.path_pipeline.create_uniform_buffer(device, logical_width, logical_height);
-        let path_uniform_bind_group = context.path_pipeline.create_bind_group(device, &path_uniform_buffer);
-
-        // Create image uniforms and bind group (Phase 5)
-        // IMPORTANT: Use logical size (not physical pixels) to match coordinate system
-        let image_uniforms = TextUniforms {
-            screen_size: logical_size,
-            _padding: [0.0, 0.0],
-        };
-        let image_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Image Uniform Buffer"),
-            contents: bytemuck::cast_slice(&[image_uniforms]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let image_uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Image Uniform Bind Group"),
-            layout: &context.image_pipeline.uniform_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: image_uniform_buffer.as_entire_binding(),
-            }],
-        });
 
         // Create MSAA texture if sample count > 1
         let (msaa_texture, msaa_view) = if context.sample_count > 1 {
@@ -267,18 +196,10 @@ impl WindowRenderer {
             surface,
             config,
             format,
-            rect_uniform_buffer,
-            rect_uniform_bind_group,
-            text_uniform_buffer,
-            text_uniform_bind_group,
-            rect_sdf_uniform_buffer,
-            rect_sdf_uniform_bind_group,
+            window_uniform_buffer,
+            window_uniform_bind_group,
             rect_sdf_clip_uniform_buffer,
             rect_sdf_clip_uniform_bind_group,
-            path_uniform_buffer,
-            path_uniform_bind_group,
-            image_uniform_buffer,
-            image_uniform_bind_group,
             msaa_texture,
             msaa_view,
             rect_instance_buffer: None,
@@ -339,48 +260,19 @@ impl WindowRenderer {
         // Use LOGICAL size for coordinate transformation (widgets use logical pixels)
         let logical_size = [size.width as f32, size.height as f32];
 
-        // Update rect uniforms
-        let rect_uniforms = RectUniforms {
+        // Update SHARED window uniform buffer (used by all pipelines)
+        let window_uniforms = WindowUniforms {
             screen_size: logical_size,
             _padding: [0.0, 0.0],
         };
         self.render_context.queue().write_buffer(
-            &self.rect_uniform_buffer,
+            &self.window_uniform_buffer,
             0,
-            bytemuck::cast_slice(&[rect_uniforms]),
-        );
-
-        // Update text uniforms
-        let text_uniforms = TextUniforms {
-            screen_size: logical_size,
-            _padding: [0.0, 0.0],
-        };
-        self.render_context.queue().write_buffer(
-            &self.text_uniform_buffer,
-            0,
-            bytemuck::cast_slice(&[text_uniforms]),
-        );
-
-        // Update SDF rect uniforms (use logical dimensions)
-        let width = size.width as u32;
-        let height = size.height as u32;
-        self.render_context.rect_sdf_pipeline.update_uniforms(
-            self.render_context.queue(),
-            &self.rect_sdf_uniform_buffer,
-            width,
-            height,
-        );
-
-        // Update path uniforms (use logical dimensions)
-        self.render_context.path_pipeline.update_uniforms(
-            self.render_context.queue(),
-            &self.path_uniform_buffer,
-            width,
-            height,
+            bytemuck::cast_slice(&[window_uniforms]),
         );
 
         let physical_size = [size.width as f32 * scale_factor, size.height as f32 * scale_factor];
-        println!("[WindowRenderer] Updated uniforms: logical = {:.0}x{:.0}, scale = {:.1}x, physical = {:.0}x{:.0}",
+        println!("[WindowRenderer] Updated shared window uniforms: logical = {:.0}x{:.0}, scale = {:.1}x, physical = {:.0}x{:.0}",
             size.width, size.height, scale_factor, physical_size[0], physical_size[1]);
     }
 
@@ -423,7 +315,7 @@ impl WindowRenderer {
 
         // Render using shared pipeline
         render_pass.set_pipeline(&self.render_context.rect_pipeline.pipeline);
-        render_pass.set_bind_group(0, &self.rect_uniform_bind_group, &[]);
+        render_pass.set_bind_group(0, &self.window_uniform_bind_group, &[]);
         render_pass.set_vertex_buffer(0, instance_buffer.slice(..));
         render_pass.draw(0..4, 0..instances.len() as u32);
     }
@@ -479,7 +371,7 @@ impl WindowRenderer {
 
         // Render using shared pipeline
         render_pass.set_pipeline(&self.render_context.text_pipeline.pipeline);
-        render_pass.set_bind_group(0, &self.text_uniform_bind_group, &[]);
+        render_pass.set_bind_group(0, &self.window_uniform_bind_group, &[]);
         render_pass.set_bind_group(1, &texture_bind_group, &[]);
         render_pass.set_vertex_buffer(0, instance_buffer.slice(..));
         render_pass.draw(0..4, 0..instances.len() as u32);
@@ -491,13 +383,13 @@ impl WindowRenderer {
         render_pass: &mut wgpu::RenderPass,
         batcher: &crate::paint::PrimitiveBatcher,
     ) {
-        // Shadows use the same clip uniform buffer as rectangles
+        // Shadows use the shared window uniform buffer and separate clip uniform buffer
         self.render_context.shadow_sdf_pipeline.render(
             &self.render_context.device,
             &self.render_context.queue,
             render_pass,
-            &self.rect_sdf_uniform_buffer,  // Reuse rect uniforms (same screen_size)
-            &self.rect_sdf_uniform_bind_group,
+            &self.window_uniform_buffer,  // Shared window uniforms (screen_size)
+            &self.window_uniform_bind_group,
             &self.rect_sdf_clip_uniform_bind_group,
             batcher,
         );
@@ -516,8 +408,8 @@ impl WindowRenderer {
             &self.render_context.device,
             &self.render_context.queue,
             render_pass,
-            &self.rect_sdf_uniform_buffer,
-            &self.rect_sdf_uniform_bind_group,
+            &self.window_uniform_buffer,
+            &self.window_uniform_bind_group,
             &self.rect_sdf_clip_uniform_bind_group,
             batcher,
         );
@@ -532,7 +424,7 @@ impl WindowRenderer {
         self.render_context.path_pipeline.render(
             &self.render_context.device,
             render_pass,
-            &self.path_uniform_bind_group,
+            &self.window_uniform_bind_group,
             batcher,
         );
     }
@@ -589,7 +481,7 @@ impl WindowRenderer {
 
         // Render the image
         render_pass.set_pipeline(&image_pipeline.pipeline);
-        render_pass.set_bind_group(0, &self.image_uniform_bind_group, &[]);
+        render_pass.set_bind_group(0, &self.window_uniform_bind_group, &[]);
         render_pass.set_bind_group(1, &texture_bind_group, &[]);
         render_pass.set_vertex_buffer(0, instance_buffer.slice(..));
         render_pass.draw(0..4, 0..1); // 4 vertices for quad (triangle strip)

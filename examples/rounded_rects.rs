@@ -80,6 +80,7 @@ impl Widget for RoundedRectsDemo {
                 fill: Brush::Solid(Color::rgb(0.9, 0.3, 0.3)),
                 corner_radius: CornerRadius::uniform(0.0),
                 border: Some(Border::new(Color::rgb(0.7, 0.1, 0.1), 3.0)),
+                shadow: None,
             },
         );
 
@@ -119,6 +120,7 @@ impl Widget for RoundedRectsDemo {
                     bottom_left: 0.0,
                 },
                 border: Some(Border::new(Color::rgb(0.6, 0.2, 0.6), 2.0)),
+                shadow: None,
             },
         );
 
@@ -134,6 +136,7 @@ impl Widget for RoundedRectsDemo {
                     bottom_left: 0.0,
                 },
                 border: Some(Border::new(Color::rgb(0.2, 0.6, 0.6), 2.0)),
+                shadow: None,
             },
         );
 
@@ -149,6 +152,7 @@ impl Widget for RoundedRectsDemo {
                     bottom_left: 5.0,
                 },
                 border: Some(Border::new(Color::rgb(0.7, 0.7, 0.1), 2.0)),
+                shadow: None,
             },
         );
 
@@ -164,6 +168,7 @@ impl Widget for RoundedRectsDemo {
                     bottom_left: 35.0,
                 },
                 border: Some(Border::new(Color::rgb(0.3, 0.7, 0.3), 2.0)),
+                shadow: None,
             },
         );
 
