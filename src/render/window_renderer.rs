@@ -373,6 +373,24 @@ impl WindowRenderer {
         render_pass.draw(0..4, 0..instances.len() as u32);
     }
 
+    /// Render shadows for shapes (rendered FIRST, at z=SHADOW layer)
+    pub fn render_shadows(
+        &mut self,
+        render_pass: &mut wgpu::RenderPass,
+        batcher: &crate::paint::PrimitiveBatcher,
+    ) {
+        // Shadows use the same clip uniform buffer as rectangles
+        self.render_context.shadow_sdf_pipeline.render(
+            &self.render_context.device,
+            &self.render_context.queue,
+            render_pass,
+            &self.rect_sdf_uniform_buffer,  // Reuse rect uniforms (same screen_size)
+            &self.rect_sdf_uniform_bind_group,
+            &self.rect_sdf_clip_uniform_bind_group,
+            batcher,
+        );
+    }
+
     /// Render SDF rectangles (rounded rects with borders) using the SDF pipeline
     pub fn render_sdf_rects(
         &mut self,

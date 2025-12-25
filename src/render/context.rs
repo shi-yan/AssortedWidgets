@@ -3,7 +3,7 @@
 use std::sync::{Arc, Mutex};
 use crate::text::{GlyphAtlas, FontSystemWrapper, TextEngine};
 use crate::render::pipelines::{RectPipeline, TextPipeline};
-use crate::render::RectSdfPipeline;
+use crate::render::{RectSdfPipeline, ShadowSdfPipeline};
 
 /// Shared rendering context containing GPU resources and rendering state
 ///
@@ -43,6 +43,10 @@ pub struct RenderContext {
     /// Rounded rectangle SDF pipeline (shared across all windows)
     /// Used for drawing rectangles with rounded corners and borders
     pub rect_sdf_pipeline: RectSdfPipeline,
+
+    /// Shadow SDF pipeline (shared across all windows)
+    /// Used for rendering analytical soft drop shadows
+    pub shadow_sdf_pipeline: ShadowSdfPipeline,
 
     // ========================================
     // Rendering Resources (High-Level)
@@ -130,6 +134,9 @@ impl RenderContext {
         println!("  ✓ Creating shared rect SDF pipeline...");
         let rect_sdf_pipeline = RectSdfPipeline::new(&device, surface_format);
 
+        println!("  ✓ Creating shared shadow SDF pipeline...");
+        let shadow_sdf_pipeline = ShadowSdfPipeline::new(&device, surface_format);
+
         // Create glyph atlas (2048×2048 with up to 16 pages)
         println!("  ✓ Creating glyph atlas (2048×2048, 16 pages max)...");
         let glyph_atlas = GlyphAtlas::new(&device, 2048, 16);
@@ -152,6 +159,7 @@ impl RenderContext {
             rect_pipeline,
             text_pipeline,
             rect_sdf_pipeline,
+            shadow_sdf_pipeline,
             glyph_atlas: Arc::new(Mutex::new(glyph_atlas)),
             font_system: Arc::new(Mutex::new(font_system)),
             text_engine: Arc::new(Mutex::new(text_engine)),

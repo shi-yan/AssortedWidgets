@@ -1,11 +1,12 @@
-//! Phase 1 Visual Test - Z-Ordering and Clipping
+//! Phase 1 & 2 Visual Test - Z-Ordering, Clipping, and Shadows
 //!
-//! This demonstrates the Phase 1 implementation with actual rendering:
+//! This demonstrates Phase 1 and Phase 2 implementation with actual rendering:
 //! 1. Z-ordering with explicit layers (SHADOW, NORMAL, OVERLAY)
 //! 2. Rounded rectangle clipping (shader-based SDF)
-//! 3. Batched rendering with anti-aliasing
+//! 3. Analytical soft drop shadows
+//! 4. Batched rendering with anti-aliasing
 
-use assorted_widgets::paint::{Border, Brush, Color, CornerRadius, ShapeStyle, PrimitiveBatcher, layers};
+use assorted_widgets::paint::{Border, Brush, Color, CornerRadius, ShapeStyle, Shadow, PrimitiveBatcher, layers};
 use assorted_widgets::types::{Point, Rect, Size, WidgetId};
 use assorted_widgets::{Application, Widget, WindowOptions};
 
@@ -83,6 +84,7 @@ impl Widget for Phase1VisualTest {
         );
 
         // Red rectangle at SHADOW layer (z=-100) - renders BEHIND
+        // Has a soft drop shadow to demonstrate Phase 2
         let mut batcher = PrimitiveBatcher::new();
         batcher.draw_rect_z(
             rect(50.0, 100.0, 180.0, 180.0),
@@ -90,28 +92,45 @@ impl Widget for Phase1VisualTest {
                 fill: Brush::Solid(Color::rgb(0.9, 0.2, 0.2)),
                 corner_radius: CornerRadius::uniform(20.0),
                 border: Some(Border::new(Color::rgb(0.7, 0.1, 0.1), 3.0)),
+                shadow: Some(Shadow::new(
+                    Color::rgba(0.0, 0.0, 0.0, 0.4),
+                    (4.0, 6.0),
+                    15.0,
+                )),
             },
             layers::SHADOW,
         );
 
         // Blue rectangle at NORMAL layer (z=0) - renders MIDDLE
+        // Larger shadow offset to show it's "elevated"
         batcher.draw_rect_z(
             rect(100.0, 150.0, 180.0, 180.0),
             ShapeStyle {
                 fill: Brush::Solid(Color::rgb(0.2, 0.4, 0.9)),
                 corner_radius: CornerRadius::uniform(20.0),
                 border: Some(Border::new(Color::rgb(0.1, 0.2, 0.7), 3.0)),
+                shadow: Some(Shadow::new(
+                    Color::rgba(0.0, 0.0, 0.0, 0.5),
+                    (6.0, 8.0),
+                    20.0,
+                )),
             },
             layers::NORMAL,
         );
 
         // Green rectangle at OVERLAY layer (z=1000) - renders ON TOP
+        // Even larger shadow to show highest elevation
         batcher.draw_rect_z(
             rect(150.0, 200.0, 180.0, 180.0),
             ShapeStyle {
                 fill: Brush::Solid(Color::rgb(0.2, 0.9, 0.4)),
                 corner_radius: CornerRadius::uniform(20.0),
                 border: Some(Border::new(Color::rgb(0.1, 0.7, 0.2), 3.0)),
+                shadow: Some(Shadow::new(
+                    Color::rgba(0.0, 0.0, 0.0, 0.6),
+                    (8.0, 12.0),
+                    25.0,
+                )),
             },
             layers::OVERLAY,
         );
@@ -143,6 +162,7 @@ impl Widget for Phase1VisualTest {
                 fill: Brush::Solid(Color::rgb(0.95, 0.95, 0.98)),
                 corner_radius: CornerRadius::uniform(12.0),
                 border: Some(Border::new(Color::rgb(0.7, 0.7, 0.8), 2.0)),
+                shadow: None,
             },
         );
 
@@ -175,6 +195,7 @@ impl Widget for Phase1VisualTest {
             fill: Brush::Solid(Color::rgba(0.1, 0.1, 0.1, 0.85)),
             corner_radius: CornerRadius::uniform(6.0),
             border: Some(Border::new(Color::rgb(0.3, 0.3, 0.35), 1.0)),
+            shadow: None,
         };
 
         ctx.draw_styled_rect(rect(55.0, 105.0, 60.0, 24.0), label_style.clone());
@@ -191,13 +212,14 @@ impl Widget for Phase1VisualTest {
 }
 
 fn main() {
-    println!("Phase 1 Visual Test - Z-Ordering & Clipping");
-    println!("===========================================");
+    println!("Phase 1 & 2 Visual Test - Z-Ordering, Clipping & Shadows");
+    println!("=========================================================");
     println!();
     println!("This test showcases:");
-    println!("  • Z-ordering with explicit layers (SHADOW, NORMAL, OVERLAY)");
-    println!("  • Rounded rectangles with SDF anti-aliasing");
-    println!("  • Shader-based clipping (foundation)");
+    println!("  • Phase 1: Z-ordering with explicit layers (SHADOW, NORMAL, OVERLAY)");
+    println!("  • Phase 1: Rounded rectangles with SDF anti-aliasing");
+    println!("  • Phase 1: Shader-based clipping (foundation)");
+    println!("  • Phase 2: Analytical soft drop shadows");
     println!();
 
     #[cfg(target_os = "macos")]
@@ -208,7 +230,7 @@ fn main() {
         let window_id = app
             .create_window(WindowOptions {
                 bounds: Rect::new(Point::new(100.0, 100.0), Size::new(800.0, 500.0)),
-                title: "Phase 1 Visual Test - Z-Ordering & Clipping".to_string(),
+                title: "Phase 1 & 2 - Z-Ordering, Clipping & Shadows".to_string(),
                 titlebar: None,
                 borderless: false,
                 transparent: false,

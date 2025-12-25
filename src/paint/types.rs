@@ -106,6 +106,9 @@ pub struct ShapeStyle {
 
     /// Optional border
     pub border: Option<Border>,
+
+    /// Optional drop shadow
+    pub shadow: Option<Shadow>,
 }
 
 impl ShapeStyle {
@@ -115,6 +118,7 @@ impl ShapeStyle {
             fill: Brush::Solid(color),
             corner_radius: CornerRadius::zero(),
             border: None,
+            shadow: None,
         }
     }
 
@@ -124,12 +128,19 @@ impl ShapeStyle {
             fill: Brush::Solid(color),
             corner_radius: CornerRadius::uniform(radius),
             border: None,
+            shadow: None,
         }
     }
 
     /// With border
     pub fn with_border(mut self, border: Border) -> Self {
         self.border = Some(border);
+        self
+    }
+
+    /// With drop shadow
+    pub fn with_shadow(mut self, shadow: Shadow) -> Self {
+        self.shadow = Some(shadow);
         self
     }
 }

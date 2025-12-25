@@ -996,6 +996,11 @@ impl Window {
                         sdf_batcher.draw_rect_z(*rect, style.clone(), *z_index);
                     }
                 }
+
+                // Render shadows FIRST (they appear behind shapes)
+                self.window_renderer.render_shadows(&mut render_pass, &sdf_batcher);
+
+                // Then render the shapes themselves
                 self.window_renderer.render_sdf_rects(&mut render_pass, &sdf_batcher);
             }
 
