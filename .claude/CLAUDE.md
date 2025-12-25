@@ -63,12 +63,28 @@ graph TD
 - Platform window handles exposed via `raw-window-handle` traits
 
 **Current Application API:**
-- `Application::new()` initializes the framework
-- `app.create_window(options)` creates windows
-- `window.add_root(widget, style)` adds widgets
-- `app.run()` starts the event loop
+
+**Ergonomic High-Level API (Recommended):**
+- `Application::launch(callback)` - Entry point that hides async details
+- `app.spawn_window(title, width, height, setup)` - Creates window with direct access
+- `window.set_main_widget(widget)` - Convenience for single-widget windows
 
 ```rust
+// ✨ Ergonomic API (recommended for most use cases)
+Application::launch(|app| {
+    app.spawn_window("My App", 800.0, 600.0, |window| {
+        window.set_main_widget(MyWidget::new());
+    });
+});
+```
+
+**Low-Level API (Advanced use cases):**
+- `Application::new()` - Direct async initialization
+- `app.create_window(options)` - Manual window creation with full control
+- `window.add_root(widget, style)` - Low-level widget management
+
+```rust
+// Low-level API (when you need fine control)
 let mut app = Application::new().await?;
 let window_id = app.create_window(WindowOptions { ... })?;
 

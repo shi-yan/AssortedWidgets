@@ -175,6 +175,35 @@ impl Window {
     // Unified Widget Management
     // ========================================
 
+    // ========================================
+    // High-Level Convenience API
+    // ========================================
+
+    /// Set the main widget for this window (fills entire window)
+    ///
+    /// This is a convenience method that adds a root widget with default styling
+    /// that fills the entire window. Use this for simple single-widget windows.
+    ///
+    /// # Example
+    /// ```ignore
+    /// window.set_main_widget(MyWidget::new());
+    /// ```
+    pub fn set_main_widget<W: Widget + 'static>(&mut self, widget: W) -> WidgetId {
+        use crate::layout::{Display, Style};
+
+        let style = Style {
+            display: Display::Block,
+            size: taffy::Size {
+                width: taffy::Dimension::percent(1.0),
+                height: taffy::Dimension::percent(1.0),
+            },
+            ..Default::default()
+        };
+
+        self.add_root(Box::new(widget), style)
+            .expect("Failed to set main widget")
+    }
+
     /// Add a widget as the root of the window
     ///
     /// This is the clean API that coordinates three internal systems:

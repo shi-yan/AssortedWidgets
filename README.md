@@ -33,10 +33,10 @@ assorted_widgets = "0.1"
 ### Hello Widget
 
 ```rust
-use assorted_widgets::{Application, WindowOptions, Widget};
-use assorted_widgets::paint::{PaintContext, Color, ShapeStyle};
+use assorted_widgets::{Application, Widget};
+use assorted_widgets::paint::{Color, ShapeStyle};
+use assorted_widgets::text::TextStyle;
 use assorted_widgets::types::{Point, Rect, Size, WidgetId};
-use assorted_widgets::layout::{Display, Style};
 
 struct MyWidget {
     id: WidgetId,
@@ -44,7 +44,10 @@ struct MyWidget {
 }
 
 impl Widget for MyWidget {
-    fn paint(&self, ctx: &mut PaintContext) {
+    // Use the macro to implement boilerplate methods
+    assorted_widgets::impl_widget_essentials!();
+
+    fn paint(&self, ctx: &mut assorted_widgets::paint::PaintContext) {
         // Draw a rectangle
         ctx.draw_styled_rect(
             self.bounds,
@@ -52,51 +55,29 @@ impl Widget for MyWidget {
         );
 
         // Draw some text
+        let text_style = TextStyle::new()
+            .size(16.0)
+            .color(Color::WHITE);
         ctx.draw_text(
-            Point::new(20.0, 20.0),
             "Hello, AssortedWidgets!",
-            Color::WHITE,
-            16.0,
+            &text_style,
+            Point::new(20.0, 20.0),
+            None,
         );
     }
-
-    // ... other Widget trait methods
 }
 
 fn main() {
-    let mut app = pollster::block_on(async { Application::new().await })
-        .expect("Failed to initialize");
-
-    let window_id = app
-        .create_window(WindowOptions {
-            bounds: Rect::new(Point::new(100.0, 100.0), Size::new(800.0, 600.0)),
-            title: "Hello Widget".to_string(),
-            ..Default::default()
-        })
-        .expect("Failed to create window");
-
-    // Add widget to window
-    {
-        let window = app.window_mut(window_id).expect("Window not found");
-        window
-            .add_root(
-                Box::new(MyWidget {
-                    id: WidgetId::new(1),
-                    bounds: Rect::new(Point::ZERO, Size::new(800.0, 600.0))
-                }),
-                Style {
-                    display: Display::Block,
-                    size: taffy::Size {
-                        width: taffy::Dimension::length(800.0),
-                        height: taffy::Dimension::length(600.0),
-                    },
-                    ..Default::default()
-                },
-            )
-            .expect("Failed to add root widget");
-    }
-
-    app.run();
+    // ✨ Clean ergonomic API - no pollster, no window ID juggling!
+    Application::launch(|app| {
+        app.spawn_window("Hello Widget", 800.0, 600.0, |window| {
+            let widget = MyWidget {
+                id: WidgetId::new(1),
+                bounds: Rect::new(Point::ZERO, Size::new(800.0, 600.0)),
+            };
+            window.set_main_widget(widget);
+        });
+    });
 }
 ```
 

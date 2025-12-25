@@ -492,6 +492,91 @@ impl Application {
         self.drag_state.as_ref()
     }
 
+    // ========================================
+    // High-Level API (Hides async/pollster details)
+    // ========================================
+
+    /// Launch the application with a setup callback
+    ///
+    /// This is the ergonomic entry point that hides async initialization details.
+    /// The callback receives a mutable reference to the Application for setup.
+    ///
+    /// # Example
+    /// ```ignore
+    /// Application::launch(|app| {
+    ///     app.spawn_window("My App", 800.0, 600.0, |window| {
+    ///         window.set_main_widget(MyWidget::new());
+    ///     });
+    /// });
+    /// ```
+    #[cfg(target_os = "macos")]
+    pub fn launch<F>(setup: F) -> !
+    where
+        F: FnOnce(&mut Application),
+    {
+        // Hide the async initialization
+        let mut app = pollster::block_on(async { Self::new().await })
+            .expect("Failed to initialize application");
+
+        // Call user setup code
+        setup(&mut app);
+
+        // Start the event loop (never returns)
+        app.run()
+    }
+
+    /// Spawn a new window with a setup callback
+    ///
+    /// This is the ergonomic API for creating windows without dealing with WindowId.
+    /// The callback receives a mutable reference to the newly created Window.
+    ///
+    /// # Arguments
+    /// * `title` - Window title
+    /// * `width` - Window width in logical pixels
+    /// * `height` - Window height in logical pixels
+    /// * `setup` - Callback to configure the window (receives &mut Window)
+    ///
+    /// # Returns
+    /// WindowId if you need to reference the window later (optional)
+    ///
+    /// # Example
+    /// ```ignore
+    /// app.spawn_window("Main Window", 800.0, 600.0, |window| {
+    ///     window.set_main_widget(MyWidget::new());
+    /// });
+    /// ```
+    #[cfg(target_os = "macos")]
+    pub fn spawn_window<F>(
+        &mut self,
+        title: &str,
+        width: f64,
+        height: f64,
+        setup: F,
+    ) -> WindowId
+    where
+        F: FnOnce(&mut Window),
+    {
+        let options = WindowOptions {
+            title: title.to_string(),
+            bounds: Rect::new(Point::new(100.0, 100.0), Size::new(width, height)),
+            titlebar: None,
+            borderless: false,
+            transparent: false,
+            always_on_top: false,
+            utility: false,
+        };
+
+        let window_id = self.create_window(options)
+            .expect("Failed to create window");
+
+        // Immediately get the window and call setup
+        if let Some(window) = self.window_mut(window_id) {
+            setup(window);
+        }
+
+        window_id
+    }
+
     /// Run the main event loop (never returns)
     ///
     /// This manually pumps the platform event loop and processes events from the queue.
