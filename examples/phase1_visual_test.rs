@@ -12,7 +12,7 @@ use assorted_widgets::paint::{
     Shadow, PrimitiveBatcher, layers,
 };
 use assorted_widgets::types::{Point, Rect, Size, WidgetId};
-use assorted_widgets::{Application, Widget, WindowOptions};
+use assorted_widgets::{Application, Widget};
 
 /// Phase 1 visual test widget
 struct Phase1VisualTest {
@@ -243,52 +243,34 @@ fn main() {
 
     #[cfg(target_os = "macos")]
     {
-        let mut app = pollster::block_on(async { Application::new().await })
-            .expect("Failed to initialize application");
+        Application::launch(|app| {
+            app.spawn_window("Phase 1, 2 & 3 - Z-Ordering, Clipping, Shadows & Gradients", 800.0, 540.0, |window| {
+                // Create the test widget
+                let demo = Phase1VisualTest::new(
+                    WidgetId::new(1),
+                    Rect::new(Point::new(0.0, 0.0), Size::new(800.0, 540.0)),
+                );
 
-        let window_id = app
-            .create_window(WindowOptions {
-                bounds: Rect::new(Point::new(100.0, 100.0), Size::new(800.0, 540.0)),
-                title: "Phase 1, 2 & 3 - Z-Ordering, Clipping, Shadows & Gradients".to_string(),
-                titlebar: None,
-                borderless: false,
-                transparent: false,
-                always_on_top: false,
-                utility: false,
-            })
-            .expect("Failed to create window");
-
-        // Create the test widget
-        let demo = Phase1VisualTest::new(
-            WidgetId::new(1),
-            Rect::new(Point::new(0.0, 0.0), Size::new(800.0, 540.0)),
-        );
-
-        // Get window reference and add root widget
-        {
-            let window = app.window_mut(window_id).expect("Window not found");
-
-            // Use add_root to properly register in all internal systems
-            use assorted_widgets::layout::{Style, Display};
-            window.add_root(
-                Box::new(demo),
-                Style {
-                    display: Display::Block,
-                    size: taffy::Size {
-                        width: taffy::Dimension::length(800.0),
-                        height: taffy::Dimension::length(540.0),
+                // Use add_root to properly register in all internal systems
+                use assorted_widgets::layout::{Style, Display};
+                window.add_root(
+                    Box::new(demo),
+                    Style {
+                        display: Display::Block,
+                        size: taffy::Size {
+                            width: taffy::Dimension::length(800.0),
+                            height: taffy::Dimension::length(540.0),
+                        },
+                        ..Default::default()
                     },
-                    ..Default::default()
-                },
-            ).expect("Failed to add root widget");
-        }
+                ).expect("Failed to add root widget");
 
-        println!("✓ Window created");
-        println!("✓ Demo element added");
-        println!();
-        println!("Close the window to exit.");
-
-        app.run();
+                println!("✓ Window created");
+                println!("✓ Demo element added");
+                println!();
+                println!("Close the window to exit.");
+            });
+        });
     }
 
     #[cfg(not(target_os = "macos"))]

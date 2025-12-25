@@ -2,7 +2,7 @@
 
 use assorted_widgets::paint::{Border, Brush, Color, CornerRadius, ShapeStyle};
 use assorted_widgets::types::{Point, Rect, Size, WidgetId};
-use assorted_widgets::{Application, Widget, WindowOptions};
+use assorted_widgets::{Application, Widget};
 
 /// Demo element that shows various rounded rectangle styles
 struct RoundedRectsDemo {
@@ -200,50 +200,33 @@ fn main() {
 
     #[cfg(target_os = "macos")]
     {
-        let mut app = pollster::block_on(async { Application::new().await })
-            .expect("Failed to initialize application");
+        Application::launch(|app| {
+            app.spawn_window("Rounded Rectangles - SDF Demo", 750.0, 650.0, |window| {
+                let demo = RoundedRectsDemo::new(
+                    WidgetId::new(1),
+                    Rect::new(Point::new(0.0, 0.0), Size::new(750.0, 650.0)),
+                );
 
-        let window_id = app
-            .create_window(WindowOptions {
-                bounds: Rect::new(Point::new(100.0, 100.0), Size::new(750.0, 650.0)),
-                title: "Rounded Rectangles - SDF Demo".to_string(),
-                titlebar: None,
-                borderless: false,
-                transparent: false,
-                always_on_top: false,
-                utility: false,
-            })
-            .expect("Failed to create window");
-
-        // Add demo widget using clean Window API
-        {
-            let window = app.window_mut(window_id).expect("Window not found");
-            let demo = RoundedRectsDemo::new(
-                WidgetId::new(1),
-                Rect::new(Point::new(0.0, 0.0), Size::new(750.0, 650.0)),
-            );
-
-            // Use add_root to properly register in all internal systems
-            use assorted_widgets::layout::{Style, Display};
-            window.add_root(
-                Box::new(demo),
-                Style {
-                    display: Display::Block,
-                    size: taffy::Size {
-                        width: taffy::Dimension::length(750.0),
-                        height: taffy::Dimension::length(650.0),
+                // Use add_root to properly register in all internal systems
+                use assorted_widgets::layout::{Style, Display};
+                window.add_root(
+                    Box::new(demo),
+                    Style {
+                        display: Display::Block,
+                        size: taffy::Size {
+                            width: taffy::Dimension::length(750.0),
+                            height: taffy::Dimension::length(650.0),
+                        },
+                        ..Default::default()
                     },
-                    ..Default::default()
-                },
-            ).expect("Failed to add root widget");
-        }
+                ).expect("Failed to add root widget");
 
-        println!("✓ Window created");
-        println!("✓ Demo element added");
-        println!();
-        println!("Close the window to exit.");
-
-        app.run();
+                println!("✓ Window created");
+                println!("✓ Demo element added");
+                println!();
+                println!("Close the window to exit.");
+            });
+        });
     }
 
     #[cfg(not(target_os = "macos"))]

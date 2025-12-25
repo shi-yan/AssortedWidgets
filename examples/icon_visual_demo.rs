@@ -4,11 +4,10 @@
 ///! - Material Icons using the Phase 5 icon system (rendered as glyphs through TextPipeline)
 ///! - Tzuyu2.png image using the Phase 5 image system (individual texture rendering)
 
-use assorted_widgets::{Application, Widget, WindowOptions, GuiMessage, DeferredCommand};
+use assorted_widgets::{Application, Widget};
 use assorted_widgets::types::{Point, Rect, Size, WidgetId};
 use assorted_widgets::paint::{Color, PaintContext};
 use assorted_widgets::layout::Style;
-use assorted_widgets::event::OsEvent;
 use assorted_widgets::image::ImageId;
 use std::path::PathBuf;
 
@@ -279,25 +278,6 @@ fn main() {
     println!("=== Phase 5 Complete Visual Demo ===");
     println!("Icons + Images Rendering Demonstration\n");
 
-    // Initialize application
-    let mut app = pollster::block_on(async {
-        Application::new().await
-    })
-    .expect("Failed to initialize rendering");
-
-    // Create window
-    let window_id = app.create_window(WindowOptions {
-        bounds: Rect::new(Point::new(100.0, 100.0), Size::new(1000.0, 800.0)),
-        title: "Phase 5: Icons + Images - AssortedWidgets".to_string(),
-        titlebar: None,
-        borderless: false,
-        transparent: false,
-        always_on_top: false,
-        utility: false,
-    })
-    .expect("Failed to create window");
-
-    println!("✅ Window created!");
     println!("✅ Displaying Material Icons via TextPipeline");
 
     // Check if image exists
@@ -308,30 +288,28 @@ fn main() {
     }
     println!();
 
-    // Create showcase widget and add to window
-    {
-        let showcase = IconShowcase::new(WidgetId::new(1));
-        let window = app.window_mut(window_id).expect("Window not found");
+    Application::launch(|app| {
+        app.spawn_window("Phase 5: Icons + Images - AssortedWidgets", 1000.0, 800.0, |window| {
+            let showcase = IconShowcase::new(WidgetId::new(1));
 
-        use assorted_widgets::layout::Display;
-        window
-            .add_root(
-                Box::new(showcase),
-                Style {
-                    display: Display::Block,
-                    size: taffy::Size {
-                        width: taffy::Dimension::length(1000.0),
-                        height: taffy::Dimension::length(800.0),
+            use assorted_widgets::layout::Display;
+            window
+                .add_root(
+                    Box::new(showcase),
+                    Style {
+                        display: Display::Block,
+                        size: taffy::Size {
+                            width: taffy::Dimension::length(1000.0),
+                            height: taffy::Dimension::length(800.0),
+                        },
+                        ..Default::default()
                     },
-                    ..Default::default()
-                },
-            )
-            .expect("Failed to add root widget");
-    }
+                )
+                .expect("Failed to add root widget");
 
-    println!("Phase 5 showcase ready!");
-    println!("Press Cmd+Q to quit.\n");
-
-    // Run application event loop
-    app.run();
+            println!("✅ Window created!");
+            println!("Phase 5 showcase ready!");
+            println!("Press Cmd+Q to quit.\n");
+        });
+    });
 }

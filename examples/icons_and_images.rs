@@ -19,12 +19,8 @@ fn main() {
     println!("Testing icon and image systems initialization...\n");
 
     // Initialize application and render context
-    let app = pollster::block_on(async {
-        Application::new().await
-    })
-    .expect("Failed to initialize rendering");
-
-    let render_ctx = app.render_context();
+    Application::launch(|app| {
+        let render_ctx = app.render_context();
 
     // =====================================================
     // Test 1: IconEngine (Material Icons Font)
@@ -150,4 +146,5 @@ fn main() {
     println!();
     println!("All foundational systems are working! 🎉");
     println!();
+    });
 }
