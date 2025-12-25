@@ -226,7 +226,7 @@ fn apply_clipping(world_pos: vec2<f32>) -> bool {
     return false; // Inside all clips
 }
 
-// Fragment shader: Render SDF with anti-aliasing
+// Fragment shader: Render SDF with anti-aliasing and gradient support
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Apply clipping (discard if outside any clip region)
@@ -240,9 +240,49 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Anti-aliased edge (smooth from -0.5 to +0.5 pixels)
     let fill_alpha = 1.0 - smoothstep(-0.5, 0.5, dist);
 
+    // Determine fill color (solid or gradient)
+    // fill_color.r encodes: 0.0 = solid, 1.0 = linear gradient, 2.0 = radial gradient
+    // fill_color.g encodes: stop_count (2-8)
+    let gradient_type = u32(in.fill_color.r);
+    let stop_count = u32(in.fill_color.g);
+
+    var fill_color: vec4<f32>;
+
+    if (gradient_type == 0u) {
+        // Solid color (stored in fill_color.ba as packed data, or we use border_color as fallback)
+        // For solid, we use the original approach - fill_color is already the color
+        fill_color = in.fill_color;
+    } else if (gradient_type == 1u) {
+        // Linear gradient
+        let stops = array<vec4<f32>, 8>(
+            in.gradient_stop_0,
+            in.gradient_stop_1,
+            in.gradient_stop_2,
+            in.gradient_stop_3,
+            in.gradient_stop_4,
+            in.gradient_stop_5,
+            in.gradient_stop_6,
+            in.gradient_stop_7,
+        );
+        fill_color = sample_linear_gradient(in.uv, in.gradient_start_end, stops, stop_count);
+    } else {
+        // Radial gradient (gradient_type == 2u)
+        let stops = array<vec4<f32>, 8>(
+            in.gradient_stop_0,
+            in.gradient_stop_1,
+            in.gradient_stop_2,
+            in.gradient_stop_3,
+            in.gradient_stop_4,
+            in.gradient_stop_5,
+            in.gradient_stop_6,
+            in.gradient_stop_7,
+        );
+        fill_color = sample_radial_gradient(in.uv, in.gradient_start_end, stops, stop_count);
+    }
+
     // If no border, just return fill
     if (in.border_width <= 0.0) {
-        return vec4<f32>(in.fill_color.rgb, in.fill_color.a * fill_alpha);
+        return vec4<f32>(fill_color.rgb, fill_color.a * fill_alpha);
     }
 
     // Calculate border (two SDFs: outer and inner)
@@ -250,7 +290,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let border_alpha = smoothstep(-0.5, 0.5, inner_dist) - smoothstep(-0.5, 0.5, dist);
 
     // Blend fill and border
-    let fill_contribution = in.fill_color * (1.0 - border_alpha);
+    let fill_contribution = fill_color * (1.0 - border_alpha);
     let border_contribution = in.border_color * border_alpha;
     let final_color = fill_contribution + border_contribution;
 

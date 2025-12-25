@@ -8,10 +8,19 @@ use wgpu::util::DeviceExt;
 struct RectInstance {
     rect: [f32; 4],           // x, y, width, height
     corner_radius: [f32; 4],  // top_left, top_right, bottom_right, bottom_left
-    fill_color: [f32; 4],     // rgba
+    fill_color: [f32; 4],     // rgba (solid) or [gradient_type, stop_count, 0, 0]
     border_color: [f32; 4],   // rgba
     border_width: f32,
     _padding: [f32; 3],       // Align to 16 bytes
+    gradient_start_end: [f32; 4], // start.xy, end.xy (linear) or center.xy, radius, _
+    gradient_stop_0: [f32; 4], // offset, r, g, b
+    gradient_stop_1: [f32; 4],
+    gradient_stop_2: [f32; 4],
+    gradient_stop_3: [f32; 4],
+    gradient_stop_4: [f32; 4],
+    gradient_stop_5: [f32; 4],
+    gradient_stop_6: [f32; 4],
+    gradient_stop_7: [f32; 4],
 }
 
 /// Uniform buffer for screen size
@@ -114,6 +123,60 @@ impl RectSdfPipeline {
                                 shader_location: 4,
                                 format: wgpu::VertexFormat::Float32,
                             },
+                            // gradient_start_end: vec4<f32>
+                            wgpu::VertexAttribute {
+                                offset: 80,
+                                shader_location: 5,
+                                format: wgpu::VertexFormat::Float32x4,
+                            },
+                            // gradient_stop_0: vec4<f32>
+                            wgpu::VertexAttribute {
+                                offset: 96,
+                                shader_location: 6,
+                                format: wgpu::VertexFormat::Float32x4,
+                            },
+                            // gradient_stop_1: vec4<f32>
+                            wgpu::VertexAttribute {
+                                offset: 112,
+                                shader_location: 7,
+                                format: wgpu::VertexFormat::Float32x4,
+                            },
+                            // gradient_stop_2: vec4<f32>
+                            wgpu::VertexAttribute {
+                                offset: 128,
+                                shader_location: 8,
+                                format: wgpu::VertexFormat::Float32x4,
+                            },
+                            // gradient_stop_3: vec4<f32>
+                            wgpu::VertexAttribute {
+                                offset: 144,
+                                shader_location: 9,
+                                format: wgpu::VertexFormat::Float32x4,
+                            },
+                            // gradient_stop_4: vec4<f32>
+                            wgpu::VertexAttribute {
+                                offset: 160,
+                                shader_location: 10,
+                                format: wgpu::VertexFormat::Float32x4,
+                            },
+                            // gradient_stop_5: vec4<f32>
+                            wgpu::VertexAttribute {
+                                offset: 176,
+                                shader_location: 11,
+                                format: wgpu::VertexFormat::Float32x4,
+                            },
+                            // gradient_stop_6: vec4<f32>
+                            wgpu::VertexAttribute {
+                                offset: 192,
+                                shader_location: 12,
+                                format: wgpu::VertexFormat::Float32x4,
+                            },
+                            // gradient_stop_7: vec4<f32>
+                            wgpu::VertexAttribute {
+                                offset: 208,
+                                shader_location: 13,
+                                format: wgpu::VertexFormat::Float32x4,
+                            },
                         ],
                     },
                 ],
@@ -176,22 +239,109 @@ impl RectSdfPipeline {
             .iter()
             .filter_map(|cmd| match cmd {
                 DrawCommand::Rect { rect, style, .. } => {
-                    let fill_color = style.fill.to_color();
+                    use crate::paint::Brush;
+
                     let border_color = style.border.as_ref()
                         .map(|b| b.color)
-                        .unwrap_or(fill_color);
+                        .unwrap_or_else(|| crate::paint::Color::rgb(0.0, 0.0, 0.0));
                     let border_width = style.border.as_ref()
                         .map(|b| b.width)
                         .unwrap_or(0.0);
 
-                    Some(RectInstance {
+                    let mut instance = RectInstance {
                         rect: [rect.origin.x as f32, rect.origin.y as f32, rect.size.width as f32, rect.size.height as f32],
                         corner_radius: style.corner_radius.to_array(),
-                        fill_color: fill_color.to_array(),
+                        fill_color: [0.0; 4],
                         border_color: border_color.to_array(),
                         border_width,
                         _padding: [0.0; 3],
-                    })
+                        gradient_start_end: [0.0; 4],
+                        gradient_stop_0: [0.0; 4],
+                        gradient_stop_1: [0.0; 4],
+                        gradient_stop_2: [0.0; 4],
+                        gradient_stop_3: [0.0; 4],
+                        gradient_stop_4: [0.0; 4],
+                        gradient_stop_5: [0.0; 4],
+                        gradient_stop_6: [0.0; 4],
+                        gradient_stop_7: [0.0; 4],
+                    };
+
+                    // Encode brush data
+                    match &style.fill {
+                        Brush::Solid(color) => {
+                            instance.fill_color = color.to_array();
+                        }
+                        Brush::LinearGradient(gradient) => {
+                            // Encode gradient type (1.0) and stop count
+                            instance.fill_color = [1.0, gradient.stops.len() as f32, 0.0, 0.0];
+
+                            // Encode start and end points (normalized 0-1 coordinates)
+                            instance.gradient_start_end = [
+                                gradient.start.x as f32,
+                                gradient.start.y as f32,
+                                gradient.end.x as f32,
+                                gradient.end.y as f32,
+                            ];
+
+                            // Encode color stops (offset, r, g, b)
+                            let stops = [
+                                &mut instance.gradient_stop_0,
+                                &mut instance.gradient_stop_1,
+                                &mut instance.gradient_stop_2,
+                                &mut instance.gradient_stop_3,
+                                &mut instance.gradient_stop_4,
+                                &mut instance.gradient_stop_5,
+                                &mut instance.gradient_stop_6,
+                                &mut instance.gradient_stop_7,
+                            ];
+
+                            for (i, stop) in gradient.stops.iter().enumerate() {
+                                if i < 8 {
+                                    let color_array = stop.color.to_array();
+                                    stops[i][0] = stop.offset;
+                                    stops[i][1] = color_array[0];
+                                    stops[i][2] = color_array[1];
+                                    stops[i][3] = color_array[2];
+                                }
+                            }
+                        }
+                        Brush::RadialGradient(gradient) => {
+                            // Encode gradient type (2.0) and stop count
+                            instance.fill_color = [2.0, gradient.stops.len() as f32, 0.0, 0.0];
+
+                            // Encode center and radius (normalized 0-1 coordinates)
+                            instance.gradient_start_end = [
+                                gradient.center.x as f32,
+                                gradient.center.y as f32,
+                                gradient.radius,
+                                0.0,
+                            ];
+
+                            // Encode color stops (offset, r, g, b)
+                            let stops = [
+                                &mut instance.gradient_stop_0,
+                                &mut instance.gradient_stop_1,
+                                &mut instance.gradient_stop_2,
+                                &mut instance.gradient_stop_3,
+                                &mut instance.gradient_stop_4,
+                                &mut instance.gradient_stop_5,
+                                &mut instance.gradient_stop_6,
+                                &mut instance.gradient_stop_7,
+                            ];
+
+                            for (i, stop) in gradient.stops.iter().enumerate() {
+                                if i < 8 {
+                                    let color_array = stop.color.to_array();
+                                    stops[i][0] = stop.offset;
+                                    stops[i][1] = color_array[0];
+                                    stops[i][2] = color_array[1];
+                                    stops[i][3] = color_array[2];
+                                }
+                            }
+                        }
+                    }
+
+                    Some(instance)
                 }
                 // Clip commands are not rendered as rectangles
                 DrawCommand::PushClip { .. } | DrawCommand::PopClip => None,

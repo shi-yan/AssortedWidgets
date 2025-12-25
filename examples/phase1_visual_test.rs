@@ -1,12 +1,16 @@
-//! Phase 1 & 2 Visual Test - Z-Ordering, Clipping, and Shadows
+//! Phase 1, 2 & 3 Visual Test - Z-Ordering, Clipping, Shadows & Gradients
 //!
-//! This demonstrates Phase 1 and Phase 2 implementation with actual rendering:
+//! This demonstrates Phase 1, 2, and 3 implementation with actual rendering:
 //! 1. Z-ordering with explicit layers (SHADOW, NORMAL, OVERLAY)
 //! 2. Rounded rectangle clipping (shader-based SDF)
 //! 3. Analytical soft drop shadows
-//! 4. Batched rendering with anti-aliasing
+//! 4. Linear and radial gradients (Phase 3)
+//! 5. Batched rendering with anti-aliasing
 
-use assorted_widgets::paint::{Border, Brush, Color, CornerRadius, ShapeStyle, Shadow, PrimitiveBatcher, layers};
+use assorted_widgets::paint::{
+    Border, Brush, Color, ColorStop, CornerRadius, LinearGradient, RadialGradient, ShapeStyle,
+    Shadow, PrimitiveBatcher, layers,
+};
 use assorted_widgets::types::{Point, Rect, Size, WidgetId};
 use assorted_widgets::{Application, Widget, WindowOptions};
 
@@ -202,9 +206,59 @@ impl Widget for Phase1VisualTest {
         ctx.draw_styled_rect(rect(105.0, 155.0, 60.0, 24.0), label_style.clone());
         ctx.draw_styled_rect(rect(155.0, 205.0, 60.0, 24.0), label_style);
 
+        // ========================================
+        // Test 4: Gradients (Phase 3)
+        // ========================================
+
+        // Gradient panel with linear gradient
+        ctx.draw_styled_rect(
+            rect(30.0, 390.0, 240.0, 70.0),
+            ShapeStyle {
+                fill: Brush::LinearGradient(LinearGradient::new(
+                    Point::new(0.0, 0.5),
+                    Point::new(1.0, 0.5),
+                    vec![
+                        ColorStop::new(0.0, Color::rgb(0.3, 0.5, 0.9)),
+                        ColorStop::new(0.5, Color::rgb(0.6, 0.3, 0.9)),
+                        ColorStop::new(1.0, Color::rgb(0.9, 0.3, 0.6)),
+                    ],
+                )),
+                corner_radius: CornerRadius::uniform(12.0),
+                border: Some(Border::new(Color::rgb(0.2, 0.2, 0.3), 2.0)),
+                shadow: Some(Shadow::new(
+                    Color::rgba(0.0, 0.0, 0.0, 0.3),
+                    (3.0, 4.0),
+                    10.0,
+                )),
+            },
+        );
+
+        // Gradient panel with radial gradient
+        ctx.draw_styled_rect(
+            rect(290.0, 390.0, 240.0, 70.0),
+            ShapeStyle {
+                fill: Brush::RadialGradient(RadialGradient::new(
+                    Point::new(0.5, 0.5),
+                    0.5,
+                    vec![
+                        ColorStop::new(0.0, Color::rgb(1.0, 0.9, 0.3)),
+                        ColorStop::new(0.7, Color::rgb(0.9, 0.5, 0.2)),
+                        ColorStop::new(1.0, Color::rgb(0.6, 0.2, 0.2)),
+                    ],
+                )),
+                corner_radius: CornerRadius::uniform(12.0),
+                border: Some(Border::new(Color::rgb(0.3, 0.2, 0.2), 2.0)),
+                shadow: Some(Shadow::new(
+                    Color::rgba(0.0, 0.0, 0.0, 0.3),
+                    (3.0, 4.0),
+                    10.0,
+                )),
+            },
+        );
+
         // Footer info
         ctx.draw_styled_rect(
-            rect(30.0, 420.0, 720.0, 50.0),
+            rect(30.0, 480.0, 720.0, 40.0),
             ShapeStyle::rounded(Color::rgb(0.18, 0.18, 0.22), 8.0)
                 .with_border(Border::new(Color::rgb(0.3, 0.3, 0.35), 1.0)),
         );
@@ -212,14 +266,15 @@ impl Widget for Phase1VisualTest {
 }
 
 fn main() {
-    println!("Phase 1 & 2 Visual Test - Z-Ordering, Clipping & Shadows");
-    println!("=========================================================");
+    println!("Phase 1, 2 & 3 Visual Test - Z-Ordering, Clipping, Shadows & Gradients");
+    println!("========================================================================");
     println!();
     println!("This test showcases:");
     println!("  • Phase 1: Z-ordering with explicit layers (SHADOW, NORMAL, OVERLAY)");
     println!("  • Phase 1: Rounded rectangles with SDF anti-aliasing");
     println!("  • Phase 1: Shader-based clipping (foundation)");
     println!("  • Phase 2: Analytical soft drop shadows");
+    println!("  • Phase 3: Linear and radial gradients with multi-stop support");
     println!();
 
     #[cfg(target_os = "macos")]
@@ -229,8 +284,8 @@ fn main() {
 
         let window_id = app
             .create_window(WindowOptions {
-                bounds: Rect::new(Point::new(100.0, 100.0), Size::new(800.0, 500.0)),
-                title: "Phase 1 & 2 - Z-Ordering, Clipping & Shadows".to_string(),
+                bounds: Rect::new(Point::new(100.0, 100.0), Size::new(800.0, 540.0)),
+                title: "Phase 1, 2 & 3 - Z-Ordering, Clipping, Shadows & Gradients".to_string(),
                 titlebar: None,
                 borderless: false,
                 transparent: false,
@@ -242,7 +297,7 @@ fn main() {
         // Create the test widget
         let demo = Phase1VisualTest::new(
             WidgetId::new(1),
-            Rect::new(Point::new(0.0, 0.0), Size::new(800.0, 500.0)),
+            Rect::new(Point::new(0.0, 0.0), Size::new(800.0, 540.0)),
         );
 
         // Get window reference and add root widget
@@ -257,7 +312,7 @@ fn main() {
                     display: Display::Block,
                     size: taffy::Size {
                         width: taffy::Dimension::length(800.0),
-                        height: taffy::Dimension::length(500.0),
+                        height: taffy::Dimension::length(540.0),
                     },
                     ..Default::default()
                 },
