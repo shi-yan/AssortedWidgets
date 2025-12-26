@@ -43,13 +43,17 @@ pub struct Window {
     platform_window: PlatformWindowImpl,
 
     // ========================================
-    // UI State (Per-Window) - PRIVATE (use add_root/add_child/remove/get/get_mut APIs)
+    // UI State (Per-Window) - PRIVATE (use add_to_root/add_child/remove/get/get_mut APIs)
     // ========================================
     widgets: WidgetManager,
     widget_tree: WidgetTree,
     layout_manager: LayoutManager,
     window_size: Size,
     needs_layout: bool,
+
+    /// Implicit root container (Qt-style)
+    /// Every window has a root container for layout
+    root_container_id: WidgetId,
 
     // ========================================
     // Rendering (Per-Window)
@@ -100,15 +104,49 @@ impl Window {
         window_size: Size,
         event_queue: Arc<Mutex<VecDeque<(WindowId, GuiEvent)>>>,
         gui_handle: GuiHandle,
+        root_layout: Option<crate::layout::Style>,
     ) -> Self {
+        use crate::elements::Container;
+        use crate::widget_tree::TreeNode;
+
+        // Create default root layout if not provided
+        let root_style = root_layout.unwrap_or_else(|| crate::layout::Style {
+            display: crate::layout::Display::Flex,
+            flex_direction: crate::layout::FlexDirection::Column,
+            size: taffy::Size {
+                width: taffy::Dimension::percent(1.0),
+                height: taffy::Dimension::percent(1.0),
+            },
+            ..Default::default()
+        });
+
+        // Create widget manager and other components
+        let mut widgets = WidgetManager::new(gui_handle.clone());
+        let mut widget_tree = WidgetTree::new();
+        let mut layout_manager = LayoutManager::new();
+
+        // Create implicit root container (Qt-style)
+        let root_container_id = gui_handle.next_widget_id();
+        let mut root_container = Box::new(Container::new(root_style.clone()));
+        root_container.set_id(root_container_id);
+
+        // Add root container to all three systems
+        widgets.add_widget(root_container);
+        layout_manager.create_node(root_container_id, root_style)
+            .expect("Failed to create root layout node");
+        layout_manager.set_root(root_container_id)
+            .expect("Failed to set layout root");
+        widget_tree.set_root(TreeNode::new(root_container_id));
+
         Window {
             id,
             platform_window,
-            widgets: WidgetManager::new(gui_handle),
-            widget_tree: WidgetTree::new(),
-            layout_manager: LayoutManager::new(),
+            widgets,
+            widget_tree,
+            layout_manager,
             window_size,
             needs_layout: true,
+            root_container_id,
             window_renderer,
             last_frame_time: None,
             frame_number: 0,
@@ -178,8 +216,56 @@ impl Window {
     // ========================================
 
     // ========================================
-    // High-Level Convenience API
+    // High-Level Convenience API (Qt-style)
     // ========================================
+
+    /// Set the root container's layout style (Qt-style API)
+    ///
+    /// Every window has an implicit root container. This method allows you to
+    /// configure its layout properties (flex direction, gap, padding, etc.)
+    ///
+    /// # Example
+    /// ```ignore
+    /// window.set_root_layout(Style {
+    ///     flex_direction: FlexDirection::Column,
+    ///     gap: taffy::Size::length(10.0),
+    ///     padding: taffy::Rect::length(20.0),
+    ///     ..Default::default()
+    /// });
+    /// ```
+    pub fn set_root_layout(&mut self, style: crate::layout::Style) {
+        self.layout_manager.set_style(self.root_container_id, style)
+            .expect("Failed to set root layout style");
+        self.needs_layout = true;
+    }
+
+    /// Add a widget directly to the root container (Qt-style API)
+    ///
+    /// This is the recommended way to add widgets to a window. The window has an
+    /// implicit root container, and this method adds the widget as a child of that container.
+    ///
+    /// # Arguments
+    /// * `widget` - The widget to add (must implement Widget trait)
+    /// * `style` - Layout style for this widget
+    ///
+    /// # Example
+    /// ```ignore
+    /// let label = Label::new("Hello");
+    /// let label_id = window.add_to_root(Box::new(label), Style {
+    ///     size: Size {
+    ///         width: Dimension::Length(200.0),
+    ///         height: Dimension::Auto,
+    ///     },
+    ///     ..Default::default()
+    /// })?;
+    /// ```
+    pub fn add_to_root(
+        &mut self,
+        widget: Box<dyn Widget>,
+        style: crate::layout::Style,
+    ) -> Result<WidgetId, String> {
+        self.add_child(widget, style, self.root_container_id)
+    }
 
     /// Set the main widget for this window (fills entire window)
     ///
@@ -934,6 +1020,15 @@ impl Window {
                                 // Special case for TextLabel: use measure_with_engine()
                                 if let Some(text_label) = element.as_any().downcast_ref::<TextLabel>() {
                                     let size = text_label.measure_with_engine(&mut *text_engine_lock, known);
+                                    return taffy::Size {
+                                        width: size.width as f32,
+                                        height: size.height as f32,
+                                    };
+                                }
+
+                                // Special case for Label: use measure_with_engine()
+                                if let Some(label) = element.as_any().downcast_ref::<crate::widgets::Label>() {
+                                    let size = label.measure_with_engine(&mut *text_engine_lock, known);
                                     return taffy::Size {
                                         width: size.width as f32,
                                         height: size.height as f32,

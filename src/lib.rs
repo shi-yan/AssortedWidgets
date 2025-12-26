@@ -39,6 +39,7 @@ pub mod render;
 pub mod widget_tree;
 pub mod text;
 pub mod types;
+pub mod widgets;  // Official reusable UI widgets
 pub mod window;
 
 // Re-export public API

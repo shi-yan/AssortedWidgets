@@ -149,6 +149,15 @@ impl Application {
     /// Create a window
     #[cfg(target_os = "macos")]
     pub fn create_window(&mut self, options: WindowOptions) -> Result<WindowId, String> {
+        self.create_window_with_layout(options, None)
+    }
+
+    /// Create a window with custom root layout (Qt-style API)
+    pub fn create_window_with_layout(
+        &mut self,
+        options: WindowOptions,
+        root_layout: Option<crate::layout::Style>,
+    ) -> Result<WindowId, String> {
         // Allocate window ID
         let window_id = WindowId::new(self.next_window_id);
         self.next_window_id += 1;
@@ -199,6 +208,7 @@ impl Application {
 
         // Create window (uses logical size for layout calculations)
         // Pass cloned GuiHandle for app-level widget ID generation
+        // Pass optional root_layout for Qt-style implicit root container
         let window = Window::new(
             window_id,
             platform_window,
@@ -206,6 +216,7 @@ impl Application {
             window_size,
             Arc::clone(&self.event_queue),
             self.gui_handle.clone(),
+            root_layout,
         );
 
         // Store window
@@ -570,11 +581,55 @@ impl Application {
     /// });
     /// ```
     #[cfg(target_os = "macos")]
+    /// Spawn a window with default root layout (Qt-style API)
+    ///
+    /// The window has an implicit root container with a column flex layout.
+    /// Use `window.add_to_root()` inside the setup closure to add widgets.
+    ///
+    /// # Example
+    /// ```ignore
+    /// app.spawn_window("My App", 800.0, 600.0, |window| {
+    ///     window.add_to_root(Box::new(Label::new("Hello")), Style::default());
+    /// });
+    /// ```
     pub fn spawn_window<F>(
         &mut self,
         title: &str,
         width: f64,
         height: f64,
+        setup: F,
+    ) -> WindowId
+    where
+        F: FnOnce(&mut Window),
+    {
+        self.spawn_window_with_layout(title, width, height, None, setup)
+    }
+
+    /// Spawn a window with custom root layout (Qt-style API - Option C)
+    ///
+    /// The window has an implicit root container. If `root_layout` is provided,
+    /// it configures the root container's layout. Otherwise, a default column layout is used.
+    /// You can also call `window.set_root_layout()` inside the setup closure.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let root_style = Style {
+    ///     flex_direction: FlexDirection::Row,
+    ///     gap: taffy::Size::length(10.0),
+    ///     ..Default::default()
+    /// };
+    ///
+    /// app.spawn_window_with_layout("My App", 800.0, 600.0, Some(root_style), |window| {
+    ///     window.add_to_root(Box::new(Label::new("Left")), Style::default());
+    ///     window.add_to_root(Box::new(Label::new("Right")), Style::default());
+    /// });
+    /// ```
+    pub fn spawn_window_with_layout<F>(
+        &mut self,
+        title: &str,
+        width: f64,
+        height: f64,
+        root_layout: Option<crate::layout::Style>,
         setup: F,
     ) -> WindowId
     where
@@ -590,7 +645,7 @@ impl Application {
             utility: false,
         };
 
-        let window_id = self.create_window(options)
+        let window_id = self.create_window_with_layout(options, root_layout)
             .expect("Failed to create window");
 
         // Immediately get the window and call setup

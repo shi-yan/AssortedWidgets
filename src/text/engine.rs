@@ -154,7 +154,34 @@ impl TextEngine {
         truncate: Truncate,
     ) -> TextLayout {
         self.shapes_this_frame += 1;  // Track manual API usage
-        let buffer = self.shape_text_internal(text, style, max_width, truncate);
+        let buffer = self.shape_text_internal(text, style, max_width, truncate, None);
+        TextLayout::new(buffer, style.alignment, max_width)
+    }
+
+    /// Create a text layout with custom wrap mode (manual mode - no caching)
+    ///
+    /// This is an extended version of create_layout that allows specifying
+    /// a custom wrap mode (None, Word, or Glyph).
+    ///
+    /// # Arguments
+    /// * `text` - The text to shape
+    /// * `style` - Font styling
+    /// * `max_width` - Optional width constraint for wrapping
+    /// * `truncate` - Truncation mode (None or End with ellipsis)
+    /// * `wrap` - Wrapping mode (None, Word, or Glyph). If None, uses default based on truncate.
+    ///
+    /// # Returns
+    /// Owned TextLayout ready for rendering
+    pub fn create_layout_with_wrap(
+        &mut self,
+        text: &str,
+        style: &TextStyle,
+        max_width: Option<f32>,
+        truncate: Truncate,
+        wrap: cosmic_text::Wrap,
+    ) -> TextLayout {
+        self.shapes_this_frame += 1;  // Track manual API usage
+        let buffer = self.shape_text_internal(text, style, max_width, truncate, Some(wrap));
         TextLayout::new(buffer, style.alignment, max_width)
     }
 
@@ -193,7 +220,7 @@ impl TextEngine {
             self.cache_misses += 1;
             self.shapes_this_frame += 1;
 
-            let buffer = self.shape_text_internal(text, style, max_width, Truncate::None);
+            let buffer = self.shape_text_internal(text, style, max_width, Truncate::None, None);
             println!("max width {:?}", max_width);
             let layout = TextLayout::new(buffer, style.alignment, max_width);
 
@@ -231,6 +258,7 @@ impl TextEngine {
         style: &TextStyle,
         max_width: Option<f32>,
         truncate: Truncate,
+        custom_wrap: Option<cosmic_text::Wrap>,
     ) -> Buffer {
         let font_system = self.font_system.font_system_mut();
 
@@ -252,13 +280,17 @@ impl TextEngine {
         }
 
         // Set wrapping mode BEFORE shaping
-        if truncate == Truncate::End {
+        let wrap_mode = if let Some(wrap) = custom_wrap {
+            // Use custom wrap mode if provided
+            wrap
+        } else if truncate == Truncate::End {
             // Disable wrapping for single-line truncation
-            buffer.set_wrap(font_system, cosmic_text::Wrap::None);
+            cosmic_text::Wrap::None
         } else {
             // Enable word wrapping for normal multi-line text
-            buffer.set_wrap(font_system, cosmic_text::Wrap::Word);
-        }
+            cosmic_text::Wrap::Word
+        };
+        buffer.set_wrap(font_system, wrap_mode);
 
         // Set alignment on all buffer lines BEFORE shaping
         use cosmic_text::Align as CosmicAlign;

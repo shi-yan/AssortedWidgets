@@ -180,6 +180,26 @@ impl<'a> PaintContext<'a> {
         self.hit_tester
     }
 
+    /// Execute a closure with mutable access to the TextEngine
+    ///
+    /// This allows widgets to ensure their text layouts are valid for their final bounds
+    /// before painting. This is necessary because the layout system may call measure()
+    /// multiple times with different constraints, potentially invalidating the cached layout.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// // In Label::paint():
+    /// ctx.with_text_engine(|engine| {
+    ///     self.ensure_layout(engine, Some(self.bounds.size.width as f32));
+    /// });
+    /// ```
+    pub fn with_text_engine<F, R>(&mut self, f: F) -> R
+    where
+        F: FnOnce(&mut TextEngine) -> R,
+    {
+        f(&mut self.bundle.text_engine)
+    }
+
     /// Finalize and clone the hit tester
     ///
     /// This finalizes the internal hit tester and returns a clone.
