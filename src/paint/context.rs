@@ -239,21 +239,11 @@ impl<'a> PaintContext<'a> {
 
     /// Draw a filled rectangle
     pub fn draw_rect(&mut self, rect: Rect, color: Color) {
-
-        let logical_rect = Rect::new(
-            Point::new(rect.origin.x , rect.origin.y ),
-            Size::new(rect.size.width , rect.size.height ),
-        );
-
-        let instance = RectInstance::new(logical_rect, color);
+        let instance = RectInstance::new(rect, color);
 
         // Apply clipping if there's a clip rect on the stack
         let instance = if let Some(clip) = self.current_clip_rect() {
-            let logical_clip = Rect::new(
-                Point::new(clip.origin.x , clip.origin.y ),
-                Size::new(clip.size.width , clip.size.height ),
-            );
-            instance.with_clip(logical_clip)
+            instance.with_clip(clip)
         } else {
             instance
         };
@@ -672,7 +662,7 @@ impl<'a> PaintContext<'a> {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
 
-        // Get current clip rect
+        // Get current clip rect (in logical pixels)
         let clip = clip_rect_opt.unwrap_or_else(|| {
             Rect::new(Point::new(0.0, 0.0), window_size)
         });
@@ -758,27 +748,24 @@ impl<'a> PaintContext<'a> {
                 // COORDINATE SYSTEM: cosmic-text uses bottom-left origin (Y goes UP)
                 // but WebGPU uses top-left origin (Y goes DOWN), so we flip Y by subtracting
                 //
-                // CRITICAL ARCHITECTURE: Logical Coordinates with Scaled Projection
-                // ===================================================================
+                // ARCHITECTURE: Logical Coordinates with DPI-Aware Projection
+                // ============================================================
                 // - ALL drawing coordinates are in LOGICAL pixels (DPI-independent)
-                // - Projection matrix is scaled: screen_size = logical_size * scale_factor (PHYSICAL)
-                // - This ensures logical coords map correctly to the physical viewport
+                // - Projection matrix incorporates scale_factor to map logical→physical→NDC
+                // - Text glyphs use logical dimensions (scaled down from physical rasterization)
                 //
-                // Why this works:
-                // 1. physical_glyph gives us PHYSICAL coordinates (e.g., 200px on 2x display)
-                // 2. We divide by scale_factor to convert to LOGICAL (200 / 2 = 100)
-                // 3. Projection matrix: logical_size * scale_factor = physical_size (1200 * 2 = 2400)
-                // 4. Shader: logical_coord / physical_screen_size = correct NDC (100 / 2400)
-                // 5. Viewport maps NDC to physical pixels correctly
-                //println!("phyiscal_glyph x={} y={}", physical_glyph.x, physical_glyph.y);
-                //println!("position.x ={} position.y={}", position.x as f32 * scale_factor, position.y as f32 * scale_factor);
-                let glyph_x = glyph.x as f32 + location.logical_offset_x + position.x as f32  ;
-                let glyph_y = glyph.y as f32 - location.logical_offset_y + position.y as f32 + line_y ;
+                // How this works:
+                // 1. physical_glyph gives PHYSICAL coords (e.g., 200px on 2x display)
+                // 2. We convert to LOGICAL coords by dividing by scale_factor (200 / 2 = 100)
+                // 3. Projection matrix: maps logical (0,0)→(width,height) to NDC, scaled for DPI
+                // 4. Result: logical coords render at correct physical size
+                let glyph_x = glyph.x as f32 + location.logical_offset_x + position.x as f32;
+                // line_y is needed for multi-line text to position each line correctly
+                let glyph_y = glyph.y as f32 - location.logical_offset_y + position.y as f32 + line_y;
 
-                // Glyph dimensions from atlas are PHYSICAL (high-res bitmap)
-                // Convert to LOGICAL for consistent coordinate system
-                let glyph_width = location.logical_width ;
-                let glyph_height = location.logical_height ;
+                // Use logical dimensions (DPI-independent)
+                let glyph_width = location.logical_width;
+                let glyph_height = location.logical_height;
 
                 // Push text instance with z-order
                 let instance = TextInstance::new(

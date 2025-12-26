@@ -1,7 +1,7 @@
 // Path rendering shader (for Lyon-tessellated paths)
 
 struct Uniforms {
-    screen_size: vec2<f32>,
+    projection: mat4x4<f32>,
 }
 
 @group(0) @binding(0)
@@ -21,9 +21,8 @@ struct VertexOutput {
 fn vs_main(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
 
-    // Convert to NDC (clip space)
-    let ndc = (in.position / uniforms.screen_size) * 2.0 - 1.0;
-    out.clip_position = vec4<f32>(ndc.x, -ndc.y, 0.0, 1.0); // Flip Y for screen coords
+    // Convert to clip space using projection matrix
+    out.clip_position = uniforms.projection * vec4<f32>(in.position, 0.0, 1.0);
 
     out.color = in.color;
 

@@ -7,8 +7,7 @@
 // - Instanced rendering support
 
 struct Uniforms {
-    screen_size: vec2<f32>,
-    _padding: vec2<f32>,
+    projection: mat4x4<f32>,
 }
 
 struct VertexInput {
@@ -46,17 +45,14 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     // World-space position
     let world_pos = in.position + corner * in.size;
 
-    // Convert to clip space (-1 to 1)
-    let clip_pos = vec2<f32>(
-        (world_pos.x / uniforms.screen_size.x) * 2.0 - 1.0,
-        1.0 - (world_pos.y / uniforms.screen_size.y) * 2.0,  // Y-flip
-    );
+    // Convert to clip space using projection matrix
+    let clip_pos = uniforms.projection * vec4<f32>(world_pos, 0.0, 1.0);
 
     // UV coordinates (standard 0-1 range)
     let uv = corner;
 
     var out: VertexOutput;
-    out.position = vec4<f32>(clip_pos, 0.0, 1.0);
+    out.position = clip_pos;
     out.uv = uv;
     out.tint = in.tint;
     out.world_pos = world_pos;

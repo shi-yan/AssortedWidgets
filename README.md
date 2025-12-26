@@ -163,9 +163,22 @@ AssortedWidgets uses a three-system architecture internally:
 All three systems are hidden behind a clean Window API:
 
 ```rust
-// Add widgets through simple Window methods
-let widget_id = window.add_root(widget, style)?;
-let child_id = window.add_child(parent_id, child_widget, child_style)?;
+// Qt-style implicit root container (recommended)
+window.set_root_layout(taffy::Style {
+    display: Display::Flex,
+    flex_direction: FlexDirection::Column,
+    gap: taffy::Size {
+        width: taffy::LengthPercentage::length(10.0),
+        height: taffy::LengthPercentage::length(10.0),
+    },
+    ..Default::default()
+});
+
+// Add widgets as children of the root container
+let widget_id = window.add_to_root(widget, style)?;
+
+// Or add as child of another widget
+let child_id = window.add_child(widget, style, parent_id)?;
 
 // Floating widgets (tooltips, modals) skip layout
 let tooltip_id = window.add_floating(parent_id, tooltip_widget)?;

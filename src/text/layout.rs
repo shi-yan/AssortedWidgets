@@ -27,13 +27,18 @@ pub struct TextLayout {
 
     /// Max width constraint (needed for center/right alignment calculation)
     pub(crate) max_width: Option<f32>,
+
+    /// Y offset of the first line's baseline (for proper vertical alignment)
+    /// This is the baseline offset that should be subtracted when rendering
+    /// to ensure text starts at the specified position without extra top padding
+    pub(crate) first_line_y: f32,
 }
 
 impl TextLayout {
     /// Create a new text layout from a cosmic-text buffer
     pub(crate) fn new(buffer: Buffer, alignment: TextAlign, max_width: Option<f32>) -> Self {
-        let size = Self::compute_size(&buffer);
-        Self { buffer, size, alignment, max_width }
+        let (size, first_line_y) = Self::compute_size(&buffer);
+        Self { buffer, size, alignment, max_width, first_line_y }
     }
 
     /// Get text alignment
@@ -61,22 +66,39 @@ impl TextLayout {
         self.size.height
     }
 
+    /// Get the first line's Y offset (baseline position)
+    /// This should be subtracted from the rendering position to ensure
+    /// text starts at the specified Y coordinate without extra top padding
+    pub(crate) fn first_line_y(&self) -> f32 {
+        self.first_line_y
+    }
+
     /// Access the underlying cosmic-text buffer (for advanced use)
     pub fn buffer(&self) -> &Buffer {
         &self.buffer
     }
 
     /// Compute the intrinsic size of the buffer
-    fn compute_size(buffer: &Buffer) -> Size {
+    fn compute_size(buffer: &Buffer) -> (Size, f32) {
         let mut max_width = 0.0_f32;
         let mut max_height = 0.0_f32;
+        let mut first_line_y = 0.0_f32;
+        let mut first_run = true;
 
         for run in buffer.layout_runs() {
+            if first_run {
+                first_line_y = run.line_y;
+                first_run = false;
+            }
             max_width = max_width.max(run.line_w);
             max_height = run.line_y + run.line_height;
         }
 
-        Size::new(max_width as f64, max_height as f64)
+        // Subtract first_line_y to get the actual text height (excluding the top baseline offset)
+        // This ensures symmetric padding when text is rendered at position.y + line_y
+        let actual_height = max_height - first_line_y;
+
+        (Size::new(max_width as f64, actual_height as f64), first_line_y)
     }
 
     // ========================================================================

@@ -1,6 +1,6 @@
 // Uniforms for screen transformation
 struct Uniforms {
-    screen_size: vec2<f32>,
+    projection: mat4x4<f32>,
 }
 
 @group(0) @binding(0)
@@ -83,9 +83,8 @@ fn vs_main(
     // Calculate world position
     let world_pos = instance.rect.xy + pos * instance.rect.zw;
 
-    // Convert to NDC (clip space)
-    let ndc = (world_pos / uniforms.screen_size) * 2.0 - 1.0;
-    out.clip_position = vec4<f32>(ndc.x, -ndc.y, 0.0, 1.0); // Flip Y for screen coords
+    // Convert to clip space using projection matrix
+    out.clip_position = uniforms.projection * vec4<f32>(world_pos, 0.0, 1.0);
 
     // Local position (relative to rect center, in pixels)
     let center = instance.rect.xy + instance.rect.zw * 0.5;

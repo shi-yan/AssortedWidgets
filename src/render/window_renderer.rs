@@ -11,15 +11,40 @@ use crate::text::TextInstance;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
-/// Window uniforms shared by all rendering pipelines (per-window - contains screen_size)
+/// Window uniforms shared by all rendering pipelines (per-window - contains projection matrix)
 ///
 /// This uniform buffer is shared across all pipelines (rect, text, path, rect_sdf, shadow_sdf, image)
-/// since they all need the same screen_size data for coordinate transformation.
+/// since they all need the same projection matrix for coordinate transformation.
+/// The projection matrix converts from physical pixel coordinates to NDC.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct WindowUniforms {
-    screen_size: [f32; 2],
-    _padding: [f32; 2],  // Align to 16 bytes
+    projection: [[f32; 4]; 4],  // mat4x4 orthogonal projection matrix
+}
+
+/// Create an orthogonal projection matrix for 2D rendering with DPI scaling
+///
+/// Maps logical pixel coordinates (0, 0) to NDC (-1, 1) at top-left,
+/// and (width_logical, height_logical) to NDC (1, -1) at bottom-right.
+/// The scale_factor ensures rendering at correct physical resolution.
+///
+/// The matrix is:
+/// ```
+/// [2/(width*scale),    0,               0,   -1]
+/// [0,                 -2/(height*scale), 0,    1]
+/// [0,                  0,               -1,    0]
+/// [0,                  0,                0,    1]
+/// ```
+fn create_orthogonal_projection(logical_width: f32, logical_height: f32, scale_factor: f32) -> [[f32; 4]; 4] {
+    let effective_width = logical_width * scale_factor;
+    let effective_height = logical_height * scale_factor;
+
+    [
+        [2.0 / effective_width, 0.0, 0.0, 0.0],
+        [0.0, -2.0 / effective_height, 0.0, 0.0],
+        [0.0, 0.0, -1.0, 0.0],
+        [-1.0, 1.0, 0.0, 1.0],
+    ]
 }
 
 /// Per-window rendering resources
@@ -138,14 +163,15 @@ impl WindowRenderer {
 
         surface.configure(device, &config);
 
-        // Create SHARED window uniform buffer (screen_size for coordinate transformation)
-        // Use LOGICAL size for coordinate transformation (widgets use logical pixels)
+        // Create SHARED window uniform buffer (projection matrix for coordinate transformation)
+        // Projection maps LOGICAL coordinates to NDC, incorporating scale_factor for DPI
         // This single buffer is shared by ALL pipelines: rect, text, path, rect_sdf, shadow_sdf, image
-        let logical_size = [bounds.size.width as f32, bounds.size.height as f32];
+        let logical_width = bounds.size.width as f32;
+        let logical_height = bounds.size.height as f32;
+        let projection = create_orthogonal_projection(logical_width, logical_height, scale_factor as f32);
 
         let window_uniforms = WindowUniforms {
-            screen_size: logical_size,
-            _padding: [0.0, 0.0],
+            projection,
         };
 
         let window_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -257,13 +283,14 @@ impl WindowRenderer {
 
     /// Update screen size in uniform buffers
     pub fn update_screen_size(&mut self, size: Size, scale_factor: f32) {
-        // Use LOGICAL size for coordinate transformation (widgets use logical pixels)
-        let logical_size = [size.width as f32, size.height as f32];
+        // Projection maps LOGICAL coordinates to NDC, incorporating scale_factor for DPI
+        let logical_width = size.width as f32;
+        let logical_height = size.height as f32;
+        let projection = create_orthogonal_projection(logical_width, logical_height, scale_factor);
 
         // Update SHARED window uniform buffer (used by all pipelines)
         let window_uniforms = WindowUniforms {
-            screen_size: logical_size,
-            _padding: [0.0, 0.0],
+            projection,
         };
         self.render_context.queue().write_buffer(
             &self.window_uniform_buffer,
@@ -271,9 +298,10 @@ impl WindowRenderer {
             bytemuck::cast_slice(&[window_uniforms]),
         );
 
-        let physical_size = [size.width as f32 * scale_factor, size.height as f32 * scale_factor];
-        println!("[WindowRenderer] Updated shared window uniforms: logical = {:.0}x{:.0}, scale = {:.1}x, physical = {:.0}x{:.0}",
-            size.width, size.height, scale_factor, physical_size[0], physical_size[1]);
+        let physical_width = logical_width * scale_factor;
+        let physical_height = logical_height * scale_factor;
+        println!("[WindowRenderer] Updated projection matrix: logical = {:.0}x{:.0}, scale = {:.1}x, physical = {:.0}x{:.0}",
+            logical_width, logical_height, scale_factor, physical_width, physical_height);
     }
 
     /// Get the current surface texture for rendering

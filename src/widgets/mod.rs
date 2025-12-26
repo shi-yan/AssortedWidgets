@@ -8,5 +8,7 @@
 //! - Clean separation of concerns
 
 mod label;
+mod button;
 
 pub use label::{Label, WrapMode, Padding};
+pub use button::{Button, ButtonContent, ButtonState, ButtonStyle};

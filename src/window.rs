@@ -1035,6 +1035,15 @@ impl Window {
                                     };
                                 }
 
+                                // Special case for Button: use measure_with_engine()
+                                if let Some(button) = element.as_any().downcast_ref::<crate::widgets::Button>() {
+                                    let size = button.measure_with_engine(&mut *text_engine_lock, known);
+                                    return taffy::Size {
+                                        width: size.width as f32,
+                                        height: size.height as f32,
+                                    };
+                                }
+
                                 // Fallback to normal measure for other widgets
                                 if let Some(size) = element.measure(known, available) {
                                     return taffy::Size {

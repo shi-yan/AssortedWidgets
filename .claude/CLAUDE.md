@@ -179,23 +179,34 @@ Developers NEVER access `WidgetManager`, `WidgetTree`, or `LayoutManager` direct
 ```rust
 // Public API - clean and simple
 impl Window {
-    pub fn add_widget(&mut self, widget: Box<dyn Widget>, parent: Option<WidgetId>) -> WidgetId {
+    // Qt-style implicit root container (recommended API)
+    pub fn set_root_layout(&mut self, style: Style) {
+        // Configure the implicit root container's layout
+    }
+
+    pub fn add_to_root(&mut self, widget: Box<dyn Widget>, style: Style) -> Result<WidgetId, String> {
+        // Add widget as child of implicit root container
         // Internally coordinates all three systems:
         // 1. Add to WidgetManager
         // 2. Add to WidgetTree hierarchy
         // 3. Create Taffy node in LayoutManager
     }
 
+    pub fn add_child(&mut self, widget: Box<dyn Widget>, style: Style, parent_id: WidgetId) -> Result<WidgetId, String> {
+        // Add widget as child of specified parent
+    }
+
     pub fn remove_widget(&mut self, id: WidgetId) {
         // Removes from all three systems atomically
     }
 
-    pub fn set_parent(&mut self, child: WidgetId, new_parent: Option<WidgetId>) {
-        // Updates WidgetTree and LayoutManager
-    }
-
     pub fn add_floating_widget(&mut self, widget: Box<dyn Widget>) -> WidgetId {
         // Adds to WidgetManager and WidgetTree, skips LayoutManager
+    }
+
+    // Low-level API (still available for advanced use)
+    pub fn add_root(&mut self, widget: Box<dyn Widget>, style: Style) -> Result<WidgetId, String> {
+        // Creates a new root node (bypasses implicit root container)
     }
 }
 ```
@@ -213,16 +224,22 @@ impl Window {
 **Data Flow Example:**
 
 ```rust
-// Developer code
-let button_id = window.add_widget(Box::new(Button::new("Click me")), Some(panel_id));
+// Developer code (Qt-style implicit root)
+window.set_root_layout(taffy::Style {
+    display: Display::Flex,
+    flex_direction: FlexDirection::Column,
+    ..Default::default()
+});
+
+let button_id = window.add_to_root(Box::new(Button::text("Click me")), button_style)?;
 
 // What happens internally:
 // 1. WidgetManager: widgets.insert(button_id, button_widget)
-// 2. WidgetTree: parents.insert(button_id, panel_id)
-//                children[panel_id].push(button_id)
+// 2. WidgetTree: parents.insert(button_id, root_container_id)
+//                children[root_container_id].push(button_id)
 // 3. LayoutManager: node_id = taffy.new_leaf(button_style)
 //                   widget_to_node.insert(button_id, node_id)
-//                   taffy.add_child(panel_node, node_id)
+//                   taffy.add_child(root_node, node_id)
 ```
 
 ---

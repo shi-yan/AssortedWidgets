@@ -21,10 +21,10 @@ fn main() {
                     },
                     position: taffy::Position::Absolute,
                     inset: taffy::Rect {
-                        left: taffy::LengthPercentage::length(20.0),
-                        top: taffy::LengthPercentage::length(20.0),
-                        right: taffy::LengthPercentageAuto::Auto,
-                        bottom: taffy::LengthPercentageAuto::Auto,
+                        left: taffy::LengthPercentage::length(20.0).into(),
+                        top: taffy::LengthPercentage::length(20.0).into(),
+                        right: taffy::LengthPercentageAuto::auto(),
+                        bottom: taffy::LengthPercentageAuto::auto(),
                     },
                     ..Default::default()
                 };
@@ -46,10 +46,10 @@ fn main() {
                     },
                     position: taffy::Position::Absolute,
                     inset: taffy::Rect {
-                        left: taffy::LengthPercentage::length(20.0),
-                        top: taffy::LengthPercentage::length(80.0),
-                        right: taffy::LengthPercentageAuto::Auto,
-                        bottom: taffy::LengthPercentageAuto::Auto,
+                        left: taffy::LengthPercentage::length(20.0).into(),
+                        top: taffy::LengthPercentage::length(80.0).into(),
+                        right: taffy::LengthPercentageAuto::auto(),
+                        bottom: taffy::LengthPercentageAuto::auto(),
                     },
                     ..Default::default()
                 };
@@ -71,10 +71,10 @@ fn main() {
                     },
                     position: taffy::Position::Absolute,
                     inset: taffy::Rect {
-                        left: taffy::LengthPercentage::length(20.0),
-                        top: taffy::LengthPercentage::length(200.0),
-                        right: taffy::LengthPercentageAuto::Auto,
-                        bottom: taffy::LengthPercentageAuto::Auto,
+                        left: taffy::LengthPercentage::length(20.0).into(),
+                        top: taffy::LengthPercentage::length(200.0).into(),
+                        right: taffy::LengthPercentageAuto::auto(),
+                        bottom: taffy::LengthPercentageAuto::auto(),
                     },
                     ..Default::default()
                 };
