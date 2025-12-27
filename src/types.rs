@@ -168,3 +168,82 @@ pub fn size(width: f64, height: f64) -> Size {
 pub fn vector(x: f64, y: f64) -> Vector {
     Vector::new(x, y)
 }
+
+// ============================================================================
+// Cursor Types
+// ============================================================================
+
+/// Cross-platform cursor types
+///
+/// Represents standard cursor shapes that are supported across all platforms
+/// (macOS, Windows, Linux). Each platform implementation maps these to native cursors.
+///
+/// ## Platform Mappings
+///
+/// ### macOS (NSCursor)
+/// - `Default` → `arrowCursor`
+/// - `Pointer` → `pointingHandCursor`
+/// - `Text` → `IBeamCursor`
+/// - `Crosshair` → `crosshairCursor`
+/// - `Move` → `openHandCursor` (or `closedHandCursor` when dragging)
+/// - `NotAllowed` → `operationNotAllowedCursor`
+/// - `ResizeNS` → `resizeUpDownCursor`
+/// - `ResizeEW` → `resizeLeftRightCursor`
+/// - `ResizeNESW` → custom (diagonal resize)
+/// - `ResizeNWSE` → custom (diagonal resize)
+///
+/// ### Windows (Win32 LoadCursor)
+/// - `Default` → `IDC_ARROW`
+/// - `Pointer` → `IDC_HAND`
+/// - `Text` → `IDC_IBEAM`
+/// - `Crosshair` → `IDC_CROSS`
+/// - `Move` → `IDC_SIZEALL`
+/// - `NotAllowed` → `IDC_NO`
+/// - `ResizeNS` → `IDC_SIZENS`
+/// - `ResizeEW` → `IDC_SIZEWE`
+/// - `ResizeNESW` → `IDC_SIZENESW`
+/// - `ResizeNWSE` → `IDC_SIZENWSE`
+///
+/// ### Linux (X11/Wayland)
+/// - `Default` → `left_ptr` / Wayland default
+/// - `Pointer` → `hand2` / Wayland pointer
+/// - `Text` → `xterm` / Wayland text
+/// - `Crosshair` → `crosshair` / Wayland crosshair
+/// - `Move` → `fleur` / Wayland move
+/// - `NotAllowed` → `not-allowed` / Wayland not-allowed
+/// - `ResizeNS` → `sb_v_double_arrow` / Wayland ns-resize
+/// - `ResizeEW` → `sb_h_double_arrow` / Wayland ew-resize
+/// - `ResizeNESW` → `size_bdiag` / Wayland nesw-resize
+/// - `ResizeNWSE` → `size_fdiag` / Wayland nwse-resize
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CursorType {
+    /// Default arrow cursor (normal selection)
+    Default,
+
+    /// Pointing hand cursor (for clickable items like buttons and links)
+    Pointer,
+
+    /// I-beam cursor (for text selection)
+    Text,
+
+    /// Crosshair cursor (for precision selection)
+    Crosshair,
+
+    /// Move/drag cursor (for movable elements)
+    Move,
+
+    /// Not allowed / prohibited cursor (for invalid drop targets)
+    NotAllowed,
+
+    /// Vertical resize cursor (north-south)
+    ResizeNS,
+
+    /// Horizontal resize cursor (east-west)
+    ResizeEW,
+
+    /// Diagonal resize cursor (northeast-southwest)
+    ResizeNESW,
+
+    /// Diagonal resize cursor (northwest-southeast)
+    ResizeNWSE,
+}

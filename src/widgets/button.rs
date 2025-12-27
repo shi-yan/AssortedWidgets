@@ -833,6 +833,22 @@ impl Widget for Button {
         !self.is_disabled
     }
 
+    fn preferred_cursor(&self) -> Option<crate::types::CursorType> {
+        if self.is_disabled {
+            Some(crate::types::CursorType::NotAllowed) // Show "not allowed" cursor for disabled buttons
+        } else {
+            Some(crate::types::CursorType::Pointer) // Show pointing hand for enabled buttons
+        }
+    }
+
+    fn on_mouse_enter(&mut self) -> EventResponse {
+        MouseHandler::on_mouse_enter(self)
+    }
+
+    fn on_mouse_leave(&mut self) -> EventResponse {
+        MouseHandler::on_mouse_leave(self)
+    }
+
     fn dispatch_mouse_event(&mut self, event: &mut InputEventEnum) -> EventResponse {
         match event {
             InputEventEnum::MouseDown(e) => self.on_mouse_down(e),

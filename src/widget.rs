@@ -253,6 +253,22 @@ pub trait Widget {
         false // Default: does not accept focus
     }
 
+    /// Get the preferred cursor type for this widget
+    ///
+    /// Return `Some(CursorType)` to override the default cursor when the mouse
+    /// hovers over this widget. This allows interactive widgets to provide
+    /// visual feedback about their affordances.
+    ///
+    /// # Examples
+    /// - Buttons return `CursorType::Pointer` (pointing hand)
+    /// - Text inputs return `CursorType::Text` (I-beam)
+    /// - Resize handles return `CursorType::ResizeNS/EW/etc`
+    ///
+    /// Default: `None` (use parent's cursor or window default)
+    fn preferred_cursor(&self) -> Option<crate::types::CursorType> {
+        None // Default: no cursor override
+    }
+
     /// Get IME cursor position for this widget (if focused)
     ///
     /// Return a rectangle representing where the IME composition window should
@@ -261,6 +277,22 @@ pub trait Widget {
     /// Default: `None` (no IME support)
     fn ime_cursor_rect(&self) -> Option<Rect> {
         None // Default: no IME support
+    }
+
+    /// Called when the mouse enters this widget's bounds
+    ///
+    /// Default implementation returns Ignored. Widgets that implement MouseHandler
+    /// should override this to call their handler method.
+    fn on_mouse_enter(&mut self) -> crate::event::EventResponse {
+        crate::event::EventResponse::Ignored
+    }
+
+    /// Called when the mouse leaves this widget's bounds
+    ///
+    /// Default implementation returns Ignored. Widgets that implement MouseHandler
+    /// should override this to call their handler method.
+    fn on_mouse_leave(&mut self) -> crate::event::EventResponse {
+        crate::event::EventResponse::Ignored
     }
 
     /// Dispatch mouse event to this widget

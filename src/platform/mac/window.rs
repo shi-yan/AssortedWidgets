@@ -725,6 +725,38 @@ impl PlatformWindow for MacWindow {
 
         point(window_x, window_y)
     }
+
+    fn set_cursor(&mut self, cursor: crate::types::CursorType) {
+        use crate::types::CursorType;
+        use objc2_app_kit::NSCursor;
+
+        println!("[PLATFORM] MacWindow::set_cursor called with {:?}", cursor);
+
+        unsafe {
+            let ns_cursor = match cursor {
+                CursorType::Default => NSCursor::arrowCursor(),
+                CursorType::Pointer => {
+                    println!("[PLATFORM] Setting pointing hand cursor");
+                    NSCursor::pointingHandCursor()
+                },
+                CursorType::Text => NSCursor::IBeamCursor(),
+                CursorType::Crosshair => NSCursor::crosshairCursor(),
+                CursorType::Move => NSCursor::openHandCursor(),
+                CursorType::NotAllowed => NSCursor::operationNotAllowedCursor(),
+                CursorType::ResizeNS => NSCursor::resizeUpDownCursor(),
+                CursorType::ResizeEW => NSCursor::resizeLeftRightCursor(),
+                // For diagonal resizes, we'll use the closest available cursor
+                // macOS doesn't have built-in diagonal resize cursors in older APIs
+                CursorType::ResizeNESW => NSCursor::crosshairCursor(),
+                CursorType::ResizeNWSE => NSCursor::crosshairCursor(),
+            };
+
+            // Set the cursor globally (it will be active when the mouse is over this window)
+            println!("[PLATFORM] Calling [NSCursor set] on {:?}", cursor);
+            let _: () = msg_send![&*ns_cursor, set];
+            println!("[PLATFORM] Cursor set complete");
+        }
+    }
 }
 
 // ============================================================================
@@ -771,6 +803,9 @@ unsafe fn create_window(options: &WindowOptions, mtm: MainThreadMarker) -> Retai
     // SAFETY: Disable auto-release when closing windows.
     // This is required when creating `NSWindow` outside a window controller.
     window.setReleasedWhenClosed(false);
+
+    // Enable mouse moved events for cursor tracking and hover detection
+    window.setAcceptsMouseMovedEvents(true);
 
     // Set title (even for borderless - useful for debugging)
     let ns_title = NSString::from_str(&options.title);

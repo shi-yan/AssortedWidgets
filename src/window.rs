@@ -87,6 +87,12 @@ pub struct Window {
     /// Event queue for posting events back to application (cross-window drag, etc.)
     event_queue: Arc<Mutex<VecDeque<(WindowId, GuiEvent)>>>,
 
+    /// Currently hovered widget (for tracking mouse enter/leave)
+    hovered_widget: Option<WidgetId>,
+
+    /// Current cursor type
+    current_cursor: crate::types::CursorType,
+
     // ========================================
     // Signal/Slot Communication
     // ========================================
@@ -154,6 +160,8 @@ impl Window {
             focus_manager: FocusManager::new(),
             mouse_capture: MouseCapture::new(),
             event_queue,
+            hovered_widget: None,
+            current_cursor: crate::types::CursorType::Default,
             connection_table: crate::connection::ConnectionTable::new(),
         }
     }
@@ -760,6 +768,48 @@ impl Window {
                     self.hit_tester.hit_test(position)
                 };
 
+                // Track hover changes for mouse enter/leave events
+                if target != self.hovered_widget {
+                    println!("[CURSOR] Hover changed: {:?} -> {:?}", self.hovered_widget, target);
+
+                    // Mouse left previous widget
+                    if let Some(prev_id) = self.hovered_widget {
+                        if let Some(element) = self.widgets.get_mut(prev_id) {
+                            println!("[CURSOR] Mouse left widget {:?}", prev_id);
+                            element.on_mouse_leave();
+                        }
+                    }
+
+                    // Mouse entered new widget
+                    if let Some(new_id) = target {
+                        if let Some(element) = self.widgets.get_mut(new_id) {
+                            println!("[CURSOR] Mouse entered widget {:?}", new_id);
+                            element.on_mouse_enter();
+
+                            // Update cursor based on widget's preference
+                            let preferred = element.preferred_cursor();
+                            println!("[CURSOR] Widget {:?} preferred cursor: {:?}", new_id, preferred);
+
+                            if let Some(cursor) = preferred {
+                                if cursor != self.current_cursor {
+                                    println!("[CURSOR] Setting cursor to {:?}", cursor);
+                                    self.current_cursor = cursor;
+                                    self.platform_window.set_cursor(cursor);
+                                }
+                            }
+                        }
+                    } else {
+                        // No widget hovered, reset to default cursor
+                        if self.current_cursor != crate::types::CursorType::Default {
+                            println!("[CURSOR] Resetting cursor to Default");
+                            self.current_cursor = crate::types::CursorType::Default;
+                            self.platform_window.set_cursor(crate::types::CursorType::Default);
+                        }
+                    }
+
+                    self.hovered_widget = target;
+                }
+
                 if let Some(widget_id) = target {
                     if let Some(element) = self.widgets.get_mut(widget_id) {
                         element.dispatch_mouse_event(&mut event);
@@ -1224,9 +1274,17 @@ impl Window {
                                 }
                             };
 
-                            // Position by visual bounding box (NO bearing subtraction!)
-                            let glyph_x = position.x as f32;
-                            let glyph_y = position.y as f32;
+                            // Center the actual visual pixels within the EM box
+                            // button.rs positions assuming icon fills the EM box (font_size × font_size)
+                            // but the actual rasterized icon is smaller, so we center it within that box
+                            let visual_width = location.logical_width;
+                            let visual_height = location.logical_height;
+
+                            let center_offset_x = (*size - visual_width) / 2.0;
+                            let center_offset_y = (*size - visual_height) / 2.0;
+
+                            let glyph_x = position.x as f32 + center_offset_x;
+                            let glyph_y = position.y as f32 + center_offset_y;
 
                             // Full window clip rect (no clipping for icons)
                             let clip_rect = [0.0, 0.0, self.window_size.width as f32, self.window_size.height as f32];

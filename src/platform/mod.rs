@@ -210,6 +210,15 @@ pub trait PlatformWindow {
     /// * `height` - Height of the cursor area in screen pixels
     fn set_ime_cursor_area(&mut self, x: f64, y: f64, width: f64, height: f64);
 
+    /// Set the mouse cursor type for this window
+    ///
+    /// This changes the cursor appearance when the mouse is over the window's content area.
+    /// The platform implementation maps the CursorType to the appropriate native cursor.
+    ///
+    /// # Arguments
+    /// * `cursor` - The cursor type to display
+    fn set_cursor(&mut self, cursor: crate::types::CursorType);
+
     // ========================================
     // Screen Coordinate Methods (for cross-window drag-drop)
     // ========================================
