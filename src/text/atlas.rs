@@ -353,6 +353,43 @@ impl GlyphAtlas {
         }
     }
 
+    /// Clear glyphs for a specific scale factor (optional memory optimization)
+    ///
+    /// Note: This is generally NOT needed! The atlas is designed to cache glyphs
+    /// at multiple DPI scales simultaneously, allowing seamless transitions between
+    /// monitors without invalidation. Only use this if you need to free memory.
+    ///
+    /// # Arguments
+    /// * `scale_factor` - Scale factor to clear (e.g., 1.0 for 1x, 2.0 for 2x)
+    pub fn clear_scale_factor(&mut self, scale_factor: f32) {
+        let scale_factor_u8 = (scale_factor * 100.0) as u8;
+
+        // Remove all glyphs with this scale factor
+        self.cache.retain(|key, _| key.scale_factor != scale_factor_u8);
+
+        println!("🗑️  Cleared {} glyphs at {:.1}x scale",
+                 self.cache.len(), scale_factor);
+    }
+
+    /// Clear all glyphs (complete atlas reset)
+    ///
+    /// This clears the entire glyph cache and resets all pages.
+    /// Use this when you want to completely rebuild the atlas.
+    pub fn clear_all(&mut self) {
+        let total_glyphs = self.cache.len();
+        self.cache.clear();
+
+        // Reset all page allocators
+        for page in &mut self.pages {
+            page.allocator = etagere::BucketedAtlasAllocator::new(
+                etagere::Size::new(self.page_size, self.page_size)
+            );
+            page.active_glyph_count = 0;
+        }
+
+        println!("🗑️  Cleared all {} glyphs from atlas", total_glyphs);
+    }
+
     /// Dump a specific page of the atlas to a PNG file for debugging
     pub fn dump_page_to_png(
         &self,

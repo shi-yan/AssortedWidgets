@@ -22,26 +22,24 @@ struct WindowUniforms {
     projection: [[f32; 4]; 4],  // mat4x4 orthogonal projection matrix
 }
 
-/// Create an orthogonal projection matrix for 2D rendering with DPI scaling
+/// Create an orthogonal projection matrix for 2D rendering
 ///
 /// Maps logical pixel coordinates (0, 0) to NDC (-1, 1) at top-left,
 /// and (width_logical, height_logical) to NDC (1, -1) at bottom-right.
-/// The scale_factor ensures rendering at correct physical resolution.
+///
+/// The viewport (set to physical size) handles DPI scaling automatically.
 ///
 /// The matrix is:
 /// ```
-/// [2/(width*scale),    0,               0,   -1]
-/// [0,                 -2/(height*scale), 0,    1]
-/// [0,                  0,               -1,    0]
-/// [0,                  0,                0,    1]
+/// [2/width,    0,         0,   -1]
+/// [0,         -2/height,  0,    1]
+/// [0,          0,        -1,    0]
+/// [0,          0,         0,    1]
 /// ```
-fn create_orthogonal_projection(logical_width: f32, logical_height: f32, scale_factor: f32) -> [[f32; 4]; 4] {
-    let effective_width = logical_width * scale_factor;
-    let effective_height = logical_height * scale_factor;
-
+fn create_orthogonal_projection(logical_width: f32, logical_height: f32) -> [[f32; 4]; 4] {
     [
-        [2.0 / effective_width, 0.0, 0.0, 0.0],
-        [0.0, -2.0 / effective_height, 0.0, 0.0],
+        [2.0 / logical_width, 0.0, 0.0, 0.0],
+        [0.0, -2.0 / logical_height, 0.0, 0.0],
         [0.0, 0.0, -1.0, 0.0],
         [-1.0, 1.0, 0.0, 1.0],
     ]
@@ -164,11 +162,11 @@ impl WindowRenderer {
         surface.configure(device, &config);
 
         // Create SHARED window uniform buffer (projection matrix for coordinate transformation)
-        // Projection maps LOGICAL coordinates to NDC, incorporating scale_factor for DPI
+        // Projection maps LOGICAL coordinates to NDC (viewport handles physical size)
         // This single buffer is shared by ALL pipelines: rect, text, path, rect_sdf, shadow_sdf, image
         let logical_width = bounds.size.width as f32;
         let logical_height = bounds.size.height as f32;
-        let projection = create_orthogonal_projection(logical_width, logical_height, scale_factor as f32);
+        let projection = create_orthogonal_projection(logical_width, logical_height);
 
         let window_uniforms = WindowUniforms {
             projection,
@@ -283,10 +281,10 @@ impl WindowRenderer {
 
     /// Update screen size in uniform buffers
     pub fn update_screen_size(&mut self, size: Size, scale_factor: f32) {
-        // Projection maps LOGICAL coordinates to NDC, incorporating scale_factor for DPI
+        // Projection maps LOGICAL coordinates to NDC (viewport handles physical size)
         let logical_width = size.width as f32;
         let logical_height = size.height as f32;
-        let projection = create_orthogonal_projection(logical_width, logical_height, scale_factor);
+        let projection = create_orthogonal_projection(logical_width, logical_height);
 
         // Update SHARED window uniform buffer (used by all pipelines)
         let window_uniforms = WindowUniforms {

@@ -507,6 +507,29 @@ define_class!(
                 resize_callback(bounds);
             }
         }
+
+        #[unsafe(method(windowDidChangeBackingProperties:))]
+        fn window_did_change_backing_properties(&self, notification: &NSNotification) {
+            // Get the window from the notification
+            let window: *const NSWindow = unsafe { msg_send![notification, object] };
+            let window = unsafe { &*window };
+
+            // Get new scale factor
+            let new_scale_factor = window.backingScaleFactor();
+
+            // Update cached scale factor and invoke callback
+            let mut state = self.ivars().state.borrow_mut();
+            let old_scale_factor = state.scale_factor;
+
+            // Only invoke callback if scale factor actually changed
+            if (new_scale_factor - old_scale_factor).abs() > 0.01 {
+                state.scale_factor = new_scale_factor;
+
+                if let Some(ref mut callback) = state.callbacks.scale_factor_changed {
+                    callback(new_scale_factor);
+                }
+            }
+        }
     }
 );
 
@@ -772,8 +795,8 @@ unsafe fn create_window(options: &WindowOptions, mtm: MainThreadMarker) -> Retai
 
     // Always on top
     if options.always_on_top {
-        const NSFloatingWindowLevel: isize = 3;
-        window.setLevel(NSFloatingWindowLevel);
+        const NSFLOATING_WINDOW_LEVEL: isize = 3;
+        window.setLevel(NSFLOATING_WINDOW_LEVEL);
     }
 
     window

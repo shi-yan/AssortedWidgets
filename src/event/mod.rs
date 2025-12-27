@@ -41,6 +41,9 @@ pub enum GuiEvent {
     /// Window was resized
     Resize(Rect),
 
+    /// Window scale factor changed (e.g., moved to different DPI monitor)
+    ScaleFactorChanged(f64),
+
     /// Input event system
     InputEvent(InputEventEnum),
 

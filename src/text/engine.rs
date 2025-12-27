@@ -221,7 +221,6 @@ impl TextEngine {
             self.shapes_this_frame += 1;
 
             let buffer = self.shape_text_internal(text, style, max_width, Truncate::None, None);
-            println!("max width {:?}", max_width);
             let layout = TextLayout::new(buffer, style.alignment, max_width);
 
             // Insert into cache

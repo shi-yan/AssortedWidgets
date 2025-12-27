@@ -106,9 +106,9 @@ impl IconEngine {
     /// // Use with TextEngine to render: text_engine.render_text(&icon_char.to_string(), ...)
     /// ```
     pub fn get_icon_char(&self, icon_id: &str) -> Option<char> {
-        println!("[IconEngine] get_icon_char called for: {}", icon_id);
+        //println!("[IconEngine] get_icon_char called for: {}", icon_id);
         let result = self.mapping.get(icon_id).copied();
-        println!("[IconEngine] get_icon_char result: {:?}", result);
+        //println!("[IconEngine] get_icon_char result: {:?}", result);
         result
     }
 
@@ -137,7 +137,7 @@ impl IconEngine {
     pub fn get_cache_key(&self, font_system_wrapper: &mut FontSystemWrapper, icon_char: char, size: f64) -> Option<cosmic_text::CacheKey> {
         use cosmic_text::{Attrs, Buffer, Metrics, Shaping, Family};
 
-        println!("[IconEngine] get_cache_key called for char: {:?}, size: {}", icon_char, size);
+        //println!("[IconEngine] get_cache_key called for char: {:?}, size: {}", icon_char, size);
         let font_system = font_system_wrapper.font_system_mut();
 
         // Create a buffer with forced font using Family::Name

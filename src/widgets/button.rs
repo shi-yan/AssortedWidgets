@@ -452,7 +452,7 @@ impl Button {
             area.origin.y + (area.size.height - self.font_size as f64) / 2.0,
         );
 
-        ctx.draw_text(text, &text_style, text_origin, Some(measured_width as f32));
+        ctx.draw_text(text, &text_style, text_origin, Some(area.size.width as f32));
     }
 
     fn render_icon(&self, ctx: &mut PaintContext, area: Rect, icon_id: &str, style: &ButtonStyle) {
@@ -534,7 +534,9 @@ impl Button {
             area.origin.y + (area.size.height - self.font_size as f64) / 2.0,
         );
 
-        ctx.draw_text(text, &text_style, text_origin, Some(text_width as f32));
+        // Available width for text = total area width - icon size - gap
+        let text_max_width = (area.size.width - icon_size - gap) as f32;
+        ctx.draw_text(text, &text_style, text_origin, Some(text_max_width));
     }
 
     // ========================================================================

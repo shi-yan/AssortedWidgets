@@ -49,6 +49,9 @@ pub struct WindowCallbacks {
 
     /// Called when the window becomes active/inactive
     pub active_status_change: Option<Box<dyn FnMut(bool) + Send>>,
+
+    /// Called when the window's scale factor changes (e.g., moved to different DPI monitor)
+    pub scale_factor_changed: Option<Box<dyn FnMut(f64) + Send>>,
 }
 
 impl std::fmt::Debug for WindowCallbacks {
@@ -60,6 +63,7 @@ impl std::fmt::Debug for WindowCallbacks {
             .field("moved", &self.moved.as_ref().map(|_| "<callback>"))
             .field("close", &self.close.as_ref().map(|_| "<callback>"))
             .field("active_status_change", &self.active_status_change.as_ref().map(|_| "<callback>"))
+            .field("scale_factor_changed", &self.scale_factor_changed.as_ref().map(|_| "<callback>"))
             .finish()
     }
 }
@@ -73,6 +77,7 @@ impl Default for WindowCallbacks {
             moved: None,
             close: None,
             active_status_change: None,
+            scale_factor_changed: None,
         }
     }
 }

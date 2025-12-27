@@ -181,6 +181,7 @@ impl Application {
         let event_queue_frame = self.event_queue.clone();
         let event_queue_resize = self.event_queue.clone();
         let event_queue_close = self.event_queue.clone();
+        let event_queue_scale_factor = self.event_queue.clone();
 
         // Set up callbacks to push events to queue (tagged with window_id)
         let callbacks = WindowCallbacks {
@@ -201,6 +202,9 @@ impl Application {
             })),
             active_status_change: Some(Box::new(|_active| {
                 // Window activation status changed (not important for demo)
+            })),
+            scale_factor_changed: Some(Box::new(move |scale_factor| {
+                event_queue_scale_factor.lock().unwrap().push_back((window_id, GuiEvent::ScaleFactorChanged(scale_factor)));
             })),
         };
 
@@ -718,6 +722,18 @@ impl Application {
                             window.resize(bounds, &self.render_context);
 
                             // Request redraw after resize
+                            window.platform_window_mut().invalidate();
+                        }
+                    }
+                    Some((window_id, GuiEvent::ScaleFactorChanged(scale_factor))) => {
+                        if let Some(window) = self.windows.get_mut(&window_id) {
+                            println!("🔄 Window {:?} scale factor changed to {:.1}x", window_id, scale_factor);
+
+                            // Update renderer with new scale factor (reconfigures surface)
+                            let bounds = window.platform_window().content_bounds();
+                            window.window_renderer_mut().resize(bounds, scale_factor);
+
+                            // Request redraw to re-render with new DPI
                             window.platform_window_mut().invalidate();
                         }
                     }
