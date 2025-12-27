@@ -122,22 +122,42 @@ impl IconEngine {
         self.mapping.keys().cloned().collect()
     }
 
-    /// Directly rasterize an icon glyph (bypass font fallback)
+    /// Rasterize an icon glyph for visual bounding box positioning
     ///
-    /// Returns the cosmic-text CacheKey for direct rasterization.
-    /// This bypasses the font fallback system by forcing the icon font.
+    /// This uses cosmic-text's shaping to get a cache key, but the caller should
+    /// ignore bearing/offset values when positioning. Icons should be positioned
+    /// by their visual bounding box, not text baseline metrics.
     ///
     /// # Arguments
-    /// * `font_system_wrapper` - Already-locked FontSystemWrapper (to avoid deadlock)
+    /// * `font_system_wrapper` - Already-locked FontSystemWrapper
     /// * `icon_char` - The Unicode character to rasterize
     /// * `size` - Font size in points
     ///
     /// # Returns
-    /// CacheKey for use with FontSystemWrapper::rasterize_glyph()
-    pub fn get_cache_key(&self, font_system_wrapper: &mut FontSystemWrapper, icon_char: char, size: f64) -> Option<cosmic_text::CacheKey> {
+    /// Tuple of (RasterizedGlyph, CacheKey) where the glyph should be positioned
+    /// with zero bearing offsets (ignore offset_x/offset_y in RasterizedGlyph)
+    pub fn rasterize_icon(
+        &self,
+        font_system_wrapper: &mut FontSystemWrapper,
+        icon_char: char,
+        size: f32,
+    ) -> Option<(crate::text::RasterizedGlyph, cosmic_text::CacheKey)> {
+        // Get cache key via shaping (needed for cosmic-text API)
+        let cache_key = self.get_cache_key(font_system_wrapper, icon_char, size as f64)?;
+
+        // Rasterize the glyph
+        let rasterized = font_system_wrapper.rasterize_glyph(cache_key)?;
+
+        Some((rasterized, cache_key))
+    }
+
+    /// Get cache key for an icon glyph (internal method)
+    ///
+    /// This is used internally by `rasterize_icon()`. Direct callers should prefer
+    /// `rasterize_icon()` which provides both the cache key and rasterized glyph.
+    fn get_cache_key(&self, font_system_wrapper: &mut FontSystemWrapper, icon_char: char, size: f64) -> Option<cosmic_text::CacheKey> {
         use cosmic_text::{Attrs, Buffer, Metrics, Shaping, Family};
 
-        //println!("[IconEngine] get_cache_key called for char: {:?}, size: {}", icon_char, size);
         let font_system = font_system_wrapper.font_system_mut();
 
         // Create a buffer with forced font using Family::Name
@@ -157,20 +177,14 @@ impl IconEngine {
 
         let mut buffer = Buffer::new(font_system, Metrics::new(size as f32, size as f32));
 
-        // Note: In cosmic-text 0.15.0, set_text signature is:
-        // set_text(&mut self, font_system, text, attrs, shaping, align)
         buffer.set_text(font_system, &icon_char.to_string(), &attrs, Shaping::Advanced, None);
-
-        // Shape the buffer to get the glyph
         buffer.shape_until_scroll(font_system, false);
 
         // Extract the cache_key from the shaped glyph
-        // In cosmic-text 0.15.0, we iterate over layout runs
         for line in buffer.lines.iter() {
             if let Some(layout_lines) = line.layout_opt() {
                 for layout_line in layout_lines {
                     for glyph in &layout_line.glyphs {
-                        // Get the physical glyph at scale factor 1.0
                         let physical = glyph.physical((0.0, 0.0), 1.0);
                         return Some(physical.cache_key);
                     }

@@ -1175,16 +1175,17 @@ impl Window {
                 if let crate::paint::DrawCommand::Icon { ref icon_id, ref position, ref size, ref color, ref z_index } = *cmd {
                     // Get Unicode character for this icon
                     if let Some(icon_char) = icon_engine.get_icon_char(icon_id) {
-                        // DIRECT RASTERIZATION: Bypass font fallback entirely
-                        // Get the CacheKey directly from IconEngine using the icon font
-                        // Pass the already-locked font_system to avoid deadlock
-                        if let Some(cache_key) = icon_engine.get_cache_key(&mut font_system_lock, icon_char, *size as f64) {
-                            // Create glyph key for atlas (hash the font_id for consistent caching)
-                            // IMPORTANT: Only hash font_id, NOT glyph_id!
-                            // The glyph is already identified by the 'character' field in GlyphKey
+                        // Rasterize icon (uses shaping internally but we ignore bearing)
+                        if let Some((rasterized, cache_key)) = icon_engine.rasterize_icon(
+                            &mut font_system_lock,
+                            icon_char,
+                            *size,
+                        ) {
+                            // Create glyph key for atlas caching
                             use std::hash::{Hash, Hasher};
                             use std::collections::hash_map::DefaultHasher;
 
+                            // Hash the cache_key font_id for consistent caching
                             let mut hasher = DefaultHasher::new();
                             cache_key.font_id.hash(&mut hasher);
                             let font_id_hash = hasher.finish() as usize;
@@ -1197,39 +1198,35 @@ impl Window {
                                 scale_factor: (scale_factor * 100.0) as u8,
                             };
 
-                            // Get or rasterize the glyph
+                            // Get or insert the glyph in atlas
                             let location = if let Some(&loc) = atlas_lock.get(&glyph_key) {
                                 atlas_lock.mark_glyph_used(&glyph_key);
                                 loc
                             } else {
-                                // Rasterize using the cache_key from IconEngine
-                                if let Some(rasterized) = font_system_lock.rasterize_glyph(cache_key) {
-                                    match atlas_lock.insert(
-                                        &render_context.queue,
-                                        glyph_key,
-                                        &rasterized.pixels,
-                                        rasterized.width,
-                                        rasterized.height,
-                                        rasterized.offset_x,
-                                        rasterized.offset_y,
-                                        rasterized.is_color,
-                                        scale_factor,
-                                    ) {
-                                        Ok(loc) => loc,
-                                        Err(e) => {
-                                            eprintln!("❌ Failed to insert icon glyph '{}': {}", icon_id, e);
-                                            continue;
-                                        }
+                                // Insert icon into atlas with ZERO bearing offsets
+                                // Icons are positioned by visual bounding box, not text baseline!
+                                match atlas_lock.insert(
+                                    &render_context.queue,
+                                    glyph_key,
+                                    &rasterized.pixels,
+                                    rasterized.width,
+                                    rasterized.height,
+                                    0,  // offset_x = 0 (ignore bearing for icons!)
+                                    0,  // offset_y = 0 (ignore bearing for icons!)
+                                    rasterized.is_color,
+                                    scale_factor,
+                                ) {
+                                    Ok(loc) => loc,
+                                    Err(e) => {
+                                        eprintln!("❌ Failed to insert icon glyph '{}': {}", icon_id, e);
+                                        continue;
                                     }
-                                } else {
-                                    eprintln!("❌ Failed to rasterize icon '{}'", icon_id);
-                                    continue;
                                 }
                             };
 
-                            // Create text instance for the icon
-                            let glyph_x = position.x as f32 + location.logical_offset_x;
-                            let glyph_y = position.y as f32 - location.logical_offset_y;
+                            // Position by visual bounding box (NO bearing subtraction!)
+                            let glyph_x = position.x as f32;
+                            let glyph_y = position.y as f32;
 
                             // Full window clip rect (no clipping for icons)
                             let clip_rect = [0.0, 0.0, self.window_size.width as f32, self.window_size.height as f32];
@@ -1251,7 +1248,7 @@ impl Window {
 
                             icon_text_instances.push(instance);
                         } else {
-                            eprintln!("❌ Failed to get cache key for icon '{}'", icon_id);
+                            eprintln!("❌ Failed to rasterize icon '{}'", icon_id);
                         }
                     }
                 }

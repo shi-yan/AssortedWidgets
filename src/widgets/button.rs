@@ -457,16 +457,11 @@ impl Button {
 
     fn render_icon(&self, ctx: &mut PaintContext, area: Rect, icon_id: &str, style: &ButtonStyle) {
         // Center icon in area
-        let icon_size = self.font_size ;
+        let icon_size = self.font_size;
         let icon_x = area.origin.x + (area.size.width - icon_size as f64) / 2.0;
-        let icon_y_center = area.origin.y + (area.size.height - icon_size as f64) / 2.0;
+        let icon_y = area.origin.y + (area.size.height - icon_size as f64) / 2.0;
 
-        // IMPORTANT: Icon rendering uses baseline positioning (like text), where logical_offset_y
-        // (bearing) is subtracted. To position icons by their bounding box top-left, we need to
-        // ADD the bearing offset here to compensate. For Material Icons, bearing is ~75% of em size.
-        let bearing_compensation = icon_size as f64 * 0.75;
-        let icon_y = icon_y_center + bearing_compensation;
-
+        // Icons are now positioned by visual bounding box (no bearing compensation needed)
         ctx.draw_icon(
             icon_id,
             Point::new(icon_x, icon_y),
@@ -506,12 +501,9 @@ impl Button {
 
         // Icon position (centered content, left side)
         let icon_x = content_start_x;
-        let icon_y_center = area.origin.y + (area.size.height - icon_size) / 2.0;
+        let icon_y = area.origin.y + (area.size.height - icon_size) / 2.0;
 
-        // Bearing compensation for baseline positioning (same as render_icon)
-        let bearing_compensation = icon_size * 0.75;
-        let icon_y = icon_y_center + bearing_compensation;
-
+        // Icons are now positioned by visual bounding box (no bearing compensation needed)
         ctx.draw_icon(icon_id, Point::new(icon_x, icon_y), icon_size as f32, style.icon_color);
 
         // Text position (after icon + gap)
