@@ -457,9 +457,7 @@ impl Button {
 
     fn render_icon(&self, ctx: &mut PaintContext, area: Rect, icon_id: &str, style: &ButtonStyle) {
         // Center icon in area
-        // NOTE: Material Icons font has metrics that make glyphs render smaller than text
-        // at the same font size. Scale by 1.5x for visual consistency with text.
-        let icon_size = self.font_size * 1.5;
+        let icon_size = self.font_size ;
         let icon_x = area.origin.x + (area.size.width - icon_size as f64) / 2.0;
         let icon_y_center = area.origin.y + (area.size.height - icon_size as f64) / 2.0;
 
@@ -479,8 +477,7 @@ impl Button {
 
     fn render_icon_text(&self, ctx: &mut PaintContext, area: Rect, icon_id: &str, text: &str, style: &ButtonStyle) {
         let gap = 8.0_f64;
-        // NOTE: Material Icons font scaled by 1.5x for visual consistency with text
-        let icon_size = (self.font_size * 1.5) as f64;
+        let icon_size = (self.font_size ) as f64;
 
         // Measure text width
         let mut text_width = 0.0;
@@ -577,8 +574,7 @@ impl Button {
                 )
             }
             ButtonContent::Icon(_) => {
-                // Icon size = font_size * 1.5 (Material Icons scaling)
-                let icon_size = self.font_size * 1.5;
+                let icon_size = self.font_size ;
                 Size::new(
                     icon_size as f64 + self.padding.horizontal() as f64,
                     icon_size as f64 + self.padding.vertical() as f64,
@@ -587,7 +583,7 @@ impl Button {
             ButtonContent::IconText { text, .. } => {
                 // Icon size + gap + text width
                 let gap = 8.0_f32;
-                let icon_size = self.font_size * 1.5;  // Material Icons scaling
+                let icon_size = self.font_size ;  // Material Icons scaling
 
                 let mut text_style = TextStyle::new()
                     .size(self.font_size)

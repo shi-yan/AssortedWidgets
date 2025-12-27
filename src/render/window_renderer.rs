@@ -3,11 +3,11 @@
 //! This module contains all rendering infrastructure specific to a single window.
 //! Windows share pipelines from RenderContext but have their own surfaces and uniforms.
 
+use crate::paint::RectInstance;
 use crate::platform::PlatformWindow;
 use crate::render::RenderContext;
-use crate::types::{Rect, Size};
-use crate::paint::RectInstance;
 use crate::text::TextInstance;
+use crate::types::{Rect, Size};
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
@@ -19,7 +19,7 @@ use wgpu::util::DeviceExt;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct WindowUniforms {
-    projection: [[f32; 4]; 4],  // mat4x4 orthogonal projection matrix
+    projection: [[f32; 4]; 4], // mat4x4 orthogonal projection matrix
 }
 
 /// Create an orthogonal projection matrix for 2D rendering
@@ -144,8 +144,10 @@ impl WindowRenderer {
         let width = (bounds.size.width * scale_factor).max(1.0) as u32;
         let height = (bounds.size.height * scale_factor).max(1.0) as u32;
 
-        println!("Window logical size: {}x{}, scale factor: {}, physical pixels: {}x{}",
-            bounds.size.width, bounds.size.height, scale_factor, width, height);
+        println!(
+            "Window logical size: {}x{}, scale factor: {}, physical pixels: {}x{}",
+            bounds.size.width, bounds.size.height, scale_factor, width, height
+        );
 
         // Configure surface with physical pixel dimensions
         let config = wgpu::SurfaceConfiguration {
@@ -168,9 +170,7 @@ impl WindowRenderer {
         let logical_height = bounds.size.height as f32;
         let projection = create_orthogonal_projection(logical_width, logical_height);
 
-        let window_uniforms = WindowUniforms {
-            projection,
-        };
+        let window_uniforms = WindowUniforms { projection };
 
         let window_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Window Uniform Buffer (Shared)"),
@@ -191,8 +191,11 @@ impl WindowRenderer {
         });
 
         // Create SDF rect clip uniforms and bind group (DIFFERENT data - separate buffer)
-        let rect_sdf_clip_uniform_buffer = context.rect_sdf_pipeline.create_clip_uniform_buffer(device);
-        let rect_sdf_clip_uniform_bind_group = context.rect_sdf_pipeline.create_clip_bind_group(device, &rect_sdf_clip_uniform_buffer);
+        let rect_sdf_clip_uniform_buffer =
+            context.rect_sdf_pipeline.create_clip_uniform_buffer(device);
+        let rect_sdf_clip_uniform_bind_group = context
+            .rect_sdf_pipeline
+            .create_clip_bind_group(device, &rect_sdf_clip_uniform_buffer);
 
         // Create MSAA texture if sample count > 1
         let (msaa_texture, msaa_view) = if context.sample_count > 1 {
@@ -244,7 +247,8 @@ impl WindowRenderer {
         if width != self.config.width || height != self.config.height {
             self.config.width = width;
             self.config.height = height;
-            self.surface.configure(self.render_context.device(), &self.config);
+            self.surface
+                .configure(self.render_context.device(), &self.config);
 
             // Update scale factor
             self.scale_factor = scale_factor as f32;
@@ -274,8 +278,10 @@ impl WindowRenderer {
             // Update uniform buffers with new screen size
             self.update_screen_size(new_bounds.size, scale_factor as f32);
 
-            println!("Surface resized to {}x{} physical pixels (logical: {}x{}, scale: {})",
-                width, height, new_bounds.size.width, new_bounds.size.height, scale_factor);
+            println!(
+                "Surface resized to {}x{} physical pixels (logical: {}x{}, scale: {})",
+                width, height, new_bounds.size.width, new_bounds.size.height, scale_factor
+            );
         }
     }
 
@@ -287,9 +293,7 @@ impl WindowRenderer {
         let projection = create_orthogonal_projection(logical_width, logical_height);
 
         // Update SHARED window uniform buffer (used by all pipelines)
-        let window_uniforms = WindowUniforms {
-            projection,
-        };
+        let window_uniforms = WindowUniforms { projection };
         self.render_context.queue().write_buffer(
             &self.window_uniform_buffer,
             0,
@@ -298,8 +302,10 @@ impl WindowRenderer {
 
         let physical_width = logical_width * scale_factor;
         let physical_height = logical_height * scale_factor;
-        println!("[WindowRenderer] Updated projection matrix: logical = {:.0}x{:.0}, scale = {:.1}x, physical = {:.0}x{:.0}",
-            logical_width, logical_height, scale_factor, physical_width, physical_height);
+        println!(
+            "[WindowRenderer] Updated projection matrix: logical = {:.0}x{:.0}, scale = {:.1}x, physical = {:.0}x{:.0}",
+            logical_width, logical_height, scale_factor, physical_width, physical_height
+        );
     }
 
     /// Get the current surface texture for rendering
@@ -308,11 +314,7 @@ impl WindowRenderer {
     }
 
     /// Render rectangles using shared pipeline
-    pub fn render_rects(
-        &mut self,
-        render_pass: &mut wgpu::RenderPass,
-        instances: &[RectInstance],
-    ) {
+    pub fn render_rects(&mut self, render_pass: &mut wgpu::RenderPass, instances: &[RectInstance]) {
         if instances.is_empty() {
             return;
         }
@@ -390,7 +392,9 @@ impl WindowRenderer {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&self.render_context.text_pipeline.sampler),
+                    resource: wgpu::BindingResource::Sampler(
+                        &self.render_context.text_pipeline.sampler,
+                    ),
                 },
             ],
         });
@@ -414,7 +418,7 @@ impl WindowRenderer {
             &self.render_context.device,
             &self.render_context.queue,
             render_pass,
-            &self.window_uniform_buffer,  // Shared window uniforms (screen_size)
+            &self.window_uniform_buffer, // Shared window uniforms (screen_size)
             &self.window_uniform_bind_group,
             &self.rect_sdf_clip_uniform_bind_group,
             batcher,
@@ -458,8 +462,16 @@ impl WindowRenderer {
     /// Begin a new rendering frame
     pub fn begin_frame(&mut self) {
         // Lock shared resources briefly to update frame counters
-        self.render_context.glyph_atlas.lock().unwrap().begin_frame();
-        self.render_context.text_engine.lock().unwrap().begin_frame();
+        self.render_context
+            .glyph_atlas
+            .lock()
+            .unwrap()
+            .begin_frame();
+        self.render_context
+            .text_engine
+            .lock()
+            .unwrap()
+            .begin_frame();
     }
 
     /// Render a single image (Phase 5)

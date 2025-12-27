@@ -93,6 +93,7 @@ impl RectPipeline {
             }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleStrip,
+                cull_mode: None,  // DEBUG: Disable culling to test
                 ..Default::default()
             },
             depth_stencil: None,

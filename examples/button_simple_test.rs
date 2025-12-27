@@ -16,7 +16,7 @@ fn main() {
                 window.set_root_layout(taffy::Style::default());
 
                 // Test 1: Simple text button
-                let button1 = Button::text("Click Me!")
+                let button1 = Button::text("Click me")
                     .padding(Padding::symmetric(20.0, 10.0))
                     .on_click(|| {
                         println!("✓ Button 1 clicked!");

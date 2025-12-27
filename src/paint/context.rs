@@ -700,9 +700,10 @@ impl<'a> PaintContext<'a> {
                 let cache_key = physical_glyph.cache_key;
 
                 // Create glyph key for atlas (hash the font_id for consistent caching)
+                // IMPORTANT: Only hash font_id, NOT glyph_id!
+                // The glyph is already identified by the 'character' field in GlyphKey
                 let mut hasher = DefaultHasher::new();
                 cache_key.font_id.hash(&mut hasher);
-                cache_key.glyph_id.hash(&mut hasher);
                 let font_id_hash = hasher.finish() as usize;
 
                 let glyph_key = GlyphKey {
