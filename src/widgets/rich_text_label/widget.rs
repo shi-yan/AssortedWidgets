@@ -337,10 +337,15 @@ impl RichTextLabel {
         // Update scroll metadata after layout is created/updated
         // This is needed for scrollbar visibility calculation in update()
         if let Some(layout) = self.cached_layout.borrow().as_ref() {
-            // Count LAYOUT RUNS (wrapped lines), not buffer lines!
-            // buffer().lines.len() gives logical lines before wrapping
-            // layout_runs() gives actual visual lines after wrapping
-            let total_lines = layout.buffer().layout_runs().count() as u32;
+            // Count VISUAL WRAPPED LINES by dividing total layout height by line height
+            // line_i in LayoutRun refers to LOGICAL lines (buffer.lines), not visual wrapped lines!
+            let line_height = self.base_text_style.line_height_pixels() as f64;
+            let total_lines = if line_height > 0.0 {
+                (layout.size().height / line_height).ceil() as u32
+            } else {
+                0
+            };
+
             let max_line_width = layout
                 .buffer()
                 .layout_runs()
@@ -418,8 +423,14 @@ impl RichTextLabel {
 
             println!("[RichTextLabel] layout created, size: {:?}", layout.size());
 
-            // Update scroll metadata (count layout runs, not buffer lines)
-            self.total_lines = layout.buffer().layout_runs().count() as u32;
+            // Update scroll metadata (count visual wrapped lines from layout height)
+            let line_height = self.base_text_style.line_height_pixels() as f64;
+            self.total_lines = if line_height > 0.0 {
+                (layout.size().height / line_height).ceil() as u32
+            } else {
+                0
+            };
+
             self.max_line_width = layout
                 .buffer()
                 .layout_runs()
@@ -458,18 +469,23 @@ impl RichTextLabel {
             if self.vscrollbar.is_none() {
                 println!("[RichTextLabel] Creating vertical scrollbar (total={}, visible={})",
                          self.total_lines, visible_lines);
+                let total_lines = self.total_lines as i32;
+                let visible_lines = self.num_visible_lines() as i32;
+                // Scrollbar max should be (total - visible) so value 0..max represents first..last page
+                let max_scroll = (total_lines - visible_lines).max(0);
                 let vscroll = ScrollBar::vertical(
                     0,
-                    self.total_lines as i32,
-                    self.num_visible_lines() as i32,
+                    max_scroll,
+                    visible_lines,
                 );
                 self.vscrollbar = Some(vscroll);
             } else {
                 // Update range
                 let total_lines = self.total_lines as i32;
                 let visible_lines = self.num_visible_lines() as i32;
+                let max_scroll = (total_lines - visible_lines).max(0);
                 if let Some(ref mut vscroll) = self.vscrollbar {
-                    vscroll.set_range(0, total_lines);
+                    vscroll.set_range(0, max_scroll);
                     vscroll.set_page_size(visible_lines);
                 }
             }
@@ -851,6 +867,9 @@ impl Widget for RichTextLabel {
             content_rect.origin.y - (self.visible_start_line as f64 * line_height),
         );
 
+        println!("[RichTextLabel] Paint: visible_start_line={}, line_height={}, text_origin.y={}, content_rect.height={}",
+                 self.visible_start_line, line_height, text_origin.y, content_rect.size.height);
+
         // Draw text layout
         if let Some(layout) = self.cached_layout.borrow().as_ref() {
             ctx.draw_layout(layout, text_origin, self.base_text_style.text_color);
@@ -909,12 +928,16 @@ impl Widget for RichTextLabel {
 
         let lines_delta = (event.delta.y / line_height).round() as i32;
         if lines_delta != 0 {
+            let visible_lines = self.num_visible_lines();
             let max_line = self
                 .total_lines
-                .saturating_sub(self.num_visible_lines())
+                .saturating_sub(visible_lines)
                 .max(0);
             let new_line =
                 (self.visible_start_line as i32 + lines_delta).clamp(0, max_line as i32) as u32;
+
+            println!("[RichTextLabel] Scroll: total={}, visible={}, max_scroll={}, new_line={}",
+                     self.total_lines, visible_lines, max_line, new_line);
 
             if new_line != self.visible_start_line {
                 self.visible_start_line = new_line;
