@@ -209,6 +209,11 @@ impl ScrollBar {
         self.value
     }
 
+    /// Get the maximum value
+    pub fn max(&self) -> i32 {
+        self.max
+    }
+
     /// Set the value range
     pub fn set_range(&mut self, min: i32, max: i32) {
         self.min = min;

@@ -10,7 +10,9 @@
 mod label;
 mod button;
 mod scrollbar;
+pub mod rich_text_label;
 
 pub use label::{Label, WrapMode, Padding};
 pub use button::{Button, ButtonContent, ButtonState, ButtonStyle};
 pub use scrollbar::{ScrollBar, Orientation, ScrollBarState};
+pub use rich_text_label::RichTextLabel;

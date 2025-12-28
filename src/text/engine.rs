@@ -6,7 +6,7 @@
 
 use super::{TextLayout, TextStyle, TextAlign, Truncate};
 use super::font_system::FontSystemWrapper;
-use cosmic_text::{Buffer, Metrics, Shaping};
+use cosmic_text::{Buffer, Metrics, Shaping, Attrs};
 use std::collections::HashMap;
 
 /// Key for content-addressable text caching
@@ -183,6 +183,87 @@ impl TextEngine {
         self.shapes_this_frame += 1;  // Track manual API usage
         let buffer = self.shape_text_internal(text, style, max_width, truncate, Some(wrap));
         TextLayout::new(buffer, style.alignment, max_width)
+    }
+
+    /// Create a rich text layout (manual mode - no caching)
+    ///
+    /// Converts RichText spans to cosmic-text's rich text format and shapes the text.
+    ///
+    /// **Use this for:** Rich text labels, formatted text displays
+    ///
+    /// # Arguments
+    /// * `rich_text` - The RichText document with styled spans
+    /// * `base_style` - Base font styling (used for unstyled text)
+    /// * `max_width` - Optional width constraint for wrapping
+    /// * `wrap` - Wrapping mode (Word, Glyph, or None)
+    ///
+    /// # Returns
+    /// Owned TextLayout ready for rendering
+    pub fn create_rich_layout(
+        &mut self,
+        rich_text: &crate::widgets::rich_text_label::RichText,
+        base_style: &TextStyle,
+        max_width: Option<f32>,
+        wrap: cosmic_text::Wrap,
+    ) -> TextLayout {
+        self.shapes_this_frame += 1;
+
+        let font_system = self.font_system.font_system_mut();
+
+        // Create metrics
+        let metrics = Metrics::new(base_style.font_size, base_style.line_height_pixels());
+
+        // Create buffer
+        let mut buffer = Buffer::new(font_system, metrics);
+
+        // Convert spans to cosmic-text rich text format
+        let base_attrs = base_style.to_attrs();
+
+        if rich_text.spans.is_empty() {
+            // No styling, use simple set_text
+            buffer.set_text(
+                font_system,
+                &rich_text.text,
+                &base_attrs,
+                Shaping::Advanced,
+                None
+            );
+        } else {
+            // Build segments for set_rich_text
+            let segments = build_rich_text_segments(rich_text, base_style, &base_attrs);
+
+            // Use set_rich_text for multi-style text
+            buffer.set_rich_text(
+                font_system,
+                segments,
+                &base_attrs,
+                Shaping::Advanced,
+                None,
+            );
+        }
+
+        // Set size and wrap
+        if let Some(width) = max_width {
+            buffer.set_size(font_system, Some(width), None);
+        }
+        buffer.set_wrap(font_system, wrap);
+
+        // Set alignment
+        use cosmic_text::Align as CosmicAlign;
+        let cosmic_align = match base_style.alignment {
+            crate::text::TextAlign::Left => CosmicAlign::Left,
+            crate::text::TextAlign::Center => CosmicAlign::Center,
+            crate::text::TextAlign::Right => CosmicAlign::Right,
+        };
+
+        for line in buffer.lines.iter_mut() {
+            line.set_align(Some(cosmic_align));
+        }
+
+        // Shape the text
+        buffer.shape_until_scroll(font_system, false);
+
+        TextLayout::new(buffer, base_style.alignment, max_width)
     }
 
     // ========================================================================
@@ -425,6 +506,78 @@ impl Default for TextEngine {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Build cosmic-text segments from RichText spans
+///
+/// Converts span-based rich text into the format expected by cosmic-text's set_rich_text API.
+fn build_rich_text_segments<'a>(
+    rich_text: &'a crate::widgets::rich_text_label::RichText,
+    base_style: &'a TextStyle,
+    base_attrs: &Attrs<'a>,
+) -> Vec<(&'a str, Attrs<'a>)> {
+    let mut segments = Vec::new();
+
+    if rich_text.spans.is_empty() {
+        // No spans, return whole text with base attrs
+        return vec![(&rich_text.text, base_attrs.clone())];
+    }
+
+    // Sort spans by start position
+    let mut sorted_spans = rich_text.spans.clone();
+    sorted_spans.sort_by_key(|s| s.range.start);
+
+    let mut cursor = 0;
+
+    for span in sorted_spans.iter() {
+        // Add unstyled text before this span
+        if cursor < span.range.start {
+            segments.push((&rich_text.text[cursor..span.range.start], base_attrs.clone()));
+        }
+
+        // Add styled span
+        let attrs = span_attrs_to_cosmic(&span.attrs, base_style);
+        segments.push((&rich_text.text[span.range.clone()], attrs));
+
+        cursor = span.range.end;
+    }
+
+    // Add remaining unstyled text
+    if cursor < rich_text.text.len() {
+        segments.push((&rich_text.text[cursor..], base_attrs.clone()));
+    }
+
+    segments
+}
+
+/// Convert SpanAttrs to cosmic-text Attrs
+fn span_attrs_to_cosmic<'a>(span_attrs: &crate::widgets::rich_text_label::SpanAttrs, base_style: &'a TextStyle) -> Attrs<'a> {
+    use cosmic_text::{Weight, Style};
+
+    let mut attrs = base_style.to_attrs();
+
+    if span_attrs.bold {
+        attrs = attrs.weight(Weight::BOLD);
+    }
+
+    if span_attrs.italic {
+        attrs = attrs.style(Style::Italic);
+    }
+
+    // Apply custom color if set
+    if let Some(color) = span_attrs.color {
+        attrs = attrs.color(cosmic_text::Color::rgba(
+            (color.r * 255.0) as u8,
+            (color.g * 255.0) as u8,
+            (color.b * 255.0) as u8,
+            (color.a * 255.0) as u8,
+        ));
+    }
+
+    // Note: strikethrough is rendered separately in the paint method
+    // cosmic-text doesn't support strikethrough in Attrs
+
+    attrs
 }
 
 /// Cache statistics for performance monitoring

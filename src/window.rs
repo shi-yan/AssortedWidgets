@@ -1077,6 +1077,7 @@ impl Window {
             let mut text_engine_lock = render_context.text_engine.lock().unwrap();
 
             // Use compute_layout_with_measure to support elements with dynamic sizing
+            println!("\n[Window] Starting compute_layout_with_measure, window_size: {:?}", self.window_size);
             if let Err(e) = self.layout_manager.compute_layout_with_measure(
                 self.window_size,
                 |known, available, _node_id, context, _style| {
@@ -1106,6 +1107,18 @@ impl Window {
                                 // Special case for Button: use measure_with_engine()
                                 if let Some(button) = element.as_any().downcast_ref::<crate::widgets::Button>() {
                                     let size = button.measure_with_engine(&mut *text_engine_lock, known);
+                                    return taffy::Size {
+                                        width: size.width as f32,
+                                        height: size.height as f32,
+                                    };
+                                }
+
+                                // Special case for RichTextLabel: use measure_with_engine()
+                                if let Some(rich_text_label) = element.as_any().downcast_ref::<crate::widgets::RichTextLabel>() {
+                                    println!("[Window] Calling RichTextLabel::measure_with_engine");
+                                    println!("  known: {:?}, available: {:?}", known, available);
+                                    let size = rich_text_label.measure_with_engine(&mut *text_engine_lock, known);
+                                    println!("[Window] measure_with_engine returned: {}x{}", size.width, size.height);
                                     return taffy::Size {
                                         width: size.width as f32,
                                         height: size.height as f32,
