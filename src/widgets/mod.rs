@@ -9,10 +9,16 @@
 
 mod label;
 mod button;
+mod button_group;
 mod scrollbar;
+mod slider;
+mod progressbar;
 pub mod rich_text_label;
 
 pub use label::{Label, WrapMode, Padding};
 pub use button::{Button, ButtonContent, ButtonState, ButtonStyle};
+pub use button_group::{ButtonGroup, ButtonGroupItem};
 pub use scrollbar::{ScrollBar, Orientation, ScrollBarState};
+pub use slider::Slider;
+pub use progressbar::ProgressBar;
 pub use rich_text_label::RichTextLabel;
