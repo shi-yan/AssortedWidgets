@@ -29,7 +29,7 @@ fn main() {
                     ..Default::default()
                 };
 
-                window.add_root(Box::new(label1), style1)
+                window.add_to_root(Box::new(label1), style1)
                     .expect("Failed to add label 1");
 
                 // Test 2: Multi-line label with word wrap
@@ -54,7 +54,7 @@ fn main() {
                     ..Default::default()
                 };
 
-                window.add_root(Box::new(label2), style2)
+                window.add_to_root(Box::new(label2), style2)
                     .expect("Failed to add label 2");
 
                 // Test 3: Glyph wrapping
@@ -79,7 +79,7 @@ fn main() {
                     ..Default::default()
                 };
 
-                window.add_root(Box::new(label3), style3)
+                window.add_to_root(Box::new(label3), style3)
                     .expect("Failed to add label 3");
 
                 println!("Simple label test - using absolute positioning");

@@ -58,7 +58,7 @@ fn main() {
                 );
 
                 // Add red rect as root with absolute positioning
-                window.add_root(
+                window.add_to_root(
                     Box::new(red_rect),
                     Style {
                         position: taffy::Position::Absolute,
@@ -126,7 +126,7 @@ fn main() {
                 );
 
                 // Add green rect as root with absolute positioning
-                window.add_root(
+                window.add_to_root(
                     Box::new(green_rect),
                     Style {
                         position: taffy::Position::Absolute,

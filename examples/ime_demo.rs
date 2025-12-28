@@ -66,7 +66,7 @@ fn main() {
                 };
 
                 // Add input box 1 as root using clean Window API
-                window.add_root(Box::new(input1), layout_style.clone())
+                window.add_to_root(Box::new(input1), layout_style.clone())
                     .expect("Failed to add input box 1");
 
                 // Add input box 2 as child of input box 1 using clean Window API

@@ -37,8 +37,8 @@ fn main() {
                     "Red"
                 );
 
-                // Use the clean Window API - add_root handles all three internal systems
-                window.add_root(
+                // Use the clean Window API - add_to_root handles all three internal systems
+                window.add_to_root(
                     Box::new(red_rect),
                     Style {
                         margin: taffy::Rect {

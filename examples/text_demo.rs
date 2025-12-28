@@ -27,8 +27,8 @@ fn main() {
                 let demo = TextDemoElement::new(WidgetId::new(1));
 
                 // Add demo widget using clean API - automatically coordinates all three systems
-                window.add_root(Box::new(demo), Style::default())
-                    .expect("Failed to add root widget");
+                window.add_to_root(Box::new(demo), Style::default())
+                    .expect("Failed to add widget");
 
                 println!("Demo widget created using Widget trait (clean architecture!)");
                 println!();
@@ -70,8 +70,8 @@ fn main() {
                 .with_bg_color(Color { r: 1.0, g: 0.2, b: 0.2, a: 1.0 });
 
                 // Add to second window using clean API
-                window.add_root(Box::new(animated_label), Style::default())
-                    .expect("Failed to add root widget");
+                window.add_to_root(Box::new(animated_label), Style::default())
+                    .expect("Failed to add widget");
 
                 println!("Animated text truncation demo window created!");
                 println!("  → Watch the text truncate with '...' as width oscillates");

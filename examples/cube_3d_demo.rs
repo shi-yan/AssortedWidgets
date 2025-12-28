@@ -102,7 +102,7 @@ fn main() {
                 };
 
                 // Add container as root
-                window.add_root(Box::new(container), container_style)
+                window.add_to_root(Box::new(container), container_style)
                     .expect("Failed to add container");
 
                 let container_id = assorted_widgets::types::WidgetId::new(100);

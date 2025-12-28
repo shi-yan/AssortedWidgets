@@ -22,7 +22,7 @@ fn main() {
                     ..Default::default()
                 };
 
-                window.add_root(Box::new(label), style)
+                window.add_to_root(Box::new(label), style)
                     .expect("Failed to add label");
 
                 println!("Minimal label test");

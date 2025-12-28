@@ -294,7 +294,7 @@ fn main() {
 
             use assorted_widgets::layout::Display;
             window
-                .add_root(
+                .add_to_root(
                     Box::new(showcase),
                     Style {
                         display: Display::Block,

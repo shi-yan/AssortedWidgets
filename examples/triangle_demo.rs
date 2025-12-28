@@ -59,8 +59,8 @@ fn main() {
                     ..Default::default()
                 };
 
-                // ✅ Capture the container ID returned by add_root()
-                let container_id = window.add_root(
+                // ✅ Capture the container ID returned by add_to_root()
+                let container_id = window.add_to_root(
                     Box::new(Container::new(taffy::Style::default())),
                     container_style
                 ).expect("Failed to add container");

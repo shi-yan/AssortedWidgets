@@ -232,10 +232,10 @@ fn main() {
                     Rect::new(Point::new(0.0, 0.0), Size::new(800.0, 550.0)),
                 );
 
-                // Use add_root to properly register in all internal systems
+                // Use add_to_root to properly register in all internal systems
                 use assorted_widgets::layout::{Display, Style};
                 window
-                    .add_root(
+                    .add_to_root(
                         Box::new(demo),
                         Style {
                             display: Display::Block,
