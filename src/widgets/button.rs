@@ -653,7 +653,7 @@ impl MouseHandler for Button {
         EventResponse::PassThrough
     }
 
-    fn on_mouse_enter(&mut self) -> EventResponse {
+    fn on_mouse_enter(&mut self, _event: &mut MouseEvent) -> EventResponse {
         if self.is_disabled {
             return EventResponse::Ignored;
         }
@@ -665,7 +665,7 @@ impl MouseHandler for Button {
         EventResponse::Handled
     }
 
-    fn on_mouse_leave(&mut self) -> EventResponse {
+    fn on_mouse_leave(&mut self, _event: &mut MouseEvent) -> EventResponse {
         self.is_hovered = false;
         self.is_pressed = false;
         self.update_state();
@@ -841,12 +841,12 @@ impl Widget for Button {
         }
     }
 
-    fn on_mouse_enter(&mut self) -> EventResponse {
-        MouseHandler::on_mouse_enter(self)
+    fn on_mouse_enter(&mut self, event: &mut MouseEvent) -> EventResponse {
+        MouseHandler::on_mouse_enter(self, event)
     }
 
-    fn on_mouse_leave(&mut self) -> EventResponse {
-        MouseHandler::on_mouse_leave(self)
+    fn on_mouse_leave(&mut self, event: &mut MouseEvent) -> EventResponse {
+        MouseHandler::on_mouse_leave(self, event)
     }
 
     fn dispatch_mouse_event(&mut self, event: &mut InputEventEnum) -> EventResponse {

@@ -25,18 +25,20 @@ var<uniform> clip_uniforms: ClipUniforms;
 struct RectInstance {
     @location(0) rect: vec4<f32>,           // x, y, width, height
     @location(1) corner_radius: vec4<f32>,  // top_left, top_right, bottom_right, bottom_left
-    @location(2) fill_color: vec4<f32>,     // rgba (for solid) or gradient_type/stop_count
-    @location(3) border_color: vec4<f32>,   // rgba
-    @location(4) border_width: f32,
-    @location(5) gradient_start_end: vec4<f32>, // start.xy, end.xy (linear) or center.xy, radius, _
-    @location(6) gradient_stop_0: vec4<f32>, // offset, r, g, b
-    @location(7) gradient_stop_1: vec4<f32>,
-    @location(8) gradient_stop_2: vec4<f32>,
-    @location(9) gradient_stop_3: vec4<f32>,
-    @location(10) gradient_stop_4: vec4<f32>,
-    @location(11) gradient_stop_5: vec4<f32>,
-    @location(12) gradient_stop_6: vec4<f32>,
-    @location(13) gradient_stop_7: vec4<f32>,
+    @location(2) fill_type: u32,            // 0 = solid, 1 = linear gradient, 2 = radial gradient
+    @location(3) stop_count: u32,           // Number of gradient stops (2-8)
+    @location(4) fill_color: vec4<f32>,     // rgba for solid color
+    @location(5) border_color: vec4<f32>,   // rgba
+    @location(6) border_width: f32,
+    @location(7) gradient_start_end: vec4<f32>, // start.xy, end.xy (linear) or center.xy, radius, _
+    @location(8) gradient_stop_0: vec4<f32>, // offset, r, g, b
+    @location(9) gradient_stop_1: vec4<f32>,
+    @location(10) gradient_stop_2: vec4<f32>,
+    @location(11) gradient_stop_3: vec4<f32>,
+    @location(12) gradient_stop_4: vec4<f32>,
+    @location(13) gradient_stop_5: vec4<f32>,
+    @location(14) gradient_stop_6: vec4<f32>,
+    @location(15) gradient_stop_7: vec4<f32>,
 }
 
 struct VertexOutput {
@@ -44,20 +46,22 @@ struct VertexOutput {
     @location(0) local_pos: vec2<f32>,      // Position within rect (0,0 = center)
     @location(1) size: vec2<f32>,           // Half-size of rect
     @location(2) corner_radius: vec4<f32>,
-    @location(3) fill_color: vec4<f32>,
-    @location(4) border_color: vec4<f32>,
-    @location(5) border_width: f32,
-    @location(6) world_pos: vec2<f32>,      // World position for clipping
-    @location(7) uv: vec2<f32>,             // UV coordinates (0-1) for gradient sampling
-    @location(8) gradient_start_end: vec4<f32>,
-    @location(9) gradient_stop_0: vec4<f32>,
-    @location(10) gradient_stop_1: vec4<f32>,
-    @location(11) gradient_stop_2: vec4<f32>,
-    @location(12) gradient_stop_3: vec4<f32>,
-    @location(13) gradient_stop_4: vec4<f32>,
-    @location(14) gradient_stop_5: vec4<f32>,
-    @location(15) gradient_stop_6: vec4<f32>,
-    @location(16) gradient_stop_7: vec4<f32>,
+    @location(3) fill_type: u32,            // 0 = solid, 1 = linear gradient, 2 = radial gradient
+    @location(4) stop_count: u32,           // Number of gradient stops (2-8)
+    @location(5) fill_color: vec4<f32>,
+    @location(6) border_color: vec4<f32>,
+    @location(7) border_width: f32,
+    @location(8) world_pos: vec2<f32>,      // World position for clipping
+    @location(9) uv: vec2<f32>,             // UV coordinates (0-1) for gradient sampling
+    @location(10) gradient_start_end: vec4<f32>,
+    @location(11) gradient_stop_0: vec4<f32>,
+    @location(12) gradient_stop_1: vec4<f32>,
+    @location(13) gradient_stop_2: vec4<f32>,
+    @location(14) gradient_stop_3: vec4<f32>,
+    @location(15) gradient_stop_4: vec4<f32>,
+    @location(16) gradient_stop_5: vec4<f32>,
+    @location(17) gradient_stop_6: vec4<f32>,
+    @location(18) gradient_stop_7: vec4<f32>,
 }
 
 // Vertex shader: Generate quad from instance data
@@ -95,6 +99,8 @@ fn vs_main(
 
     // Pass through style data
     out.corner_radius = instance.corner_radius;
+    out.fill_type = instance.fill_type;
+    out.stop_count = instance.stop_count;
     out.fill_color = instance.fill_color;
     out.border_color = instance.border_color;
     out.border_width = instance.border_width;
@@ -239,19 +245,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Anti-aliased edge (smooth from -0.5 to +0.5 pixels)
     let fill_alpha = 1.0 - smoothstep(-0.5, 0.5, dist);
 
-    // Determine fill color (solid or gradient)
-    // fill_color.r encodes: 0.0 = solid, 1.0 = linear gradient, 2.0 = radial gradient
-    // fill_color.g encodes: stop_count (2-8)
-    let gradient_type = u32(in.fill_color.r);
-    let stop_count = u32(in.fill_color.g);
-
+    // Determine fill color based on fill_type
     var fill_color: vec4<f32>;
 
-    if (gradient_type == 0u) {
-        // Solid color (stored in fill_color.ba as packed data, or we use border_color as fallback)
-        // For solid, we use the original approach - fill_color is already the color
+    if (in.fill_type == 0u) {
+        // Solid color
         fill_color = in.fill_color;
-    } else if (gradient_type == 1u) {
+    } else if (in.fill_type == 1u) {
         // Linear gradient
         let stops = array<vec4<f32>, 8>(
             in.gradient_stop_0,
@@ -263,9 +263,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             in.gradient_stop_6,
             in.gradient_stop_7,
         );
-        fill_color = sample_linear_gradient(in.uv, in.gradient_start_end, stops, stop_count);
+        fill_color = sample_linear_gradient(in.uv, in.gradient_start_end, stops, in.stop_count);
     } else {
-        // Radial gradient (gradient_type == 2u)
+        // Radial gradient (fill_type == 2u)
         let stops = array<vec4<f32>, 8>(
             in.gradient_stop_0,
             in.gradient_stop_1,
@@ -276,7 +276,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             in.gradient_stop_6,
             in.gradient_stop_7,
         );
-        fill_color = sample_radial_gradient(in.uv, in.gradient_start_end, stops, stop_count);
+        fill_color = sample_radial_gradient(in.uv, in.gradient_start_end, stops, in.stop_count);
     }
 
     // If no border, just return fill

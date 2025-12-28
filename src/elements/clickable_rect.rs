@@ -162,13 +162,13 @@ impl MouseHandler for ClickableRect {
         EventResponse::PassThrough // Let mouse moves propagate
     }
 
-    fn on_mouse_enter(&mut self) -> EventResponse {
+    fn on_mouse_enter(&mut self, _event: &mut MouseEvent) -> EventResponse {
         self.is_hovered = true;
         println!("→ ENTER: {}", self.label);
         EventResponse::Ignored
     }
 
-    fn on_mouse_leave(&mut self) -> EventResponse {
+    fn on_mouse_leave(&mut self, _event: &mut MouseEvent) -> EventResponse {
         self.is_hovered = false;
         println!("← LEAVE: {}", self.label);
         EventResponse::Ignored

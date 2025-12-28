@@ -95,6 +95,14 @@ pub trait Widget {
         vec![]
     }
 
+    /// Drain pending deferred commands (signals to emit)
+    ///
+    /// This is called after event handling to collect any signals that
+    /// the widget wants to emit. Default implementation returns empty vector.
+    fn drain_deferred_commands(&mut self) -> Vec<DeferredCommand> {
+        vec![]
+    }
+
     /// Get widget bounds for hit testing (set by layout system)
     fn bounds(&self) -> Rect;
 
@@ -283,7 +291,8 @@ pub trait Widget {
     ///
     /// Default implementation returns Ignored. Widgets that implement MouseHandler
     /// should override this to call their handler method.
-    fn on_mouse_enter(&mut self) -> crate::event::EventResponse {
+    fn on_mouse_enter(&mut self, event: &mut crate::event::MouseEvent) -> crate::event::EventResponse {
+        let _ = event;
         crate::event::EventResponse::Ignored
     }
 
@@ -291,7 +300,8 @@ pub trait Widget {
     ///
     /// Default implementation returns Ignored. Widgets that implement MouseHandler
     /// should override this to call their handler method.
-    fn on_mouse_leave(&mut self) -> crate::event::EventResponse {
+    fn on_mouse_leave(&mut self, event: &mut crate::event::MouseEvent) -> crate::event::EventResponse {
+        let _ = event;
         crate::event::EventResponse::Ignored
     }
 

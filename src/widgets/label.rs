@@ -405,7 +405,18 @@ impl Widget for Label {
         self.id = id;
     }
 
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
+    fn on_message(&mut self, message: &GuiMessage) -> Vec<DeferredCommand> {
+        // Handle value_changed signal from other widgets (e.g., ScrollBar)
+        if let GuiMessage::Custom { source: _, signal_type, data } = message {
+            if signal_type == "value_changed" {
+                // Try to downcast the data to i32 (from ScrollBar)
+                if let Some(value) = data.downcast_ref::<i32>() {
+                    // Update label text with the new value
+                    let new_text = format!("{}", value);
+                    self.set_text(new_text);
+                }
+            }
+        }
         Vec::new()
     }
 

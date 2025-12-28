@@ -30,12 +30,14 @@ pub trait MouseHandler {
     }
 
     /// Called when mouse enters the element's bounds
-    fn on_mouse_enter(&mut self) -> EventResponse {
+    fn on_mouse_enter(&mut self, event: &mut MouseEvent) -> EventResponse {
+        let _ = event;
         EventResponse::Ignored
     }
 
     /// Called when mouse leaves the element's bounds
-    fn on_mouse_leave(&mut self) -> EventResponse {
+    fn on_mouse_leave(&mut self, event: &mut MouseEvent) -> EventResponse {
+        let _ = event;
         EventResponse::Ignored
     }
 }

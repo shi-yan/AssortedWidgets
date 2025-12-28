@@ -9,6 +9,8 @@
 
 mod label;
 mod button;
+mod scrollbar;
 
 pub use label::{Label, WrapMode, Padding};
 pub use button::{Button, ButtonContent, ButtonState, ButtonStyle};
+pub use scrollbar::{ScrollBar, Orientation, ScrollBarState};

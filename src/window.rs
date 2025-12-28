@@ -627,7 +627,7 @@ impl Window {
     pub fn dispatch_input_event(&mut self, mut event: InputEventEnum) {
         use crate::event::{EventResponse, Key, NamedKey};
 
-        match &event {
+        match &mut event {
             InputEventEnum::MouseDown(mouse_event) => {
                 let position = mouse_event.position;
                 println!("[DISPATCH] Window {:?} received MouseDown at ({:.1}, {:.1})",
@@ -656,6 +656,7 @@ impl Window {
                     // Dispatch to element via dispatch_mouse_event method
                     if let Some(element) = self.widgets.get_mut(widget_id) {
                         let response = element.dispatch_mouse_event(&mut event);
+                        let commands = element.drain_deferred_commands();
 
                         match response {
                             EventResponse::Handled => {
@@ -697,6 +698,11 @@ impl Window {
                             }
                             EventResponse::Ignored => {}
                         }
+
+                        // Process deferred commands (emit signals)
+                        for cmd in commands {
+                            self.emit_signal(cmd.target, &cmd.message);
+                        }
                     }
                 }
             }
@@ -724,6 +730,7 @@ impl Window {
 
                     if let Some(element) = self.widgets.get_mut(widget_id) {
                         let response = element.dispatch_mouse_event(&mut event);
+                        let commands = element.drain_deferred_commands();
 
                         match response {
                             EventResponse::Handled => {
@@ -754,6 +761,11 @@ impl Window {
                             EventResponse::PassThrough => {}
                             EventResponse::Ignored => {}
                         }
+
+                        // Process deferred commands (emit signals)
+                        for cmd in commands {
+                            self.emit_signal(cmd.target, &cmd.message);
+                        }
                     }
                 }
             }
@@ -776,7 +788,7 @@ impl Window {
                     if let Some(prev_id) = self.hovered_widget {
                         if let Some(element) = self.widgets.get_mut(prev_id) {
                             println!("[CURSOR] Mouse left widget {:?}", prev_id);
-                            element.on_mouse_leave();
+                            element.on_mouse_leave(mouse_event);
                         }
                     }
 
@@ -784,7 +796,7 @@ impl Window {
                     if let Some(new_id) = target {
                         if let Some(element) = self.widgets.get_mut(new_id) {
                             println!("[CURSOR] Mouse entered widget {:?}", new_id);
-                            element.on_mouse_enter();
+                            element.on_mouse_enter(mouse_event);
 
                             // Update cursor based on widget's preference
                             let preferred = element.preferred_cursor();
@@ -813,6 +825,7 @@ impl Window {
                 if let Some(widget_id) = target {
                     if let Some(element) = self.widgets.get_mut(widget_id) {
                         element.dispatch_mouse_event(&mut event);
+                        let commands = element.drain_deferred_commands();
 
                         // If this is a dragging DraggableRect, emit UpdateCrossWindowDrag
                         use crate::elements::DraggableRect;
@@ -829,6 +842,11 @@ impl Window {
                                     },
                                 ));
                             }
+                        }
+
+                        // Process deferred commands (emit signals)
+                        for cmd in commands {
+                            self.emit_signal(cmd.target, &cmd.message);
                         }
                     }
                 }

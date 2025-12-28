@@ -8,10 +8,13 @@ use wgpu::util::DeviceExt;
 struct RectInstance {
     rect: [f32; 4],           // x, y, width, height
     corner_radius: [f32; 4],  // top_left, top_right, bottom_right, bottom_left
-    fill_color: [f32; 4],     // rgba (solid) or [gradient_type, stop_count, 0, 0]
+    fill_type: u32,           // 0 = solid, 1 = linear gradient, 2 = radial gradient
+    stop_count: u32,          // Number of gradient stops (2-8)
+    _padding1: [u32; 2],      // Align to 16 bytes
+    fill_color: [f32; 4],     // rgba for solid, unused for gradients
     border_color: [f32; 4],   // rgba
     border_width: f32,
-    _padding: [f32; 3],       // Align to 16 bytes
+    _padding2: [f32; 3],      // Align to 16 bytes
     gradient_start_end: [f32; 4], // start.xy, end.xy (linear) or center.xy, radius, _
     gradient_stop_0: [f32; 4], // offset, r, g, b
     gradient_stop_1: [f32; 4],
@@ -105,76 +108,88 @@ impl RectSdfPipeline {
                                 shader_location: 1,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
-                            // fill_color: vec4<f32>
+                            // fill_type: u32
                             wgpu::VertexAttribute {
                                 offset: 32,
                                 shader_location: 2,
+                                format: wgpu::VertexFormat::Uint32,
+                            },
+                            // stop_count: u32
+                            wgpu::VertexAttribute {
+                                offset: 36,
+                                shader_location: 3,
+                                format: wgpu::VertexFormat::Uint32,
+                            },
+                            // fill_color: vec4<f32>
+                            wgpu::VertexAttribute {
+                                offset: 48,
+                                shader_location: 4,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
                             // border_color: vec4<f32>
                             wgpu::VertexAttribute {
-                                offset: 48,
-                                shader_location: 3,
+                                offset: 64,
+                                shader_location: 5,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
                             // border_width: f32
                             wgpu::VertexAttribute {
-                                offset: 64,
-                                shader_location: 4,
+                                offset: 80,
+                                shader_location: 6,
                                 format: wgpu::VertexFormat::Float32,
                             },
                             // gradient_start_end: vec4<f32>
                             wgpu::VertexAttribute {
-                                offset: 80,
-                                shader_location: 5,
+                                offset: 96,
+                                shader_location: 7,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
                             // gradient_stop_0: vec4<f32>
                             wgpu::VertexAttribute {
-                                offset: 96,
-                                shader_location: 6,
+                                offset: 112,
+                                shader_location: 8,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
                             // gradient_stop_1: vec4<f32>
                             wgpu::VertexAttribute {
-                                offset: 112,
-                                shader_location: 7,
+                                offset: 128,
+                                shader_location: 9,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
                             // gradient_stop_2: vec4<f32>
                             wgpu::VertexAttribute {
-                                offset: 128,
-                                shader_location: 8,
+                                offset: 144,
+                                shader_location: 10,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
                             // gradient_stop_3: vec4<f32>
                             wgpu::VertexAttribute {
-                                offset: 144,
-                                shader_location: 9,
+                                offset: 160,
+                                shader_location: 11,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
                             // gradient_stop_4: vec4<f32>
                             wgpu::VertexAttribute {
-                                offset: 160,
-                                shader_location: 10,
+                                offset: 176,
+                                shader_location: 12,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
                             // gradient_stop_5: vec4<f32>
                             wgpu::VertexAttribute {
-                                offset: 176,
-                                shader_location: 11,
+                                offset: 192,
+                                shader_location: 13,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
                             // gradient_stop_6: vec4<f32>
                             wgpu::VertexAttribute {
-                                offset: 192,
-                                shader_location: 12,
+                                offset: 208,
+                                shader_location: 14,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
                             // gradient_stop_7: vec4<f32>
                             wgpu::VertexAttribute {
-                                offset: 208,
-                                shader_location: 13,
+                                offset: 224,
+                                shader_location: 15,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
                         ],
@@ -237,7 +252,8 @@ impl RectSdfPipeline {
         let instances: Vec<RectInstance> = batcher
             .commands()
             .iter()
-            .filter_map(|cmd| match cmd {
+            .enumerate()
+            .filter_map(|(idx, cmd)| match cmd {
                 DrawCommand::Rect { rect, style, .. } => {
                     use crate::paint::Brush;
 
@@ -251,10 +267,13 @@ impl RectSdfPipeline {
                     let mut instance = RectInstance {
                         rect: [rect.origin.x as f32, rect.origin.y as f32, rect.size.width as f32, rect.size.height as f32],
                         corner_radius: style.corner_radius.to_array(),
+                        fill_type: 0,         // Will be set based on brush type
+                        stop_count: 0,        // Will be set for gradients
+                        _padding1: [0; 2],
                         fill_color: [0.0; 4],
                         border_color: border_color.to_array(),
                         border_width,
-                        _padding: [0.0; 3],
+                        _padding2: [0.0; 3],
                         gradient_start_end: [0.0; 4],
                         gradient_stop_0: [0.0; 4],
                         gradient_stop_1: [0.0; 4],
@@ -269,11 +288,12 @@ impl RectSdfPipeline {
                     // Encode brush data
                     match &style.fill {
                         Brush::Solid(color) => {
+                            instance.fill_type = 0;  // Solid color
                             instance.fill_color = color.to_array();
                         }
                         Brush::LinearGradient(gradient) => {
-                            // Encode gradient type (1.0) and stop count
-                            instance.fill_color = [1.0, gradient.stops.len() as f32, 0.0, 0.0];
+                            instance.fill_type = 1;  // Linear gradient
+                            instance.stop_count = gradient.stops.len() as u32;
 
                             // Encode start and end points (normalized 0-1 coordinates)
                             instance.gradient_start_end = [
@@ -306,8 +326,8 @@ impl RectSdfPipeline {
                             }
                         }
                         Brush::RadialGradient(gradient) => {
-                            // Encode gradient type (2.0) and stop count
-                            instance.fill_color = [2.0, gradient.stops.len() as f32, 0.0, 0.0];
+                            instance.fill_type = 2;  // Radial gradient
+                            instance.stop_count = gradient.stops.len() as u32;
 
                             // Encode center and radius (normalized 0-1 coordinates)
                             instance.gradient_start_end = [
