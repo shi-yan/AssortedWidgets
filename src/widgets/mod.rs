@@ -13,6 +13,9 @@ mod button_group;
 mod scrollbar;
 mod slider;
 mod progressbar;
+mod checkbox;
+mod radio_group;
+mod switch;
 pub mod rich_text_label;
 
 pub use label::{Label, WrapMode, Padding};
@@ -21,4 +24,7 @@ pub use button_group::{ButtonGroup, ButtonGroupItem};
 pub use scrollbar::{ScrollBar, Orientation, ScrollBarState};
 pub use slider::Slider;
 pub use progressbar::ProgressBar;
+pub use checkbox::{Checkbox, CheckboxState, CheckboxStyle};
+pub use radio_group::{RadioGroup, RadioGroupItem, RadioStyle};
+pub use switch::{Switch, SwitchState};
 pub use rich_text_label::RichTextLabel;

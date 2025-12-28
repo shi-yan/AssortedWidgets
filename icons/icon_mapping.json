@@ -49,5 +49,9 @@
   "warning": "e002",
   "error": "e000",
   "check_circle": "e86c",
-  "error_outline": "e001"
+  "error_outline": "e001",
+  "checkbox_unchecked": "e835",
+  "checkbox_checked": "e834",
+  "radio_button_unchecked": "e836",
+  "radio_button_checked": "e837"
 }
