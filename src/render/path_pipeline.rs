@@ -102,7 +102,13 @@ impl PathPipeline {
                 polygon_mode: wgpu::PolygonMode::Fill,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: sample_count,
                 mask: !0,
@@ -118,14 +124,21 @@ impl PathPipeline {
         }
     }
 
-    /// Render paths from batcher
+    /// Render paths from batcher using pre-allocated buffers
+    ///
+    /// This method tessellates vector paths into triangles and uploads them to the provided buffers,
+    /// then executes the draw call. The caller is responsible for managing buffer lifecycle.
+    ///
+    /// Returns the number of vertices and indices rendered.
     pub fn render(
         &self,
-        device: &Arc<wgpu::Device>,
+        queue: &Arc<wgpu::Queue>,
         render_pass: &mut wgpu::RenderPass,
         uniform_bind_group: &wgpu::BindGroup,
+        vertex_buffer: &wgpu::Buffer,
+        index_buffer: &wgpu::Buffer,
         batcher: &PrimitiveBatcher,
-    ) {
+    ) -> (usize, usize) {
         // Collect lines and paths
         let mut geometry = VertexBuffers::new();
 
@@ -147,28 +160,33 @@ impl PathPipeline {
         }
 
         if geometry.vertices.is_empty() {
-            return;
+            return (0, 0);
         }
 
-        // Create vertex and index buffers
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Path Vertex Buffer"),
-            contents: bytemuck::cast_slice(&geometry.vertices),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        // Upload vertex and index data to pre-allocated buffers
+        queue.write_buffer(
+            vertex_buffer,
+            0,
+            bytemuck::cast_slice(&geometry.vertices),
+        );
 
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Path Index Buffer"),
-            contents: bytemuck::cast_slice(&geometry.indices),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+        queue.write_buffer(
+            index_buffer,
+            0,
+            bytemuck::cast_slice(&geometry.indices),
+        );
+
+        let vertex_count = geometry.vertices.len();
+        let index_count = geometry.indices.len();
 
         // Render
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, uniform_bind_group, &[]);
         render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
         render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        render_pass.draw_indexed(0..geometry.indices.len() as u32, 0, 0..1);
+        render_pass.draw_indexed(0..index_count as u32, 0, 0..1);
+
+        (vertex_count, index_count)
     }
 
     /// Tessellate a line segment
@@ -303,5 +321,15 @@ impl PathPipeline {
         };
 
         queue.write_buffer(uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+    }
+}
+
+impl crate::render::Pipeline for PathPipeline {
+    fn pipeline(&self) -> &wgpu::RenderPipeline {
+        &self.pipeline
+    }
+
+    fn label(&self) -> &'static str {
+        "Path Pipeline"
     }
 }

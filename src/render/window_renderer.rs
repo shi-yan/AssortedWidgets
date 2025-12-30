@@ -95,6 +95,15 @@ pub struct WindowRenderer {
     pub msaa_view: Option<wgpu::TextureView>,
 
     // ========================================
+    // Depth Buffer (For Z-Ordering)
+    // ========================================
+    /// Depth texture for proper layering of overlapping UI elements
+    depth_texture: wgpu::Texture,
+
+    /// Depth texture view (public for render pass configuration)
+    pub depth_view: wgpu::TextureView,
+
+    // ========================================
     // Per-Window Instance Buffers (Dynamic)
     // ========================================
     /// Rectangle instance buffer (reused each frame)
@@ -104,6 +113,22 @@ pub struct WindowRenderer {
     /// Text instance buffer (reused each frame)
     text_instance_buffer: Option<wgpu::Buffer>,
     text_instance_capacity: usize,
+
+    /// SDF rectangle instance buffer (reused each frame)
+    sdf_instance_buffer: Option<wgpu::Buffer>,
+    sdf_instance_capacity: usize,
+
+    /// Shadow instance buffer (reused each frame)
+    shadow_instance_buffer: Option<wgpu::Buffer>,
+    shadow_instance_capacity: usize,
+
+    /// Path vertex buffer (reused each frame, for Lyon tessellation)
+    path_vertex_buffer: Option<wgpu::Buffer>,
+    path_vertex_capacity: usize,
+
+    /// Path index buffer (reused each frame, for Lyon tessellation)
+    path_index_buffer: Option<wgpu::Buffer>,
+    path_index_capacity: usize,
 
     // ========================================
     // Window State
@@ -219,6 +244,23 @@ impl WindowRenderer {
             (None, None)
         };
 
+        // Create depth texture for z-ordering
+        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Texture"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: context.sample_count, // Match MSAA sample count
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
         Ok(WindowRenderer {
             surface,
             config,
@@ -229,10 +271,20 @@ impl WindowRenderer {
             rect_sdf_clip_uniform_bind_group,
             msaa_texture,
             msaa_view,
+            depth_texture,
+            depth_view,
             rect_instance_buffer: None,
             rect_instance_capacity: 0,
             text_instance_buffer: None,
             text_instance_capacity: 0,
+            sdf_instance_buffer: None,
+            sdf_instance_capacity: 0,
+            shadow_instance_buffer: None,
+            shadow_instance_capacity: 0,
+            path_vertex_buffer: None,
+            path_vertex_capacity: 0,
+            path_index_buffer: None,
+            path_index_capacity: 0,
             scale_factor: scale_factor as f32,
             render_context: context,
         })
@@ -274,6 +326,24 @@ impl WindowRenderer {
                 self.msaa_texture = Some(texture);
                 self.msaa_view = Some(view);
             }
+
+            // Recreate depth texture with new size
+            let device = self.render_context.device();
+            self.depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Depth Texture"),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: self.render_context.sample_count,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Depth32Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+            self.depth_view = self.depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
             // Update uniform buffers with new screen size
             self.update_screen_size(new_bounds.size, scale_factor as f32);
@@ -318,6 +388,10 @@ impl WindowRenderer {
         if instances.is_empty() {
             return;
         }
+
+        println!("Rendering {} rect instances", instances.len());
+
+        println!("Rect instances: {:?}", instances);
 
         let device = self.render_context.device();
 
@@ -413,16 +487,61 @@ impl WindowRenderer {
         render_pass: &mut wgpu::RenderPass,
         batcher: &crate::paint::PrimitiveBatcher,
     ) {
-        // Shadows use the shared window uniform buffer and separate clip uniform buffer
-        self.render_context.shadow_sdf_pipeline.render(
-            &self.render_context.device,
+        if batcher.is_empty() {
+            return;
+        }
+
+        // Count how many shapes have shadows (estimate for buffer sizing)
+        let shadow_count = batcher
+            .commands()
+            .iter()
+            .filter(|cmd| {
+                if let crate::paint::DrawCommand::Rect { style, .. } = cmd {
+                    style.shadow.is_some()
+                } else {
+                    false
+                }
+            })
+            .count();
+
+        if shadow_count == 0 {
+            return;
+        }
+
+        let device = self.render_context.device();
+
+        // ShadowInstance is 64 bytes (4 vec4 + 1 vec2 + 2 floats with padding)
+        const SHADOW_INSTANCE_SIZE: usize = 64;
+
+        // Create or resize instance buffer if needed
+        let needed_capacity = shadow_count;
+        if self.shadow_instance_buffer.is_none() || needed_capacity > self.shadow_instance_capacity {
+            self.shadow_instance_capacity = needed_capacity.max(128);
+            self.shadow_instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Shadow Instance Buffer"),
+                size: (self.shadow_instance_capacity * SHADOW_INSTANCE_SIZE) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }));
+        }
+
+        // Render using the pre-allocated buffer
+        let instance_buffer = self.shadow_instance_buffer.as_ref().unwrap();
+        let instances_rendered = self.render_context.shadow_sdf_pipeline.render(
             &self.render_context.queue,
             render_pass,
-            &self.window_uniform_buffer, // Shared window uniforms (screen_size)
             &self.window_uniform_bind_group,
             &self.rect_sdf_clip_uniform_bind_group,
+            instance_buffer,
             batcher,
         );
+
+        if instances_rendered > 0 {
+            println!(
+                "[WindowRenderer] Rendered {} shadow instances",
+                instances_rendered
+            );
+        }
     }
 
     /// Render SDF rectangles (rounded rects with borders) using the SDF pipeline
@@ -431,18 +550,55 @@ impl WindowRenderer {
         render_pass: &mut wgpu::RenderPass,
         batcher: &crate::paint::PrimitiveBatcher,
     ) {
-        // TODO: Extract clip stack from batcher and update clip uniform buffer
-        // For now, we render with empty clip stack (will be integrated in visual test)
+        if batcher.is_empty() {
+            return;
+        }
 
-        self.render_context.rect_sdf_pipeline.render(
-            &self.render_context.device,
+        // Count how many rect commands we have (estimate for buffer sizing)
+        let rect_count = batcher
+            .commands()
+            .iter()
+            .filter(|cmd| matches!(cmd, crate::paint::DrawCommand::Rect { .. }))
+            .count();
+
+        if rect_count == 0 {
+            return;
+        }
+
+        let device = self.render_context.device();
+
+        // SDF RectInstance is 240 bytes (16 attributes × 16 bytes alignment)
+        const SDF_RECT_INSTANCE_SIZE: usize = 240;
+
+        // Create or resize instance buffer if needed
+        let needed_capacity = rect_count;
+        if self.sdf_instance_buffer.is_none() || needed_capacity > self.sdf_instance_capacity {
+            self.sdf_instance_capacity = needed_capacity.max(128);
+            self.sdf_instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("SDF Rect Instance Buffer"),
+                size: (self.sdf_instance_capacity * SDF_RECT_INSTANCE_SIZE) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }));
+        }
+
+        // Render using the pre-allocated buffer
+        let instance_buffer = self.sdf_instance_buffer.as_ref().unwrap();
+        let instances_rendered = self.render_context.rect_sdf_pipeline.render(
             &self.render_context.queue,
             render_pass,
-            &self.window_uniform_buffer,
             &self.window_uniform_bind_group,
             &self.rect_sdf_clip_uniform_bind_group,
+            instance_buffer,
             batcher,
         );
+
+        if instances_rendered > 0 {
+            println!(
+                "[WindowRenderer] Rendered {} SDF rect instances",
+                instances_rendered
+            );
+        }
     }
 
     /// Render paths (lines, bezier curves) using the path pipeline
@@ -451,10 +607,61 @@ impl WindowRenderer {
         render_pass: &mut wgpu::RenderPass,
         batcher: &crate::paint::PrimitiveBatcher,
     ) {
+        use crate::paint::DrawCommand;
+
+        // Count path/line commands to estimate buffer size needed
+        let path_command_count = batcher
+            .commands()
+            .iter()
+            .filter(|cmd| matches!(cmd, DrawCommand::Line { .. } | DrawCommand::Path { .. }))
+            .count();
+
+        if path_command_count == 0 {
+            return;
+        }
+
+        // Estimate needed capacity (conservative: ~100 vertices and ~200 indices per command)
+        // Lyon tessellation typically produces 10-50 vertices per simple path
+        let estimated_vertex_count = path_command_count * 100;
+        let estimated_index_count = path_command_count * 200;
+
+        let device = self.render_context.device();
+
+        // Create or resize vertex buffer if needed
+        if self.path_vertex_buffer.is_none() || estimated_vertex_count > self.path_vertex_capacity {
+            self.path_vertex_capacity = estimated_vertex_count.max(1024);
+            // PathVertex is 24 bytes (2 floats for position + 4 floats for color)
+            const PATH_VERTEX_SIZE: usize = 24;
+            self.path_vertex_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Path Vertex Buffer"),
+                size: (self.path_vertex_capacity * PATH_VERTEX_SIZE) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }));
+        }
+
+        // Create or resize index buffer if needed
+        if self.path_index_buffer.is_none() || estimated_index_count > self.path_index_capacity {
+            self.path_index_capacity = estimated_index_count.max(2048);
+            // Indices are u16 (2 bytes each)
+            self.path_index_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Path Index Buffer"),
+                size: (self.path_index_capacity * std::mem::size_of::<u16>()) as u64,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }));
+        }
+
+        // Render using pre-allocated buffers
+        let vertex_buffer = self.path_vertex_buffer.as_ref().unwrap();
+        let index_buffer = self.path_index_buffer.as_ref().unwrap();
+
         self.render_context.path_pipeline.render(
-            &self.render_context.device,
+            &self.render_context.queue,
             render_pass,
             &self.window_uniform_bind_group,
+            vertex_buffer,
+            index_buffer,
             batcher,
         );
     }

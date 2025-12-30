@@ -144,7 +144,13 @@ impl ShadowSdfPipeline {
                 polygon_mode: wgpu::PolygonMode::Fill,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: sample_count,
                 mask: !0,
@@ -162,18 +168,23 @@ impl ShadowSdfPipeline {
     }
 
     /// Render shadows for shapes that have shadows
+    /// Render batched shadows using a pre-allocated instance buffer
+    ///
+    /// This method converts draw commands to shadow instances and uploads them to the provided buffer,
+    /// then executes the draw call. The caller is responsible for managing the buffer lifecycle.
+    ///
+    /// Returns the number of instances rendered.
     pub fn render(
         &self,
-        device: &Arc<wgpu::Device>,
-        _queue: &Arc<wgpu::Queue>,
+        queue: &Arc<wgpu::Queue>,
         render_pass: &mut wgpu::RenderPass,
-        _uniform_buffer: &wgpu::Buffer,
         uniform_bind_group: &wgpu::BindGroup,
         clip_bind_group: &wgpu::BindGroup,
+        instance_buffer: &wgpu::Buffer,
         batcher: &PrimitiveBatcher,
-    ) {
+    ) -> usize {
         if batcher.is_empty() {
-            return;
+            return 0;
         }
 
         // Convert draw commands with shadows to shadow instances
@@ -205,15 +216,15 @@ impl ShadowSdfPipeline {
             .collect();
 
         if instances.is_empty() {
-            return;
+            return 0;
         }
 
-        // Create instance buffer
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Shadow Instance Buffer"),
-            contents: bytemuck::cast_slice(&instances),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        // Upload instance data to the pre-allocated buffer
+        queue.write_buffer(
+            instance_buffer,
+            0,
+            bytemuck::cast_slice(&instances),
+        );
 
         // Render
         render_pass.set_pipeline(&self.pipeline);
@@ -221,6 +232,8 @@ impl ShadowSdfPipeline {
         render_pass.set_bind_group(1, clip_bind_group, &[]);
         render_pass.set_vertex_buffer(0, instance_buffer.slice(..));
         render_pass.draw(0..6, 0..instances.len() as u32); // 6 vertices per quad (2 triangles)
+
+        instances.len()
     }
 
     /// Create uniform buffer for screen size (reuse from rect pipeline)
@@ -277,5 +290,15 @@ impl ShadowSdfPipeline {
     /// Reference to clip bind group layout (same as rect pipeline)
     pub fn clip_bind_group_layout(&self) -> &wgpu::BindGroupLayout {
         &self.clip_bind_group_layout
+    }
+}
+
+impl crate::render::Pipeline for ShadowSdfPipeline {
+    fn pipeline(&self) -> &wgpu::RenderPipeline {
+        &self.pipeline
+    }
+
+    fn label(&self) -> &'static str {
+        "Shadow SDF Pipeline"
     }
 }

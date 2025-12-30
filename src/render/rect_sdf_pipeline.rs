@@ -14,7 +14,8 @@ struct RectInstance {
     fill_color: [f32; 4],     // rgba for solid, unused for gradients
     border_color: [f32; 4],   // rgba
     border_width: f32,
-    _padding2: [f32; 3],      // Align to 16 bytes
+    depth: f32,               // Z-depth for painter's algorithm (0.0 = back, 1.0 = front)
+    _padding2: [f32; 2],      // Align to 16 bytes
     gradient_start_end: [f32; 4], // start.xy, end.xy (linear) or center.xy, radius, _
     gradient_stop_0: [f32; 4], // offset, r, g, b
     gradient_stop_1: [f32; 4],
@@ -132,11 +133,11 @@ impl RectSdfPipeline {
                                 shader_location: 5,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
-                            // border_width: f32
+                            // border_width_and_depth: vec2<f32> (border_width, depth)
                             wgpu::VertexAttribute {
                                 offset: 80,
                                 shader_location: 6,
-                                format: wgpu::VertexFormat::Float32,
+                                format: wgpu::VertexFormat::Float32x2,
                             },
                             // gradient_start_end: vec4<f32>
                             wgpu::VertexAttribute {
@@ -216,7 +217,13 @@ impl RectSdfPipeline {
                 polygon_mode: wgpu::PolygonMode::Fill,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: sample_count,
                 mask: !0,
@@ -233,19 +240,23 @@ impl RectSdfPipeline {
         }
     }
 
-    /// Render batched rectangles
+    /// Render batched rectangles using a pre-allocated instance buffer
+    ///
+    /// This method converts draw commands to instances and uploads them to the provided buffer,
+    /// then executes the draw call. The caller is responsible for managing the buffer lifecycle.
+    ///
+    /// Returns the number of instances rendered.
     pub fn render(
         &self,
-        device: &Arc<wgpu::Device>,
-        _queue: &Arc<wgpu::Queue>,
+        queue: &Arc<wgpu::Queue>,
         render_pass: &mut wgpu::RenderPass,
-        _uniform_buffer: &wgpu::Buffer,
         uniform_bind_group: &wgpu::BindGroup,
         clip_bind_group: &wgpu::BindGroup,
+        instance_buffer: &wgpu::Buffer,
         batcher: &PrimitiveBatcher,
-    ) {
+    ) -> usize {
         if batcher.is_empty() {
-            return;
+            return 0;
         }
 
         // Convert draw commands to instances
@@ -264,6 +275,11 @@ impl RectSdfPipeline {
                         .map(|b| b.width)
                         .unwrap_or(0.0);
 
+                    // Calculate depth based on paint order for LESS depth comparison
+                    // Later painted items get LOWER depth values (closer to camera, drawn on top)
+                    // Range: [0.0 = front/latest, 1.0 = back/earliest]
+                    let depth = 1.0 - (idx as f32) * 0.00001;
+
                     let mut instance = RectInstance {
                         rect: [rect.origin.x as f32, rect.origin.y as f32, rect.size.width as f32, rect.size.height as f32],
                         corner_radius: style.corner_radius.to_array(),
@@ -273,7 +289,8 @@ impl RectSdfPipeline {
                         fill_color: [0.0; 4],
                         border_color: border_color.to_array(),
                         border_width,
-                        _padding2: [0.0; 3],
+                        depth,                // Z-depth for proper layering
+                        _padding2: [0.0; 2],
                         gradient_start_end: [0.0; 4],
                         gradient_stop_0: [0.0; 4],
                         gradient_stop_1: [0.0; 4],
@@ -374,15 +391,15 @@ impl RectSdfPipeline {
             .collect();
 
         if instances.is_empty() {
-            return;
+            return 0;
         }
 
-        // Create instance buffer
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Rect Instance Buffer"),
-            contents: bytemuck::cast_slice(&instances),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        // Upload instance data to the pre-allocated buffer
+        queue.write_buffer(
+            instance_buffer,
+            0,
+            bytemuck::cast_slice(&instances),
+        );
 
         // Render
         render_pass.set_pipeline(&self.pipeline);
@@ -390,6 +407,8 @@ impl RectSdfPipeline {
         render_pass.set_bind_group(1, clip_bind_group, &[]);
         render_pass.set_vertex_buffer(0, instance_buffer.slice(..));
         render_pass.draw(0..6, 0..instances.len() as u32); // 6 vertices per quad (2 triangles)
+
+        instances.len()
     }
 
     /// Create uniform buffer for screen size
@@ -486,5 +505,15 @@ impl RectSdfPipeline {
         clip_data: &[f32],
     ) {
         queue.write_buffer(clip_uniform_buffer, 0, bytemuck::cast_slice(clip_data));
+    }
+}
+
+impl crate::render::Pipeline for RectSdfPipeline {
+    fn pipeline(&self) -> &wgpu::RenderPipeline {
+        &self.pipeline
+    }
+
+    fn label(&self) -> &'static str {
+        "Rect SDF Pipeline"
     }
 }

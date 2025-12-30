@@ -18,7 +18,6 @@ pub struct RectPipeline {
 }
 
 impl RectPipeline {
-    /// Create a new shared rectangle pipeline
     pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat, sample_count: u32) -> Self {
         // Load shader
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -96,7 +95,13 @@ impl RectPipeline {
                 cull_mode: None,  // DEBUG: Disable culling to test
                 ..Default::default()
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: sample_count,
                 mask: !0,
@@ -113,6 +118,16 @@ impl RectPipeline {
     }
 }
 
+impl crate::render::Pipeline for RectPipeline {
+    fn pipeline(&self) -> &wgpu::RenderPipeline {
+        &self.pipeline
+    }
+
+    fn label(&self) -> &'static str {
+        "Rect Pipeline"
+    }
+}
+
 /// Shared text rendering pipeline
 ///
 /// This pipeline is shared across all windows. It contains only the stateless
@@ -126,7 +141,6 @@ pub struct TextPipeline {
 }
 
 impl TextPipeline {
-    /// Create a new shared text pipeline
     pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat, sample_count: u32) -> Self {
         // Load shader
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -277,7 +291,13 @@ impl TextPipeline {
                 polygon_mode: wgpu::PolygonMode::Fill,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: sample_count,
                 mask: !0,
@@ -293,5 +313,15 @@ impl TextPipeline {
             texture_bind_group_layout,
             sampler,
         }
+    }
+}
+
+impl crate::render::Pipeline for TextPipeline {
+    fn pipeline(&self) -> &wgpu::RenderPipeline {
+        &self.pipeline
+    }
+
+    fn label(&self) -> &'static str {
+        "Text Pipeline"
     }
 }

@@ -15,7 +15,7 @@ struct VertexOutput {
 }
 
 struct Uniforms {
-    screen_size: vec2<f32>,
+    projection: mat4x4<f32>,
 }
 
 @group(0) @binding(0)
@@ -39,15 +39,11 @@ fn vs_main(in: VertexInput) -> VertexOutput {
         in.rect.y + local_pos.y * in.rect.w,
     );
 
-    // Convert to clip space (-1 to 1)
-    // Y-axis is flipped (0 at top in screen space, -1 at top in clip space)
-    let clip_pos = vec2(
-        (world_pos.x / uniforms.screen_size.x) * 2.0 - 1.0,
-        1.0 - (world_pos.y / uniforms.screen_size.y) * 2.0,
-    );
+    // Convert to clip space using projection matrix
+    let clip_pos = uniforms.projection * vec4<f32>(world_pos, 0.0, 1.0);
 
     var out: VertexOutput;
-    out.position = vec4(clip_pos, 0.0, 1.0);
+    out.position = clip_pos;
     out.color = in.color;
     out.world_pos = world_pos;
     out.clip_rect = in.clip_rect;
@@ -62,7 +58,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (in.world_pos.x < clip_min.x || in.world_pos.x > clip_max.x ||
         in.world_pos.y < clip_min.y || in.world_pos.y > clip_max.y) {
-        discard;
+        //discard;
+        return in.color;
     }
 
     return in.color;

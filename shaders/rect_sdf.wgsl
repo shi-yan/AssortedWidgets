@@ -29,7 +29,7 @@ struct RectInstance {
     @location(3) stop_count: u32,           // Number of gradient stops (2-8)
     @location(4) fill_color: vec4<f32>,     // rgba for solid color
     @location(5) border_color: vec4<f32>,   // rgba
-    @location(6) border_width: f32,
+    @location(6) border_width_and_depth: vec2<f32>, // x = border_width, y = depth
     @location(7) gradient_start_end: vec4<f32>, // start.xy, end.xy (linear) or center.xy, radius, _
     @location(8) gradient_stop_0: vec4<f32>, // offset, r, g, b
     @location(9) gradient_stop_1: vec4<f32>,
@@ -87,8 +87,15 @@ fn vs_main(
     // Calculate world position
     let world_pos = instance.rect.xy + pos * instance.rect.zw;
 
-    // Convert to clip space using projection matrix
+    // Unpack border_width and depth
+    let border_width = instance.border_width_and_depth.x;
+    let depth = instance.border_width_and_depth.y;
+
+    // Convert to clip space using projection matrix (2D position only)
     out.clip_position = uniforms.projection * vec4<f32>(world_pos, 0.0, 1.0);
+
+    // Set depth directly (WebGPU NDC Z is [0, 1], not [-1, 1] like OpenGL)
+    out.clip_position.z = depth;
 
     // Local position (relative to rect center, in pixels)
     let center = instance.rect.xy + instance.rect.zw * 0.5;
@@ -103,7 +110,7 @@ fn vs_main(
     out.stop_count = instance.stop_count;
     out.fill_color = instance.fill_color;
     out.border_color = instance.border_color;
-    out.border_width = instance.border_width;
+    out.border_width = border_width;
     out.world_pos = world_pos;
     out.uv = pos; // UV coordinates (0-1) for gradient sampling
 

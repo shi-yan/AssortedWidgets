@@ -61,7 +61,7 @@ impl RectInstance {
             ],
             color: [color.r, color.g, color.b, color.a],
             clip_rect: [0.0, 0.0, 1000000.0, 1000000.0],
-            z_order: 0,
+            z_order: 1000,
             _padding: [0; 3],
         }
     }

@@ -352,4 +352,34 @@ pub trait Widget {
         let _ = event;
         crate::event::EventResponse::Ignored
     }
+
+    // ========================================
+    // Focus Change Notifications
+    // ========================================
+
+    /// Called when this widget gains keyboard focus
+    ///
+    /// This is invoked by the focus manager when focus is transferred to this widget,
+    /// either through mouse click, Tab navigation, or programmatic focus change.
+    ///
+    /// Widgets that maintain focus-dependent state (like cursor visibility in text inputs)
+    /// should override this method to update their internal state.
+    ///
+    /// Default implementation does nothing.
+    fn on_focus_gained(&mut self) {
+        // Default: no action
+    }
+
+    /// Called when this widget loses keyboard focus
+    ///
+    /// This is invoked by the focus manager when focus is transferred to another widget
+    /// or cleared entirely.
+    ///
+    /// Widgets that maintain focus-dependent state (like cursor visibility in text inputs)
+    /// should override this method to update their internal state.
+    ///
+    /// Default implementation does nothing.
+    fn on_focus_lost(&mut self) {
+        // Default: no action
+    }
 }

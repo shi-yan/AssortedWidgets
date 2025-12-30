@@ -17,6 +17,7 @@ mod checkbox;
 mod radio_group;
 mod switch;
 pub mod rich_text_label;
+pub mod text_input;
 
 pub use label::{Label, WrapMode, Padding};
 pub use button::{Button, ButtonContent, ButtonState, ButtonStyle};
@@ -28,3 +29,4 @@ pub use checkbox::{Checkbox, CheckboxState, CheckboxStyle};
 pub use radio_group::{RadioGroup, RadioGroupItem, RadioStyle};
 pub use switch::{Switch, SwitchState};
 pub use rich_text_label::RichTextLabel;
+pub use text_input::{TextInput, InputState, InputStyle};

@@ -33,7 +33,7 @@ impl PrimitiveBatcher {
     /// - `layers::NORMAL` (0) for standard UI elements
     /// - `layers::OVERLAY` (1000) for tooltips and popovers
     pub fn draw_rect_z(&mut self, rect: Rect, style: ShapeStyle, z_index: i32) {
-        self.commands.push(DrawCommand::Rect { rect, style, z_index });
+        self.commands.push(DrawCommand::Rect { rect, style, z_index: 1000 as i32 });
     }
 
     // === Lines ===

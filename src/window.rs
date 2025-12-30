@@ -649,7 +649,26 @@ impl Window {
                     // Give focus to clicked element if it's focusable
                     if let Some(element) = self.widgets.get(widget_id) {
                         if element.is_focusable() {
+                            // Track previous focus for notifications
+                            let previous_focus = self.focus_manager.focused_id();
+
+                            // Update focus in focus manager
                             self.focus_manager.set_focus(Some(widget_id));
+
+                            // Notify widgets of focus change
+                            if previous_focus != Some(widget_id) {
+                                // Notify previous widget it lost focus
+                                if let Some(prev_id) = previous_focus {
+                                    if let Some(prev_widget) = self.widgets.get_mut(prev_id) {
+                                        prev_widget.on_focus_lost();
+                                    }
+                                }
+
+                                // Notify new widget it gained focus
+                                if let Some(new_widget) = self.widgets.get_mut(widget_id) {
+                                    new_widget.on_focus_gained();
+                                }
+                            }
                         }
                     }
 
@@ -855,11 +874,33 @@ impl Window {
             InputEventEnum::KeyDown(key_event) => {
                 // Handle Tab navigation
                 if key_event.key == Key::Named(NamedKey::Tab) {
-                    if key_event.modifiers.shift {
-                        self.focus_manager.focus_previous();
+                    // Track previous focus for notifications
+                    let previous_focus = self.focus_manager.focused_id();
+
+                    // Move focus
+                    let new_focus = if key_event.modifiers.shift {
+                        self.focus_manager.focus_previous()
                     } else {
-                        self.focus_manager.focus_next();
+                        self.focus_manager.focus_next()
+                    };
+
+                    // Notify widgets of focus change
+                    if previous_focus != new_focus {
+                        // Notify previous widget it lost focus
+                        if let Some(prev_id) = previous_focus {
+                            if let Some(prev_widget) = self.widgets.get_mut(prev_id) {
+                                prev_widget.on_focus_lost();
+                            }
+                        }
+
+                        // Notify new widget it gained focus
+                        if let Some(new_id) = new_focus {
+                            if let Some(new_widget) = self.widgets.get_mut(new_id) {
+                                new_widget.on_focus_gained();
+                            }
+                        }
                     }
+
                     return;
                 }
 
@@ -987,15 +1028,20 @@ impl Window {
     #[cfg(target_os = "macos")]
     pub fn update_ime_position(&mut self) {
         if let Some(cursor_rect) = self.focus_manager.get_ime_cursor_rect(&self.widgets) {
-            // Convert to screen coordinates
-            // For now, assume window coordinates = screen coordinates (no offset)
-            // TODO: Add window position offset when we support window positioning
+            // Get window position in screen coordinates
+            let window_bounds = self.platform_window.content_bounds();
+
+            // Convert widget-relative coordinates to screen coordinates
+            // cursor_rect is in window-relative logical coordinates
+            // Add window position offset to get screen coordinates
+            let screen_x_logical = window_bounds.origin.x + cursor_rect.origin.x;
+            let screen_y_logical = window_bounds.origin.y + cursor_rect.origin.y;
 
             let scale_factor = self.platform_window.scale_factor();
 
             // Convert logical coordinates to physical (screen) coordinates
-            let screen_x = cursor_rect.origin.x * scale_factor;
-            let screen_y = cursor_rect.origin.y * scale_factor;
+            let screen_x = screen_x_logical * scale_factor;
+            let screen_y = screen_y_logical * scale_factor;
             let screen_width = cursor_rect.size.width * scale_factor;
             let screen_height = cursor_rect.size.height * scale_factor;
 
@@ -1382,7 +1428,14 @@ impl Window {
                     },
                     depth_slice: None,
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.window_renderer.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0), // Clear to far plane (1.0)
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
                 multiview_mask: None,

@@ -43,7 +43,6 @@ pub struct ImagePipeline {
 }
 
 impl ImagePipeline {
-    /// Create a new shared image pipeline
     pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat, sample_count: u32) -> Self {
         // Load shader
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -167,7 +166,13 @@ impl ImagePipeline {
                 polygon_mode: wgpu::PolygonMode::Fill,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: sample_count,
                 mask: !0,
@@ -183,5 +188,15 @@ impl ImagePipeline {
             texture_bind_group_layout,
             sampler,
         }
+    }
+}
+
+impl crate::render::Pipeline for ImagePipeline {
+    fn pipeline(&self) -> &wgpu::RenderPipeline {
+        &self.pipeline
+    }
+
+    fn label(&self) -> &'static str {
+        "Image Pipeline"
     }
 }
