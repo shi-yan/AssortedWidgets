@@ -486,6 +486,7 @@ impl WindowRenderer {
         &mut self,
         render_pass: &mut wgpu::RenderPass,
         batcher: &crate::paint::PrimitiveBatcher,
+        layered_bounds_tree: &mut crate::paint::LayeredBoundsTree,
     ) {
         if batcher.is_empty() {
             return;
@@ -534,6 +535,7 @@ impl WindowRenderer {
             &self.rect_sdf_clip_uniform_bind_group,
             instance_buffer,
             batcher,
+            layered_bounds_tree,
         );
 
         if instances_rendered > 0 {
@@ -549,6 +551,7 @@ impl WindowRenderer {
         &mut self,
         render_pass: &mut wgpu::RenderPass,
         batcher: &crate::paint::PrimitiveBatcher,
+        layered_bounds_tree: &mut crate::paint::LayeredBoundsTree,
     ) {
         if batcher.is_empty() {
             return;
@@ -591,6 +594,7 @@ impl WindowRenderer {
             &self.rect_sdf_clip_uniform_bind_group,
             instance_buffer,
             batcher,
+            layered_bounds_tree,
         );
 
         if instances_rendered > 0 {

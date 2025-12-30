@@ -241,4 +241,64 @@ impl DrawCommand {
             DrawCommand::PopClip => u32::MAX,
         }
     }
+
+    /// Check if this command renders opaque pixels (alpha = 1.0)
+    ///
+    /// Returns `true` if the command has no transparency and can use
+    /// depth write enabled (opaque rendering pass).
+    ///
+    /// Returns `false` for:
+    /// - Semi-transparent fills (alpha < 1.0)
+    /// - Shadows (always transparent)
+    /// - Gradients with transparent stops
+    /// - Clip commands (not rendered)
+    ///
+    /// # Two-Pass Rendering
+    ///
+    /// This method is used to split commands into:
+    /// - **Opaque pass**: depth_write_enabled = true (GPU depth buffer)
+    /// - **Transparent pass**: depth_write_enabled = false (CPU sorted back-to-front)
+    pub fn is_opaque(&self) -> bool {
+        match self {
+            DrawCommand::Rect { style, .. } => {
+                // Check if fill is fully opaque
+                let fill_opaque = match &style.fill {
+                    Brush::Solid(color) => color.a >= 1.0,
+                    // Gradients: check all stops (conservative: assume transparent)
+                    Brush::LinearGradient(_) | Brush::RadialGradient(_) => false,
+                };
+
+                // Check if shadow exists (shadows are always transparent)
+                let has_shadow = style.shadow.is_some();
+
+                // Rect is opaque only if fill is opaque AND no shadow
+                fill_opaque && !has_shadow
+            }
+
+            DrawCommand::Line { stroke, .. } => {
+                // Lines are opaque if stroke color is fully opaque
+                stroke.color.a >= 1.0
+            }
+
+            DrawCommand::Path { fill, stroke, .. } => {
+                // Path is opaque if fill OR stroke is opaque
+                let fill_opaque = fill.map(|c| c.a >= 1.0).unwrap_or(false);
+                let stroke_opaque = stroke.as_ref().map(|s| s.color.a >= 1.0).unwrap_or(false);
+                fill_opaque || stroke_opaque
+            }
+
+            DrawCommand::Icon { color, .. } => {
+                // Icons are opaque if color is fully opaque
+                color.a >= 1.0
+            }
+
+            DrawCommand::Image { tint, .. } => {
+                // Images are opaque if no tint, or tint is fully opaque
+                tint.map(|c| c.a >= 1.0).unwrap_or(true)
+            }
+
+            // Clip commands are not rendered, so return false
+            DrawCommand::PushClip { .. } | DrawCommand::PopClip => false,
+        }
+    }
 }

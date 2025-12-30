@@ -254,6 +254,7 @@ impl RectSdfPipeline {
         clip_bind_group: &wgpu::BindGroup,
         instance_buffer: &wgpu::Buffer,
         batcher: &PrimitiveBatcher,
+        layered_bounds_tree: &mut crate::paint::LayeredBoundsTree,
     ) -> usize {
         if batcher.is_empty() {
             return 0;
@@ -265,7 +266,7 @@ impl RectSdfPipeline {
             .iter()
             .enumerate()
             .filter_map(|(idx, cmd)| match cmd {
-                DrawCommand::Rect { rect, style, .. } => {
+                DrawCommand::Rect { rect, style, z_index } => {
                     use crate::paint::Brush;
 
                     let border_color = style.border.as_ref()
@@ -275,10 +276,10 @@ impl RectSdfPipeline {
                         .map(|b| b.width)
                         .unwrap_or(0.0);
 
-                    // Calculate depth based on paint order for LESS depth comparison
-                    // Later painted items get LOWER depth values (closer to camera, drawn on top)
-                    // Range: [0.0 = front/latest, 1.0 = back/earliest]
-                    let depth = 1.0 - (idx as f32) * 0.00001;
+                    // Phase 2: BoundsTree-based depth assignment
+                    // Insert rect into layered tree → automatic overlap detection
+                    // Non-overlapping rects get same depth → batching!
+                    let depth = layered_bounds_tree.insert(*rect, *z_index);
 
                     let mut instance = RectInstance {
                         rect: [rect.origin.x as f32, rect.origin.y as f32, rect.size.width as f32, rect.size.height as f32],

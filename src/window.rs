@@ -62,6 +62,10 @@ pub struct Window {
     /// Holds Arc<RenderContext> for shared GPU resources and pipelines
     window_renderer: WindowRenderer,
 
+    /// Z-order assignment system (BoundsTree-based batching)
+    /// Cleared each frame and rebuilt during rendering
+    layered_bounds_tree: crate::paint::LayeredBoundsTree,
+
     // ========================================
     // Animation / Frame Timing
     // ========================================
@@ -154,6 +158,7 @@ impl Window {
             needs_layout: true,
             root_container_id,
             window_renderer,
+            layered_bounds_tree: crate::paint::LayeredBoundsTree::new(),
             last_frame_time: None,
             frame_number: 0,
             hit_tester: HitTester::new(),
@@ -1065,6 +1070,8 @@ impl Window {
         &mut self,
         render_context: &RenderContext,
     ) {
+        // Clear z-order tree at start of frame
+        self.layered_bounds_tree.clear();
 
         // Get surface texture
         let surface_texture = match self.window_renderer.get_current_texture() {
@@ -1455,10 +1462,10 @@ impl Window {
                 }
 
                 // Render shadows FIRST (they appear behind shapes)
-                self.window_renderer.render_shadows(&mut render_pass, &sdf_batcher);
+                self.window_renderer.render_shadows(&mut render_pass, &sdf_batcher, &mut self.layered_bounds_tree);
 
                 // Then render the shapes themselves
-                self.window_renderer.render_sdf_rects(&mut render_pass, &sdf_batcher);
+                self.window_renderer.render_sdf_rects(&mut render_pass, &sdf_batcher, &mut self.layered_bounds_tree);
             }
 
             // Render all paths (lines, bezier curves)

@@ -36,6 +36,7 @@ struct ShadowInstance {
     @location(3) offset: vec2<f32>,         // Shadow offset (x, y)
     @location(4) blur_radius: f32,          // Blur amount
     @location(5) spread_radius: f32,        // Expand/contract before blur
+    @location(6) depth: f32,                // Z-depth from z-index mapping
 }
 
 struct VertexOutput {
@@ -83,6 +84,11 @@ fn vs_main(
 
     // Convert to clip space using projection matrix
     out.clip_position = uniforms.projection * vec4<f32>(world_pos, 0.0, 1.0);
+
+    // Set depth from instance data (z-index based depth mapping)
+    // Shadows render with depth from layers::SHADOW (-100) → GPU depth ≈ 0.6-0.8
+    // This ensures shadows render BEHIND normal UI elements (depth ≈ 0.3-0.6)
+    out.clip_position.z = instance.depth;
 
     // Local position (relative to shadow center, in pixels)
     let center = shadow_rect.xy + shadow_rect.zw * 0.5;

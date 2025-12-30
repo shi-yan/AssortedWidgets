@@ -23,6 +23,7 @@
 
 // Module declarations
 pub mod application;
+pub mod bounds_tree;
 pub mod connection;
 pub mod widget;
 pub mod widget_manager;

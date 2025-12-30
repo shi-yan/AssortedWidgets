@@ -12,6 +12,8 @@ struct ShadowInstance {
     offset: [f32; 2],         // Shadow offset (x, y)
     blur_radius: f32,
     spread_radius: f32,
+    depth: f32,               // Z-depth from z-index mapping (Phase 1 implementation)
+    _padding: [f32; 3],       // Align to 16 bytes
 }
 
 /// Uniform buffer for screen size
@@ -120,6 +122,13 @@ impl ShadowSdfPipeline {
                                 shader_location: 5,
                                 format: wgpu::VertexFormat::Float32,
                             },
+                            // depth: f32 (z-value from z-index mapping)
+                            wgpu::VertexAttribute {
+                                offset: 64,
+                                shader_location: 6,
+                                format: wgpu::VertexFormat::Float32,
+                            },
+                            // Note: _padding [f32; 3] at offset 68-79 is implicit (not bound)
                         ],
                     },
                 ],
@@ -182,6 +191,7 @@ impl ShadowSdfPipeline {
         clip_bind_group: &wgpu::BindGroup,
         instance_buffer: &wgpu::Buffer,
         batcher: &PrimitiveBatcher,
+        layered_bounds_tree: &mut crate::paint::LayeredBoundsTree,
     ) -> usize {
         if batcher.is_empty() {
             return 0;
@@ -191,10 +201,32 @@ impl ShadowSdfPipeline {
         let instances: Vec<ShadowInstance> = batcher
             .commands()
             .iter()
-            .filter_map(|cmd| match cmd {
-                DrawCommand::Rect { rect, style, .. } => {
+            .enumerate()
+            .filter_map(|(idx, cmd)| match cmd {
+                DrawCommand::Rect { rect, style, z_index } => {
                     // Only render shadows for shapes that have them
                     style.shadow.as_ref().map(|shadow| {
+                        // Phase 2: BoundsTree-based depth assignment for shadows
+                        // Calculate expanded shadow bounds (rect + offset + blur expansion)
+                        use crate::paint::layers;
+                        use crate::types::{Point, Size, Rect};
+
+                        let expansion = shadow.blur_radius * 2.5 + shadow.spread_radius;
+                        let shadow_bounds = Rect::new(
+                            Point::new(
+                                rect.origin.x + shadow.offset.0 as f64 - expansion as f64,
+                                rect.origin.y + shadow.offset.1 as f64 - expansion as f64,
+                            ),
+                            Size::new(
+                                rect.size.width + expansion as f64 * 2.0,
+                                rect.size.height + expansion as f64 * 2.0,
+                            ),
+                        );
+
+                        // Insert into tree at SHADOW layer (-100) for automatic overlap detection
+                        // This ensures shadows render BEHIND their parent shapes
+                        let depth = layered_bounds_tree.insert(shadow_bounds, layers::SHADOW);
+
                         ShadowInstance {
                             rect: [rect.origin.x as f32, rect.origin.y as f32, rect.size.width as f32, rect.size.height as f32],
                             corner_radius: style.corner_radius.to_array(),
@@ -202,6 +234,8 @@ impl ShadowSdfPipeline {
                             offset: [shadow.offset.0, shadow.offset.1],
                             blur_radius: shadow.blur_radius,
                             spread_radius: shadow.spread_radius,
+                            depth,
+                            _padding: [0.0; 3],
                         }
                     })
                 }
