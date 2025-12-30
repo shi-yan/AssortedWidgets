@@ -1039,22 +1039,16 @@ impl Window {
             // Convert widget-relative coordinates to screen coordinates
             // cursor_rect is in window-relative logical coordinates
             // Add window position offset to get screen coordinates
-            let screen_x_logical = window_bounds.origin.x + cursor_rect.origin.x;
-            let screen_y_logical = window_bounds.origin.y + cursor_rect.origin.y;
+            let screen_x = window_bounds.origin.x + cursor_rect.origin.x;
+            let screen_y = window_bounds.origin.y + cursor_rect.origin.y;
 
-            let scale_factor = self.platform_window.scale_factor();
-
-            // Convert logical coordinates to physical (screen) coordinates
-            let screen_x = screen_x_logical * scale_factor;
-            let screen_y = screen_y_logical * scale_factor;
-            let screen_width = cursor_rect.size.width * scale_factor;
-            let screen_height = cursor_rect.size.height * scale_factor;
-
+            // NOTE: AppKit's NSRect uses logical points, NOT physical pixels
+            // So we pass logical coordinates directly (no scale_factor multiplication)
             self.platform_window.set_ime_cursor_area(
                 screen_x,
                 screen_y,
-                screen_width,
-                screen_height,
+                cursor_rect.size.width,
+                cursor_rect.size.height,
             );
         }
     }

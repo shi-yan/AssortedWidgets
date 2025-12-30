@@ -1111,10 +1111,25 @@ impl Widget for TextInput {
         let cursor_x = self.get_cursor_x_position(self.cursor_pos);
         let text_area = self.get_text_area_rect();
 
-        Some(Rect::new(
+        let rect = Rect::new(
             Point::new(cursor_x as f64, text_area.origin.y),
             Size::new(2.0, text_area.size.height),
-        ))
+        );
+
+        println!(
+            "[TextInput {:?}] IME cursor rect: x={:.1}, y={:.1}, w={:.1}, h={:.1} (cursor_pos={}, cursor_x={:.1}, text_area: x={:.1}, y={:.1})",
+            self.id,
+            rect.origin.x,
+            rect.origin.y,
+            rect.size.width,
+            rect.size.height,
+            self.cursor_pos,
+            cursor_x,
+            text_area.origin.x,
+            text_area.origin.y
+        );
+
+        Some(rect)
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
@@ -1277,32 +1292,26 @@ impl Widget for TextInput {
             );
         }
 
-        // Draw cursor if focused (always visible for now - TODO: add blinking)
+        // Draw cursor if focused (with blinking animation)
         if self.is_focused && self.selection_start.is_none() {
-            let cursor_x = self.get_cursor_x_position(self.cursor_pos);
+            // Blink cycle: 530ms visible, 530ms hidden (like many editors)
+            const BLINK_INTERVAL_MS: u128 = 530;
+            let elapsed = self.cursor_blink_timer.elapsed().as_millis();
+            let blink_phase = (elapsed / BLINK_INTERVAL_MS) % 2;
 
-            // DEBUG: Use bright red and wider cursor for visibility testing
-            let cursor_width = 10.0; // Was 2.0
-            let cursor_color = Color::rgba(1.0, 0.0, 0.0, 1.0); // Bright red instead of blue
+            // Only draw cursor during "visible" phase
+            if blink_phase == 0 {
+                let cursor_x = self.get_cursor_x_position(self.cursor_pos);
+                let cursor_width = 2.0;
+                let cursor_color = style.text_color;
 
-            println!(
-                "[TextInput {:?}] Drawing cursor: pos={}, cursor_x={:.1}, text_area.y={:.1}, height={:.1}, width={:.1}, color=({:.2},{:.2},{:.2},{:.2})",
-                self.id, self.cursor_pos, cursor_x, text_area.origin.y, text_area.size.height, cursor_width,
-                cursor_color.r, cursor_color.g, cursor_color.b, cursor_color.a
-            );
+                let cursor_rect = Rect::new(
+                    Point::new(cursor_x as f64, text_area.origin.y),
+                    Size::new(cursor_width, text_area.size.height),
+                );
 
-            let cursor_rect = Rect::new(
-                Point::new(cursor_x as f64, text_area.origin.y),
-                Size::new(cursor_width, text_area.size.height),
-            );
-
-            println!(
-                "[TextInput {:?}] Cursor rect: x={:.1}, y={:.1}, w={:.1}, h={:.1}",
-                self.id, cursor_rect.origin.x, cursor_rect.origin.y,
-                cursor_rect.size.width, cursor_rect.size.height
-            );
-
-            ctx.draw_rect(cursor_rect, cursor_color);
+                ctx.draw_rect(cursor_rect, cursor_color);
+            }
         }
 
         ctx.pop_clip();

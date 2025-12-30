@@ -8,7 +8,7 @@ use crate::types::{point, vector, Point, Rect, Size};
 
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
-use objc2::{define_class, msg_send, DefinedClass, MainThreadOnly};
+use objc2::{class, define_class, msg_send, DefinedClass, MainThreadOnly};
 use objc2_app_kit::{
     NSApplication, NSBackingStoreType, NSEvent, NSEventModifierFlags, NSTextInputClient,
     NSView, NSWindow, NSWindowDelegate, NSWindowStyleMask,
@@ -33,6 +33,7 @@ struct WindowState {
     callbacks: WindowCallbacks,
     scale_factor: f64,
     bounds: Rect,
+    ime_cursor_rect: Option<NSRect>,
 }
 
 impl WindowState {
@@ -41,6 +42,7 @@ impl WindowState {
             callbacks: WindowCallbacks::default(),
             scale_factor: 1.0,
             bounds: Rect::default(),
+            ime_cursor_rect: None,
         }
     }
 }
@@ -291,9 +293,17 @@ define_class!(
         #[unsafe(method(firstRectForCharacterRange:actualRange:))]
         fn first_rect_for_character_range(&self, _range: NSRange, _actual_range: *mut NSRange) -> NSRect {
             println!("[IME] firstRectForCharacterRange called");
-            // Return position where IME candidate window should appear
-            // For now, return view bounds
-            unsafe { msg_send![self, bounds] }
+
+            // Return the stored IME cursor rect (in screen coordinates with bottom-left origin)
+            let state = self.ivars().state.borrow();
+            if let Some(rect) = state.ime_cursor_rect {
+                println!("[IME] Returning stored cursor rect: x={}, y={}, w={}, h={}",
+                         rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
+                rect
+            } else {
+                println!("[IME] No stored cursor rect, returning view bounds");
+                unsafe { msg_send![self, bounds] }
+            }
         }
 
         #[unsafe(method(characterIndexForPoint:))]
@@ -688,18 +698,33 @@ impl PlatformWindow for MacWindow {
     }
 
     fn set_ime_cursor_area(&mut self, x: f64, y: f64, width: f64, height: f64) {
-        // Store IME cursor area in window state
-        let _state = self.state.borrow_mut();
-        // For now, just log the IME cursor area
-        // Full IME support requires NSTextInputClient implementation
-        println!("[IME] Cursor area set: ({}, {}) {}x{}", x, y, width, height);
+        println!("[IME] Cursor area set (logical): ({}, {}) {}x{}", x, y, width, height);
 
-        // TODO: Implement NSTextInputClient protocol in CustomView
-        // This requires implementing methods like:
-        // - setMarkedText:selectedRange:replacementRange:
-        // - insertText:replacementRange:
-        // - firstRectForCharacterRange:actualRange:
-        // etc.
+        // NOTE: x, y, width, height are in logical points (not physical pixels)
+        // macOS screen coordinates use bottom-left origin, but our coordinates use top-left origin
+        // We need to flip the Y coordinate
+
+        // Get main screen height for Y-flip (in logical points)
+        let screen_height = unsafe {
+            let main_screen: *mut NSObject = msg_send![class!(NSScreen), mainScreen];
+            let screen_frame: NSRect = msg_send![main_screen, frame];
+            screen_frame.size.height
+        };
+
+        // Flip Y coordinate from top-left to bottom-left origin
+        let flipped_y = screen_height - y - height;
+
+        let rect = NSRect {
+            origin: NSPoint { x, y: flipped_y },
+            size: NSSize { width, height },
+        };
+
+        println!("[IME] Storing rect (flipped): x={}, y={} (was {}), w={}, h={}",
+                 rect.origin.x, rect.origin.y, y, rect.size.width, rect.size.height);
+
+        // Store in window state for CustomView to access
+        let mut state = self.state.borrow_mut();
+        state.ime_cursor_rect = Some(rect);
     }
 
     fn window_screen_origin(&self) -> Point {
