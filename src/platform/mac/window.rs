@@ -120,20 +120,43 @@ define_class!(
         // Keyboard events
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
-            println!("[IME] keyDown called, calling interpretKeyEvents...");
+            let modifiers = Self::convert_modifiers(event);
+            let key_code = event.keyCode();
 
-            // CRITICAL: Call interpretKeyEvents to trigger IME processing
-            // This will call insertText: for committed text or setMarkedText: for preedit
-            unsafe {
-                use objc2_foundation::NSArray;
+            // Check if this is a special key or shortcut that should bypass IME
+            let is_special_key = matches!(key_code,
+                123 | 124 | 125 | 126 | // Arrow keys
+                51 | 117 |              // Backspace, Delete
+                36 | 76 |               // Return, Enter
+                48 |                    // Tab
+                53 |                    // Escape
+                115 | 116 | 119 | 121  // Home, PageUp, End, PageDown
+            );
 
-                // Create array with single event
-                let events = NSArray::from_slice(&[event]);
-                let _: () = msg_send![self, interpretKeyEvents: &*events];
+            let has_modifiers = modifiers.command || modifiers.control || modifiers.alt;
+
+            // Special keys and shortcuts: convert and dispatch directly (bypass IME)
+            if is_special_key || has_modifiers {
+                println!("[KEY] Special key or shortcut detected, bypassing IME");
+                if let Some(key_event) = Self::convert_to_key_event(event) {
+                    self.invoke_input_event_callback(InputEventEnum::KeyDown(key_event));
+                }
+            } else {
+                // Regular character input: use IME for international text input
+                println!("[IME] keyDown called, calling interpretKeyEvents...");
+
+                // CRITICAL: Call interpretKeyEvents to trigger IME processing
+                // This will call insertText: for committed text or setMarkedText: for preedit
+                unsafe {
+                    use objc2_foundation::NSArray;
+
+                    // Create array with single event
+                    let events = NSArray::from_slice(&[event]);
+                    let _: () = msg_send![self, interpretKeyEvents: &*events];
+                }
+
+                println!("[IME] interpretKeyEvents finished");
             }
-
-            println!("[IME] interpretKeyEvents finished");
-            // Note: Don't convert/dispatch here - let interpretKeyEvents call insertText/setMarkedText
         }
 
         #[unsafe(method(keyUp:))]

@@ -878,6 +878,10 @@ impl TextInput {
         // Note: We should already have focus if receiving keyboard events
         // Focus is managed by Window's focus manager
 
+        println!("[TextInput {:?}] Key down: {:?}, modifiers: cmd={}, ctrl={}, shift={}, alt={}",
+            self.id, event.key, event.modifiers.command, event.modifiers.control,
+            event.modifiers.shift, event.modifiers.alt);
+
         let cmd = if cfg!(target_os = "macos") {
             event.modifiers.command
         } else {
@@ -888,30 +892,37 @@ impl TextInput {
         if cmd {
             match &event.key {
                 Key::Character(c) if *c == 'c' => {
+                    println!("[TextInput {:?}] Cmd+C - Copy requested", self.id);
                     self.emit_copy_requested();
                     return EventResponse::Handled;
                 }
                 Key::Character(c) if *c == 'v' => {
+                    println!("[TextInput {:?}] Cmd+V - Paste requested", self.id);
                     self.emit_paste_requested();
                     return EventResponse::Handled;
                 }
                 Key::Character(c) if *c == 'x' => {
+                    println!("[TextInput {:?}] Cmd+X - Cut requested", self.id);
                     self.emit_cut_requested();
                     return EventResponse::Handled;
                 }
                 Key::Character(c) if *c == 'a' => {
+                    println!("[TextInput {:?}] Cmd+A - Select all", self.id);
                     self.select_all();
                     return EventResponse::Handled;
                 }
                 Key::Character(c) if *c == 'z' => {
                     if event.modifiers.shift {
+                        println!("[TextInput {:?}] Cmd+Shift+Z - Redo", self.id);
                         self.redo();
                     } else {
+                        println!("[TextInput {:?}] Cmd+Z - Undo", self.id);
                         self.undo();
                     }
                     return EventResponse::Handled;
                 }
                 Key::Character(c) if *c == 'y' => {
+                    println!("[TextInput {:?}] Cmd+Y - Redo", self.id);
                     self.redo();
                     return EventResponse::Handled;
                 }
@@ -922,41 +933,53 @@ impl TextInput {
         // Handle navigation keys
         match &event.key {
             Key::Named(NamedKey::ArrowLeft) => {
+                println!("[TextInput {:?}] Arrow left, cursor_pos before: {}", self.id, self.cursor_pos);
                 self.move_cursor_left(event.modifiers.shift);
+                println!("[TextInput {:?}] Arrow left, cursor_pos after: {}", self.id, self.cursor_pos);
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::ArrowRight) => {
+                println!("[TextInput {:?}] Arrow right, cursor_pos before: {}", self.id, self.cursor_pos);
                 self.move_cursor_right(event.modifiers.shift);
+                println!("[TextInput {:?}] Arrow right, cursor_pos after: {}", self.id, self.cursor_pos);
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::Home) => {
+                println!("[TextInput {:?}] Home key", self.id);
                 self.move_cursor_home(event.modifiers.shift);
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::End) => {
+                println!("[TextInput {:?}] End key", self.id);
                 self.move_cursor_end(event.modifiers.shift);
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::Backspace) => {
+                println!("[TextInput {:?}] Backspace, text before: {:?}", self.id, self.text);
                 self.delete_before_cursor();
+                println!("[TextInput {:?}] Backspace, text after: {:?}", self.id, self.text);
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::Delete) => {
+                println!("[TextInput {:?}] Delete key, text before: {:?}", self.id, self.text);
                 self.delete_after_cursor();
+                println!("[TextInput {:?}] Delete key, text after: {:?}", self.id, self.text);
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::Enter) => {
+                println!("[TextInput {:?}] Enter key - submitting", self.id);
                 self.emit_submit();
                 return EventResponse::Handled;
             }
             Key::Character(c) => {
                 // Insert text
+                println!("[TextInput {:?}] Character input: {:?}", self.id, c);
                 self.insert_text(&c.to_string());
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
