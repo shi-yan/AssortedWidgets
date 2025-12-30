@@ -1314,6 +1314,7 @@ impl Window {
                             &mut font_system_lock,
                             icon_char,
                             *size,
+                            scale_factor,
                         ) {
                             // Create glyph key for atlas caching
                             use std::hash::{Hash, Hasher};

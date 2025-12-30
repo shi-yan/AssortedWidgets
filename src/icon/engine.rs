@@ -131,7 +131,8 @@ impl IconEngine {
     /// # Arguments
     /// * `font_system_wrapper` - Already-locked FontSystemWrapper
     /// * `icon_char` - The Unicode character to rasterize
-    /// * `size` - Font size in points
+    /// * `size` - Font size in points (logical size)
+    /// * `scale_factor` - DPI scale factor (1.0 = normal, 2.0 = Retina)
     ///
     /// # Returns
     /// Tuple of (RasterizedGlyph, CacheKey) where the glyph should be positioned
@@ -141,9 +142,11 @@ impl IconEngine {
         font_system_wrapper: &mut FontSystemWrapper,
         icon_char: char,
         size: f32,
+        scale_factor: f32,
     ) -> Option<(crate::text::RasterizedGlyph, cosmic_text::CacheKey)> {
         // Get cache key via shaping (needed for cosmic-text API)
-        let cache_key = self.get_cache_key(font_system_wrapper, icon_char, size as f64)?;
+        // Metrics must use physical size (logical size × scale_factor) for correct DPI rendering
+        let cache_key = self.get_cache_key(font_system_wrapper, icon_char, size as f64, scale_factor as f64)?;
 
         // Rasterize the glyph
         let rasterized = font_system_wrapper.rasterize_glyph(cache_key)?;
@@ -155,7 +158,7 @@ impl IconEngine {
     ///
     /// This is used internally by `rasterize_icon()`. Direct callers should prefer
     /// `rasterize_icon()` which provides both the cache key and rasterized glyph.
-    fn get_cache_key(&self, font_system_wrapper: &mut FontSystemWrapper, icon_char: char, size: f64) -> Option<cosmic_text::CacheKey> {
+    fn get_cache_key(&self, font_system_wrapper: &mut FontSystemWrapper, icon_char: char, size: f64, scale_factor: f64) -> Option<cosmic_text::CacheKey> {
         use cosmic_text::{Attrs, Buffer, Metrics, Shaping, Family};
 
         let font_system = font_system_wrapper.font_system_mut();
@@ -175,7 +178,10 @@ impl IconEngine {
         // Create attrs that force our specific icon font
         let attrs = Attrs::new().family(Family::Name(&font_name));
 
-        let mut buffer = Buffer::new(font_system, Metrics::new(size as f32, size as f32));
+        // Use physical size (logical size × scale_factor) for correct DPI rendering
+        // On a 2x display, a 24pt icon needs to be rasterized at 48pt to be crisp
+        let physical_size = (size * scale_factor) as f32;
+        let mut buffer = Buffer::new(font_system, Metrics::new(physical_size, physical_size));
 
         buffer.set_text(font_system, &icon_char.to_string(), &attrs, Shaping::Advanced, None);
         buffer.shape_until_scroll(font_system, false);
