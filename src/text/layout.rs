@@ -31,14 +31,14 @@ pub struct TextLayout {
     /// Y offset of the first line's baseline (for proper vertical alignment)
     /// This is the baseline offset that should be subtracted when rendering
     /// to ensure text starts at the specified position without extra top padding
-    pub(crate) first_line_y: f32,
+    pub(crate) _first_line_y: f32,
 }
 
 impl TextLayout {
     /// Create a new text layout from a cosmic-text buffer
     pub(crate) fn new(buffer: Buffer, alignment: TextAlign, max_width: Option<f32>) -> Self {
         let (size, first_line_y) = Self::compute_size(&buffer);
-        Self { buffer, size, alignment, max_width, first_line_y }
+        Self { buffer, size, alignment, max_width, _first_line_y: first_line_y }
     }
 
     /// Get text alignment
@@ -69,8 +69,9 @@ impl TextLayout {
     /// Get the first line's Y offset (baseline position)
     /// This should be subtracted from the rendering position to ensure
     /// text starts at the specified Y coordinate without extra top padding
+    #[allow(dead_code)]
     pub(crate) fn first_line_y(&self) -> f32 {
-        self.first_line_y
+        self._first_line_y
     }
 
     /// Access the underlying cosmic-text buffer (for advanced use)

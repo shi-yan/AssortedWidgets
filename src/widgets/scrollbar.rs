@@ -89,7 +89,7 @@ pub struct ScrollBar {
     on_value_changed: Option<Box<dyn FnMut(i32)>>,
 
     // Cached slider bounds (updated during paint)
-    cached_slider_rect: Option<Rect>,
+    _cached_slider_rect: Option<Rect>,
 
     // Pending deferred commands (signals to emit)
     pending_commands: Vec<DeferredCommand>,
@@ -126,7 +126,7 @@ impl ScrollBar {
             slider_drag_color: Color::rgba(0.5, 0.5, 0.5, 0.9),
             slider_corner_radius: 6.0,
             on_value_changed: None,
-            cached_slider_rect: None,
+            _cached_slider_rect: None,
             pending_commands: Vec::new(),
         }
     }

@@ -9,7 +9,7 @@ use crate::event::{ImeEvent, ImeEventType, Key, NamedKey, OsEvent};
 use crate::paint::primitives::Color;
 use crate::paint::types::{CornerRadius, ShapeStyle};
 use crate::paint::PaintContext;
-use crate::text::{TextEngine, TextLayout, TextStyle, Truncate};
+use crate::text::{ TextLayout, TextStyle, Truncate};
 use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
 
@@ -42,7 +42,7 @@ pub struct TextInput {
     // === Content ===
     text: String,
     preedit_text: String,
-    preedit_cursor: Option<usize>,
+    _preedit_cursor: Option<usize>,
 
     // === Cursor & Selection ===
     cursor_pos: usize,               // Character index
@@ -107,7 +107,7 @@ impl TextInput {
 
             text: String::new(),
             preedit_text: String::new(),
-            preedit_cursor: None,
+            _preedit_cursor: None,
 
             cursor_pos: 0,
             selection_start: None,
@@ -284,7 +284,7 @@ impl TextInput {
         self.save_undo_state();
 
         // Delete selection FIRST if any (modifies text and cursor_pos)
-        if let Some(sel_start) = self.selection_start {
+        if let Some(_sel_start) = self.selection_start {
             self.delete_selection();
         }
 

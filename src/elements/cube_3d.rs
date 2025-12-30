@@ -352,7 +352,7 @@ impl Widget for Cube3D {
         static PRINTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
         if !PRINTED.swap(true, std::sync::atomic::Ordering::Relaxed) {
             println!("[Cube3D] MVP matrix (first frame):");
-            for (i, row) in mvp.iter().enumerate() {
+            for (_i, row) in mvp.iter().enumerate() {
                 println!("  [{:8.4}, {:8.4}, {:8.4}, {:8.4}]", row[0], row[1], row[2], row[3]);
             }
             println!("[Cube3D] Rotation: {:.2}, Aspect: {:.2}", rotation, aspect_ratio);

@@ -166,7 +166,6 @@ impl Path {
     /// Convert to Lyon path builder
     pub fn to_lyon_path(&self) -> lyon::path::Path {
         use lyon::geom::point;
-        use lyon::path::traits::Build;
         use lyon::path::Path as LyonPath;
 
         let mut builder = LyonPath::builder();

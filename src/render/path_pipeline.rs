@@ -2,7 +2,7 @@
 //!
 //! Converts vector paths (lines, bezier curves) into triangles for GPU rendering.
 
-use crate::paint::{Color, DrawCommand, LineCap, LineJoin, PrimitiveBatcher, Stroke};
+use crate::paint::{Color, DrawCommand, PrimitiveBatcher, Stroke};
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, StrokeOptions, StrokeTessellator, VertexBuffers};
 use std::sync::Arc;
 use wgpu::util::DeviceExt;

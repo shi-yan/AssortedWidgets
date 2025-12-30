@@ -9,7 +9,7 @@ use crate::window::Window;
 use crate::platform::{PlatformWindow, PlatformWindowImpl, WindowCallbacks, WindowOptions};
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc;
 
@@ -90,7 +90,7 @@ pub struct Application {
 
     /// App-level widget ID counter (shared across all windows)
     /// Ensures globally unique widget IDs in multi-window applications
-    next_widget_id: Arc<AtomicU64>,
+    _next_widget_id: Arc<AtomicU64>,
 
     /// Thread-safe handle for GUI operations (cloned and passed to windows)
     /// Provides app-level widget ID generation and cross-thread messaging
@@ -139,7 +139,7 @@ impl Application {
             windows: HashMap::new(),
             next_window_id: 1,
             render_context: render_context_arc,
-            next_widget_id,
+            _next_widget_id: next_widget_id,
             gui_handle,
             event_queue: Arc::new(Mutex::new(VecDeque::new())),
             drag_state: None,

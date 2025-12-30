@@ -188,7 +188,7 @@ pub fn parse_markdown(input: &str) -> RichText {
 ///
 /// This searches backwards through already-created spans to find where
 /// the current style started being applied.
-fn find_span_start(text: &str, spans: &[Span], current_attrs: &SpanAttrs) -> usize {
+fn find_span_start(_text: &str, spans: &[Span], current_attrs: &SpanAttrs) -> usize {
     // Look for the last span with different attributes
     // The new span starts after that
     for span in spans.iter().rev() {

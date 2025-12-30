@@ -28,8 +28,6 @@ use crate::text::{TextAlign, TextEngine, TextStyle, Truncate};
 use crate::types::{CursorType, DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
 
-pub use crate::widgets::label::Padding;
-
 /// Style configuration for checkbox in a specific state
 #[derive(Clone, Debug)]
 pub struct CheckboxStyle {

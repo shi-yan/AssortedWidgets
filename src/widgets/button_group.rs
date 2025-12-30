@@ -330,7 +330,7 @@ impl ButtonGroup {
     }
 
     /// Calculate button bounds within the group
-    fn calculate_button_bounds(&self, engine: &mut TextEngine) -> Vec<Rect> {
+    fn calculate_button_bounds(&self, _engine: &mut TextEngine) -> Vec<Rect> {
         let mut bounds = Vec::new();
         let count = self.items.len();
 
@@ -466,7 +466,7 @@ impl ButtonGroup {
     pub fn measure_with_engine(
         &self,
         engine: &mut TextEngine,
-        known_dimensions: taffy::Size<Option<f32>>,
+        _known_dimensions: taffy::Size<Option<f32>>,
     ) -> Size {
         if self.items.is_empty() {
             return Size::new(0.0, 0.0);

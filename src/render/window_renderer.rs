@@ -81,7 +81,7 @@ pub struct WindowRenderer {
     window_uniform_bind_group: wgpu::BindGroup,
 
     /// SDF rect clip uniforms (clip regions for fragment shader) - DIFFERENT data, separate buffer
-    rect_sdf_clip_uniform_buffer: wgpu::Buffer,
+    _rect_sdf_clip_uniform_buffer: wgpu::Buffer,
     rect_sdf_clip_uniform_bind_group: wgpu::BindGroup,
 
     // ========================================
@@ -267,7 +267,7 @@ impl WindowRenderer {
             format,
             window_uniform_buffer,
             window_uniform_bind_group,
-            rect_sdf_clip_uniform_buffer,
+            _rect_sdf_clip_uniform_buffer: rect_sdf_clip_uniform_buffer,
             rect_sdf_clip_uniform_bind_group,
             msaa_texture,
             msaa_view,
@@ -699,7 +699,7 @@ impl WindowRenderer {
         &mut self,
         render_pass: &mut wgpu::RenderPass,
         instance: &crate::render::ImageInstance,
-        texture: &wgpu::Texture,
+        _texture: &wgpu::Texture,
         texture_view: &wgpu::TextureView,
         image_pipeline: &crate::render::ImagePipeline,
     ) {

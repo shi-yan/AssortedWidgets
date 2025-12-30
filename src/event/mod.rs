@@ -1,8 +1,5 @@
 use crate::types::{Point, Rect, WidgetId};
 
-#[cfg(target_os = "macos")]
-use crate::platform::PlatformInput;
-
 // Sub-modules
 pub mod bus;
 pub mod capture;

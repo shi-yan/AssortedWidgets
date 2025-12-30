@@ -11,8 +11,6 @@
 //! 4. Framework handles texture resize when layout changes
 
 use crate::types::{Size, WidgetId};
-use std::sync::Arc;
-
 /// Manages a framebuffer texture for a RawSurface widget
 pub struct RawSurfaceFramebuffer {
     pub texture: wgpu::Texture,

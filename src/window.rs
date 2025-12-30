@@ -921,7 +921,7 @@ impl Window {
                 }
             }
 
-            InputEventEnum::KeyUp(key_event) => {
+            InputEventEnum::KeyUp(_key_event) => {
                 // Dispatch to focused element
                 if let Some(focused_id) = self.focus_manager.focused_id() {
                     if let Some(element) = self.widgets.get_mut(focused_id) {

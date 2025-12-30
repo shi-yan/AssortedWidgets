@@ -1,4 +1,4 @@
-use crate::paint::{DrawCommand, PrimitiveBatcher, Shadow};
+use crate::paint::{DrawCommand, PrimitiveBatcher};
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
@@ -202,8 +202,8 @@ impl ShadowSdfPipeline {
             .commands()
             .iter()
             .enumerate()
-            .filter_map(|(idx, cmd)| match cmd {
-                DrawCommand::Rect { rect, style, z_index } => {
+            .filter_map(|(_idx, cmd)| match cmd {
+                DrawCommand::Rect { rect, style, z_index: _ } => {
                     // Only render shadows for shapes that have them
                     style.shadow.as_ref().map(|shadow| {
                         // Phase 2: BoundsTree-based depth assignment for shadows

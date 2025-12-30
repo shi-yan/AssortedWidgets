@@ -144,7 +144,7 @@ pub struct Button {
 
     // Cached text layout
     cached_text_layout: RefCell<Option<TextLayout>>,
-    cached_text_max_width: RefCell<Option<f32>>,
+    _cached_text_max_width: RefCell<Option<f32>>,
 }
 
 impl Button {
@@ -177,7 +177,7 @@ impl Button {
             stretch_width: false,
             on_click: None,
             cached_text_layout: RefCell::new(None),
-            cached_text_max_width: RefCell::new(None),
+            _cached_text_max_width: RefCell::new(None),
         }
     }
 

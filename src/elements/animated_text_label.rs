@@ -38,10 +38,10 @@ pub struct AnimatedTextLabel {
     bg_color: Color,
 
     // Animation state
-    start_time: Instant,
-    min_width: f64,       // Minimum width (text truncated heavily)
-    max_width: f64,       // Maximum width (text fully visible)
-    frequency: f64,       // Oscillation frequency (Hz)
+    _start_time: Instant,
+    _min_width: f64,       // Minimum width (text truncated heavily)
+    _max_width: f64,       // Maximum width (text fully visible)
+    _frequency: f64,       // Oscillation frequency (Hz)
     fixed_height: f64,    // Fixed height
 }
 
@@ -65,10 +65,10 @@ impl AnimatedTextLabel {
                 .color(Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 })
                 .align(TextAlign::Left),
             bg_color: Color { r: 1.0, g: 0.3, b: 0.4, a: 1.0 },
-            start_time: Instant::now(),
-            min_width,
-            max_width,
-            frequency: 0.3,  // 0.3 Hz = ~3.3 second cycle
+            _start_time: Instant::now(),
+            _min_width: min_width,
+            _max_width: max_width,
+            _frequency: 0.3,  // 0.3 Hz = ~3.3 second cycle
             fixed_height: 50.0,
         }
     }

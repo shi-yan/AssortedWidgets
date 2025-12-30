@@ -16,7 +16,7 @@ pub struct IconEngine {
     font_id: fontdb::ID,
 
     /// Reference to font system for rasterization
-    font_system: Arc<Mutex<FontSystemWrapper>>,
+    _font_system: Arc<Mutex<FontSystemWrapper>>,
 }
 
 impl IconEngine {
@@ -88,7 +88,7 @@ impl IconEngine {
         Self {
             mapping,
             font_id,
-            font_system,
+            _font_system: font_system,
         }
     }
 

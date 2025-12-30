@@ -3,15 +3,15 @@
 use std::any::Any;
 use std::cell::RefCell;
 
-use crate::event::{OsEvent, InputEventEnum, MouseEvent, WheelEvent, EventResponse, MouseHandler};
+use crate::event::{InputEventEnum, MouseEvent, WheelEvent, EventResponse, MouseHandler};
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext, Stroke};
-use crate::text::{TextEngine, TextLayout, TextStyle, TextAlign};
+use crate::text::{TextEngine, TextLayout, TextStyle};
 use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId, CursorType, FrameInfo};
 use crate::widget::Widget;
-use crate::widgets::{Padding, ScrollBar, Orientation};
+use crate::widgets::{Padding, ScrollBar};
 
-use super::types::{RichText, Span, LinkSpan};
+use super::types::{RichText};
 use super::markdown::parse_markdown;
 
 /// Rich text label widget with limited markdown support
@@ -37,7 +37,7 @@ pub struct RichTextLabel {
     base_text_style: TextStyle,
     link_color: Color,
     strikethrough_color: Color,
-    bullet_symbol: String,
+    _bullet_symbol: String,
 
     // Padding
     padding: Padding,
@@ -91,7 +91,7 @@ impl RichTextLabel {
             base_text_style: TextStyle::new(),
             link_color: Color::rgb(0.3, 0.6, 0.9),
             strikethrough_color: Color::rgba(0.5, 0.5, 0.5, 0.7),
-            bullet_symbol: "•".to_string(),
+            _bullet_symbol: "•".to_string(),
             padding: Padding::uniform(8.0),
             bg_color: None,
             wrap_enabled: true,
@@ -392,6 +392,7 @@ impl RichTextLabel {
     }
 
     /// Ensure layout is valid and up-to-date
+    #[allow(dead_code)]
     fn ensure_layout(&mut self, engine: &mut TextEngine, available_width: Option<f32>) {
         println!("[RichTextLabel] ensure_layout called with available_width: {:?}", available_width);
 

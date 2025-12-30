@@ -397,6 +397,7 @@ impl Default for BoundsTree {
 
 // Helper trait for Rect to calculate union and half-perimeter
 trait RectExt {
+    #[allow(dead_code)]
     fn union(&self, other: &Self) -> Self;
     fn half_perimeter(&self) -> f64;
 }

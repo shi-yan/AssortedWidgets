@@ -22,7 +22,7 @@ pub struct WidgetManager {
     /// Channel for receiving messages from other threads
     message_rx: Receiver<GuiMessage>,
     /// Sender half (cloned for GuiHandle)
-    message_tx: Sender<GuiMessage>,
+    _message_tx: Sender<GuiMessage>,
     /// GuiHandle for cross-thread communication
     /// (Provides app-level widget ID generation)
     gui_handle: GuiHandle,
@@ -38,7 +38,7 @@ impl WidgetManager {
             pending_messages: Vec::new(),
             connections: ConnectionTable::new(),
             message_rx: rx,
-            message_tx: tx,
+            _message_tx: tx,
             gui_handle,
         }
     }

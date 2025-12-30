@@ -148,7 +148,7 @@ impl MouseHandler for ClickableRect {
         EventResponse::Handled
     }
 
-    fn on_mouse_up(&mut self, event: &mut MouseEvent) -> EventResponse {
+    fn on_mouse_up(&mut self, _event: &mut MouseEvent) -> EventResponse {
         println!("🖱️  MOUSE UP on {} (ID: {:?})", self.label, self.id);
         EventResponse::Handled
     }

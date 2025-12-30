@@ -22,7 +22,7 @@ pub struct SimpleTriangle {
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
     format: wgpu::TextureFormat,
-    sample_count: u32,
+    _sample_count: u32,
 
     // FPS tracking
     last_frame_time: RefCell<Option<Instant>>,
@@ -90,7 +90,7 @@ impl SimpleTriangle {
             device,
             queue,
             format,
-            sample_count,
+            _sample_count: sample_count,
             last_frame_time: RefCell::new(None),
             frame_times: RefCell::new(Vec::with_capacity(60)), // Store 60 frames
         }

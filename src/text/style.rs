@@ -99,7 +99,7 @@ impl TextStyle {
     }
 
     /// Convert to cosmic-text Attrs
-    pub(crate) fn to_attrs(&self) -> Attrs {
+    pub(crate) fn to_attrs(&self) -> Attrs<'_> {
         let family = if self.font_family.is_empty() {
             Family::SansSerif
         } else {

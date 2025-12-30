@@ -249,11 +249,9 @@ define_class!(
         fn valid_attributes_for_marked_text(&self) -> *const NSObject {
             //println!("[IME] validAttributesForMarkedText called");
             // Return empty array
-            unsafe {
-                use objc2_foundation::NSArray;
-                let empty_array: Retained<NSArray<NSObject>> = NSArray::new();
-                Retained::into_raw(empty_array) as *const NSObject
-            }
+            use objc2_foundation::NSArray;
+            let empty_array: Retained<NSArray<NSObject>> = NSArray::new();
+            Retained::into_raw(empty_array) as *const NSObject
         }
 
         #[unsafe(method(attributedSubstringForProposedRange:actualRange:))]
@@ -291,6 +289,7 @@ impl CustomView {
         unsafe { msg_send![super(this), init] }
     }
 
+    #[allow(dead_code)]
     fn convert_mouse_event(
         &self,
         event: &NSEvent,
@@ -321,6 +320,7 @@ impl CustomView {
         point(view_point.x, view_point.y)
     }
 
+    #[allow(dead_code)]
     fn get_modifiers(event: &NSEvent) -> Modifiers {
         let flags = event.modifierFlags();
 
@@ -332,6 +332,7 @@ impl CustomView {
         }
     }
 
+    #[allow(dead_code)]
     fn convert_key_event(event: &NSEvent, is_down: bool) -> Option<PlatformInput> {
         let characters = event.characters()?;
         let key = characters.to_string();
@@ -660,14 +661,12 @@ impl PlatformWindow for MacWindow {
         };
 
         // Set the window's frame origin (bottom-left corner in screen coordinates)
-        unsafe {
-            self.native_window.setFrameOrigin(ns_point);
-        }
+        self.native_window.setFrameOrigin(ns_point);
     }
 
     fn set_ime_cursor_area(&mut self, x: f64, y: f64, width: f64, height: f64) {
         // Store IME cursor area in window state
-        let mut state = self.state.borrow_mut();
+        let _state = self.state.borrow_mut();
         // For now, just log the IME cursor area
         // Full IME support requires NSTextInputClient implementation
         println!("[IME] Cursor area set: ({}, {}) {}x{}", x, y, width, height);
@@ -743,8 +742,14 @@ impl PlatformWindow for MacWindow {
                 CursorType::Crosshair => NSCursor::crosshairCursor(),
                 CursorType::Move => NSCursor::openHandCursor(),
                 CursorType::NotAllowed => NSCursor::operationNotAllowedCursor(),
-                CursorType::ResizeNS => NSCursor::resizeUpDownCursor(),
-                CursorType::ResizeEW => NSCursor::resizeLeftRightCursor(),
+                CursorType::ResizeNS => {
+                    // Use the newer row resize API for vertical resizing
+                    NSCursor::rowResizeCursor()
+                },
+                CursorType::ResizeEW => {
+                    // Use the newer column resize API for horizontal resizing
+                    NSCursor::columnResizeCursor()
+                },
                 // For diagonal resizes, we'll use the closest available cursor
                 // macOS doesn't have built-in diagonal resize cursors in older APIs
                 CursorType::ResizeNESW => NSCursor::crosshairCursor(),
@@ -763,7 +768,7 @@ impl PlatformWindow for MacWindow {
 // NSWindow Creation
 // ============================================================================
 
-unsafe fn create_window(options: &WindowOptions, mtm: MainThreadMarker) -> Retained<NSWindow> {
+unsafe fn create_window(options: &WindowOptions, mtm: MainThreadMarker) -> Retained<NSWindow> { unsafe {
     let rect = rect_to_nsrect(options.bounds);
 
     // Build style mask based on options
@@ -835,7 +840,7 @@ unsafe fn create_window(options: &WindowOptions, mtm: MainThreadMarker) -> Retai
     }
 
     window
-}
+}}
 
 // ============================================================================
 // Coordinate Conversion

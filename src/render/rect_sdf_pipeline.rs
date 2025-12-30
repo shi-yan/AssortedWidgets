@@ -265,7 +265,7 @@ impl RectSdfPipeline {
             .commands()
             .iter()
             .enumerate()
-            .filter_map(|(idx, cmd)| match cmd {
+            .filter_map(|(_idx, cmd)| match cmd {
                 DrawCommand::Rect { rect, style, z_index } => {
                     use crate::paint::Brush;
 

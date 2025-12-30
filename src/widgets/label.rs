@@ -103,9 +103,9 @@ struct UrlSegment {
     /// Start byte index in the text
     start: usize,
     /// End byte index in the text
-    end: usize,
+    _end: usize,
     /// The URL string
-    url: String,
+    _url: String,
 }
 
 /// Label widget - the foundational text display widget
@@ -312,8 +312,8 @@ impl Label {
 
                 segments.push(UrlSegment {
                     start: url_start,
-                    end: url_end,
-                    url: text[url_start..url_end].to_string(),
+                    _end: url_end,
+                    _url: text[url_start..url_end].to_string(),
                 });
 
                 start = url_end;
