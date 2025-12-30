@@ -69,15 +69,17 @@ pub trait Pipeline {
 mod context;
 mod image_pipeline;
 mod path_pipeline;
-mod pipelines;
 mod rect_sdf_pipeline;
 mod shadow_sdf_pipeline;
 mod window_renderer;
+mod rect_pipeline;
+mod text_pipeline;
 
 pub use context::RenderContext;
 pub use image_pipeline::{ImageInstance, ImagePipeline};
 pub use path_pipeline::PathPipeline;
-pub use pipelines::{RectPipeline, TextPipeline};
+pub use rect_pipeline::RectPipeline;
+pub use text_pipeline::TextPipeline;
 pub use rect_sdf_pipeline::RectSdfPipeline;
 pub use shadow_sdf_pipeline::ShadowSdfPipeline;
 pub use window_renderer::WindowRenderer;

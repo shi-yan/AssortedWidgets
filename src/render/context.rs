@@ -2,8 +2,7 @@
 
 use std::sync::{Arc, Mutex};
 use crate::text::{GlyphAtlas, FontSystemWrapper, TextEngine};
-use crate::render::pipelines::{RectPipeline, TextPipeline};
-use crate::render::{RectSdfPipeline, ShadowSdfPipeline, PathPipeline, ImagePipeline};
+use crate::render::{RectPipeline, TextPipeline, RectSdfPipeline, ShadowSdfPipeline, PathPipeline, ImagePipeline};
 use crate::icon::IconEngine;
 use crate::image::ImageCache;
 
