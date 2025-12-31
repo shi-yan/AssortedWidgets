@@ -384,19 +384,35 @@ impl WindowRenderer {
     }
 
     /// Render rectangles using shared pipeline
-    pub fn render_rects(&mut self, render_pass: &mut wgpu::RenderPass, instances: &[RectInstance]) {
+    pub fn render_rects(
+        &mut self,
+        render_pass: &mut wgpu::RenderPass,
+        instances: &[RectInstance],
+        layered_bounds_tree: &mut crate::paint::LayeredBoundsTree,
+    ) {
         if instances.is_empty() {
             return;
         }
 
         println!("Rendering {} rect instances", instances.len());
 
-        println!("Rect instances: {:?}", instances);
+        // Assign depth values using LayeredBoundsTree (same as SDF rects)
+        let instances_with_depth: Vec<RectInstance> = instances
+            .iter()
+            .map(|inst| {
+                let bounds = inst.bounds();
+                let z_index = inst.z_order as i32;
+                let depth = layered_bounds_tree.insert(bounds, z_index);
+                inst.with_depth(depth)
+            })
+            .collect();
+
+        println!("Rect instances with depth: {:?}", instances_with_depth);
 
         let device = self.render_context.device();
 
         // Create or resize instance buffer if needed
-        let needed_capacity = instances.len();
+        let needed_capacity = instances_with_depth.len();
         if self.rect_instance_buffer.is_none() || needed_capacity > self.rect_instance_capacity {
             self.rect_instance_capacity = needed_capacity.max(128);
             self.rect_instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
@@ -412,14 +428,14 @@ impl WindowRenderer {
         self.render_context.queue().write_buffer(
             instance_buffer,
             0,
-            bytemuck::cast_slice(instances),
+            bytemuck::cast_slice(&instances_with_depth),
         );
 
         // Render using shared pipeline
         render_pass.set_pipeline(&self.render_context.rect_pipeline.pipeline);
         render_pass.set_bind_group(0, &self.window_uniform_bind_group, &[]);
         render_pass.set_vertex_buffer(0, instance_buffer.slice(..));
-        render_pass.draw(0..4, 0..instances.len() as u32);
+        render_pass.draw(0..4, 0..instances_with_depth.len() as u32);
     }
 
     /// Render text using shared pipeline
@@ -428,6 +444,7 @@ impl WindowRenderer {
         render_pass: &mut wgpu::RenderPass,
         instances: &[TextInstance],
         atlas_texture_view: &wgpu::TextureView,
+        layered_bounds_tree: &mut crate::paint::LayeredBoundsTree,
     ) {
         if instances.is_empty() {
             return;
@@ -435,8 +452,36 @@ impl WindowRenderer {
 
         let device = self.render_context.device();
 
+        // Group instances by z_order and assign depth per group (efficient!)
+        // This treats each text layout as a single entity rather than per-glyph
+        use std::collections::HashMap;
+        let mut z_order_to_depth: HashMap<u32, f32> = HashMap::new();
+
+        // Assign ONE depth value per z_order group
+        for instance in instances {
+            z_order_to_depth.entry(instance.z_order).or_insert_with(|| {
+                // Use a representative bounds for the text layout
+                // For depth assignment, we just need z_order + overlap detection
+                // Using a small dummy rect at origin is sufficient
+                let dummy_bounds = crate::types::Rect::new(
+                    crate::types::Point::new(0.0, 0.0),
+                    crate::types::Size::new(1.0, 1.0),
+                );
+                layered_bounds_tree.insert(dummy_bounds, instance.z_order as i32)
+            });
+        }
+
+        // Apply depth to all instances
+        let instances_with_depth: Vec<TextInstance> = instances
+            .iter()
+            .map(|inst| {
+                let depth = z_order_to_depth[&inst.z_order];
+                inst.with_depth(depth)
+            })
+            .collect();
+
         // Create or resize instance buffer if needed
-        let needed_capacity = instances.len();
+        let needed_capacity = instances_with_depth.len();
         if self.text_instance_buffer.is_none() || needed_capacity > self.text_instance_capacity {
             self.text_instance_capacity = needed_capacity.max(128);
             self.text_instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
@@ -452,7 +497,7 @@ impl WindowRenderer {
         self.render_context.queue().write_buffer(
             instance_buffer,
             0,
-            bytemuck::cast_slice(instances),
+            bytemuck::cast_slice(&instances_with_depth),
         );
 
         // Create texture bind group
@@ -478,7 +523,7 @@ impl WindowRenderer {
         render_pass.set_bind_group(0, &self.window_uniform_bind_group, &[]);
         render_pass.set_bind_group(1, &texture_bind_group, &[]);
         render_pass.set_vertex_buffer(0, instance_buffer.slice(..));
-        render_pass.draw(0..4, 0..instances.len() as u32);
+        render_pass.draw(0..4, 0..instances_with_depth.len() as u32);
     }
 
     /// Render shadows for shapes (rendered FIRST, at z=SHADOW layer)
@@ -557,6 +602,11 @@ impl WindowRenderer {
             return;
         }
 
+        println!(
+            "[WindowRenderer] Rendering SDF rects from {} commands",
+            batcher.commands().len()
+        );
+
         // Count how many rect commands we have (estimate for buffer sizing)
         let rect_count = batcher
             .commands()
@@ -610,6 +660,7 @@ impl WindowRenderer {
         &mut self,
         render_pass: &mut wgpu::RenderPass,
         batcher: &crate::paint::PrimitiveBatcher,
+        layered_bounds_tree: &mut crate::paint::LayeredBoundsTree,
     ) {
         use crate::paint::DrawCommand;
 
@@ -634,8 +685,8 @@ impl WindowRenderer {
         // Create or resize vertex buffer if needed
         if self.path_vertex_buffer.is_none() || estimated_vertex_count > self.path_vertex_capacity {
             self.path_vertex_capacity = estimated_vertex_count.max(1024);
-            // PathVertex is 24 bytes (2 floats for position + 4 floats for color)
-            const PATH_VERTEX_SIZE: usize = 24;
+            // PathVertex is 40 bytes (vec2 position + vec4 color + f32 depth + vec3 padding = 8+16+4+12)
+            const PATH_VERTEX_SIZE: usize = 40;
             self.path_vertex_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Path Vertex Buffer"),
                 size: (self.path_vertex_capacity * PATH_VERTEX_SIZE) as u64,
@@ -667,6 +718,7 @@ impl WindowRenderer {
             vertex_buffer,
             index_buffer,
             batcher,
+            layered_bounds_tree,
         );
     }
 

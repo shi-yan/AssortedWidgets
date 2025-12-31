@@ -141,6 +141,12 @@ impl TextPipeline {
                             offset: 56,
                             shader_location: 7,
                         },
+                        // depth
+                        wgpu::VertexAttribute {
+                            format: wgpu::VertexFormat::Float32,
+                            offset: 72,
+                            shader_location: 8,
+                        },
                     ],
                 }],
                 compilation_options: Default::default(),

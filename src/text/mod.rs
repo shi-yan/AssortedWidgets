@@ -60,8 +60,9 @@ pub struct TextInstance {
     pub page_index: u32,
     pub glyph_type: u32,
     pub clip_rect: [f32; 4],
-    pub z_order: u32,
-    pub _padding: [u32; 3],  // Align to 16 bytes
+    pub depth: f32,          // GPU depth value from LayeredBoundsTree (0.0 = near, 1.0 = far)
+    pub z_order: u32,        // Z-order for CPU sorting (before LayeredBoundsTree assignment)
+    pub _padding: [u32; 2],  // Align to 16 bytes
 }
 
 impl TextInstance {
@@ -89,13 +90,19 @@ impl TextInstance {
             page_index,
             glyph_type: if is_color { 1 } else { 0 },
             clip_rect,
+            depth: 0.5,  // Default middle depth (will be overwritten)
             z_order: 0,
-            _padding: [0, 0, 0],
+            _padding: [0, 0],
         }
     }
 
     pub fn with_z_order(mut self, z_order: u32) -> Self {
         self.z_order = z_order;
+        self
+    }
+
+    pub fn with_depth(mut self, depth: f32) -> Self {
+        self.depth = depth;
         self
     }
 }

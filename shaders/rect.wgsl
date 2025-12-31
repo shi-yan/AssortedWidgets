@@ -5,6 +5,7 @@ struct VertexInput {
     @location(0) rect: vec4<f32>,      // x, y, width, height
     @location(1) color: vec4<f32>,     // r, g, b, a
     @location(2) clip_rect: vec4<f32>, // clip x, y, width, height
+    @location(3) depth: f32,           // GPU depth value from LayeredBoundsTree
 }
 
 struct VertexOutput {
@@ -40,7 +41,8 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     );
 
     // Convert to clip space using projection matrix
-    let clip_pos = uniforms.projection * vec4<f32>(world_pos, 0.0, 1.0);
+    var clip_pos = uniforms.projection * vec4<f32>(world_pos, 0.0, 1.0);
+    clip_pos.z = in.depth;  // Use depth from LayeredBoundsTree
 
     var out: VertexOutput;
     out.position = clip_pos;

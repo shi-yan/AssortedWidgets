@@ -17,6 +17,10 @@ pub struct ImageInstance {
     pub tint: [f32; 4],
     /// Clipping rectangle (x, y, width, height)
     pub clip_rect: [f32; 4],
+    /// GPU depth value from LayeredBoundsTree (0.0 = near, 1.0 = far)
+    pub depth: f32,
+    /// Padding to maintain alignment
+    pub _padding: [f32; 3],
 }
 
 impl Default for ImageInstance {
@@ -26,7 +30,16 @@ impl Default for ImageInstance {
             size: [0.0, 0.0],
             tint: [1.0, 1.0, 1.0, 1.0],
             clip_rect: [0.0, 0.0, f32::MAX, f32::MAX],
+            depth: 0.5,  // Default middle depth (will be overwritten)
+            _padding: [0.0; 3],
         }
+    }
+}
+
+impl ImageInstance {
+    pub fn with_depth(mut self, depth: f32) -> Self {
+        self.depth = depth;
+        self
     }
 }
 
@@ -142,6 +155,12 @@ impl ImagePipeline {
                             offset: 32,
                             shader_location: 3,
                             format: wgpu::VertexFormat::Float32x4,
+                        },
+                        // depth: f32
+                        wgpu::VertexAttribute {
+                            offset: 48,
+                            shader_location: 4,
+                            format: wgpu::VertexFormat::Float32,
                         },
                     ],
                 }],

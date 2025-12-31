@@ -42,16 +42,17 @@ pub struct RectInstance {
     pub color: [f32; 4],
     /// Clip rect (x, y, width, height) - pixels outside are discarded
     pub clip_rect: [f32; 4],
-    /// Z-order for depth sorting (higher = on top)
-    /// Used for sorting primitives before rendering to ensure correct overlapping
+    /// GPU depth value from LayeredBoundsTree (0.0 = near, 1.0 = far)
+    pub depth: f32,
+    /// Z-order for CPU sorting (before LayeredBoundsTree assignment)
     pub z_order: u32,
     /// Padding to maintain alignment
-    _padding: [u32; 3],
+    _padding: [u32; 2],
 }
 
 impl RectInstance {
     pub fn new(rect: Rect, color: Color) -> Self {
-        // Default: no clipping (use huge bounds), z_order = 0
+        // Default: no clipping, z_order = 0, depth will be assigned later
         RectInstance {
             rect: [
                 rect.origin.x as f32,
@@ -61,8 +62,9 @@ impl RectInstance {
             ],
             color: [color.r, color.g, color.b, color.a],
             clip_rect: [0.0, 0.0, 1000000.0, 1000000.0],
-            z_order: 1000,
-            _padding: [0; 3],
+            depth: 0.5,  // Default middle depth (will be overwritten)
+            z_order: 0,
+            _padding: [0; 2],
         }
     }
 
@@ -79,5 +81,17 @@ impl RectInstance {
     pub fn with_z_order(mut self, z_order: u32) -> Self {
         self.z_order = z_order;
         self
+    }
+
+    pub fn with_depth(mut self, depth: f32) -> Self {
+        self.depth = depth;
+        self
+    }
+
+    pub fn bounds(&self) -> Rect {
+        Rect::new(
+            crate::types::Point::new(self.rect[0] as f64, self.rect[1] as f64),
+            crate::types::Size::new(self.rect[2] as f64, self.rect[3] as f64),
+        )
     }
 }

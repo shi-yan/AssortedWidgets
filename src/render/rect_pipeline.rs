@@ -75,6 +75,12 @@ impl RectPipeline {
                             shader_location: 2,
                             format: wgpu::VertexFormat::Float32x4,
                         },
+                        // depth: f32
+                        wgpu::VertexAttribute {
+                            offset: 48,
+                            shader_location: 3,
+                            format: wgpu::VertexFormat::Float32,
+                        },
                     ],
                 }],
                 compilation_options: Default::default(),

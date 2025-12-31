@@ -1443,8 +1443,8 @@ impl Window {
                 multiview_mask: None,
             });
 
-            // Render all rectangles using shared pipeline
-            self.window_renderer.render_rects(&mut render_pass, &rect_instances);
+            // Render all rectangles using shared pipeline (with LayeredBoundsTree depth assignment)
+            self.window_renderer.render_rects(&mut render_pass, &rect_instances, &mut self.layered_bounds_tree);
 
             // Render all SDF rectangles (rounded corners with borders)
             if !sdf_commands.is_empty() {
@@ -1480,7 +1480,7 @@ impl Window {
                 }
                 path_batcher.sort_commands();
 
-                self.window_renderer.render_paths(&mut render_pass, &path_batcher);
+                self.window_renderer.render_paths(&mut render_pass, &path_batcher, &mut self.layered_bounds_tree);
             }
 
             // ===== COMBINE TEXT AND ICON INSTANCES =====
@@ -1493,7 +1493,7 @@ impl Window {
             if !text_instances.is_empty() {
                 let atlas_lock = render_context.glyph_atlas.lock().unwrap();
                 let atlas_texture_view = atlas_lock.texture_view();
-                self.window_renderer.render_text(&mut render_pass, &text_instances, atlas_texture_view);
+                self.window_renderer.render_text(&mut render_pass, &text_instances, atlas_texture_view, &mut self.layered_bounds_tree);
                 drop(atlas_lock);
             }
 
@@ -1504,11 +1504,14 @@ impl Window {
                 let mut image_cache = render_context.image_cache.lock().unwrap();
 
                 for cmd in &image_commands {
-                    if let crate::paint::DrawCommand::Image { ref image_id, ref rect, ref tint, z_index: _ } = *cmd {
+                    if let crate::paint::DrawCommand::Image { ref image_id, ref rect, ref tint, z_index } = *cmd {
                         // Load image from cache (or disk if not cached)
                         match image_cache.get_or_load(image_id) {
                             Ok(cached_image) => {
-                                // Create image instance with position, size, tint, and clipping
+                                // Assign depth from LayeredBoundsTree (one depth per image)
+                                let depth = self.layered_bounds_tree.insert(*rect, z_index);
+
+                                // Create image instance with position, size, tint, clipping, and depth
                                 let default_tint = crate::paint::Color::rgba(1.0, 1.0, 1.0, 1.0);
                                 let tint_color = tint.unwrap_or(default_tint);
 
@@ -1520,6 +1523,8 @@ impl Window {
                                     size: [rect.size.width as f32, rect.size.height as f32],
                                     tint: [tint_color.r, tint_color.g, tint_color.b, tint_color.a],
                                     clip_rect,
+                                    depth,
+                                    _padding: [0.0; 3],
                                 };
 
                                 // Render the image using WindowRenderer
@@ -1564,12 +1569,18 @@ impl Window {
                                     if let Some(ref fb) = *fb_borrow {
                                         println!("[Window] Compositing RawSurface at {:?}", bounds);
 
+                                        // Assign depth from LayeredBoundsTree (use z_order from widget if available)
+                                        // For now, use NORMAL layer (0) for RawSurface widgets
+                                        let depth = self.layered_bounds_tree.insert(bounds, 0);
+
                                         // Create ImageInstance for this framebuffer
                                         let instance = crate::render::ImageInstance {
                                             position: [bounds.origin.x as f32, bounds.origin.y as f32],
                                             size: [bounds.size.width as f32, bounds.size.height as f32],
                                             tint: [1.0, 1.0, 1.0, 1.0], // No tint
                                             clip_rect: [0.0, 0.0, f32::MAX, f32::MAX], // No clipping
+                                            depth,
+                                            _padding: [0.0; 3],
                                         };
 
                                         // Render using WindowRenderer's image rendering

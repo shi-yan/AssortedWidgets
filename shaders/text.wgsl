@@ -21,6 +21,7 @@ struct VertexInput {
     @location(5) page_index: u32,
     @location(6) glyph_type: u32,
     @location(7) clip_rect: vec4<f32>,
+    @location(8) depth: f32,           // GPU depth value from LayeredBoundsTree
 }
 
 struct VertexOutput {
@@ -53,7 +54,8 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     let world_pos = in.position + corner * in.glyph_size;
 
     // Convert to clip space using projection matrix
-    let clip_pos = uniforms.projection * vec4<f32>(world_pos, 0.0, 1.0);
+    var clip_pos = uniforms.projection * vec4<f32>(world_pos, 0.0, 1.0);
+    clip_pos.z = in.depth;  // Use depth from LayeredBoundsTree
 
     // Interpolate UV coordinates
     let uv = mix(in.uv_min, in.uv_max, corner);

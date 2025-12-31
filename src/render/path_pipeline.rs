@@ -7,12 +7,14 @@ use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, StrokeOpt
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
-/// Vertex for path rendering (position + color)
+/// Vertex for path rendering (position + color + depth)
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct PathVertex {
     position: [f32; 2],
     color: [f32; 4],
+    depth: f32,              // GPU depth value from LayeredBoundsTree
+    _padding: [f32; 3],      // Align to 16 bytes (vec4 alignment)
 }
 
 /// Uniform buffer for screen transformation
@@ -79,6 +81,12 @@ impl PathPipeline {
                             shader_location: 1,
                             format: wgpu::VertexFormat::Float32x4,
                         },
+                        // depth: f32
+                        wgpu::VertexAttribute {
+                            offset: 24,
+                            shader_location: 2,
+                            format: wgpu::VertexFormat::Float32,
+                        },
                     ],
                 }],
                 compilation_options: Default::default(),
@@ -138,21 +146,35 @@ impl PathPipeline {
         vertex_buffer: &wgpu::Buffer,
         index_buffer: &wgpu::Buffer,
         batcher: &PrimitiveBatcher,
+        layered_bounds_tree: &mut crate::paint::LayeredBoundsTree,
     ) -> (usize, usize) {
-        // Collect lines and paths
+        // Collect lines and paths with depth assignment per path
         let mut geometry = VertexBuffers::new();
 
         for cmd in batcher.commands() {
             match cmd {
-                DrawCommand::Line { p1, p2, stroke, .. } => {
-                    self.tessellate_line(&mut geometry, *p1, *p2, stroke);
+                DrawCommand::Line { p1, p2, stroke, z_index } => {
+                    // Assign depth once per line
+                    let dummy_bounds = crate::types::Rect::new(
+                        crate::types::Point::new(0.0, 0.0),
+                        crate::types::Size::new(1.0, 1.0),
+                    );
+                    let depth = layered_bounds_tree.insert(dummy_bounds, *z_index);
+                    self.tessellate_line(&mut geometry, *p1, *p2, stroke, depth);
                 }
-                DrawCommand::Path { path, fill, stroke, .. } => {
+                DrawCommand::Path { path, fill, stroke, z_index } => {
+                    // Assign depth once per path (all vertices share the same depth)
+                    let dummy_bounds = crate::types::Rect::new(
+                        crate::types::Point::new(0.0, 0.0),
+                        crate::types::Size::new(1.0, 1.0),
+                    );
+                    let depth = layered_bounds_tree.insert(dummy_bounds, *z_index);
+
                     if let Some(fill_color) = fill {
-                        self.tessellate_fill(&mut geometry, path, *fill_color);
+                        self.tessellate_fill(&mut geometry, path, *fill_color, depth);
                     }
                     if let Some(stroke_style) = stroke {
-                        self.tessellate_stroke(&mut geometry, path, stroke_style);
+                        self.tessellate_stroke(&mut geometry, path, stroke_style, depth);
                     }
                 }
                 _ => {}
@@ -196,6 +218,7 @@ impl PathPipeline {
         p1: crate::types::Point,
         p2: crate::types::Point,
         stroke: &Stroke,
+        depth: f32,
     ) {
         use lyon::geom::point;
         use lyon::path::Path;
@@ -222,6 +245,8 @@ impl PathPipeline {
                     PathVertex {
                         position: vertex.position().to_array(),
                         color,
+                        depth,
+                        _padding: [0.0; 3],
                     }
                 }),
             )
@@ -234,6 +259,7 @@ impl PathPipeline {
         geometry: &mut VertexBuffers<PathVertex, u16>,
         path: &crate::paint::Path,
         fill_color: Color,
+        depth: f32,
     ) {
         let lyon_path = path.to_lyon_path();
 
@@ -250,6 +276,8 @@ impl PathPipeline {
                     PathVertex {
                         position: vertex.position().to_array(),
                         color,
+                        depth,
+                        _padding: [0.0; 3],
                     }
                 }),
             )
@@ -262,6 +290,7 @@ impl PathPipeline {
         geometry: &mut VertexBuffers<PathVertex, u16>,
         path: &crate::paint::Path,
         stroke: &Stroke,
+        depth: f32,
     ) {
         let lyon_path = path.to_lyon_path();
 
@@ -281,6 +310,8 @@ impl PathPipeline {
                     PathVertex {
                         position: vertex.position().to_array(),
                         color,
+                        depth,
+                        _padding: [0.0; 3],
                     }
                 }),
             )

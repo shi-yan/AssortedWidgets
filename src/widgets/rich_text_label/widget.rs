@@ -75,6 +75,7 @@ pub struct RichTextLabel {
 impl RichTextLabel {
     /// Create a new RichTextLabel from markdown
     pub fn new(markdown: &str) -> Self {
+        eprintln!("[RichTextLabel::new] Creating new RichTextLabel");
         let content = parse_markdown(markdown);
         Self {
             id: WidgetId::new(0),
@@ -260,18 +261,23 @@ impl RichTextLabel {
     /// Calculate number of visible lines based on viewport height
     fn num_visible_lines(&self) -> u32 {
         if self.viewport_height <= 0.0 {
-            println!("[RichTextLabel] num_visible_lines: viewport_height <= 0, returning 0");
+            eprintln!("[RichTextLabel::num_visible_lines] viewport_height <= 0, returning 0");
             return 0;
         }
 
         let line_height = self.base_text_style.line_height_pixels() as f64;
         if line_height <= 0.0 {
-            println!("[RichTextLabel] num_visible_lines: line_height <= 0, returning 0");
+            eprintln!("[RichTextLabel::num_visible_lines] line_height <= 0, returning 0");
             return 0;
         }
 
-        let visible = (self.viewport_height / line_height).ceil() as u32;
-        println!("[RichTextLabel] num_visible_lines: {} / {} = {}", self.viewport_height, line_height, visible);
+        // Use floor() to count only FULLY visible lines, but add 1 to account for
+        // the partial line at the bottom (which we show in the extended clip rect)
+        let full_lines = (self.viewport_height / line_height).floor() as u32;
+        let visible = full_lines + 1;  // +1 for partial line at bottom
+
+        eprintln!("[RichTextLabel::num_visible_lines] {} / {} = {} full + 1 partial = {}",
+                  self.viewport_height, line_height, full_lines, visible);
         visible
     }
 
@@ -281,16 +287,13 @@ impl RichTextLabel {
         engine: &mut TextEngine,
         known_dimensions: taffy::Size<Option<f32>>,
     ) -> Size {
-        println!("\n========================================");
-        println!("[RichTextLabel] measure_with_engine called");
-        println!("  known_dimensions: {:?}", known_dimensions);
-        println!("  current cached_layout exists: {}", self.cached_layout.borrow().is_some());
-        println!("  current cached_layout_width: {:?}", *self.cached_layout_width.borrow());
-        println!("  wrap_enabled: {}", self.wrap_enabled);
-        println!("  Stack trace:");
-        // Print a simple backtrace marker
-        println!("  >>> Check window.rs layout code <<<");
-        println!("========================================");
+        eprintln!("\n========================================");
+        eprintln!("[RichTextLabel::measure_with_engine] CALLED");
+        eprintln!("  known_dimensions: {:?}", known_dimensions);
+        eprintln!("  current cached_layout exists: {}", self.cached_layout.borrow().is_some());
+        eprintln!("  current cached_layout_width: {:?}", *self.cached_layout_width.borrow());
+        eprintln!("  wrap_enabled: {}", self.wrap_enabled);
+        eprintln!("========================================");
 
         let available_width = known_dimensions.width;
 
@@ -304,7 +307,7 @@ impl RichTextLabel {
         // but we already have a wrapped layout, keep the existing layout.
         // This handles Taffy calling measure multiple times with different constraints.
         let needs_reshape = if self.wrap_enabled && max_width.is_none() && self.cached_layout.borrow().is_some() {
-            println!("[RichTextLabel] Wrapping enabled, no width constraint, keeping existing wrapped layout");
+            eprintln!("[RichTextLabel::measure_with_engine] Wrapping enabled, no width constraint, keeping existing wrapped layout");
             false  // Keep existing wrapped layout
         } else {
             self.cached_layout.borrow().is_none()
@@ -312,7 +315,7 @@ impl RichTextLabel {
         };
 
         if needs_reshape {
-            println!("[RichTextLabel] Creating layout with max_width: {:?}", max_width);
+            eprintln!("[RichTextLabel::measure_with_engine] Creating layout with max_width: {:?}", max_width);
 
             let wrap = if self.wrap_enabled {
                 cosmic_text::Wrap::Word
@@ -327,7 +330,7 @@ impl RichTextLabel {
                 wrap,
             );
 
-            println!("[RichTextLabel] Layout created, size: {:?}", layout.size());
+            eprintln!("[RichTextLabel::measure_with_engine] Layout created, size: {:?}", layout.size());
 
             // Store the layout in the cached RefCell
             *self.cached_layout.borrow_mut() = Some(layout);
@@ -336,7 +339,9 @@ impl RichTextLabel {
 
         // Update scroll metadata after layout is created/updated
         // This is needed for scrollbar visibility calculation in update()
+        eprintln!("[RichTextLabel::measure_with_engine] Checking for cached layout...");
         if let Some(layout) = self.cached_layout.borrow().as_ref() {
+            eprintln!("[RichTextLabel::measure_with_engine] Layout exists, calculating total_lines");
             // Count VISUAL WRAPPED LINES by dividing total layout height by line height
             // line_i in LayoutRun refers to LOGICAL lines (buffer.lines), not visual wrapped lines!
             let line_height = self.base_text_style.line_height_pixels() as f64;
@@ -345,6 +350,12 @@ impl RichTextLabel {
             } else {
                 0
             };
+
+            eprintln!("[RichTextLabel::measure_with_engine] *** TOTAL_LINES CALCULATION ***");
+            eprintln!("  layout.size().height = {}", layout.size().height);
+            eprintln!("  line_height = {}", line_height);
+            eprintln!("  total_lines = {} / {} = {}", layout.size().height, line_height, total_lines);
+            eprintln!("  (before unsafe mutation)");
 
             let max_line_width = layout
                 .buffer()
@@ -363,8 +374,11 @@ impl RichTextLabel {
                 (*this).max_line_width = max_line_width;
             }
 
-            println!("[RichTextLabel] Updated scroll metadata: total_lines={}, max_line_width={}",
-                     total_lines, max_line_width);
+            eprintln!("[RichTextLabel::measure_with_engine] *** AFTER UNSAFE MUTATION ***");
+            eprintln!("  self.total_lines = {}", self.total_lines);
+            eprintln!("  self.max_line_width = {}", self.max_line_width);
+        } else {
+            eprintln!("[RichTextLabel::measure_with_engine] WARNING: No cached layout found! total_lines will remain {}", self.total_lines);
         }
 
         // Get the size from the cached layout
@@ -387,7 +401,8 @@ impl RichTextLabel {
             )
         };
 
-        println!("[RichTextLabel] measure_with_engine returning: {:?}", result);
+        eprintln!("[RichTextLabel::measure_with_engine] Returning size: {:?}", result);
+        eprintln!("========================================\n");
         result
     }
 
@@ -432,6 +447,8 @@ impl RichTextLabel {
                 0
             };
 
+            println!("[RichTextLabel] total_lines updated to: {}", self.total_lines);
+
             self.max_line_width = layout
                 .buffer()
                 .layout_runs()
@@ -447,7 +464,9 @@ impl RichTextLabel {
 
     /// Update scrollbars based on content size (overflow:auto)
     fn update_scrollbars(&mut self) {
+        eprintln!("[RichTextLabel::update_scrollbars] CALLED");
         if !self.show_scrollbars {
+            eprintln!("  Scrollbars disabled, returning early");
             self.vscrollbar = None;
             self.hscrollbar = None;
             return;
@@ -457,13 +476,13 @@ impl RichTextLabel {
         let needs_vscroll = self.total_lines > visible_lines;
         let needs_hscroll = !self.wrap_enabled && self.max_line_width > self.viewport_width;
 
-        println!("[RichTextLabel] update_scrollbars:");
-        println!("  total_lines: {}", self.total_lines);
-        println!("  visible_lines: {}", visible_lines);
-        println!("  needs_vscroll: {} ({} > {})", needs_vscroll, self.total_lines, visible_lines);
-        println!("  max_line_width: {}", self.max_line_width);
-        println!("  viewport_width: {}", self.viewport_width);
-        println!("  needs_hscroll: {}", needs_hscroll);
+        eprintln!("[RichTextLabel::update_scrollbars] *** SCROLLBAR CALCULATION ***");
+        eprintln!("  total_lines: {}", self.total_lines);
+        eprintln!("  visible_lines: {}", visible_lines);
+        eprintln!("  needs_vscroll: {} ({} > {})", needs_vscroll, self.total_lines, visible_lines);
+        eprintln!("  max_line_width: {}", self.max_line_width);
+        eprintln!("  viewport_width: {}", self.viewport_width);
+        eprintln!("  needs_hscroll: {}", needs_hscroll);
 
         // Create or destroy vertical scrollbar
         if needs_vscroll {
@@ -651,7 +670,7 @@ impl RichTextLabel {
                         let x_start = text_origin.x + glyph.x as f64;
                         let x_end = x_start + glyph.w as f64;
 
-                        println!("  Drawing line from ({}, {}) to ({}, {})", x_start, y, x_end, y);
+                        //println!("  Drawing line from ({}, {}) to ({}, {})", x_start, y, x_end, y);
 
                         ctx.draw_line(
                             Point::new(x_start, y),
@@ -786,12 +805,17 @@ impl Widget for RichTextLabel {
         true
     }
 
+    fn needs_continuous_updates(&self) -> bool {
+        false  // Only update when bounds change (via set_bounds)
+    }
+
     fn update(&mut self, frame_info: &FrameInfo) {
-        println!("\n========================================");
-        println!("[RichTextLabel] update called");
-        println!("  bounds: {:?}", self.bounds);
-        println!("  total_lines (before update_scrollbars): {}", self.total_lines);
-        println!("  max_line_width (before update_scrollbars): {}", self.max_line_width);
+        eprintln!("\n========================================");
+        eprintln!("[RichTextLabel::update] CALLED");
+        eprintln!("  bounds: {:?}", self.bounds);
+        eprintln!("  total_lines (before update_scrollbars): {}", self.total_lines);
+        eprintln!("  max_line_width (before update_scrollbars): {}", self.max_line_width);
+        eprintln!("  cached_layout exists: {}", self.cached_layout.borrow().is_some());
 
         // Update viewport dimensions
         let vscroll_w = if self.vscrollbar.is_some() {
@@ -827,11 +851,22 @@ impl Widget for RichTextLabel {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
-        println!("[RichTextLabel] paint called, bounds: {:?}", self.bounds);
-        println!("[RichTextLabel] has cached layout: {}", self.cached_layout.borrow().is_some());
+        eprintln!("[RichTextLabel::paint] CALLED");
+        eprintln!("  bounds: {:?}", self.bounds);
+        eprintln!("  has cached layout: {}", self.cached_layout.borrow().is_some());
+        eprintln!("  *** CURRENT total_lines = {} ***", self.total_lines);
+        eprintln!("  *** CURRENT max_line_width = {} ***", self.max_line_width);
+        eprintln!("  viewport: {}x{}", self.viewport_width, self.viewport_height);
+
+        if let Some(layout) = self.cached_layout.borrow().as_ref() {
+            eprintln!("  cached layout.size(): {:?}", layout.size());
+            eprintln!("  line_height: {}", self.base_text_style.line_height_pixels());
+            let expected_total_lines = (layout.size().height / self.base_text_style.line_height_pixels() as f64).ceil() as u32;
+            eprintln!("  *** EXPECTED total_lines (recalculated): {} ***", expected_total_lines);
+        }
 
         // Draw background
-        if let Some(bg) = self.bg_color {
+         if let Some(bg) = self.bg_color {
             ctx.draw_rect(self.bounds, bg);
         }
 
@@ -858,11 +893,21 @@ impl Widget for RichTextLabel {
             ),
         );
 
-        // Push clip rect for content area
-        ctx.push_clip(content_rect);
+        // Calculate line height first (needed for clip rect adjustment)
+        let line_height = self.base_text_style.line_height_pixels() as f64;
+
+        // Extend clip rect by one line_height to avoid cutting off partial last line
+        // due to floating point rounding errors (e.g., 768px / 16.8px = 45.71 lines)
+        let extended_clip = Rect::new(
+            content_rect.origin,
+            Size::new(
+                content_rect.size.width,
+                content_rect.size.height + line_height,
+            ),
+        );
+        ctx.push_clip(extended_clip);
 
         // Calculate text origin with scroll offsets
-        let line_height = self.base_text_style.line_height_pixels() as f64;
         let text_origin = Point::new(
             content_rect.origin.x + self.h_scroll_offset,
             content_rect.origin.y - (self.visible_start_line as f64 * line_height),
