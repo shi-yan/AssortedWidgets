@@ -19,6 +19,7 @@ mod switch;
 mod spinner;
 pub mod rich_text_label;
 pub mod text_input;
+pub mod text_area;
 
 pub use label::{Label, WrapMode, Padding};
 pub use button::{Button, ButtonContent, ButtonState, ButtonStyle};
@@ -32,3 +33,4 @@ pub use switch::{Switch, SwitchState};
 pub use spinner::{Spinner, SpinnerMode};
 pub use rich_text_label::RichTextLabel;
 pub use text_input::{TextInput, InputState, InputStyle};
+pub use text_area::{TextArea, TextAreaStyle};
