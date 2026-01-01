@@ -215,6 +215,30 @@ impl Path {
 
         builder.build()
     }
+
+    /// Translate the path by the given offset
+    ///
+    /// Returns a new Path with all points offset by the given amount.
+    pub fn translate(&self, offset: crate::types::Vector) -> Self {
+        let commands = self.commands.iter().map(|cmd| {
+            match cmd {
+                PathCommand::MoveTo(p) => PathCommand::MoveTo(Point::new(p.x + offset.x, p.y + offset.y)),
+                PathCommand::LineTo(p) => PathCommand::LineTo(Point::new(p.x + offset.x, p.y + offset.y)),
+                PathCommand::QuadraticTo { control, to } => PathCommand::QuadraticTo {
+                    control: Point::new(control.x + offset.x, control.y + offset.y),
+                    to: Point::new(to.x + offset.x, to.y + offset.y),
+                },
+                PathCommand::CubicTo { control1, control2, to } => PathCommand::CubicTo {
+                    control1: Point::new(control1.x + offset.x, control1.y + offset.y),
+                    control2: Point::new(control2.x + offset.x, control2.y + offset.y),
+                    to: Point::new(to.x + offset.x, to.y + offset.y),
+                },
+                PathCommand::Close => PathCommand::Close,
+            }
+        }).collect();
+
+        Path { commands }
+    }
 }
 
 impl Default for Path {

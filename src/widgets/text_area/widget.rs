@@ -1688,7 +1688,7 @@ impl Widget for TextArea {
         }
     }
 
-    fn dispatch_wheel_event(&mut self, event: &mut WheelEvent) -> EventResponse {
+    fn on_wheel(&mut self, event: &mut WheelEvent) -> EventResponse {
         // Convert wheel delta to line count for vertical scrolling
         let line_height = self.font_size as f64 * 1.2;
         if line_height <= 0.0 {

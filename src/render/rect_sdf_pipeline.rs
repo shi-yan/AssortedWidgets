@@ -395,10 +395,10 @@ impl RectSdfPipeline {
             return 0;
         }
 
-        println!(
-            "[RectSdfPipeline::render] Rendering {:?} rect instances",
-            instances
-        );
+        //println!(
+        //    "[RectSdfPipeline::render] Rendering {:?} rect instances",
+        //    instances
+        //);
 
         // Upload instance data to the pre-allocated buffer
         queue.write_buffer(

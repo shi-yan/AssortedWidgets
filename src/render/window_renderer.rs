@@ -372,10 +372,10 @@ impl WindowRenderer {
 
         let physical_width = logical_width * scale_factor;
         let physical_height = logical_height * scale_factor;
-        println!(
+        /*println!(
             "[WindowRenderer] Updated projection matrix: logical = {:.0}x{:.0}, scale = {:.1}x, physical = {:.0}x{:.0}",
             logical_width, logical_height, scale_factor, physical_width, physical_height
-        );
+        );*/
     }
 
     /// Get the current surface texture for rendering
@@ -394,7 +394,7 @@ impl WindowRenderer {
             return;
         }
 
-        println!("Rendering {} rect instances", instances.len());
+        //println!("Rendering {} rect instances", instances.len());
 
         // Assign depth values using LayeredBoundsTree (same as SDF rects)
         let instances_with_depth: Vec<RectInstance> = instances
@@ -407,7 +407,7 @@ impl WindowRenderer {
             })
             .collect();
 
-        println!("Rect instances with depth: {:?}", instances_with_depth);
+        //println!("Rect instances with depth: {:?}", instances_with_depth);
 
         let device = self.render_context.device();
 
@@ -583,12 +583,12 @@ impl WindowRenderer {
             layered_bounds_tree,
         );
 
-        if instances_rendered > 0 {
+      /*   if instances_rendered > 0 {
             println!(
                 "[WindowRenderer] Rendered {} shadow instances",
                 instances_rendered
             );
-        }
+        }*/
     }
 
     /// Render SDF rectangles (rounded rects with borders) using the SDF pipeline
@@ -602,10 +602,10 @@ impl WindowRenderer {
             return;
         }
 
-        println!(
+      /*   println!(
             "[WindowRenderer] Rendering SDF rects from {} commands",
             batcher.commands().len()
-        );
+        );*/
 
         // Count how many rect commands we have (estimate for buffer sizing)
         let rect_count = batcher
@@ -647,12 +647,12 @@ impl WindowRenderer {
             layered_bounds_tree,
         );
 
-        if instances_rendered > 0 {
+       /*  if instances_rendered > 0 {
             println!(
                 "[WindowRenderer] Rendered {} SDF rect instances",
                 instances_rendered
             );
-        }
+        }*/
     }
 
     /// Render paths (lines, bezier curves) using the path pipeline

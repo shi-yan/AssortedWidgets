@@ -1,5 +1,5 @@
 use assorted_widgets::Application;
-use assorted_widgets::widgets::{Label, WrapMode, Padding};
+use assorted_widgets::widgets::{Label, WrapMode, Padding, ScrollableContainer, ScrollMode};
 use assorted_widgets::paint::Color;
 use assorted_widgets::text::TextAlign;
 
@@ -15,7 +15,8 @@ fn main() {
             println!();
 
             // Create main demo window with Qt-style implicit root container
-            app.spawn_window("Label Widget Demo", 850.0, 1100.0, |window| {
+            // Window is now shorter (700px instead of 1100px) to demonstrate scrolling
+            app.spawn_window("Label Widget Demo", 850.0, 700.0, |window| {
                 println!("Window created!");
                 println!();
 
@@ -33,8 +34,48 @@ fn main() {
                         top: taffy::LengthPercentage::length(20.0),
                         bottom: taffy::LengthPercentage::length(20.0),
                     },
+                    size: taffy::Size {
+                        width: taffy::Dimension::length(850.0),
+                        height: taffy::Dimension::length(700.0),
+                    },
                     ..Default::default()
                 });
+
+                // ================================================================
+                // Create ScrollableContainer to hold all demo labels
+                // ================================================================
+                let gui_handle = window.get_handle();
+
+                // Create scrollable container with vertical scrolling
+                let (scroll_container, scroll_children) = ScrollableContainer::new(
+                    ScrollMode::Vertical,
+                    &gui_handle
+                );
+
+                // Add scrollable container as composite widget (fills entire window)
+                let scroll_style = taffy::Style {
+                    display: taffy::Display::Flex,
+                    size: taffy::Size {
+                        width: taffy::Dimension::percent(1.0),
+                        height: taffy::Dimension::percent(1.0),
+                    },
+                    ..Default::default()
+                };
+
+                let (scroll_id, _child_ids) = window.add_composite(
+                    Box::new(scroll_container),
+                    scroll_style,
+                    None, // Add to root
+                    scroll_children
+                ).expect("Failed to add ScrollableContainer");
+
+                // Get content container ID where we'll add all the labels
+                let content_id = window.scrollable_container_content_id(scroll_id)
+                    .expect("Failed to get content container ID");
+
+                // Configure content container layout (same gap/padding as before)
+                // Note: The content container uses the layout we configured in ScrollableContainer::new()
+                // which is a Column flexbox. The gap and padding are now on the root container.
 
                 // ================================================================
                 // Example 1: Single Line with Ellipsis
@@ -53,7 +94,7 @@ fn main() {
                     ..Default::default()
                 };
 
-                window.add_to_root(Box::new(label1), label_style1)
+                window.add_child(Box::new(label1), label_style1, content_id)
                     .expect("Failed to add label 1");
 
                 // ================================================================
@@ -73,7 +114,7 @@ fn main() {
                     ..Default::default()
                 };
 
-                window.add_to_root(Box::new(label2), label_style2)
+                window.add_child(Box::new(label2), label_style2, content_id)
                     .expect("Failed to add label 2");
 
                 // ================================================================
@@ -93,7 +134,7 @@ fn main() {
                     ..Default::default()
                 };
 
-                window.add_to_root(Box::new(label3), label_style3)
+                window.add_child(Box::new(label3), label_style3, content_id)
                     .expect("Failed to add label 3");
 
                 // ================================================================
@@ -113,7 +154,7 @@ fn main() {
                     ..Default::default()
                 };
 
-                window.add_to_root(Box::new(label4), label_style4)
+                window.add_child(Box::new(label4), label_style4, content_id)
                     .expect("Failed to add label 4");
 
                 // ================================================================
@@ -135,7 +176,7 @@ fn main() {
                     ..Default::default()
                 };
 
-                window.add_to_root(Box::new(label5a), label_style5a)
+                window.add_child(Box::new(label5a), label_style5a, content_id)
                     .expect("Failed to add label 5a");
 
                 // Center aligned
@@ -153,7 +194,7 @@ fn main() {
                     ..Default::default()
                 };
 
-                window.add_to_root(Box::new(label5b), label_style5b)
+                window.add_child(Box::new(label5b), label_style5b, content_id)
                     .expect("Failed to add label 5b");
 
                 // Right aligned
@@ -171,7 +212,7 @@ fn main() {
                     ..Default::default()
                 };
 
-                window.add_to_root(Box::new(label5c), label_style5c)
+                window.add_child(Box::new(label5c), label_style5c, content_id)
                     .expect("Failed to add label 5c");
 
                 // ================================================================
@@ -182,7 +223,7 @@ fn main() {
                     .text_color(Color::rgb(1.0, 1.0, 1.0))
                     .padding(Padding::uniform(4.0));
 
-                window.add_to_root(Box::new(label6a), taffy::Style::default())
+                window.add_child(Box::new(label6a), taffy::Style::default(), content_id)
                     .expect("Failed to add label 6a");
 
                 let label6b = Label::new("6b. MEDIUM PADDING (12px): Comfortable spacing")
@@ -190,7 +231,7 @@ fn main() {
                     .text_color(Color::rgb(1.0, 1.0, 1.0))
                     .padding(Padding::uniform(12.0));
 
-                window.add_to_root(Box::new(label6b), taffy::Style::default())
+                window.add_child(Box::new(label6b), taffy::Style::default(), content_id)
                     .expect("Failed to add label 6b");
 
                 let label6c = Label::new("6c. LARGE PADDING (24px): Spacious layout")
@@ -198,7 +239,7 @@ fn main() {
                     .text_color(Color::rgb(1.0, 1.0, 1.0))
                     .padding(Padding::uniform(24.0));
 
-                window.add_to_root(Box::new(label6c), taffy::Style::default())
+                window.add_child(Box::new(label6c), taffy::Style::default(), content_id)
                     .expect("Failed to add label 6c");
 
                 let label6d = Label::new("6d. ASYMMETRIC PADDING: Left=40, Right=8, Top=20, Bottom=6")
@@ -206,7 +247,7 @@ fn main() {
                     .text_color(Color::rgb(1.0, 1.0, 1.0))
                     .padding(Padding::new(20.0, 8.0, 6.0, 40.0));
 
-                window.add_to_root(Box::new(label6d), taffy::Style::default())
+                window.add_child(Box::new(label6d), taffy::Style::default(), content_id)
                     .expect("Failed to add label 6d");
 
                 // ================================================================
@@ -218,7 +259,7 @@ fn main() {
                     .text_color(Color::rgb(1.0, 1.0, 1.0))
                     .padding(Padding::uniform(8.0));
 
-                window.add_to_root(Box::new(label7a), taffy::Style::default())
+                window.add_child(Box::new(label7a), taffy::Style::default(), content_id)
                     .expect("Failed to add label 7a");
 
                 let label7b = Label::new("7b. MEDIUM TEXT (16pt)")
@@ -227,7 +268,7 @@ fn main() {
                     .text_color(Color::rgb(1.0, 1.0, 1.0))
                     .padding(Padding::uniform(10.0));
 
-                window.add_to_root(Box::new(label7b), taffy::Style::default())
+                window.add_child(Box::new(label7b), taffy::Style::default(), content_id)
                     .expect("Failed to add label 7b");
 
                 let label7c = Label::new("7c. LARGE TEXT (24pt)")
@@ -236,7 +277,7 @@ fn main() {
                     .text_color(Color::rgb(1.0, 1.0, 1.0))
                     .padding(Padding::uniform(16.0));
 
-                window.add_to_root(Box::new(label7c), taffy::Style::default())
+                window.add_child(Box::new(label7c), taffy::Style::default(), content_id)
                     .expect("Failed to add label 7c");
 
                 // ================================================================
@@ -248,7 +289,7 @@ fn main() {
                     .font_size(18.0)
                     .padding(Padding::uniform(12.0));
 
-                window.add_to_root(Box::new(label8), taffy::Style::default())
+                window.add_child(Box::new(label8), taffy::Style::default(), content_id)
                     .expect("Failed to add label 8");
 
                 println!("Label Widget Demo - Test Cases");

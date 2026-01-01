@@ -511,10 +511,10 @@ impl Widget for ScrollBar {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
-        eprintln!("[ScrollBar::paint] CALLED");
-        eprintln!("  bounds: {:?}", self.bounds);
-        eprintln!("  orientation: {:?}", self.orientation);
-        eprintln!("  value: {}, min: {}, max: {}, page_size: {}", self.value, self.min, self.max, self.page_size);
+      //  eprintln!("[ScrollBar::paint] CALLED");
+      //  eprintln!("  bounds: {:?}", self.bounds);
+      //  eprintln!("  orientation: {:?}", self.orientation);
+      //  eprintln!("  value: {}, min: {}, max: {}, page_size: {}", self.value, self.min, self.max, self.page_size);
 
         // Draw track (background)
         if self.track_color.a > 0.0 {
@@ -531,7 +531,7 @@ impl Widget for ScrollBar {
 
         // Calculate slider rect
         let slider_rect = self.calculate_slider_rect();
-        eprintln!("  slider_rect: {:?}", slider_rect);
+      //  eprintln!("  slider_rect: {:?}", slider_rect);
 
         // Draw slider (capsule shape)
         // IMPORTANT: Corner radius must not exceed half the smaller dimension
@@ -545,8 +545,8 @@ impl Widget for ScrollBar {
         };
 
         let slider_color = self.get_slider_color();
-        eprintln!("  slider_color: {:?}, corner_radius: {}", slider_color, slider_corner_radius);
-        eprintln!("  Drawing slider rect...");
+     //   eprintln!("  slider_color: {:?}, corner_radius: {}", slider_color, slider_corner_radius);
+      //  eprintln!("  Drawing slider rect...");
 
         ctx.draw_styled_rect(
             slider_rect,
@@ -558,7 +558,7 @@ impl Widget for ScrollBar {
             },
         );
 
-        eprintln!("[ScrollBar::paint] DONE");
+       // eprintln!("[ScrollBar::paint] DONE");
     }
 
     fn needs_measure(&self) -> bool {

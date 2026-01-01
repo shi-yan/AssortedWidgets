@@ -88,6 +88,9 @@ pub struct Window {
     /// Mouse capture for drag operations
     mouse_capture: MouseCapture,
 
+    /// Last known mouse position (for wheel event hit testing)
+    last_mouse_position: Point,
+
     /// Event queue for posting events back to application (cross-window drag, etc.)
     event_queue: Arc<Mutex<VecDeque<(WindowId, GuiEvent)>>>,
 
@@ -164,6 +167,7 @@ impl Window {
             hit_tester: HitTester::new(),
             focus_manager: FocusManager::new(),
             mouse_capture: MouseCapture::new(),
+            last_mouse_position: Point::new(0.0, 0.0),
             event_queue,
             hovered_widget: None,
             current_cursor: crate::types::CursorType::Default,
@@ -418,6 +422,108 @@ impl Window {
         Ok(widget_id)
     }
 
+    /// Add a composite widget (widget that contains other widgets)
+    ///
+    /// This is used for widgets like ScrollableContainer that create child widgets
+    /// (content container, scrollbars) as part of their initialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `widget` - The main composite widget
+    /// * `style` - Layout style for the main widget
+    /// * `parent_id` - Optional parent ID (None = add to root container)
+    /// * `children` - Vector of (widget, style, parent_override) tuples
+    ///   - widget: Child widget to add
+    ///   - style: Layout style for the child
+    ///   - parent_override: If Some, use this as parent instead of main widget
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (main_widget_id, Vec<child_widget_ids>)
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let gui_handle = window.gui_handle();
+    /// let (scroll_container, children) = ScrollableContainer::new(ScrollMode::Vertical, &gui_handle);
+    /// let (scroll_id, child_ids) = window.add_composite(
+    ///     Box::new(scroll_container),
+    ///     scroll_style,
+    ///     None,
+    ///     children
+    /// )?;
+    /// ```
+    pub fn add_composite(
+        &mut self,
+        widget: Box<dyn Widget>,
+        style: crate::layout::Style,
+        parent_id: Option<WidgetId>,
+        children: Vec<(Box<dyn Widget>, crate::layout::Style, Option<WidgetId>)>,
+    ) -> Result<(WidgetId, Vec<WidgetId>), String> {
+        // Add main widget
+        let widget_id = if let Some(parent) = parent_id {
+            self.add_child(widget, style, parent)?
+        } else {
+            self.add_to_root(widget, style)?
+        };
+
+        // Add children (with parent = widget_id or override) and collect their IDs
+        let mut child_ids = Vec::new();
+        for (child, child_style, parent_override) in children {
+            let parent = parent_override.unwrap_or(widget_id);
+            let child_id = self.add_child(child, child_style, parent)?;
+            child_ids.push(child_id);
+        }
+
+        // For ScrollableContainer, update the content_container_id with the actual ID
+        if !child_ids.is_empty() {
+            if let Some(scroll_container) = self.widgets.get_mut(widget_id) {
+                use crate::widgets::ScrollableContainer;
+                if let Some(sc) = scroll_container.as_any_mut().downcast_mut::<ScrollableContainer>() {
+                    // First child is always the content container
+                    sc.set_content_container_id(child_ids[0]);
+                }
+            }
+        }
+
+        Ok((widget_id, child_ids))
+    }
+
+    /// Get the content container ID for a ScrollableContainer
+    ///
+    /// This is a convenience method for getting the ID of the content container
+    /// inside a ScrollableContainer, where user widgets should be added.
+    ///
+    /// # Arguments
+    ///
+    /// * `container_id` - The ID of the ScrollableContainer widget
+    ///
+    /// # Returns
+    ///
+    /// The widget ID of the content container, or an error if:
+    /// - The widget doesn't exist
+    /// - The widget is not a ScrollableContainer
+    /// - The content container is not initialized
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let content_id = window.scrollable_container_content_id(scroll_id)?;
+    /// window.add_child(Box::new(Label::new("Item")), label_style, content_id)?;
+    /// ```
+    pub fn scrollable_container_content_id(&self, container_id: WidgetId) -> Result<WidgetId, String> {
+        use crate::widgets::ScrollableContainer;
+
+        let widget = self.widgets.get(container_id)
+            .ok_or("Widget not found")?;
+
+        let container = widget.as_any().downcast_ref::<ScrollableContainer>()
+            .ok_or("Widget is not a ScrollableContainer")?;
+
+        container.content_container_id()
+            .ok_or("Content container not initialized".to_string())
+    }
+
     /// Get immutable reference to a widget by ID
     ///
     /// # Arguments
@@ -622,6 +728,131 @@ impl Window {
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
+    // ========================================
+    // Hierarchical Hit Testing
+    // ========================================
+
+    /// Recursively hit test through the widget tree
+    ///
+    /// This implements hierarchical hit testing that:
+    /// - Walks the widget tree (respects parent-child relationships)
+    /// - Applies coordinate transformations at each level (e.g., scroll offsets)
+    /// - Tests children in reverse order (topmost first, respecting z-order)
+    /// - Automatically clips to widget bounds (no manual clipping needed)
+    /// - Returns None if point is outside widget bounds (early exit)
+    ///
+    /// # Algorithm
+    ///
+    /// 1. **Bounds check**: If point not in widget bounds, return None (early exit + automatic clipping)
+    /// 2. **Transform**: Convert point to children's coordinate space via `transform_point_for_children()`
+    /// 3. **Test children**: Iterate children in reverse order (topmost first), recurse on each
+    /// 4. **Return**: First child hit, OR self if interactive, OR None if non-interactive
+    ///
+    /// # Coordinate Transformation
+    ///
+    /// Widgets can override `transform_point_for_children()` to implement:
+    /// - **ScrollableContainer**: Adds scroll offset to point (children are in "content space")
+    /// - **TransformContainer**: Applies arbitrary 2D transforms (future feature)
+    /// - **Default**: Identity transform (no transformation)
+    fn hit_test_recursive(&self, point: Point, widget_id: WidgetId) -> Option<WidgetId> {
+        // Step 1: Get widget and check bounds
+        let widget = self.widgets.get(widget_id)?;
+
+        if !widget.bounds().contains(point) {
+            return None; // Early exit: point outside widget bounds (automatic clipping!)
+        }
+
+        // Step 2: Transform point for children (e.g., scroll offset)
+        let child_point = widget.transform_point_for_children(point);
+
+        // Step 3: Test children in reverse order (topmost first, respects z-order)
+        if let Some(children) = self.widget_tree.children(widget_id) {
+            for &child_id in children.iter().rev() {
+                if let Some(hit) = self.hit_test_recursive(child_point, child_id) {
+                    return Some(hit); // Child hit!
+                }
+            }
+        }
+
+        // Step 4: No child hit - return this widget if interactive, or None if non-interactive
+        if widget.is_interactive() {
+            Some(widget_id)
+        } else {
+            None // Non-interactive containers are transparent to hits
+        }
+    }
+
+    /// Find the topmost interactive widget at the given position
+    ///
+    /// This is the public API for hit testing. It starts the recursive hit test
+    /// from the root of the widget tree.
+    ///
+    /// # Benefits over Flat Hit Testing
+    ///
+    /// - ✅ **No re-registration**: Scroll offset is just a field, no hit tester updates needed
+    /// - ✅ **Automatic clipping**: Container bounds implicitly clip children (step 1 of recursion)
+    /// - ✅ **Tree pruning**: O(depth) instead of O(n), skip entire branches outside bounds
+    /// - ✅ **Correct coordinates**: Children use layout coords, transforms applied at container level
+    /// - ✅ **Simpler**: No offset/clip calculations in event handling
+    ///
+    /// # Returns
+    ///
+    /// - `Some(widget_id)`: The topmost interactive widget at the point
+    /// - `None`: No interactive widget at the point
+    pub fn hit_test(&self, point: Point) -> Option<WidgetId> {
+        if let Some(root) = self.widget_tree.root() {
+            self.hit_test_recursive(point, root.id)
+        } else {
+            None
+        }
+    }
+
+    // ========================================
+    // Hierarchical Painting
+    // ========================================
+
+    /// Recursively paint widget tree with before/after hooks
+    ///
+    /// This implements hierarchical painting that:
+    /// - Calls `paint()` on each widget
+    /// - Calls `before_paint_children()` before painting children
+    /// - Recursively paints all children
+    /// - Calls `after_paint_children()` after painting children
+    ///
+    /// This allows container widgets (like ScrollableContainer) to set up
+    /// rendering state (clip rects, offsets) that applies to all descendants,
+    /// then clean up afterwards.
+    ///
+    /// # Algorithm
+    ///
+    /// 1. Paint the widget itself via `widget.paint(ctx)`
+    /// 2. Call `widget.before_paint_children(ctx)` to set up state
+    /// 3. Recursively paint each child
+    /// 4. Call `widget.after_paint_children(ctx)` to clean up state
+    fn paint_widget_recursive(&self, widget_id: WidgetId, paint_ctx: &mut PaintContext) {
+        // Get widget
+        let widget = match self.widgets.get(widget_id) {
+            Some(w) => w,
+            None => return,
+        };
+
+        // Step 1: Paint the widget itself
+        widget.paint(paint_ctx);
+
+        // Step 2: Before painting children (push transforms, clips, etc.)
+        widget.before_paint_children(paint_ctx);
+
+        // Step 3: Recursively paint all children
+        if let Some(children) = self.widget_tree.children(widget_id) {
+            for &child_id in &children {
+                self.paint_widget_recursive(child_id, paint_ctx);
+            }
+        }
+
+        // Step 4: After painting children (pop transforms, clips, etc.)
+        widget.after_paint_children(paint_ctx);
+    }
+
     /// Dispatch an input event to elements
     ///
     /// Phase 2.2 implementation with focus management and mouse capture:
@@ -638,13 +869,16 @@ impl Window {
                 println!("[DISPATCH] Window {:?} received MouseDown at ({:.1}, {:.1})",
                          self.id, position.x, position.y);
 
+                // Update last known mouse position
+                self.last_mouse_position = position;
+
                 // Check if mouse is captured
                 let target = if let Some(captured_id) = self.mouse_capture.captured_id() {
                     println!("[HIT TEST] Mouse captured by widget {:?}", captured_id);
                     Some(captured_id)
                 } else {
-                    // Hit test using z-order: find topmost element at this position
-                    let hit = self.hit_tester.hit_test(position);
+                    // Hierarchical hit test: walk widget tree to find topmost interactive element
+                    let hit = self.hit_test(position);
                     println!("[HIT TEST] Hit test at ({:.1}, {:.1}) -> {:?}",
                              position.x, position.y, hit);
                     hit
@@ -738,7 +972,7 @@ impl Window {
                 let target = if let Some(captured_id) = self.mouse_capture.captured_id() {
                     Some(captured_id)
                 } else {
-                    self.hit_tester.hit_test(position)
+                    self.hit_test(position)
                 };
 
                 if let Some(widget_id) = target {
@@ -797,11 +1031,15 @@ impl Window {
             InputEventEnum::MouseMove(mouse_event) => {
                 let position = mouse_event.position;
 
+                // Update last known mouse position
+                self.last_mouse_position = position;
+                // println!("[MOUSE] Position updated: ({:.1}, {:.1})", position.x, position.y);
+
                 // Check if mouse is captured
                 let target = if let Some(captured_id) = self.mouse_capture.captured_id() {
                     Some(captured_id)
                 } else {
-                    self.hit_tester.hit_test(position)
+                    self.hit_test(position)
                 };
 
                 // Track hover changes for mouse enter/leave events
@@ -935,18 +1173,38 @@ impl Window {
             }
 
             InputEventEnum::Wheel(wheel_event) => {
-                // Use same hit test as mouse events
-                let position = Point::new(0.0, 0.0); // TODO: track mouse position
-                let target = self.hit_tester.hit_test(position);
+                // Use last known mouse position for hit testing
+                let position = self.last_mouse_position;
+                println!("[WHEEL] Event received, delta: ({:.1}, {:.1}), mouse at: ({:.1}, {:.1})",
+                         wheel_event.delta.x, wheel_event.delta.y, position.x, position.y);
 
-                if let Some(widget_id) = target {
+                let mut target = self.hit_test(position);
+                println!("[WHEEL] Hit test result: {:?}", target);
+
+                // Event bubbling: try widget, then parent, then grandparent, etc.
+                let mut bubble_count = 0;
+                while let Some(widget_id) = target {
+                    bubble_count += 1;
+                    println!("[WHEEL] Bubble #{}: trying widget {:?}", bubble_count, widget_id);
+
                     if let Some(element) = self.widgets.get_mut(widget_id) {
-                        let response = element.dispatch_wheel_event(&mut wheel_event.clone());
+                        let response = element.on_wheel(&mut wheel_event.clone());
+                        println!("[WHEEL]   Widget {:?} response: {:?}", widget_id, response);
 
                         if response == EventResponse::Handled {
-                            println!("[Window {:?}] Element {:?} handled wheel event", self.id, widget_id);
+                            println!("[WHEEL] ✓ Widget {:?} handled wheel event", widget_id);
+                            break; // Event handled, stop bubbling
                         }
                     }
+
+                    // Event not handled, try parent
+                    let parent = self.widget_tree.find_parent(widget_id);
+                    println!("[WHEEL]   Parent of {:?}: {:?}", widget_id, parent);
+                    target = parent;
+                }
+
+                if bubble_count == 0 {
+                    println!("[WHEEL] ✗ No widget at mouse position");
                 }
             }
 
@@ -1204,6 +1462,89 @@ impl Window {
                 }
             }
 
+            // Update ScrollableContainer content sizes by measuring children bounds
+            let widget_ids: Vec<_> = self.widgets.widget_ids().collect();
+            for widget_id in widget_ids {
+                if let Some(element) = self.widgets.get(widget_id) {
+                    if let Some(sc) = element.as_any().downcast_ref::<crate::widgets::ScrollableContainer>() {
+                        if let Some(content_id) = sc.content_container_id() {
+                            // Measure bounding box of all children of the content container
+                            if let Some(children) = self.widget_tree.children(content_id) {
+                                let mut min_x = f64::MAX;
+                                let mut min_y = f64::MAX;
+                                let mut max_x = f64::MIN;
+                                let mut max_y = f64::MIN;
+
+                                for &child_id in &children {
+                                    if let Some(child_layout) = self.layout_manager.get_layout(child_id) {
+                                        min_x = min_x.min(child_layout.origin.x);
+                                        min_y = min_y.min(child_layout.origin.y);
+                                        max_x = max_x.max(child_layout.origin.x + child_layout.size.width);
+                                        max_y = max_y.max(child_layout.origin.y + child_layout.size.height);
+                                    }
+                                }
+
+                                // Calculate content size from bounding box
+                                if max_x > min_x && max_y > min_y {
+                                    let content_size = Size::new(max_x - min_x, max_y - min_y);
+
+                                    // Update the ScrollableContainer with actual content size
+                                    if let Some(sc_mut) = self.widgets.get_mut(widget_id) {
+                                        if let Some(sc_mut) = sc_mut.as_any_mut().downcast_mut::<crate::widgets::ScrollableContainer>() {
+                                            sc_mut.update_content_size(content_size);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Update scrollbars for ScrollableContainers
+            let widget_ids: Vec<_> = self.widgets.widget_ids().collect();
+            for widget_id in widget_ids {
+                if let Some(element) = self.widgets.get(widget_id) {
+                    if let Some(sc) = element.as_any().downcast_ref::<crate::widgets::ScrollableContainer>() {
+                        let content_size = sc.content_size();
+                        let viewport_size = sc.viewport_size();
+                        let scroll_offset = sc.scroll_offset();
+                        let vscroll_id = sc.vertical_scrollbar_id();
+                        let hscroll_id = sc.horizontal_scrollbar_id();
+
+                        // Update vertical scrollbar
+                        if let Some(vscroll_id) = vscroll_id {
+                            if let Some(scrollbar) = self.widgets.get_mut(vscroll_id) {
+                                if let Some(sb) = scrollbar.as_any_mut().downcast_mut::<crate::widgets::ScrollBar>() {
+                                    let content_height = content_size.height as i32;
+                                    let viewport_height = viewport_size.height as i32;
+                                    let scroll_range = (content_height - viewport_height).max(0);
+
+                                    sb.set_range(0, scroll_range);
+                                    sb.set_page_size(viewport_height);
+                                    sb.set_value(scroll_offset.y as i32);
+                                }
+                            }
+                        }
+
+                        // Update horizontal scrollbar
+                        if let Some(hscroll_id) = hscroll_id {
+                            if let Some(scrollbar) = self.widgets.get_mut(hscroll_id) {
+                                if let Some(sb) = scrollbar.as_any_mut().downcast_mut::<crate::widgets::ScrollBar>() {
+                                    let content_width = content_size.width as i32;
+                                    let viewport_width = viewport_size.width as i32;
+                                    let scroll_range = (content_width - viewport_width).max(0);
+
+                                    sb.set_range(0, scroll_range);
+                                    sb.set_page_size(viewport_width);
+                                    sb.set_value(scroll_offset.x as i32);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             self.needs_layout = false;
         }
 
@@ -1250,12 +1591,9 @@ impl Window {
 
             let mut paint_ctx = PaintContext::new(self.window_size, bundle);
 
+            // Paint widget tree hierarchically with before/after hooks
             if let Some(root) = self.widget_tree.root() {
-                root.traverse(&mut |widget_id| {
-                    if let Some(element) = self.widgets.get(widget_id) {
-                        element.paint(&mut paint_ctx);
-                    }
-                });
+                self.paint_widget_recursive(root.id, &mut paint_ctx);
             }
 
             // Extract instances before paint_ctx is dropped

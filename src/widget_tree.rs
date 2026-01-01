@@ -57,6 +57,19 @@ impl TreeNode {
         }
         None
     }
+
+    /// Find a node by widget ID (recursively search the tree)
+    pub fn find_node(&self, widget_id: WidgetId) -> Option<&TreeNode> {
+        if self.id == widget_id {
+            return Some(self);
+        }
+        for child in &self.children {
+            if let Some(node) = child.find_node(widget_id) {
+                return Some(node);
+            }
+        }
+        None
+    }
 }
 
 /// The widget tree holds the hierarchical structure of all widgets
@@ -87,5 +100,17 @@ impl WidgetTree {
 
     pub fn find_parent(&self, child_id: WidgetId) -> Option<WidgetId> {
         self.root.as_ref().and_then(|r| r.find_parent(child_id))
+    }
+
+    /// Find a node by widget ID and return a reference to it
+    pub fn find_node(&self, widget_id: WidgetId) -> Option<&TreeNode> {
+        self.root.as_ref().and_then(|r| r.find_node(widget_id))
+    }
+
+    /// Get the children IDs of a widget
+    pub fn children(&self, widget_id: WidgetId) -> Option<Vec<WidgetId>> {
+        self.find_node(widget_id).map(|node| {
+            node.children.iter().map(|child| child.id).collect()
+        })
     }
 }

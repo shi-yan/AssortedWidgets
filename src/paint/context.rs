@@ -89,6 +89,11 @@ pub struct PaintContext<'a> {
     /// The current clip rect is the intersection of all rects on the stack
     clip_stack: Vec<Rect>,
 
+    /// Offset stack for hierarchical coordinate transformation
+    /// The current offset is the sum of all offsets on the stack
+    /// Used by ScrollableContainer and other container widgets to offset child rendering
+    offset_stack: Vec<crate::types::Vector>,
+
     /// Bundled rendering resources (atlas, fonts, queue, etc.)
     bundle: RenderBundle<'a>,
 
@@ -123,6 +128,7 @@ impl<'a> PaintContext<'a> {
             image_commands: Vec::new(),
             window_size,
             clip_stack: Vec::new(),
+            offset_stack: Vec::new(),
             bundle,
             z_order: 0,
             hit_tester: HitTester::new(),
@@ -237,8 +243,48 @@ impl<'a> PaintContext<'a> {
         Some(result)
     }
 
+    /// Push a coordinate offset onto the stack
+    ///
+    /// All subsequent draw calls will be offset by this amount.
+    /// This is used by scrollable containers to offset their children's rendering.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// // ScrollableContainer offsets children by -scroll_offset
+    /// ctx.push_offset(Vector::new(-scroll_x, -scroll_y));
+    /// // Children paint here with automatic offset
+    /// ctx.pop_offset();
+    /// ```
+    pub fn push_offset(&mut self, offset: crate::types::Vector) {
+        self.offset_stack.push(offset);
+    }
+
+    /// Pop the current offset from the stack
+    pub fn pop_offset(&mut self) {
+        self.offset_stack.pop();
+    }
+
+    /// Get the current cumulative offset (sum of all offsets on stack)
+    ///
+    /// Returns Vector::zero() if the offset stack is empty.
+    fn current_offset(&self) -> crate::types::Vector {
+        if self.offset_stack.is_empty() {
+            crate::types::Vector::new(0.0, 0.0)
+        } else {
+            // Sum all offsets on the stack
+            self.offset_stack.iter().fold(
+                crate::types::Vector::new(0.0, 0.0),
+                |acc, v| crate::types::Vector::new(acc.x + v.x, acc.y + v.y)
+            )
+        }
+    }
+
     /// Draw a filled rectangle
     pub fn draw_rect(&mut self, rect: Rect, color: Color) {
+        // Apply current offset
+        let offset = self.current_offset();
+        let rect = rect.translate(euclid::Vector2D::new(offset.x, offset.y));
+
         let instance = RectInstance::new(rect, color);
 
         // Apply clipping if there's a clip rect on the stack
@@ -270,6 +316,10 @@ impl<'a> PaintContext<'a> {
     /// );
     /// ```
     pub fn draw_styled_rect(&mut self, rect: Rect, style: ShapeStyle) {
+        // Apply current offset
+        let offset = self.current_offset();
+        let rect = rect.translate(euclid::Vector2D::new(offset.x, offset.y));
+
         self.sdf_commands.push(DrawCommand::Rect {
             rect,
             style,
@@ -293,6 +343,12 @@ impl<'a> PaintContext<'a> {
     /// );
     /// ```
     pub fn draw_line(&mut self, p1: Point, p2: Point, stroke: crate::paint::Stroke) {
+        // Apply current offset to both points
+        let offset = self.current_offset();
+        let offset_vec = euclid::Vector2D::new(offset.x, offset.y);
+        let p1 = p1 + offset_vec;
+        let p2 = p2 + offset_vec;
+
         self.path_commands.push(DrawCommand::Line {
             p1,
             p2,
@@ -319,6 +375,10 @@ impl<'a> PaintContext<'a> {
     /// ctx.fill_path(triangle, Color::rgb(0.9, 0.4, 0.4));
     /// ```
     pub fn fill_path(&mut self, path: crate::paint::Path, color: Color) {
+        // Apply current offset to path
+        let offset = self.current_offset();
+        let path = path.translate(offset);
+
         self.path_commands.push(DrawCommand::Path {
             path,
             fill: Some(color),
@@ -347,6 +407,10 @@ impl<'a> PaintContext<'a> {
     /// ctx.stroke_path(curve, Stroke::new(Color::rgb(0.6, 0.3, 0.9), 4.0));
     /// ```
     pub fn stroke_path(&mut self, path: crate::paint::Path, stroke: crate::paint::Stroke) {
+        // Apply current offset to path
+        let offset = self.current_offset();
+        let path = path.translate(offset);
+
         self.path_commands.push(DrawCommand::Path {
             path,
             fill: None,
@@ -378,6 +442,10 @@ impl<'a> PaintContext<'a> {
         fill: Option<Color>,
         stroke: Option<crate::paint::Stroke>,
     ) {
+        // Apply current offset to path
+        let offset = self.current_offset();
+        let path = path.translate(offset);
+
         self.path_commands.push(DrawCommand::Path {
             path,
             fill,
@@ -403,6 +471,10 @@ impl<'a> PaintContext<'a> {
     /// );
     /// ```
     pub fn draw_icon(&mut self, icon_id: &str, position: Point, size: f32, color: Color) {
+        // Apply current offset to position
+        let offset = self.current_offset();
+        let position = position + euclid::Vector2D::new(offset.x, offset.y);
+
         self.icon_commands.push(DrawCommand::Icon {
             icon_id: icon_id.to_string(),
             position,
@@ -431,6 +503,10 @@ impl<'a> PaintContext<'a> {
     /// );
     /// ```
     pub fn draw_image(&mut self, image_id: crate::image::ImageId, rect: Rect, tint: Option<Color>) {
+        // Apply current offset
+        let offset = self.current_offset();
+        let rect = rect.translate(euclid::Vector2D::new(offset.x, offset.y));
+
         self.image_commands.push(DrawCommand::Image {
             image_id,
             rect,
@@ -458,6 +534,11 @@ impl<'a> PaintContext<'a> {
         page_index: u32,
         is_color: bool,
     ) {
+        // Apply current offset
+        let offset = self.current_offset();
+        let x = x + offset.x as f32;
+        let y = y + offset.y as f32;
+
         // Get current clip rect or use full window
         let clip = self.current_clip_rect().unwrap_or_else(|| {
             Rect::new(Point::new(0.0, 0.0), self.window_size)
@@ -521,6 +602,10 @@ impl<'a> PaintContext<'a> {
         position: Point,
         max_width: Option<f32>,
     ) {
+        // Apply current offset to position
+        let offset = self.current_offset();
+        let position = position + euclid::Vector2D::new(offset.x, offset.y);
+
         // Get or create managed layout (cached by TextEngine)
         // We need to do this in two steps to avoid borrow checker issues
         let color = style.text_color;
@@ -621,6 +706,10 @@ impl<'a> PaintContext<'a> {
         position: Point,
         color: Color,
     ) {
+        // Apply current offset to position
+        let offset = self.current_offset();
+        let position = position + euclid::Vector2D::new(offset.x, offset.y);
+
         // Precompute values to avoid borrowing issues
         let clip_rect = self.current_clip_rect();
         let window_size = self.window_size;

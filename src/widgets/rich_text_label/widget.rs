@@ -965,7 +965,7 @@ impl Widget for RichTextLabel {
         }
     }
 
-    fn dispatch_wheel_event(&mut self, event: &mut WheelEvent) -> EventResponse {
+    fn on_wheel(&mut self, event: &mut WheelEvent) -> EventResponse {
         // Convert wheel delta to line count for vertical scrolling
         let line_height = self.base_text_style.line_height_pixels() as f64;
         if line_height <= 0.0 {

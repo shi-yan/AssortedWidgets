@@ -277,6 +277,78 @@ pub trait Widget {
         None // Default: no cursor override
     }
 
+    /// Transform a point from this widget's coordinate space to its children's coordinate space
+    ///
+    /// This is used by hierarchical hit testing to properly handle coordinate transformations
+    /// in container widgets (e.g., scrollable containers that offset their children).
+    ///
+    /// # Arguments
+    /// * `point` - A point in this widget's coordinate space
+    ///
+    /// # Returns
+    /// The point transformed to the children's coordinate space
+    ///
+    /// # Default Implementation
+    /// Returns the point unchanged (identity transformation). This is correct for most widgets.
+    ///
+    /// # Override For
+    /// - **ScrollableContainer**: Adds scroll offset to account for scrolled content
+    /// - **TransformContainer**: Applies arbitrary 2D transformations (future feature)
+    ///
+    /// # Example
+    /// ```ignore
+    /// // ScrollableContainer implementation
+    /// fn transform_point_for_children(&self, point: Point) -> Point {
+    ///     Point::new(
+    ///         point.x + self.scroll_offset.x,
+    ///         point.y + self.scroll_offset.y
+    ///     )
+    /// }
+    /// ```
+    fn transform_point_for_children(&self, point: crate::types::Point) -> crate::types::Point {
+        point // Default: no transformation (identity)
+    }
+
+    /// Called before painting children
+    ///
+    /// Container widgets can override this to set up rendering state for children,
+    /// such as clipping rectangles or coordinate transformations.
+    ///
+    /// This is paired with `after_paint_children()` to ensure proper cleanup.
+    ///
+    /// # Example
+    /// ```ignore
+    /// fn before_paint_children(&self, ctx: &mut PaintContext) {
+    ///     // Clip children to viewport
+    ///     ctx.push_clip(self.viewport_rect);
+    ///     // Transform children coordinates
+    ///     ctx.push_offset(-self.scroll_offset);
+    /// }
+    /// ```
+    ///
+    /// Default: Does nothing
+    fn before_paint_children(&self, _ctx: &mut PaintContext) {
+        // Default: no setup needed
+    }
+
+    /// Called after painting children
+    ///
+    /// Container widgets can override this to clean up rendering state that was
+    /// set up in `before_paint_children()`, such as popping clip/offset stacks.
+    ///
+    /// # Example
+    /// ```ignore
+    /// fn after_paint_children(&self, ctx: &mut PaintContext) {
+    ///     ctx.pop_offset();
+    ///     ctx.pop_clip();
+    /// }
+    /// ```
+    ///
+    /// Default: Does nothing
+    fn after_paint_children(&self, _ctx: &mut PaintContext) {
+        // Default: no cleanup needed
+    }
+
     /// Get IME cursor position for this widget (if focused)
     ///
     /// Return a rectangle representing where the IME composition window should
@@ -323,11 +395,10 @@ pub trait Widget {
         crate::event::EventResponse::Ignored
     }
 
-    /// Dispatch wheel event to this widget
+    /// Handle wheel event (mouse scroll)
     ///
-    /// Default implementation returns Ignored. Widgets that implement WheelHandler
-    /// should override this to call their handler methods.
-    fn dispatch_wheel_event(&mut self, event: &mut crate::event::WheelEvent) -> crate::event::EventResponse {
+    /// Default implementation returns Ignored. Override this method to handle scrolling.
+    fn on_wheel(&mut self, event: &mut crate::event::WheelEvent) -> crate::event::EventResponse {
         let _ = event;
         crate::event::EventResponse::Ignored
     }

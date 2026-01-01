@@ -57,10 +57,25 @@ pub fn parse_markdown(input: &str) -> RichText {
                     let start_char = text.chars().count();
                     link_stack.push((start_char, dest_url.to_string()));
                 }
+                Tag::Paragraph => {
+                    // Paragraph start - no action needed here
+                    // We'll add newlines at the end
+                }
+                Tag::Heading { .. } => {
+                    // Heading start - add newline before if not at start
+                    if !text.is_empty() && !text.ends_with('\n') {
+                        text.push('\n');
+                    }
+                }
                 Tag::List(_) => {
+                    // Add newline before list if not at start and not already there
+                    if !text.is_empty() && !text.ends_with('\n') {
+                        text.push('\n');
+                    }
                     list_depth += 1;
                 }
                 Tag::Item => {
+
                     // Add bullet symbol with indentation
                     // Use tab characters for indentation (cosmic-text preserves tabs)
                     let indent_level = list_depth.saturating_sub(1);
@@ -70,6 +85,7 @@ pub fn parse_markdown(input: &str) -> RichText {
 
                     // Track bullet item
                     let line = text.lines().count();
+                    println!("Bullet item: {:?}", line);
                     bullets.push(BulletItem {
                         line,
                         indent_level: indent_level as u16,
@@ -123,12 +139,31 @@ pub fn parse_markdown(input: &str) -> RichText {
                         }
                     }
                 }
+                Tag::Paragraph => {
+                    // End of paragraph - add double newline for spacing
+                    if !text.ends_with('\n') {
+                        text.push('\n');
+                    }
+                    text.push('\n');
+                }
+                Tag::Heading { .. } => {
+                    // End of heading - add double newline for spacing
+                    if !text.ends_with('\n') {
+                        text.push('\n');
+                    }
+                    text.push('\n');
+                }
                 Tag::List(_) => {
                     list_depth = list_depth.saturating_sub(1);
+                    // Add newline after list ends
+                    if !text.ends_with('\n') {
+                        text.push('\n');
+                    }
                 }
                 Tag::Item => {
                     // Add newline after item
                     if !text.ends_with('\n') {
+                        println!("End of bullet item : {:?}", text);
                         text.push('\n');
                     }
                 }
@@ -154,6 +189,7 @@ pub fn parse_markdown(input: &str) -> RichText {
             }
 
             Event::HardBreak => {
+                println!("Hard break encountered");
                 text.push('\n');
             }
 
