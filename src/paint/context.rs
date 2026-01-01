@@ -151,13 +151,20 @@ impl<'a> PaintContext<'a> {
     /// Register an interactive element's hitbox
     ///
     /// This should be called by interactive elements during their paint() method
-    /// to register their bounds for hit testing. The current z-order is used.
+    /// to register their bounds for hit testing. The current z-order and offset
+    /// transformation are automatically applied.
+    ///
+    /// # Coordinate Transformation
+    ///
+    /// The bounds are transformed by the current offset stack (from scrollable
+    /// containers, etc.) to window space, just like drawing primitives. This ensures
+    /// hit testing matches visual rendering.
     ///
     /// # Example
     /// ```rust,ignore
     /// impl Element for MyButton {
     ///     fn paint(&self, ctx: &mut PaintContext) {
-    ///         // Register hitbox before drawing (uses current z-order)
+    ///         // Register hitbox before drawing (uses current z-order + offset)
     ///         ctx.register_hitbox(self.id, self.bounds);
     ///
     ///         // Draw the button
@@ -166,7 +173,26 @@ impl<'a> PaintContext<'a> {
     /// }
     /// ```
     pub fn register_hitbox(&mut self, widget_id: WidgetId, bounds: Rect) {
-        self.hit_tester.add(widget_id, bounds, self.z_order);
+        // Apply current offset transformation (for scrollable containers, etc.)
+        let offset = self.current_offset();
+        let transformed_bounds = bounds.translate(euclid::Vector2D::new(offset.x, offset.y));
+
+        // Only register if the widget is visible (intersects with clip rect)
+        if let Some(clip) = self.current_clip_rect() {
+            let intersection = intersect_rects(transformed_bounds, clip);
+
+            // Check if intersection is non-empty (widget is at least partially visible)
+            if intersection.size.width <= 0.0 || intersection.size.height <= 0.0 {
+                // Widget is completely clipped out - don't register for hit testing
+                return;
+            }
+
+            // Note: We register the full transformed bounds, not the clipped intersection.
+            // This allows clicking near the edge of the clip boundary to still hit the widget.
+            // The GPU shader handles pixel-perfect clipping during rendering.
+        }
+
+        self.hit_tester.add(widget_id, transformed_bounds, self.z_order);
     }
 
     /// Get a reference to the hit tester
@@ -213,6 +239,15 @@ impl<'a> PaintContext<'a> {
     pub fn finalized_hit_tester(&mut self) -> HitTester {
         self.hit_tester.finalize();
         self.hit_tester.clone()
+    }
+
+    /// Take the hit tester (called by Window after paint)
+    ///
+    /// Finalizes the hit tester and returns it, replacing the internal
+    /// hit tester with an empty one.
+    pub fn take_hit_tester(&mut self) -> HitTester {
+        self.hit_tester.finalize();
+        std::mem::replace(&mut self.hit_tester, HitTester::new())
     }
 
     /// Push a clip rectangle onto the stack

@@ -1548,32 +1548,14 @@ impl Window {
             self.needs_layout = false;
         }
 
-        // 2. Build hit test cache from element bounds and z-order
-        // This happens AFTER layout (bounds are known) but BEFORE paint
-        // Separates spatial/event concerns from rendering
-        self.hit_tester.clear();
-        if let Some(root) = self.widget_tree.root() {
-            let mut z_order = 0u32;
-            root.traverse(&mut |widget_id| {
-                if let Some(element) = self.widgets.get(widget_id) {
-                    // Only register interactive elements for hit testing
-                    if element.is_interactive() {
-                        self.hit_tester.add(widget_id, element.bounds(), z_order);
-                        z_order += 1;
-                    }
-                }
-            });
-        }
-        self.hit_tester.finalize();
-
-        // 3. Paint elements in tree order (collect draw commands)
+        // 2. Paint elements in tree order (collect draw commands and hit testing)
         let scale_factor = self.platform_window.scale_factor() as f32;
 
         // Begin new frame for window renderer (atlas + text engine)
         self.window_renderer.begin_frame();
 
-        // Paint phase - collect draw commands
-        let (rect_instances, sdf_commands, path_commands, mut text_instances, icon_commands, image_commands, custom_render_callbacks, pending_signals) = {
+        // Paint phase - collect draw commands and hit testing
+        let (rect_instances, sdf_commands, path_commands, mut text_instances, icon_commands, image_commands, custom_render_callbacks, pending_signals, hit_tester) = {
             // Lock shared resources for the duration of the frame
             let mut atlas_lock = render_context.glyph_atlas.lock().unwrap();
             let mut font_system_lock = render_context.font_system.lock().unwrap();
@@ -1605,6 +1587,7 @@ impl Window {
             let image_commands = paint_ctx.image_commands().to_vec();
             let custom_render_callbacks = paint_ctx.take_custom_render_callbacks();
             let pending_signals = paint_ctx.take_pending_signals();
+            let hit_tester = paint_ctx.take_hit_tester();
 
             // Sort by z-order (low to high) for correct overlapping
             // Elements with lower z-order are drawn first (appear behind)
@@ -1612,8 +1595,11 @@ impl Window {
             rect_instances.sort_by_key(|inst| inst.z_order);
             text_instances.sort_by_key(|inst| inst.z_order);
 
-            (rect_instances, sdf_commands, path_commands, text_instances, icon_commands, image_commands, custom_render_callbacks, pending_signals)
+            (rect_instances, sdf_commands, path_commands, text_instances, icon_commands, image_commands, custom_render_callbacks, pending_signals, hit_tester)
         };
+
+        // Update hit tester from paint phase (includes z-order and transformations)
+        self.hit_tester = hit_tester;
 
         // Process pending signals from paint phase
         for (source, message) in pending_signals {
