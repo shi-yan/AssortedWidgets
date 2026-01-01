@@ -841,7 +841,8 @@ impl Widget for RichTextLabel {
         // Update scrollbars based on content/viewport
         self.update_scrollbars();
 
-        // Update scrollbar widgets
+        // Update scrollbar widgets (they handle their own internal state)
+        // Value changes are detected synchronously in mouse event handlers
         if let Some(ref mut vscroll) = self.vscrollbar {
             vscroll.update(frame_info);
         }
@@ -939,8 +940,8 @@ impl Widget for RichTextLabel {
             hscroll.paint(ctx);
         }
 
-        // Register hitbox for content area
-        ctx.register_hitbox(self.id, content_rect);
+        // Register hitbox for entire widget bounds (includes content + scrollbars)
+        ctx.register_hitbox(self.id, self.bounds);
     }
 
     fn is_interactive(&self) -> bool {
@@ -966,13 +967,17 @@ impl Widget for RichTextLabel {
     }
 
     fn on_wheel(&mut self, event: &mut WheelEvent) -> EventResponse {
+        println!("[RichTextLabel] on_wheel called: delta=({}, {})", event.delta.x, event.delta.y);
         // Convert wheel delta to line count for vertical scrolling
         let line_height = self.base_text_style.line_height_pixels() as f64;
         if line_height <= 0.0 {
+            println!("[RichTextLabel] on_wheel: line_height <= 0, ignoring scroll");
             return EventResponse::Ignored;
         }
 
-        let lines_delta = (event.delta.y / line_height).round() as i32;
+        const SCALING:f64 = 3.0;
+
+        let lines_delta = (event.delta.y * SCALING/ line_height).round() as i32;
         if lines_delta != 0 {
             let visible_lines = self.num_visible_lines();
             let max_line = self
@@ -995,12 +1000,16 @@ impl Widget for RichTextLabel {
 
                 self.dirty = true;
             }
+        } else {
+            println!("[RichTextLabel] on_wheel: no vertical scroll delta");
         }
 
         // Handle horizontal scrolling if wrapping disabled
         if !self.wrap_enabled && event.delta.x.abs() > 0.001 {
             let new_offset = self.h_scroll_offset - event.delta.x;
             self.set_h_scroll(new_offset);
+        } else {
+            println!("[RichTextLabel] on_wheel: no horizontal scroll (wrapping enabled or zero delta)");
         }
 
         EventResponse::Handled
@@ -1053,18 +1062,64 @@ impl Widget for RichTextLabel {
 // MouseHandler trait implementation
 impl MouseHandler for RichTextLabel {
     fn on_mouse_move(&mut self, event: &mut MouseEvent) -> EventResponse {
-        // Check if mouse is over scrollbars first
+        // Check if mouse is over scrollbars first (or if scrollbar is being dragged)
         if let Some(ref mut vscroll) = self.vscrollbar {
-            if vscroll.bounds().contains(event.position) {
+            // Forward events if scrollbar is dragging OR mouse is within bounds
+            let should_forward = vscroll.is_dragging() || vscroll.bounds().contains(event.position);
+
+            if should_forward {
+                let old_value = vscroll.value();
                 let mut input_event = InputEventEnum::MouseMove(event.clone());
-                return vscroll.dispatch_mouse_event(&mut input_event);
+                let response = vscroll.dispatch_mouse_event(&mut input_event);
+
+                // Check if scrollbar value changed (e.g., from dragging)
+                let new_value = vscroll.value();
+                if new_value != old_value {
+                    eprintln!("[RichTextLabel] V-scroll value changed: {} -> {}", old_value, new_value);
+                    self.visible_start_line = new_value.max(0) as u32;
+                    self.dirty = true;
+                }
+
+                return response;
             }
         }
-        if let Some(ref mut hscroll) = self.hscrollbar {
-            if hscroll.bounds().contains(event.position) {
+        // Handle horizontal scrollbar separately to avoid borrow conflicts
+        let h_scroll_result = if let Some(ref mut hscroll) = self.hscrollbar {
+            // Forward events if scrollbar is dragging OR mouse is within bounds
+            let should_forward = hscroll.is_dragging() || hscroll.bounds().contains(event.position);
+
+            if should_forward {
+                let old_value = hscroll.value();
                 let mut input_event = InputEventEnum::MouseMove(event.clone());
-                return hscroll.dispatch_mouse_event(&mut input_event);
+                let response = hscroll.dispatch_mouse_event(&mut input_event);
+
+                // Get values before dropping mutable borrow
+                let new_value = hscroll.value();
+                let scrollbar_max = hscroll.max();
+
+                Some((old_value, new_value, scrollbar_max, response))
+            } else {
+                None
             }
+        } else {
+            None
+        };
+
+        if let Some((old_value, new_value, scrollbar_max, response)) = h_scroll_result {
+            // Now we can use self methods without borrow conflicts
+            if new_value != old_value {
+                eprintln!("[RichTextLabel] H-scroll value changed: {} -> {}", old_value, new_value);
+                let max_scroll = self.max_h_scroll();
+                if max_scroll > 0.0 {
+                    let max_val = scrollbar_max as f64;
+                    if max_val > 0.0 {
+                        let normalized = (new_value as f64) / max_val;
+                        self.h_scroll_offset = -(normalized * max_scroll);
+                        self.dirty = true;
+                    }
+                }
+            }
+            return response;
         }
 
         // Check content area for links
@@ -1081,16 +1136,62 @@ impl MouseHandler for RichTextLabel {
     fn on_mouse_down(&mut self, event: &mut MouseEvent) -> EventResponse {
         // Check scrollbars first
         if let Some(ref mut vscroll) = self.vscrollbar {
-            if vscroll.bounds().contains(event.position) {
+            // Forward events if scrollbar is dragging OR mouse is within bounds
+            let should_forward = vscroll.is_dragging() || vscroll.bounds().contains(event.position);
+
+            if should_forward {
+                let old_value = vscroll.value();
                 let mut input_event = InputEventEnum::MouseDown(event.clone());
-                return vscroll.dispatch_mouse_event(&mut input_event);
+                let response = vscroll.dispatch_mouse_event(&mut input_event);
+
+                // Check if scrollbar value changed (e.g., from clicking on track)
+                let new_value = vscroll.value();
+                if new_value != old_value {
+                    eprintln!("[RichTextLabel] V-scroll value changed (click): {} -> {}", old_value, new_value);
+                    self.visible_start_line = new_value.max(0) as u32;
+                    self.dirty = true;
+                }
+
+                return response;
             }
         }
-        if let Some(ref mut hscroll) = self.hscrollbar {
-            if hscroll.bounds().contains(event.position) {
+        // Handle horizontal scrollbar separately to avoid borrow conflicts
+        let h_scroll_result = if let Some(ref mut hscroll) = self.hscrollbar {
+            // Forward events if scrollbar is dragging OR mouse is within bounds
+            let should_forward = hscroll.is_dragging() || hscroll.bounds().contains(event.position);
+
+            if should_forward {
+                let old_value = hscroll.value();
                 let mut input_event = InputEventEnum::MouseDown(event.clone());
-                return hscroll.dispatch_mouse_event(&mut input_event);
+                let response = hscroll.dispatch_mouse_event(&mut input_event);
+
+                // Get values before dropping mutable borrow
+                let new_value = hscroll.value();
+                let scrollbar_max = hscroll.max();
+
+                Some((old_value, new_value, scrollbar_max, response))
+            } else {
+                None
             }
+        } else {
+            None
+        };
+
+        if let Some((old_value, new_value, scrollbar_max, response)) = h_scroll_result {
+            // Now we can use self methods without borrow conflicts
+            if new_value != old_value {
+                eprintln!("[RichTextLabel] H-scroll value changed (click): {} -> {}", old_value, new_value);
+                let max_scroll = self.max_h_scroll();
+                if max_scroll > 0.0 {
+                    let max_val = scrollbar_max as f64;
+                    if max_val > 0.0 {
+                        let normalized = (new_value as f64) / max_val;
+                        self.h_scroll_offset = -(normalized * max_scroll);
+                        self.dirty = true;
+                    }
+                }
+            }
+            return response;
         }
 
         // Check if click on link
@@ -1121,15 +1222,21 @@ impl MouseHandler for RichTextLabel {
     }
 
     fn on_mouse_up(&mut self, event: &mut MouseEvent) -> EventResponse {
-        // Forward to scrollbars if they exist
+        // Forward to scrollbars if they exist (even if mouse is outside bounds during drag)
         if let Some(ref mut vscroll) = self.vscrollbar {
-            if vscroll.bounds().contains(event.position) {
+            // Forward events if scrollbar is dragging OR mouse is within bounds
+            let should_forward = vscroll.is_dragging() || vscroll.bounds().contains(event.position);
+
+            if should_forward {
                 let mut input_event = InputEventEnum::MouseUp(event.clone());
                 return vscroll.dispatch_mouse_event(&mut input_event);
             }
         }
         if let Some(ref mut hscroll) = self.hscrollbar {
-            if hscroll.bounds().contains(event.position) {
+            // Forward events if scrollbar is dragging OR mouse is within bounds
+            let should_forward = hscroll.is_dragging() || hscroll.bounds().contains(event.position);
+
+            if should_forward {
                 let mut input_event = InputEventEnum::MouseUp(event.clone());
                 return hscroll.dispatch_mouse_event(&mut input_event);
             }

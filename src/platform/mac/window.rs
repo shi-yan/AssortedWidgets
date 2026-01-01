@@ -412,9 +412,25 @@ impl CustomView {
 
     /// Convert NSEvent to WheelEvent
     fn convert_to_wheel_event(&self, event: &NSEvent) -> WheelEvent {
-        let delta_x = event.scrollingDeltaX();
-        let delta_y = event.scrollingDeltaY();
+        // macOS provides two types of delta values:
+        // - deltaX/deltaY: Raw device values (NOT adjusted for natural scrolling)
+        // - scrollingDeltaX/scrollingDeltaY: Precise pixel deltas (also NOT adjusted)
+        //
+        // Confusingly, NEITHER is pre-adjusted for natural scrolling preference!
+        // We must check isDirectionInvertedFromDevice and flip manually.
+
+        let raw_delta_x = event.scrollingDeltaX();
+        let raw_delta_y = event.scrollingDeltaY();
         let modifiers = Self::convert_modifiers(event);
+
+        // Check if "Natural" scrolling is enabled
+        let is_direction_inverted = event.isDirectionInvertedFromDevice();
+        println!("isDirectionInvertedFromDevice: {}", is_direction_inverted);
+
+        // Apply manual inversion to match user's system preference
+        // - Natural scrolling ON: swipe up = content moves up (positive delta)
+        // - Natural scrolling OFF: swipe up = content moves down (negative delta)
+        let delta_y = if !is_direction_inverted { -raw_delta_y } else { raw_delta_y };
 
         // Detect wheel phase (for trackpad momentum)
         let phase = match event.phase() {
@@ -430,7 +446,7 @@ impl CustomView {
             }
         };
 
-        WheelEvent::new(vector(delta_x, delta_y), modifiers)
+        WheelEvent::new(vector(raw_delta_x, delta_y), modifiers)
             .with_phase(phase)
     }
 

@@ -214,6 +214,14 @@ impl ScrollBar {
         self.max
     }
 
+    /// Check if the scrollbar is currently being dragged
+    ///
+    /// This is useful for parent widgets to know if they should forward
+    /// mouse events to the scrollbar even when the mouse is outside its bounds.
+    pub fn is_dragging(&self) -> bool {
+        self.is_dragging
+    }
+
     /// Set the value range
     pub fn set_range(&mut self, min: i32, max: i32) {
         self.min = min;
