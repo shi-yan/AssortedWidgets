@@ -765,6 +765,40 @@ impl<'a> PaintContext<'a> {
         self.z_order += 1;
     }
 
+    /// Draw a specific character range of a text layout with a custom color
+    /// Used for rendering links, selections, etc. in different colors
+    pub fn draw_layout_range(
+        &mut self,
+        layout: &TextLayout,
+        position: Point,
+        color: Color,
+        char_range: std::ops::Range<usize>,
+    ) {
+        // Apply current offset to position
+        let offset = self.current_offset();
+        let position = position + euclid::Vector2D::new(offset.x, offset.y);
+
+        // Precompute values to avoid borrowing issues
+        let clip_rect = self.current_clip_rect();
+        let window_size = self.window_size;
+        let z_order = self.z_order;
+
+        Self::render_text_layout_range(
+            layout,
+            position,
+            color,
+            char_range,
+            &mut self.text,
+            &clip_rect,
+            window_size,
+            &mut self.bundle,
+            z_order,
+        );
+
+        // Increment z-order after rendering
+        self.z_order += 1;
+    }
+
     /// Internal method for rendering text layouts (static to avoid borrow issues)
     /// Takes individual fields instead of bundle to avoid double-borrow issues
     ///
@@ -893,6 +927,186 @@ impl<'a> PaintContext<'a> {
                 let glyph_height = location.logical_height;
 
                 // Push text instance with z-order
+                let instance = TextInstance::new(
+                    glyph_x,
+                    glyph_y,
+                    glyph_width,
+                    glyph_height,
+                    location.uv_rect.min_x,
+                    location.uv_rect.min_y,
+                    location.uv_rect.max_x,
+                    location.uv_rect.max_y,
+                    color,
+                    location.page_index,
+                    location.is_color,
+                    clip_rect,
+                ).with_z_order(z_order);
+
+                text_instances.push(instance);
+            }
+        }
+    }
+
+    /// Render a specific character range of a text layout
+    fn render_text_layout_range(
+        layout: &TextLayout,
+        position: Point,
+        color: Color,
+        char_range: std::ops::Range<usize>,
+        text_instances: &mut Vec<TextInstance>,
+        clip_rect_opt: &Option<Rect>,
+        window_size: Size,
+        bundle: &mut RenderBundle<'_>,
+        z_order: u32,
+    ) {
+        use crate::text::GlyphKey;
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        // Get current clip rect (in logical pixels)
+        let clip = clip_rect_opt.unwrap_or_else(|| {
+            Rect::new(Point::new(0.0, 0.0), window_size)
+        });
+
+        let clip_rect = [
+            clip.origin.x as f32,
+            clip.origin.y as f32,
+            clip.size.width as f32,
+            clip.size.height as f32,
+        ];
+
+        // Extract text from buffer for character lookup
+        let buffer = layout.buffer();
+
+        // Convert character range to byte range for the entire text
+        // IMPORTANT: Join lines with newlines to match the original rendered text character positions
+        let full_text: String = buffer.lines
+            .iter()
+            .enumerate()
+            .map(|(i, line)| {
+                let text = line.text();
+                // Add newline after each line except the last one
+                if i < buffer.lines.len() - 1 {
+                    format!("{}\n", text)
+                } else {
+                    text.to_string()
+                }
+            })
+            .collect();
+        let text_chars: Vec<char> = full_text.chars().collect();
+
+        eprintln!("\n[render_text_layout_range] DEBUG:");
+        eprintln!("  char_range requested: {:?}", char_range);
+        eprintln!("  full_text length (from buffer): {} chars", text_chars.len());
+        eprintln!("  full_text (first 200 chars): {:?}", full_text.chars().take(200).collect::<String>());
+
+        let start_char = char_range.start.min(text_chars.len());
+        let end_char = char_range.end.min(text_chars.len());
+
+        eprintln!("  clamped range: {}..{}", start_char, end_char);
+        if start_char < text_chars.len() && end_char <= text_chars.len() {
+            let link_text: String = text_chars[start_char..end_char].iter().collect();
+            eprintln!("  link_text extracted: {:?}", link_text);
+        }
+
+        let start_byte: usize = text_chars.iter().take(start_char).map(|c| c.len_utf8()).sum();
+        let end_byte: usize = text_chars.iter().take(end_char).map(|c| c.len_utf8()).sum();
+
+        // Track cumulative byte offset across lines
+        // IMPORTANT: Only update when moving to a NEW line, not for every run!
+        // (layout_runs can have multiple runs per line with different styles)
+        let mut cumulative_byte_offset = 0;
+        let mut prev_line_i: Option<usize> = None;
+
+        // Iterate through shaped glyphs
+        for run in buffer.layout_runs() {
+            // Update byte offset only when we move to a NEW line
+            if prev_line_i != Some(run.line_i) {
+                if let Some(prev_line) = prev_line_i {
+                    // Add previous line's byte length + newline
+                    let prev_line_text = buffer.lines[prev_line].text();
+                    cumulative_byte_offset += prev_line_text.len();
+                    if prev_line < buffer.lines.len() - 1 {
+                        cumulative_byte_offset += 1; // '\n' is 1 byte
+                    }
+                }
+                prev_line_i = Some(run.line_i);
+            }
+
+            // Get the baseline Y for this line
+            let line_y = run.line_y;
+
+            // Get the text for this specific line
+            let line_text = buffer.lines[run.line_i].text();
+
+            for glyph in run.glyphs.iter() {
+                // Calculate global byte position of this glyph
+                let global_start = cumulative_byte_offset + glyph.start;
+                let global_end = cumulative_byte_offset + glyph.end;
+
+                // Skip glyphs outside the character range
+                if global_end <= start_byte || global_start >= end_byte {
+                    continue;
+                }
+
+                // Extract the character from the line's text using glyph's byte range
+                let glyph_char = line_text[glyph.start..glyph.end].chars().next().unwrap_or('?');
+
+                // Convert to PhysicalGlyph with baseline Y offset
+                let physical_glyph = glyph.physical(
+                    (0.0 as f32, 0.0 as f32),
+                    bundle.scale_factor
+                );
+
+                let cache_key = physical_glyph.cache_key;
+
+                // Create glyph key for atlas
+                let mut hasher = DefaultHasher::new();
+                cache_key.font_id.hash(&mut hasher);
+                let font_id_hash = hasher.finish() as usize;
+
+                let glyph_key = GlyphKey {
+                    font_id: font_id_hash,
+                    size_bits: (glyph.font_size * 1024.0) as u32,
+                    character: glyph_char,
+                    subpixel_offset: 0,
+                    scale_factor: (bundle.scale_factor * 100.0) as u8,
+                };
+
+                // Get or insert glyph in atlas
+                let location = if let Some(&loc) = bundle.atlas.get(&glyph_key) {
+                    bundle.atlas.mark_glyph_used(&glyph_key);
+                    loc
+                } else {
+                    // Rasterize and insert
+                    if let Some(rasterized) = bundle.font_system.rasterize_glyph(cache_key) {
+                        match bundle.atlas.insert(
+                            bundle.queue,
+                            glyph_key,
+                            &rasterized.pixels,
+                            rasterized.width,
+                            rasterized.height,
+                            rasterized.offset_x,
+                            rasterized.offset_y,
+                            rasterized.is_color,
+                            bundle.scale_factor,
+                        ) {
+                            Ok(loc) => loc,
+                            Err(_) => continue,
+                        }
+                    } else {
+                        continue;
+                    }
+                };
+
+                // Calculate position in logical coordinates
+                let glyph_x = glyph.x as f32 + location.logical_offset_x + position.x as f32;
+                let glyph_y = glyph.y as f32 - location.logical_offset_y + position.y as f32 + line_y;
+
+                let glyph_width = location.logical_width;
+                let glyph_height = location.logical_height;
+
+                // Push text instance
                 let instance = TextInstance::new(
                     glyph_x,
                     glyph_y,

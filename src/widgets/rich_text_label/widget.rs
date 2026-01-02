@@ -628,15 +628,39 @@ impl RichTextLabel {
         // Use cosmic-text hit testing
         let buffer = layout.buffer();
         let cursor = buffer.hit(rel_x, rel_y)?;
-        let char_index = cursor.index;
+
+        // IMPORTANT: cursor.index is LINE-RELATIVE, not buffer-absolute!
+        // We need to convert to buffer-absolute by adding lengths of previous lines
+        let line_relative_char_index = cursor.index;
+        let line_index = cursor.line;
+
+        // Calculate buffer-absolute character index
+        let mut buffer_absolute_char_index = 0;
+        for i in 0..line_index {
+            if i < buffer.lines.len() {
+                buffer_absolute_char_index += buffer.lines[i].text().chars().count();
+                buffer_absolute_char_index += 1; // +1 for newline
+            }
+        }
+        buffer_absolute_char_index += line_relative_char_index;
+
+        eprintln!("[HIT TEST] Mouse at ({:.1}, {:.1}) -> rel ({:.1}, {:.1})",
+                  position.x, position.y, rel_x, rel_y);
+        eprintln!("  cursor.line={}, cursor.index={} (line-relative)",
+                  line_index, line_relative_char_index);
+        eprintln!("  buffer_absolute_char_index={}", buffer_absolute_char_index);
 
         // Check if this character is within any link span
         for (idx, link) in self.content.links.iter().enumerate() {
-            if link.char_range.contains(&char_index) {
+            eprintln!("  Checking link {}: char_range={:?}, contains={}",
+                      idx, link.char_range, link.char_range.contains(&buffer_absolute_char_index));
+            if link.char_range.contains(&buffer_absolute_char_index) {
+                eprintln!("  -> MATCH! Returning link {}", idx);
                 return Some(idx);
             }
         }
 
+        eprintln!("  -> No match");
         None
     }
 
@@ -655,27 +679,46 @@ impl RichTextLabel {
                 continue;
             }
 
-            println!("[RichTextLabel] Drawing strikethrough for span: {:?}", span.range);
+            // Track character offset as we iterate
+            let mut char_offset = 0usize;
+            let mut prev_line_i: Option<usize> = None;
 
-            // Find glyphs in this span's byte range
             for run in buffer.layout_runs() {
-                for glyph in run.glyphs.iter() {
-                    // Check if glyph is within span range
-                    let glyph_start = glyph.start;
-                    let glyph_end = glyph.end;
+                // Update character offset when moving to a new line
+                if prev_line_i != Some(run.line_i) {
+                    if let Some(prev_line) = prev_line_i {
+                        let prev_line_text = buffer.lines[prev_line].text();
+                        char_offset += prev_line_text.chars().count();
+                        if prev_line < buffer.lines.len() - 1 {
+                            char_offset += 1; // newline character
+                        }
+                    }
+                    prev_line_i = Some(run.line_i);
+                }
 
-                    if glyph_start >= span.range.start && glyph_end <= span.range.end {
-                        // Draw strikethrough line at 60% down from top (middle of lowercase letters)
-                        let y = text_origin.y + run.line_y as f64 + run.line_height as f64 * 0.6;
+                let line_text = buffer.lines[run.line_i].text();
+
+                for glyph in run.glyphs.iter() {
+                    // Convert glyph byte offset to character offset within line
+                    let line_text_before = &line_text[..glyph.start.min(line_text.len())];
+                    let line_char_start = line_text_before.chars().count();
+
+                    let glyph_text = &line_text[glyph.start.min(line_text.len())..glyph.end.min(line_text.len())];
+                    let glyph_char_count = glyph_text.chars().count();
+
+                    let abs_char_start = char_offset + line_char_start;
+                    let abs_char_end = abs_char_start + glyph_char_count;
+
+                    // Check if this glyph overlaps with the span's character range
+                    if abs_char_start < span.char_range.end && abs_char_end > span.char_range.start {
+                        let y = text_origin.y + run.line_y as f64 - (self.base_text_style.font_size as f64 * 0.4);
                         let x_start = text_origin.x + glyph.x as f64;
                         let x_end = x_start + glyph.w as f64;
-
-                        //println!("  Drawing line from ({}, {}) to ({}, {})", x_start, y, x_end, y);
 
                         ctx.draw_line(
                             Point::new(x_start, y),
                             Point::new(x_end, y),
-                            Stroke::new(Color::rgb(1.0, 0.2, 0.2), 2.0),  // Bright red, thicker
+                            Stroke::new(Color::rgb(0.8, 0.8, 0.8), 3.0),
                         );
                         lines_drawn += 1;
                     }
@@ -688,45 +731,201 @@ impl RichTextLabel {
         }
     }
 
-    /// Draw underline for hovered link
+    /// Draw underline for link
     fn draw_link_underline(&self, ctx: &mut PaintContext, text_origin: Point, link_idx: usize) {
         let layout = self.cached_layout.borrow();
         let Some(layout) = layout.as_ref() else {
             return;
         };
 
+        // Get the link (now using character ranges directly)
         let Some(link) = self.content.links.get(link_idx) else {
             return;
         };
 
         let buffer = layout.buffer();
 
-        // Convert char range to byte range for hit testing
-        let text_chars: Vec<char> = self.content.text.chars().collect();
-        let start_char = link.char_range.start;
-        let end_char = link.char_range.end;
+        // Track character offset as we iterate
+        let mut char_offset = 0usize;
+        let mut prev_line_i: Option<usize> = None;
 
-        if start_char >= text_chars.len() || end_char > text_chars.len() {
-            return;
-        }
-
-        let start_byte: usize = text_chars.iter().take(start_char).map(|c| c.len_utf8()).sum();
-        let end_byte: usize = text_chars.iter().take(end_char).map(|c| c.len_utf8()).sum();
-
-        // Draw underlines for glyphs in link range
         for run in buffer.layout_runs() {
+            // Update character offset when moving to a new line
+            if prev_line_i != Some(run.line_i) {
+                if let Some(prev_line) = prev_line_i {
+                    let prev_line_text = buffer.lines[prev_line].text();
+                    char_offset += prev_line_text.chars().count();
+                    if prev_line < buffer.lines.len() - 1 {
+                        char_offset += 1; // newline character
+                    }
+                }
+                prev_line_i = Some(run.line_i);
+            }
+
+            let line_text = buffer.lines[run.line_i].text();
+            let y = text_origin.y + run.line_y as f64 + 2.0;
+
             for glyph in run.glyphs.iter() {
-                if glyph.start >= start_byte && glyph.end <= end_byte {
-                    let y = text_origin.y + run.line_y as f64 + run.line_height as f64 * 0.95;
+                // Convert glyph byte offset to character offset within line
+                let line_text_before = &line_text[..glyph.start.min(line_text.len())];
+                let line_char_start = line_text_before.chars().count();
+
+                let glyph_text = &line_text[glyph.start.min(line_text.len())..glyph.end.min(line_text.len())];
+                let glyph_char_count = glyph_text.chars().count();
+
+                let abs_char_start = char_offset + line_char_start;
+                let abs_char_end = abs_char_start + glyph_char_count;
+
+                // Check if this glyph overlaps with the link's character range
+                if abs_char_start < link.char_range.end && abs_char_end > link.char_range.start {
                     let x_start = text_origin.x + glyph.x as f64;
                     let x_end = x_start + glyph.w as f64;
-
                     ctx.draw_line(
                         Point::new(x_start, y),
                         Point::new(x_end, y),
                         Stroke::new(self.link_color, 1.0),
                     );
                 }
+            }
+        }
+    }
+
+    /// Draw link text in link color (blue)
+    fn draw_link_text(&self, ctx: &mut PaintContext, text_origin: Point) {
+        let layout = self.cached_layout.borrow();
+        let Some(layout) = layout.as_ref() else {
+            return;
+        };
+
+        // Draw each link's text in the link color
+        for link in &self.content.links {
+            ctx.draw_layout_range(
+                layout,
+                text_origin,
+                self.link_color,
+                link.char_range.clone(),
+            );
+        }
+    }
+
+    /// Draw debug rectangles around link hitboxes for visualization
+    fn draw_link_hitboxes(&self, ctx: &mut PaintContext, text_origin: Point) {
+        let layout = self.cached_layout.borrow();
+        let Some(layout) = layout.as_ref() else {
+            return;
+        };
+
+        let buffer = layout.buffer();
+
+        eprintln!("[draw_link_hitboxes] Total links in self.content.links: {}", self.content.links.len());
+        for (i, link) in self.content.links.iter().enumerate() {
+            eprintln!("  Link {}: char_range={}..{}, url={:?}",
+                     i, link.char_range.start, link.char_range.end, link.url);
+        }
+
+        // Use CHARACTER ranges (not byte ranges) to match glyphs
+        // This is the same approach that draw_layout_range uses
+        for (link_idx, link) in self.content.links.iter().enumerate() {
+            let start_char = link.char_range.start;
+            let end_char = link.char_range.end;
+
+            // Track character offset as we iterate through lines
+            let mut char_offset = 0usize;
+            let mut prev_line_i: Option<usize> = None;
+
+            // Collect all glyphs that are part of this link
+            let mut min_x = f64::MAX;
+            let mut max_x = f64::MIN;
+            let mut min_y = f64::MAX;
+            let mut max_y = f64::MIN;
+            let mut found_any = false;
+
+            eprintln!("  Drawing hitbox for link {}: char_range={}..{}", link_idx, start_char, end_char);
+
+            // Debug: Show total number of lines in buffer
+            if link_idx == 0 {
+                eprintln!("    Total lines in buffer: {}", buffer.lines.len());
+            }
+
+            for run in buffer.layout_runs() {
+                // Update character offset when we move to a new line
+                if prev_line_i != Some(run.line_i) {
+                    if let Some(prev_line) = prev_line_i {
+                        // Add previous line's character count + newline
+                        let prev_line_text = buffer.lines[prev_line].text();
+                        char_offset += prev_line_text.chars().count();
+                        if prev_line < buffer.lines.len() - 1 {
+                            char_offset += 1; // newline character
+                        }
+                    }
+                    prev_line_i = Some(run.line_i);
+
+                    // Only print for link 0 and lines near the link
+                    if link_idx == 0 && char_offset >= start_char.saturating_sub(100) && char_offset <= end_char + 100 {
+                        eprintln!("    Line {}: char_offset={}, text={:?}", run.line_i, char_offset, buffer.lines[run.line_i].text());
+                    }
+                }
+
+                // Get line text for character indexing
+                let line_text = buffer.lines[run.line_i].text();
+                let line_chars: Vec<char> = line_text.chars().collect();
+
+                for (glyph_idx, glyph) in run.glyphs.iter().enumerate() {
+                    // Convert glyph byte offsets to character offsets within the line
+                    let line_text_before_glyph = &line_text[..glyph.start.min(line_text.len())];
+                    let glyph_text = &line_text[glyph.start.min(line_text.len())..glyph.end.min(line_text.len())];
+
+                    let line_char_start = line_text_before_glyph.chars().count();
+                    let glyph_char_count = glyph_text.chars().count();
+                    let line_char_end = line_char_start + glyph_char_count;
+
+                    // Convert to buffer-absolute character positions
+                    let abs_char_start = char_offset + line_char_start;
+                    let abs_char_end = char_offset + line_char_end;
+
+                    // Debug: Log ALL glyphs on line 53 when processing link 2
+                    if run.line_i == 53 && link_idx == 2 {
+                        eprintln!("      [Link {}] Glyph {}: '{}' bytes={}..{}, line_chars={}..{}, abs_chars={}..{}, target_range={}..{}, overlap={}",
+                                  link_idx, glyph_idx, glyph_text, glyph.start, glyph.end,
+                                  line_char_start, line_char_end, abs_char_start, abs_char_end,
+                                  start_char, end_char,
+                                  abs_char_start < end_char && abs_char_end > start_char);
+                    }
+
+                    // Check if this glyph overlaps with the link's character range
+                    // Use overlap check instead of containment to handle edge cases
+                    if abs_char_start < end_char && abs_char_end > start_char {
+                        eprintln!("      MATCH: glyph '{}' at line_char={}..{}, abs_char={}..{}, x={:.1}",
+                                  glyph_text, line_char_start, line_char_end, abs_char_start, abs_char_end, glyph.x);
+                        let glyph_x = text_origin.x + glyph.x as f64;
+                        let glyph_y = text_origin.y + run.line_y as f64;
+                        let glyph_w = glyph.w as f64;
+                        let glyph_h = run.line_height as f64;
+
+                        min_x = min_x.min(glyph_x);
+                        max_x = max_x.max(glyph_x + glyph_w);
+                        min_y = min_y.min(glyph_y);
+                        max_y = max_y.max(glyph_y + glyph_h);
+                        found_any = true;
+                    }
+                }
+            }
+
+            // Draw debug rectangle if we found any glyphs
+            if found_any {
+                let debug_rect = Rect::new(
+                    Point::new(min_x, min_y),
+                    Size::new(max_x - min_x, max_y - min_y),
+                );
+
+                // Draw semi-transparent green rect to visualize hitbox
+                let debug_color = if Some(link_idx) == self.hovered_link {
+                    Color::rgba(1.0, 1.0, 0.0, 0.3) // Yellow when hovered
+                } else {
+                    Color::rgba(0.0, 1.0, 0.0, 0.2) // Green otherwise
+                };
+
+                ctx.draw_rect(debug_rect, debug_color);
             }
         }
     }
@@ -924,10 +1123,16 @@ impl Widget for RichTextLabel {
             // Draw strikethrough
             self.draw_strikethrough(ctx, text_origin);
 
-            // Draw link underlines for hovered links
-            if let Some(link_idx) = self.hovered_link {
+            // Draw underlines for ALL links (not just hovered)
+            for link_idx in 0..self.content.links.len() {
                 self.draw_link_underline(ctx, text_origin, link_idx);
             }
+
+            // Draw link text in link color (blue)
+            self.draw_link_text(ctx, text_origin);
+
+            // Draw debug hitboxes for links
+            self.draw_link_hitboxes(ctx, text_origin);
         }
 
         ctx.pop_clip();
@@ -1198,6 +1403,9 @@ impl MouseHandler for RichTextLabel {
         if let Some(link_idx) = self.hit_test_link(event.position) {
             if let Some(link) = self.content.links.get(link_idx) {
                 let url = link.url.clone();
+
+                // Log the link click
+                eprintln!("[RichTextLabel] 🔗 Link clicked: {}", url);
 
                 // Call callback
                 if let Some(ref mut callback) = self.on_link_clicked {

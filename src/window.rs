@@ -1089,6 +1089,22 @@ impl Window {
                         element.dispatch_mouse_event(&mut event);
                         let commands = element.drain_deferred_commands();
 
+                        // Re-check cursor after mouse move (widget's internal state may have changed)
+                        // e.g., hovering over a link inside RichTextLabel
+                        let preferred = element.preferred_cursor();
+                        if let Some(cursor) = preferred {
+                            if cursor != self.current_cursor {
+                                println!("[CURSOR] Updating cursor to {:?} (internal state changed)", cursor);
+                                self.current_cursor = cursor;
+                                self.platform_window.set_cursor(cursor);
+                            }
+                        } else if self.current_cursor != crate::types::CursorType::Default {
+                            // Widget no longer wants a custom cursor
+                            println!("[CURSOR] Resetting cursor to Default (widget preference cleared)");
+                            self.current_cursor = crate::types::CursorType::Default;
+                            self.platform_window.set_cursor(crate::types::CursorType::Default);
+                        }
+
                         // If this is a dragging DraggableRect, emit UpdateCrossWindowDrag
                         use crate::elements::DraggableRect;
                         if let Some(draggable) = element.as_any().downcast_ref::<DraggableRect>() {

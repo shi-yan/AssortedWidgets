@@ -74,11 +74,11 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor i
 
 **Bold statement**: This widget is production-ready!
 
+Final link: [Learn More](https://example.com/learn-more)
+
 *Italic thought*: The architecture is clean and extensible.
 
 ~~Mistake~~: This is not a mistake, just demonstrating strikethrough.
-
-Final link: [Learn More](https://example.com/learn-more)
 
 ---
 

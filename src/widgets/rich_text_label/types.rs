@@ -5,8 +5,9 @@ use crate::paint::Color;
 /// Styled span of text
 #[derive(Clone, Debug, PartialEq)]
 pub struct Span {
-    /// Byte range in the full text string
-    pub range: std::ops::Range<usize>,
+    /// Character range in the full text string (NOT byte range!)
+    /// Using character ranges for consistency with LinkSpan and cosmic-text hit testing
+    pub char_range: std::ops::Range<usize>,
 
     /// Text attributes (bold, italic, color, etc.)
     pub attrs: SpanAttrs,

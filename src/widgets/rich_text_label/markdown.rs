@@ -25,8 +25,8 @@ pub fn parse_markdown(input: &str) -> RichText {
     let mut links = Vec::new();
     let mut bullets = Vec::new();
 
-    // Stack to track active styles
-    let mut attr_stack: Vec<SpanAttrs> = vec![];
+    // Stack to track active styles with their start positions (CHARACTER positions)
+    let mut attr_stack: Vec<(SpanAttrs, usize)> = vec![];
     let mut current_attrs = SpanAttrs::default();
 
     // Stack to track links (start_char, url)
@@ -39,19 +39,19 @@ pub fn parse_markdown(input: &str) -> RichText {
         match event {
             Event::Start(tag) => match tag {
                 Tag::Strong => {
-                    attr_stack.push(current_attrs.clone());
+                    attr_stack.push((current_attrs.clone(), text.chars().count()));
                     current_attrs.bold = true;
                 }
                 Tag::Emphasis => {
-                    attr_stack.push(current_attrs.clone());
+                    attr_stack.push((current_attrs.clone(), text.chars().count()));
                     current_attrs.italic = true;
                 }
                 Tag::Strikethrough => {
-                    attr_stack.push(current_attrs.clone());
+                    attr_stack.push((current_attrs.clone(), text.chars().count()));
                     current_attrs.strikethrough = true;
                 }
                 Tag::Link(_, dest_url, _) => {
-                    attr_stack.push(current_attrs.clone());
+                    attr_stack.push((current_attrs.clone(), text.chars().count()));
                     // Set link color (blue)
                     current_attrs.color = Some(Color::rgb(0.4, 0.6, 1.0));
                     let start_char = text.chars().count();
@@ -96,45 +96,24 @@ pub fn parse_markdown(input: &str) -> RichText {
 
             Event::End(tag) => match tag {
                 Tag::Strong | Tag::Emphasis | Tag::Strikethrough => {
-                    // End styled span
-                    if let Some(prev_attrs) = attr_stack.pop() {
-                        // Only create span if attributes differ from default
-                        if current_attrs != SpanAttrs::default() {
-                            let end_byte = text.len();
-                            // Find the start of this span by tracking text length
-                            // We need to search backwards through spans
-                            let start_byte = find_span_start(&text, &spans, &current_attrs);
-
-                            if start_byte < end_byte {
-                                spans.push(Span {
-                                    range: start_byte..end_byte,
-                                    attrs: current_attrs.clone(),
-                                });
-                            }
-                        }
+                    // Restore previous attributes (span was already created when text was encountered)
+                    if let Some((prev_attrs, _start_char)) = attr_stack.pop() {
                         current_attrs = prev_attrs;
                     }
                 }
                 Tag::Link(_, _, _) => {
                     if let Some((start_char, url)) = link_stack.pop() {
                         let end_char = text.chars().count();
+                        let link_text: String = text.chars().skip(start_char).take(end_char - start_char).collect();
+                        println!("[Markdown Parser] Link created: range {}..{}, text: {:?}, url: {}",
+                                 start_char, end_char, link_text, url);
                         links.push(LinkSpan {
                             char_range: start_char..end_char,
                             url,
                         });
 
-                        // Also create a styled span for the link
-                        if let Some(prev_attrs) = attr_stack.pop() {
-                            let end_byte = text.len();
-                            let start_byte = find_span_start(&text, &spans, &current_attrs);
-
-                            if start_byte < end_byte {
-                                spans.push(Span {
-                                    range: start_byte..end_byte,
-                                    attrs: current_attrs.clone(),
-                                });
-                            }
-
+                        // Restore previous attributes (span was already created when link text was encountered)
+                        if let Some((prev_attrs, _)) = attr_stack.pop() {
                             current_attrs = prev_attrs;
                         }
                     }
@@ -171,14 +150,15 @@ pub fn parse_markdown(input: &str) -> RichText {
             },
 
             Event::Text(t) => {
-                let start_byte = text.len();
+                // Create span for styled text
+                let start_char = text.chars().count();
                 text.push_str(&t);
-                let end_byte = text.len();
+                let end_char = text.chars().count();
 
-                // Create span if we have active styling
-                if current_attrs != SpanAttrs::default() && start_byte < end_byte {
+                // Only create span if we have non-default styling
+                if current_attrs != SpanAttrs::default() && start_char < end_char {
                     spans.push(Span {
-                        range: start_byte..end_byte,
+                        char_range: start_char..end_char,
                         attrs: current_attrs.clone(),
                     });
                 }
@@ -212,30 +192,23 @@ pub fn parse_markdown(input: &str) -> RichText {
     println!("Links: {} links", links.len());
     println!("Bullets: {} bullets", bullets.len());
 
+    // Verify link character ranges
+    println!("\nVerifying link character ranges:");
+    let chars: Vec<char> = text.chars().collect();
+    for (i, link) in links.iter().enumerate() {
+        if link.char_range.end <= chars.len() {
+            let link_text: String = chars[link.char_range.clone()].iter().collect();
+            println!("  Link {}: range {}..{}, extracted text: {:?}",
+                     i, link.char_range.start, link.char_range.end, link_text);
+        }
+    }
+
     RichText {
         text,
         spans,
         links,
         bullets,
     }
-}
-
-/// Find the start byte position for the current styled span
-///
-/// This searches backwards through already-created spans to find where
-/// the current style started being applied.
-fn find_span_start(_text: &str, spans: &[Span], current_attrs: &SpanAttrs) -> usize {
-    // Look for the last span with different attributes
-    // The new span starts after that
-    for span in spans.iter().rev() {
-        if span.attrs != *current_attrs {
-            return span.range.end;
-        }
-    }
-
-    // If no previous span, or all previous spans have the same attrs,
-    // this span starts at the beginning
-    0
 }
 
 /// Merge adjacent or overlapping spans with identical attributes
@@ -247,15 +220,15 @@ fn merge_spans(mut spans: Vec<Span>) -> Vec<Span> {
     }
 
     // Sort by start position
-    spans.sort_by_key(|s| s.range.start);
+    spans.sort_by_key(|s| s.char_range.start);
 
     let mut merged = Vec::new();
     let mut current = spans[0].clone();
 
     for span in spans.into_iter().skip(1) {
-        if span.attrs == current.attrs && span.range.start <= current.range.end {
+        if span.attrs == current.attrs && span.char_range.start <= current.char_range.end {
             // Merge: extend current span to include this one
-            current.range.end = current.range.end.max(span.range.end);
+            current.char_range.end = current.char_range.end.max(span.char_range.end);
         } else {
             // Different attrs or non-adjacent: push current and start new
             merged.push(current);
@@ -277,9 +250,9 @@ mod tests {
         assert_eq!(rt.text, "Hello world!");
         assert_eq!(rt.spans.len(), 1);
         assert!(rt.spans[0].attrs.bold);
-        // "world" starts at byte 6
-        assert_eq!(rt.spans[0].range.start, 6);
-        assert_eq!(rt.spans[0].range.end, 11);
+        // "world" starts at character 6
+        assert_eq!(rt.spans[0].char_range.start, 6);
+        assert_eq!(rt.spans[0].char_range.end, 11);
     }
 
     #[test]

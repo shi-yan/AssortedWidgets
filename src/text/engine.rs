@@ -523,28 +523,35 @@ fn build_rich_text_segments<'a>(
         return vec![(&rich_text.text, base_attrs.clone())];
     }
 
-    // Sort spans by start position
+    // Sort spans by start position (character ranges)
     let mut sorted_spans = rich_text.spans.clone();
-    sorted_spans.sort_by_key(|s| s.range.start);
+    sorted_spans.sort_by_key(|s| s.char_range.start);
 
-    let mut cursor = 0;
+    // Convert text to char array for char->byte conversion
+    let text_chars: Vec<char> = rich_text.text.chars().collect();
+
+    let mut cursor_byte = 0;
 
     for span in sorted_spans.iter() {
+        // Convert character range to byte range
+        let start_byte: usize = text_chars.iter().take(span.char_range.start).map(|c| c.len_utf8()).sum();
+        let end_byte: usize = text_chars.iter().take(span.char_range.end).map(|c| c.len_utf8()).sum();
+
         // Add unstyled text before this span
-        if cursor < span.range.start {
-            segments.push((&rich_text.text[cursor..span.range.start], base_attrs.clone()));
+        if cursor_byte < start_byte {
+            segments.push((&rich_text.text[cursor_byte..start_byte], base_attrs.clone()));
         }
 
         // Add styled span
         let attrs = span_attrs_to_cosmic(&span.attrs, base_style);
-        segments.push((&rich_text.text[span.range.clone()], attrs));
+        segments.push((&rich_text.text[start_byte..end_byte], attrs));
 
-        cursor = span.range.end;
+        cursor_byte = end_byte;
     }
 
     // Add remaining unstyled text
-    if cursor < rich_text.text.len() {
-        segments.push((&rich_text.text[cursor..], base_attrs.clone()));
+    if cursor_byte < rich_text.text.len() {
+        segments.push((&rich_text.text[cursor_byte..], base_attrs.clone()));
     }
 
     segments
