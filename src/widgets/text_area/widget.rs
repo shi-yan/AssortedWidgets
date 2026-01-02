@@ -528,8 +528,13 @@ impl TextArea {
                 x
             };
 
-            // Move to previous line
-            let line_height = self.font_size * 1.2; // Approximate line height
+            // Move to previous line - use actual line height
+            // For moving up, we need the height of the line we're moving TO
+            // Estimate using current line's height (should be consistent in most cases)
+            let line_height = buffer.layout_runs()
+                .nth(current_line_idx)
+                .map(|run| run.line_height)
+                .unwrap_or(self.font_size * 1.2);
             let target_y = current_line_y - line_height;
 
             // Hit test at (target_x, target_y)
@@ -623,9 +628,9 @@ impl TextArea {
                 x
             };
 
-            // Move to next line
-            let line_height = self.font_size * 1.2; // Approximate line height
-            let target_y = current_line_y + line_height;
+            // Move to next line - use actual line height from the current run
+            let current_run = &layout_runs[current_line_idx];
+            let target_y = current_line_y + current_run.line_height;
 
             // Hit test at (target_x, target_y)
             if let Some(cursor) = buffer.hit(target_x, target_y) {
@@ -889,6 +894,9 @@ impl TextArea {
         let needs_vscroll = self.total_lines > visible_lines;
         let needs_hscroll = !self.wrap_enabled && self.max_line_width > self.viewport_width;
 
+        let had_vscroll = self.vscrollbar.is_some();
+        let had_hscroll = self.hscrollbar.is_some();
+
         // Create or destroy vertical scrollbar
         if needs_vscroll {
             if self.vscrollbar.is_none() {
@@ -927,6 +935,14 @@ impl TextArea {
         } else {
             self.hscrollbar = None;
             self.h_scroll_offset = 0.0;
+        }
+
+        // If scrollbar visibility changed, invalidate layout (viewport width changed!)
+        let has_vscroll = self.vscrollbar.is_some();
+        let has_hscroll = self.hscrollbar.is_some();
+        if had_vscroll != has_vscroll || had_hscroll != has_hscroll {
+            *self.cached_layout.borrow_mut() = None;
+            self.dirty = true;
         }
 
         self.position_scrollbars();
@@ -1044,6 +1060,14 @@ impl TextArea {
 
     /// Convert click position to character index
     fn hit_test_position(&self, position: Point) -> Option<usize> {
+        eprintln!("\n[HIT_TEST] ===== Mouse Click =====");
+        eprintln!("[HIT_TEST] WidgetId: {:?}", self.id);
+        eprintln!("[HIT_TEST] Mouse position: {:?}", position);
+        eprintln!("[HIT_TEST] Widget bounds: {:?}", self.bounds);
+        eprintln!("[HIT_TEST] wrap_enabled: {}", self.wrap_enabled);
+        eprintln!("[HIT_TEST] Padding: L={} R={} T={} B={}",
+                  self.padding.left, self.padding.right, self.padding.top, self.padding.bottom);
+
         let layout = self.cached_layout.borrow();
         let layout = layout.as_ref()?;
 
@@ -1052,21 +1076,95 @@ impl TextArea {
             self.bounds.origin.y + self.padding.top as f64,
         );
 
-        let line_height = self.font_size as f64 * 1.2;
+        // Calculate vertical offset by summing actual line heights from layout
+        let buffer = layout.buffer();
+        let vertical_offset = buffer.layout_runs()
+            .take(self.visible_start_line as usize)
+            .map(|run| run.line_height as f64)
+            .sum::<f64>();
+
         let text_origin = Point::new(
             content_origin.x + self.h_scroll_offset,
-            content_origin.y - (self.visible_start_line as f64 * line_height),
+            content_origin.y - vertical_offset,
         );
+
+        eprintln!("[HIT_TEST] content_origin: {:?}", content_origin);
+        eprintln!("[HIT_TEST] text_origin: {:?}", text_origin);
+        eprintln!("[HIT_TEST] h_scroll_offset: {}, visible_start_line: {}, vertical_offset: {}",
+                  self.h_scroll_offset, self.visible_start_line, vertical_offset);
 
         let rel_x = (position.x - text_origin.x) as f32;
         let rel_y = (position.y - text_origin.y) as f32;
 
+        eprintln!("[HIT_TEST] rel_x: {}, rel_y: {}", rel_x, rel_y);
+
+        // Check if layout width matches viewport
         let buffer = layout.buffer();
-        if let Some(cursor) = buffer.hit(rel_x, rel_y) {
-            let text_before = &self.text[..cursor.index.min(self.text.len())];
-            return Some(text_before.chars().count());
+        let layout_width = buffer.layout_runs()
+            .map(|run| run.line_w)
+            .fold(0.0_f32, |max, w| max.max(w));
+        eprintln!("[HIT_TEST] Layout max line width: {}, viewport_width: {}",
+                 layout_width, self.viewport_width);
+
+        // Check how many lines the layout has
+        let line_count = buffer.layout_runs().count();
+        eprintln!("[HIT_TEST] Layout has {} lines", line_count);
+
+        // Print all line_y values to see vertical spacing
+        eprintln!("[HIT_TEST] Line positions:");
+        for (i, run) in buffer.layout_runs().enumerate() {
+            let line_text = buffer.lines[run.line_i].text();
+            let preview = if line_text.len() > 40 {
+                format!("{}...", &line_text[..40])
+            } else {
+                line_text.to_string()
+            };
+            eprintln!("  Line {}: y={:.2}, height={:.2}, text={:?}",
+                     i, run.line_y, run.line_height, preview);
         }
 
+        let buffer = layout.buffer();
+        if let Some(cursor) = buffer.hit(rel_x, rel_y) {
+            eprintln!("[HIT_TEST] cosmic-text returned: line={}, index={}, affinity={:?}",
+                     cursor.line, cursor.index, cursor.affinity);
+
+            // CRITICAL FIX: cursor.index might be LINE-RELATIVE, not global!
+            // We need to calculate the global byte offset by:
+            // 1. Finding the start byte of cursor.line
+            // 2. Adding cursor.index to get the global position
+
+            // Calculate byte offset of the line start
+            let line_byte_start: usize = buffer.lines
+                .iter()
+                .take(cursor.line)
+                .map(|line| line.text().len() + 1)  // +1 for newline
+                .sum();
+
+            let global_byte_index = line_byte_start + cursor.index;
+            let byte_index = global_byte_index.min(self.text.len());
+
+            eprintln!("[HIT_TEST] Line byte start: {}, global byte index: {}",
+                     line_byte_start, global_byte_index);
+
+            let text_before = &self.text[..byte_index];
+            let char_count = text_before.chars().count();
+
+            eprintln!("[HIT_TEST] Hit at byte index {}, char index {}", byte_index, char_count);
+
+            // Debug: show what character we hit
+            eprintln!("[HIT_TEST] Character at cursor: {:?}",
+                     self.text.chars().nth(char_count).map(|c| format!("'{}'", c)).unwrap_or("END".to_string()));
+
+            // Debug: show context around hit position
+            let start = char_count.saturating_sub(10);
+            let end = (char_count + 10).min(self.text.chars().count());
+            let context: String = self.text.chars().skip(start).take(end - start).collect();
+            eprintln!("[HIT_TEST] Context: \"{}\" (cursor at position {})", context, char_count - start);
+
+            return Some(char_count);
+        }
+
+        eprintln!("[HIT_TEST] No hit, returning end of text");
         Some(self.text.chars().count())
     }
 
@@ -1100,48 +1198,74 @@ impl TextArea {
 
     /// Get cursor position for rendering
     fn get_cursor_rect(&self) -> Option<Rect> {
-        let line_height = self.font_size as f64 * 1.2;
+        eprintln!("\n[GET_CURSOR_RECT] ===== Calculating Cursor Position =====");
+        eprintln!("[GET_CURSOR_RECT] WidgetId: {:?}", self.id);
+        eprintln!("[GET_CURSOR_RECT] cursor_pos (char index): {}", self.cursor_pos);
+        eprintln!("[GET_CURSOR_RECT] viewport_width: {}, wrap_enabled: {}", self.viewport_width, self.wrap_enabled);
+
         let text_area = self.get_text_area_rect();
-        let text_origin = Point::new(
-            text_area.origin.x + self.h_scroll_offset,
-            text_area.origin.y - (self.visible_start_line as f64 * line_height),
-        );
 
         // If text is empty, cursor is at the start
         if self.text.is_empty() {
-            return Some(Rect::new(
-                Point::new(text_origin.x, text_origin.y),
+            let line_height = self.font_size as f64 * 1.2;
+            let cursor_rect = Rect::new(
+                Point::new(text_area.origin.x + self.h_scroll_offset, text_area.origin.y),
                 Size::new(2.0, line_height),
-            ));
+            );
+            eprintln!("[GET_CURSOR_RECT] Empty text, cursor at: {:?}", cursor_rect);
+            return Some(cursor_rect);
         }
 
         let layout = self.cached_layout.borrow();
         let layout = layout.as_ref()?;
         let buffer = layout.buffer();
 
+        // Calculate vertical offset by summing actual line heights from layout
+        let vertical_offset = buffer.layout_runs()
+            .take(self.visible_start_line as usize)
+            .map(|run| run.line_height as f64)
+            .sum::<f64>();
+
+        let text_origin = Point::new(
+            text_area.origin.x + self.h_scroll_offset,
+            text_area.origin.y - vertical_offset,
+        );
+
+        eprintln!("[GET_CURSOR_RECT] text_area: {:?}", text_area);
+        eprintln!("[GET_CURSOR_RECT] text_origin: {:?}", text_origin);
+        eprintln!("[GET_CURSOR_RECT] vertical_offset: {}", vertical_offset);
+
         let char_indices: Vec<_> = self.text.char_indices().map(|(i, _)| i).collect();
         let byte_pos = char_indices.get(self.cursor_pos).copied().unwrap_or(self.text.len());
+
+        eprintln!("[GET_CURSOR_RECT] byte_pos: {}", byte_pos);
 
         // Find cursor position in layout
         for run in buffer.layout_runs() {
             for glyph in run.glyphs.iter() {
                 if glyph.start == byte_pos {
-                    return Some(Rect::new(
+                    let cursor_rect = Rect::new(
                         Point::new(
                             text_origin.x + glyph.x as f64,
                             text_origin.y + run.line_y as f64,
                         ),
                         Size::new(2.0, run.line_height as f64),
-                    ));
+                    );
+                    eprintln!("[GET_CURSOR_RECT] Found at glyph.start: glyph.x={}, run.line_y={}", glyph.x, run.line_y);
+                    eprintln!("[GET_CURSOR_RECT] Final cursor rect: {:?}", cursor_rect);
+                    return Some(cursor_rect);
                 }
                 if byte_pos < glyph.end {
-                    return Some(Rect::new(
+                    let cursor_rect = Rect::new(
                         Point::new(
                             text_origin.x + glyph.x as f64,
-                            text_origin.y + run.line_y as f64,
+                            text_origin.y + run.line_y as f64 - run.line_height as f64,
                         ),
                         Size::new(2.0, run.line_height as f64),
-                    ));
+                    );
+                    eprintln!("[GET_CURSOR_RECT] Found in glyph: glyph.x={}, run.line_y={}", glyph.x, run.line_y);
+                    eprintln!("[GET_CURSOR_RECT] Final cursor rect: {:?}", cursor_rect);
+                    return Some(cursor_rect);
                 }
             }
 
@@ -1159,10 +1283,11 @@ impl TextArea {
             }
         }
 
-        // Cursor at very end of text
+        // Cursor at very end of text (use approximation for fallback height)
+        let fallback_height = self.font_size as f64 * 1.2;
         Some(Rect::new(
             Point::new(text_origin.x, text_origin.y),
-            Size::new(2.0, line_height),
+            Size::new(2.0, fallback_height),
         ))
     }
 
@@ -1451,6 +1576,10 @@ impl Widget for TextArea {
 
         // Create layout if needed
         if self.cached_layout.borrow().is_none() && !text_to_render.is_empty() {
+            eprintln!("\n[LAYOUT] ===== Creating Text Layout =====");
+            eprintln!("[LAYOUT] viewport_width: {}", self.viewport_width);
+            eprintln!("[LAYOUT] wrap_enabled: {}", self.wrap_enabled);
+
             let text_style = TextStyle::new()
                 .size(self.font_size)
                 .color(if self.text.is_empty() {
@@ -1464,6 +1593,8 @@ impl Widget for TextArea {
             } else {
                 None
             };
+
+            eprintln!("[LAYOUT] max_width for layout: {:?}", max_width);
 
             let wrap = if self.wrap_enabled {
                 cosmic_text::Wrap::Word
@@ -1506,9 +1637,19 @@ impl Widget for TextArea {
         }
 
         let text_area = self.get_text_area_rect();
-        let line_height = self.font_size as f64 * 1.2;
 
-        // Extend clip rect slightly to show partial lines
+        // Calculate vertical offset by summing actual line heights from layout
+        let vertical_offset = if let Some(ref layout) = *self.cached_layout.borrow() {
+            layout.buffer().layout_runs()
+                .take(self.visible_start_line as usize)
+                .map(|run| run.line_height as f64)
+                .sum::<f64>()
+        } else {
+            0.0
+        };
+
+        // Extend clip rect slightly to show partial lines (use approximation for clip extension)
+        let line_height = self.font_size as f64 * 1.2;
         let extended_clip = Rect::new(
             text_area.origin,
             Size::new(text_area.size.width, text_area.size.height + line_height),
@@ -1517,8 +1658,38 @@ impl Widget for TextArea {
 
         let text_origin = Point::new(
             text_area.origin.x + self.h_scroll_offset,
-            text_area.origin.y - (self.visible_start_line as f64 * line_height),
+            text_area.origin.y - vertical_offset,
         );
+
+        // Track cursor position during text rendering (for accurate positioning)
+        let mut cursor_rect_from_rendering: Option<Rect> = None;
+
+        // Calculate which LINE and LINE-RELATIVE byte offset the cursor is at
+        // We need this because cosmic-text uses line-relative positions for glyphs
+        let char_indices: Vec<_> = self.text.char_indices().map(|(i, _)| i).collect();
+        let cursor_global_byte_pos = char_indices.get(self.cursor_pos).copied().unwrap_or(self.text.len());
+
+        // Find which line the cursor is on by summing line lengths
+        let mut cursor_line_idx = 0;
+        let mut cursor_line_relative_byte_pos = cursor_global_byte_pos;
+
+        if let Some(ref layout) = *self.cached_layout.borrow() {
+            let buffer = layout.buffer();
+            let mut byte_offset = 0;
+
+            for (line_idx, line) in buffer.lines.iter().enumerate() {
+                let line_len = line.text().len();
+                if byte_offset + line_len >= cursor_global_byte_pos {
+                    cursor_line_idx = line_idx;
+                    cursor_line_relative_byte_pos = cursor_global_byte_pos - byte_offset;
+                    break;
+                }
+                byte_offset += line_len + 1; // +1 for newline
+            }
+        }
+
+        eprintln!("[CURSOR_CALC] cursor_pos={}, global_byte={}, line={}, line_relative_byte={}",
+                 self.cursor_pos, cursor_global_byte_pos, cursor_line_idx, cursor_line_relative_byte_pos);
 
         // Draw selection if any
         if self.is_focused {
@@ -1577,7 +1748,7 @@ impl Widget for TextArea {
             }
         }
 
-        // Draw text
+        // Draw text and calculate cursor position simultaneously
         if !text_to_render.is_empty() {
             if let Some(ref layout) = *self.cached_layout.borrow() {
                 let text_color = if self.text.is_empty() {
@@ -1585,6 +1756,63 @@ impl Widget for TextArea {
                 } else {
                     style.text_color
                 };
+
+                eprintln!("[TEXT_RENDER] Looking for cursor at line={}, line_relative_byte={}",
+                         cursor_line_idx, cursor_line_relative_byte_pos);
+
+                // Render text while tracking cursor position
+                let buffer = layout.buffer();
+                for (run_idx, run) in buffer.layout_runs().enumerate() {
+                    let line_y = run.line_y;
+                    let line_height = run.line_height;
+
+                    // Debug: show glyph range for this run
+                    let first_glyph_start = run.glyphs.first().map(|g| g.start).unwrap_or(0);
+                    let last_glyph_end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
+                    eprintln!("[TEXT_RENDER] Run {}: line_i={}, glyph byte range [{}, {})",
+                             run_idx, run.line_i, first_glyph_start, last_glyph_end);
+
+                    // Check if this run is the line containing the cursor
+                    if cursor_rect_from_rendering.is_none() && run.line_i == cursor_line_idx {
+                        for glyph in run.glyphs.iter() {
+                            // Check if cursor is at this glyph's position (LINE-RELATIVE!)
+                            if cursor_line_relative_byte_pos == glyph.start {
+                                eprintln!("[TEXT_RENDER] ✓ Found cursor at run={}, line={}, glyph.start={}, glyph.x={}",
+                                         run_idx, run.line_i, glyph.start, glyph.x);
+                            let cursor_x = text_origin.x + glyph.x as f64;
+                            let cursor_y = text_origin.y + line_y as f64 - line_height as f64;
+                            cursor_rect_from_rendering = Some(Rect::new(
+                                Point::new(cursor_x, cursor_y),
+                                Size::new(2.0, line_height as f64),
+                            ));
+
+                                    eprintln!("[TEXT_RENDER] Found cursor position at glyph.start={}, glyph.x={}, line_y={}",
+                                             glyph.start, glyph.x, line_y);
+                                    eprintln!("[TEXT_RENDER] Cursor rect from rendering: {:?}", cursor_rect_from_rendering);
+                                    break; // Found cursor, stop searching
+                                }
+                            }
+                        }
+
+                        // Check if cursor is at end of this line (after last glyph)
+                        if cursor_rect_from_rendering.is_none() && run.line_i == cursor_line_idx {
+                            if let Some(last_glyph) = run.glyphs.last() {
+                                if cursor_line_relative_byte_pos == last_glyph.end {
+                                let cursor_x = text_origin.x + (last_glyph.x + last_glyph.w) as f64;
+                                let cursor_y = text_origin.y + line_y as f64;
+                                cursor_rect_from_rendering = Some(Rect::new(
+                                    Point::new(cursor_x, cursor_y),
+                                    Size::new(2.0, line_height as f64),
+                                ));
+
+                                eprintln!("[TEXT_RENDER] Cursor at end of line, last_glyph.end={}", last_glyph.end);
+                                eprintln!("[TEXT_RENDER] Cursor rect from rendering: {:?}", cursor_rect_from_rendering);
+                            }
+                        }
+                    }
+                }
+
+                // Now draw the text using the standard method
                 ctx.draw_layout(layout, text_origin, text_color);
             }
         }
@@ -1611,10 +1839,54 @@ impl Widget for TextArea {
             let elapsed = self.cursor_blink_timer.elapsed().as_millis();
             let blink_phase = (elapsed / BLINK_INTERVAL_MS) % 2;
 
+            eprintln!("[CURSOR_BLINK] elapsed: {}ms, blink_phase: {}", elapsed, blink_phase);
+
             if blink_phase == 0 {
-                if let Some(cursor_rect) = self.get_cursor_rect() {
-                    ctx.draw_rect(cursor_rect, style.cursor_color);
+                // Use cursor position calculated during text rendering (more accurate!)
+                let cursor_rect = if let Some(rect) = cursor_rect_from_rendering {
+                    rect
+                } else if self.text.is_empty() {
+                    // Empty text - cursor at origin
+                    let line_height = self.font_size as f64 * 1.2;
+                    Rect::new(
+                        Point::new(text_origin.x, text_origin.y),
+                        Size::new(2.0, line_height),
+                    )
+                } else {
+                    // Fallback to old method for comparison
+                    eprintln!("[PAINT] WARNING: cursor_rect_from_rendering is None, using fallback");
+                    if let Some(rect) = self.get_cursor_rect() {
+                        rect
+                    } else {
+                        eprintln!("[PAINT] ERROR: Could not calculate cursor rect");
+                        return;
+                    }
+                };
+
+                // Compare with old method for debugging
+                if let Some(old_rect) = self.get_cursor_rect() {
+                    eprintln!("[PAINT] Cursor rect (NEW from rendering): {:?}", cursor_rect);
+                    eprintln!("[PAINT] Cursor rect (OLD from get_cursor_rect): {:?}", old_rect);
+                    eprintln!("[PAINT] Difference X: {}, Y: {}",
+                             cursor_rect.origin.x - old_rect.origin.x,
+                             cursor_rect.origin.y - old_rect.origin.y);
                 }
+
+                eprintln!("[PAINT] Drawing cursor at: {:?}", cursor_rect);
+                eprintln!("[PAINT] Cursor color: {:?}", style.cursor_color);
+
+                // Use draw_styled_rect to ensure z-order works across pipelines
+                ctx.draw_styled_rect(
+                    cursor_rect,
+                    ShapeStyle {
+                        fill: crate::paint::types::Brush::Solid(style.cursor_color),
+                        corner_radius: crate::paint::types::CornerRadius::zero(),
+                        border: None,
+                        shadow: None,
+                    },
+                );
+            } else {
+                eprintln!("[CURSOR_BLINK] Cursor hidden (blink off phase)");
             }
         }
 

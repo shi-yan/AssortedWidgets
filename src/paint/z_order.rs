@@ -66,7 +66,13 @@ pub fn z_index_to_depth(z_index: i32, fine_z: f32) -> f32 {
 
         // Layer NORMAL (0-99) → depth [0.3, 0.6)
         // Widest range for most UI elements
-        0..=99 => 0.3 + fine_z * 0.3,
+        // Map z_index within range to base offset, then add fine_z for overlap
+        // IMPORTANT: Higher z_index = LOWER depth (closer to camera, rendered on top)
+        0..=99 => {
+            let normalized = (99 - z_index) as f32 / 99.0;  // Invert: z=0→1.0, z=99→0.0
+            let layer_offset = normalized * 0.29;  // Spread across most of 0.3 range
+            0.3 + layer_offset + fine_z * 0.001  // Small fine_z for overlap within same z_index
+        }
 
         // Layer SHADOW (-100 to -1) → depth [0.6, 0.8)
         -100..=-1 => 0.6 + fine_z * 0.2,
