@@ -125,6 +125,8 @@ define_class!(
             let modifiers = Self::convert_modifiers(event);
             let key_code = event.keyCode();
 
+            eprintln!("[PLATFORM] keyDown: key_code={}", key_code);
+
             // Check if this is a special key or shortcut that should bypass IME
             let is_special_key = matches!(key_code,
                 123 | 124 | 125 | 126 | // Arrow keys
@@ -137,11 +139,18 @@ define_class!(
 
             let has_modifiers = modifiers.command || modifiers.control || modifiers.alt;
 
+            eprintln!("[PLATFORM] is_special_key={}, has_modifiers={}", is_special_key, has_modifiers);
+
             // Special keys and shortcuts: convert and dispatch directly (bypass IME)
             if is_special_key || has_modifiers {
                 println!("[KEY] Special key or shortcut detected, bypassing IME");
                 if let Some(key_event) = Self::convert_to_key_event(event) {
+                    eprintln!("[PLATFORM] Converted to key_event: {:?}", key_event.key);
+                    eprintln!("[PLATFORM] Calling invoke_input_event_callback with KeyDown");
                     self.invoke_input_event_callback(InputEventEnum::KeyDown(key_event));
+                    eprintln!("[PLATFORM] invoke_input_event_callback returned");
+                } else {
+                    eprintln!("[PLATFORM] convert_to_key_event returned None!");
                 }
             } else {
                 // Regular character input: use IME for international text input
@@ -379,9 +388,24 @@ impl CustomView {
     }
 
     fn invoke_input_event_callback(&self, event: InputEventEnum) {
+        eprintln!("[PLATFORM] invoke_input_event_callback: event type = {}",
+                 match &event {
+                     InputEventEnum::KeyDown(_) => "KeyDown",
+                     InputEventEnum::KeyUp(_) => "KeyUp",
+                     InputEventEnum::MouseDown(_) => "MouseDown",
+                     InputEventEnum::MouseUp(_) => "MouseUp",
+                     InputEventEnum::MouseMove(_) => "MouseMove",
+                     InputEventEnum::Wheel(_) => "Wheel",
+                     InputEventEnum::Ime(_) => "Ime",
+                     InputEventEnum::Custom(_) => "Custom",
+                 });
         let mut state = self.ivars().state.borrow_mut();
         if let Some(callback) = state.callbacks.input_event.as_mut() {
+            eprintln!("[PLATFORM] Callback exists, calling it now...");
             callback(event);
+            eprintln!("[PLATFORM] Callback returned");
+        } else {
+            eprintln!("[PLATFORM] ✗ No callback registered!");
         }
     }
 

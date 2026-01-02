@@ -1305,9 +1305,30 @@ impl Widget for TextInput {
                 let cursor_width = 2.0;
                 let cursor_color = style.text_color;
 
+                // Calculate cursor Y position and height to match text
+                let (cursor_y, cursor_height) = if let Some(ref layout) = *self.text_layout.borrow() {
+                    // Use cosmic-text line metrics for accurate positioning
+                    let buffer = layout.buffer();
+                    if let Some(run) = buffer.layout_runs().next() {
+                        let text_y_base = text_area.origin.y + (text_area.size.height - layout.height() as f64) / 2.0;
+                        let cursor_y = text_y_base + run.line_top as f64;
+                        let cursor_height = run.line_height as f64;
+                        (cursor_y, cursor_height)
+                    } else {
+                        // Fallback for empty layout
+                        let text_y = text_area.origin.y + (text_area.size.height - layout.height() as f64) / 2.0;
+                        (text_y, layout.height() as f64)
+                    }
+                } else {
+                    // No layout - use default line height
+                    let line_height = self.font_size as f64 * 1.2;
+                    let cursor_y = text_area.origin.y + (text_area.size.height - line_height) / 2.0;
+                    (cursor_y, line_height)
+                };
+
                 let cursor_rect = Rect::new(
-                    Point::new(cursor_x as f64, text_area.origin.y),
-                    Size::new(cursor_width, text_area.size.height),
+                    Point::new(cursor_x as f64, cursor_y),
+                    Size::new(cursor_width, cursor_height),
                 );
 
                 ctx.draw_rect(cursor_rect, cursor_color);
