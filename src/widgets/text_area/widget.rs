@@ -92,6 +92,7 @@ pub struct TextArea {
     max_line_width: f64,
     viewport_width: f64,
     viewport_height: f64,
+    needs_scroll_to_cursor: bool, // Set after text changes, cleared after scrolling
 
     // === Embedded Scrollbars ===
     vscrollbar: Option<ScrollBar>,
@@ -159,6 +160,7 @@ impl TextArea {
             max_line_width: 0.0,
             viewport_width: 0.0,
             viewport_height: 0.0,
+            needs_scroll_to_cursor: false,
 
             vscrollbar: None,
             hscrollbar: None,
@@ -548,21 +550,37 @@ impl TextArea {
             }
 
             // Get or calculate preferred X position
+            eprintln!("[MOVE_UP] Current line: {}, cursor at line_relative_byte: {}", current_line_idx, line_relative_byte);
             let target_x = if let Some(x) = self.preferred_cursor_x {
+                eprintln!("[MOVE_UP] Using PREFERRED cursor X: {:.1}", x);
                 x
             } else {
                 // Calculate current X position from the current run's glyphs
+                eprintln!("[MOVE_UP] No preferred X, calculating from current position...");
+                eprintln!("[MOVE_UP] Current run has {} glyphs", current_run.glyphs.len());
                 let mut x = 0.0;
-                for glyph in current_run.glyphs.iter() {
+                for (i, glyph) in current_run.glyphs.iter().enumerate() {
+                    eprintln!("[MOVE_UP]   Glyph {}: start={}, end={}, x={:.1}, w={:.1}",
+                             i, glyph.start, glyph.end, glyph.x, glyph.w);
                     if glyph.start == line_relative_byte {
                         x = glyph.x;
+                        eprintln!("[MOVE_UP] Found exact match at glyph {}, x={:.1}", i, x);
                         break;
                     }
                     if line_relative_byte < glyph.end {
                         x = glyph.x;
+                        eprintln!("[MOVE_UP] Found cursor within glyph {}, x={:.1}", i, x);
                         break;
                     }
                 }
+                // Check if cursor is at end of line (after last glyph)
+                if let Some(last_glyph) = current_run.glyphs.last() {
+                    if line_relative_byte >= last_glyph.end {
+                        x = last_glyph.x + last_glyph.w;
+                        eprintln!("[MOVE_UP] Cursor at end of line, x={:.1}", x);
+                    }
+                }
+                eprintln!("[MOVE_UP] Calculated X: {:.1}, saving as preferred", x);
                 self.preferred_cursor_x = Some(x);
                 x
             };
@@ -576,27 +594,38 @@ impl TextArea {
                 .unwrap_or(self.font_size * 1.2);
             let target_y = current_line_y - line_height;
 
+            eprintln!("[MOVE_UP] Moving from line {} to target_y={:.1} (line_height={:.1})", current_line_idx, target_y, line_height);
+
             // Hit test at (target_x, target_y)
             if let Some(mut cursor) = buffer.hit(target_x, target_y) {
+                eprintln!("[MOVE_UP] Hit test at ({:.1}, {:.1}) returned: line={}, index={}",
+                         target_x, target_y, cursor.line, cursor.index);
 
                 // CRITICAL: Clamp to line end if target_x is beyond the line content
-                // Get the actual line length to check if we need clamping
-                if cursor.line < buffer.lines.len() {
+                // Calculate the actual width of the target line
+                if cursor.line < layout_runs.len() {
+                    let target_run = &layout_runs[cursor.line];
                     let target_line_text = buffer.lines[cursor.line].text();
                     let target_line_len = target_line_text.len();
 
-                    // If hit test returned index=0 but we're hitting far to the right,
-                    // it means the line is shorter than target_x - clamp to line end
-                    if cursor.index == 0 && target_line_len > 0 {
-                        // Find the actual X position at index 0
-                        let target_run = &layout_runs[cursor.line];
-                        let x_at_zero = target_run.glyphs.first().map(|g| g.x).unwrap_or(0.0);
+                    // Calculate the X position at the end of the line
+                    let line_end_x = if let Some(last_glyph) = target_run.glyphs.last() {
+                        last_glyph.x + last_glyph.w
+                    } else {
+                        0.0 // Empty line
+                    };
 
-                        // If target_x is significantly to the right of the line start,
-                        // we should clamp to the line end instead
-                        if target_x > x_at_zero + 10.0 {
-                            cursor.index = target_line_len;
-                        }
+                    eprintln!("[MOVE_UP] Target line {}: text='{}', len={}, line_end_x={:.1}",
+                             cursor.line, target_line_text, target_line_len, line_end_x);
+                    eprintln!("[MOVE_UP] target_x={:.1}, line_end_x={:.1}, needs_clamp={}",
+                             target_x, line_end_x, target_x > line_end_x);
+
+                    // If target_x is beyond the line's end, clamp cursor to end of line
+                    if target_x > line_end_x && target_line_len > 0 {
+                        eprintln!("[MOVE_UP] CLAMPING: cursor.index {} -> {}", cursor.index, target_line_len);
+                        cursor.index = target_line_len;
+                    } else {
+                        eprintln!("[MOVE_UP] NO CLAMP: keeping cursor.index={}", cursor.index);
                     }
                 }
 
@@ -611,8 +640,12 @@ impl TextArea {
                 let global_byte_index = line_byte_start + cursor.index;
                 let byte_index = global_byte_index.min(self.text.len());
 
+                eprintln!("[MOVE_UP] line_byte_start={}, cursor.index={}, global_byte_index={}",
+                         line_byte_start, cursor.index, global_byte_index);
+
                 // Convert to char index using helper
                 let new_pos = self.byte_to_char(byte_index);
+                eprintln!("[MOVE_UP] Final cursor position: {} (was {})", new_pos, self.cursor_pos);
 
                 if extend_selection {
                     if self.selection_start.is_none() {
@@ -709,25 +742,34 @@ impl TextArea {
 
             // Hit test at (target_x, target_y)
             if let Some(mut cursor) = buffer.hit(target_x, target_y) {
+                eprintln!("[MOVE_DOWN] Hit test at ({:.1}, {:.1}) returned: line={}, index={}",
+                         target_x, target_y, cursor.line, cursor.index);
 
                 // CRITICAL: Clamp to line end if target_x is beyond the line content
-                // Get the actual line length to check if we need clamping
-                if cursor.line < buffer.lines.len() {
+                // Calculate the actual width of the target line
+                if cursor.line < layout_runs.len() {
+                    let target_run = &layout_runs[cursor.line];
                     let target_line_text = buffer.lines[cursor.line].text();
                     let target_line_len = target_line_text.len();
 
-                    // If hit test returned index=0 but we're hitting far to the right,
-                    // it means the line is shorter than target_x - clamp to line end
-                    if cursor.index == 0 && target_line_len > 0 {
-                        // Find the actual X position at index 0
-                        let target_run = &layout_runs[cursor.line];
-                        let x_at_zero = target_run.glyphs.first().map(|g| g.x).unwrap_or(0.0);
+                    // Calculate the X position at the end of the line
+                    let line_end_x = if let Some(last_glyph) = target_run.glyphs.last() {
+                        last_glyph.x + last_glyph.w
+                    } else {
+                        0.0 // Empty line
+                    };
 
-                        // If target_x is significantly to the right of the line start,
-                        // we should clamp to the line end instead
-                        if target_x > x_at_zero + 10.0 {
-                            cursor.index = target_line_len;
-                        }
+                    eprintln!("[MOVE_DOWN] Target line {}: text='{}', len={}, line_end_x={:.1}",
+                             cursor.line, target_line_text, target_line_len, line_end_x);
+                    eprintln!("[MOVE_DOWN] target_x={:.1}, line_end_x={:.1}, needs_clamp={}",
+                             target_x, line_end_x, target_x > line_end_x);
+
+                    // If target_x is beyond the line's end, clamp cursor to end of line
+                    if target_x > line_end_x && target_line_len > 0 {
+                        eprintln!("[MOVE_DOWN] CLAMPING: cursor.index {} -> {}", cursor.index, target_line_len);
+                        cursor.index = target_line_len;
+                    } else {
+                        eprintln!("[MOVE_DOWN] NO CLAMP: keeping cursor.index={}", cursor.index);
                     }
                 }
 
@@ -742,8 +784,12 @@ impl TextArea {
                 let global_byte_index = line_byte_start + cursor.index;
                 let byte_index = global_byte_index.min(self.text.len());
 
+                eprintln!("[MOVE_DOWN] line_byte_start={}, cursor.index={}, global_byte_index={}",
+                         line_byte_start, cursor.index, global_byte_index);
+
                 // Convert to char index using helper
                 let new_pos = self.byte_to_char(byte_index);
+                eprintln!("[MOVE_DOWN] Final cursor position: {} (was {})", new_pos, self.cursor_pos);
 
                 if extend_selection {
                     if self.selection_start.is_none() {
@@ -1103,49 +1149,166 @@ impl TextArea {
 
     /// Ensure cursor is visible by adjusting scroll offsets
     fn ensure_cursor_visible(&mut self) {
+        eprintln!("[ENSURE_CURSOR] Called (cursor at char {})", self.cursor_pos);
+
+        // CRITICAL FIX: If layout is invalidated (None), we can't calculate cursor position yet.
+        // This happens after text insertion/deletion. Set a flag and do the scrolling later
+        // in update() or paint() after the layout is recreated.
+        if self.cached_layout.borrow().is_none() {
+            eprintln!("[ENSURE_CURSOR] Layout is None, deferring scroll (setting needs_scroll_to_cursor flag)");
+            self.needs_scroll_to_cursor = true;
+            self.dirty = true;
+            return;
+        }
+
+        eprintln!("[ENSURE_CURSOR] Layout is available, calling do_scroll_to_cursor()");
+        self.do_scroll_to_cursor();
+    }
+
+    /// Perform the actual scrolling to make cursor visible
+    /// Called from ensure_cursor_visible() when layout is available,
+    /// or from update() after layout is recreated.
+    fn do_scroll_to_cursor(&mut self) {
         if let Some(layout) = self.cached_layout.borrow().as_ref() {
             let buffer = layout.buffer();
 
-            // Find cursor position
+            // Find cursor position (GLOBAL byte offset in full text)
             let char_indices: Vec<_> = self.text.char_indices().map(|(i, _)| i).collect();
-            let byte_pos = char_indices.get(self.cursor_pos).copied().unwrap_or(self.text.len());
+            let global_byte_pos = char_indices.get(self.cursor_pos).copied().unwrap_or(self.text.len());
 
-            // Find which visual line the cursor is on
+            eprintln!("[CURSOR_SCROLL] Finding cursor line for GLOBAL byte pos: {}", global_byte_pos);
+
+            // Find which visual line the cursor is on and its Y position
+            // CRITICAL: cosmic-text uses LINE-RELATIVE byte positions, so we need to track cumulative
             let mut cursor_line = 0_u32;
             let mut cursor_x = 0.0_f32;
+            let mut cursor_y = 0.0_f64;
+            let mut cursor_height = self.font_size as f64 * 1.2; // fallback
 
-            for (line_idx, run) in buffer.layout_runs().enumerate() {
-                if let Some(last_glyph) = run.glyphs.last() {
-                    if byte_pos <= last_glyph.end {
-                        cursor_line = line_idx as u32;
-                        // Find X position
+            let mut line_byte_start = 0_usize;
+            for (line_idx, line) in buffer.lines.iter().enumerate() {
+                let line_len = line.text().len();
+                let line_byte_end = line_byte_start + line_len;
+
+                eprintln!("[CURSOR_SCROLL]   Line {}: global byte range [{}, {})", line_idx, line_byte_start, line_byte_end);
+
+                // Check if cursor is in this line (using GLOBAL byte positions)
+                if global_byte_pos >= line_byte_start && global_byte_pos <= line_byte_end {
+                    cursor_line = line_idx as u32;
+
+                    // Convert to LINE-RELATIVE byte position for glyph lookup
+                    let line_relative_byte = global_byte_pos - line_byte_start;
+
+                    eprintln!("[CURSOR_SCROLL]   Cursor found in line {}! Line-relative byte: {}", line_idx, line_relative_byte);
+
+                    // Get the layout run for this line to find Y position and cursor X
+                    if let Some(run) = buffer.layout_runs().nth(line_idx) {
+                        cursor_y = run.line_top as f64;
+                        cursor_height = run.line_height as f64;
+
+                        // Find X position using LINE-RELATIVE byte offset
                         for glyph in run.glyphs.iter() {
-                            if glyph.start == byte_pos {
+                            if glyph.start == line_relative_byte {
                                 cursor_x = glyph.x;
+                                eprintln!("[CURSOR_SCROLL]   Cursor X at glyph start: {:.1}", cursor_x);
                                 break;
                             }
-                            if byte_pos < glyph.end {
+                            if line_relative_byte < glyph.end {
                                 cursor_x = glyph.x;
+                                eprintln!("[CURSOR_SCROLL]   Cursor X within glyph: {:.1}", cursor_x);
                                 break;
                             }
                         }
-                        break;
+
+                        // If cursor is at end of line (after last glyph)
+                        if let Some(last_glyph) = run.glyphs.last() {
+                            if line_relative_byte >= last_glyph.end {
+                                cursor_x = last_glyph.x + last_glyph.w;
+                                eprintln!("[CURSOR_SCROLL]   Cursor X at line end: {:.1}", cursor_x);
+                            }
+                        }
                     }
+                    break;
                 }
+
+                line_byte_start = line_byte_end + 1; // +1 for newline character
             }
 
-            // Vertical scrolling
-            let visible_lines = self.num_visible_lines();
-            if cursor_line < self.visible_start_line {
-                self.visible_start_line = cursor_line;
-                if let Some(ref mut vscroll) = self.vscrollbar {
-                    vscroll.set_value(cursor_line as i32);
+            // Calculate vertical offset for current scroll position (sum of actual line heights)
+            let current_offset = buffer.layout_runs()
+                .take(self.visible_start_line as usize)
+                .map(|run| run.line_height as f64)
+                .sum::<f64>();
+
+            // Calculate how many lines are visible
+            let total_lines = buffer.layout_runs().count();
+            let mut visible_height = 0.0_f64;
+            let mut last_visible_line = self.visible_start_line;
+            for (i, run) in buffer.layout_runs().enumerate().skip(self.visible_start_line as usize) {
+                visible_height += run.line_height as f64;
+                if visible_height > self.viewport_height {
+                    break;
                 }
-            } else if cursor_line >= self.visible_start_line + visible_lines {
-                self.visible_start_line = cursor_line.saturating_sub(visible_lines - 1);
+                last_visible_line = i as u32;
+            }
+
+            // Calculate cursor's position relative to viewport
+            let cursor_top_in_viewport = cursor_y - current_offset;
+            let cursor_bottom_in_viewport = cursor_top_in_viewport + cursor_height;
+
+            eprintln!("[CURSOR_SCROLL] ========================================");
+            eprintln!("[CURSOR_SCROLL] Total lines in layout: {}", total_lines);
+            eprintln!("[CURSOR_SCROLL] Cursor at line: {} (char pos: {})", cursor_line, self.cursor_pos);
+            eprintln!("[CURSOR_SCROLL] Visible range: {} to {}", self.visible_start_line, last_visible_line);
+            eprintln!("[CURSOR_SCROLL] Viewport height: {:.1}", self.viewport_height);
+            eprintln!("[CURSOR_SCROLL] Cursor Y: {:.1}, Height: {:.1}", cursor_y, cursor_height);
+            eprintln!("[CURSOR_SCROLL] Cursor top in viewport: {:.1}, bottom: {:.1}", cursor_top_in_viewport, cursor_bottom_in_viewport);
+
+            // Check if cursor is fully visible in viewport
+            let needs_scroll = cursor_top_in_viewport < 0.0 || cursor_bottom_in_viewport > self.viewport_height;
+            eprintln!("[CURSOR_SCROLL] Cursor is {} visible (needs_scroll: {})",
+                     if needs_scroll { "NOT" } else { "FULLY" }, needs_scroll);
+
+            if needs_scroll {
+                let old_start = self.visible_start_line;
+                if cursor_top_in_viewport < 0.0 {
+                    // Cursor is above viewport - scroll up to show it at the top
+                    eprintln!("[CURSOR_SCROLL] Cursor above viewport, scrolling UP");
+                    self.visible_start_line = cursor_line;
+                } else {
+                    // Cursor is below viewport - scroll down to show it at the bottom
+                    eprintln!("[CURSOR_SCROLL] Cursor below viewport, scrolling DOWN");
+                    // Calculate how many lines fit in the viewport starting from the cursor line going up
+                    let runs: Vec<_> = buffer.layout_runs().collect();
+                    let mut height_sum = 0.0_f64;
+                    let mut start_line = cursor_line as usize;
+
+                    for i in (0..=cursor_line as usize).rev() {
+                        if let Some(run) = runs.get(i) {
+                            height_sum += run.line_height as f64;
+                            eprintln!("[CURSOR_SCROLL]   Line {}: height {:.1}, cumulative {:.1}", i, run.line_height, height_sum);
+                            if height_sum > self.viewport_height {
+                                start_line = i + 1; // This line doesn't fit, start from next one
+                                eprintln!("[CURSOR_SCROLL]   Exceeded viewport, starting from line {}", start_line);
+                                break;
+                            }
+                            start_line = i;
+                        }
+                    }
+
+                    self.visible_start_line = start_line as u32;
+                }
+
+                eprintln!("[CURSOR_SCROLL] Scrolled from line {} to line {}", old_start, self.visible_start_line);
+
+                // Update scrollbar
                 if let Some(ref mut vscroll) = self.vscrollbar {
                     vscroll.set_value(self.visible_start_line as i32);
+                    eprintln!("[CURSOR_SCROLL] Updated scrollbar value to {}", self.visible_start_line);
                 }
+                self.dirty = true;
+            } else {
+                eprintln!("[CURSOR_SCROLL] No scrolling needed - cursor is already visible");
             }
 
             // Horizontal scrolling (if no wrap)
@@ -1154,14 +1317,18 @@ impl TextArea {
 
                 if cursor_x_global < 0.0 {
                     self.h_scroll_offset = -(cursor_x as f64);
+                    self.dirty = true;
                 } else if cursor_x_global > self.viewport_width {
                     self.h_scroll_offset = self.viewport_width - cursor_x as f64;
+                    self.dirty = true;
                 }
 
                 // Clamp
                 let max_scroll = (self.max_line_width - self.viewport_width).max(0.0);
                 self.h_scroll_offset = self.h_scroll_offset.clamp(-max_scroll, 0.0);
             }
+
+            self.needs_scroll_to_cursor = false;
         }
     }
 
@@ -1599,6 +1766,17 @@ impl Widget for TextArea {
         self.viewport_width = (self.bounds.size.width - self.padding.horizontal() as f64 - vscroll_w).max(0.0);
         self.viewport_height = (self.bounds.size.height - self.padding.vertical() as f64 - hscroll_h).max(0.0);
 
+        // CRITICAL FIX: Try to scroll to cursor before updating scrollbars
+        // This ensures scrollbar ranges are correct for the new scroll position
+        if self.needs_scroll_to_cursor {
+            if self.cached_layout.borrow().is_some() {
+                eprintln!("[UPDATE] needs_scroll_to_cursor is true and layout is available, calling do_scroll_to_cursor()");
+                self.do_scroll_to_cursor();
+            } else {
+                eprintln!("[UPDATE] needs_scroll_to_cursor is true but layout is still None, will retry next frame");
+            }
+        }
+
         // Update scrollbars
         self.update_scrollbars();
 
@@ -1684,6 +1862,12 @@ impl Widget for TextArea {
 
                     *self.cached_layout.borrow_mut() = Some(layout);
                     *self.cached_layout_width.borrow_mut() = max_width;
+
+                    // CRITICAL FIX: If we need to scroll to cursor, do it now that layout is ready
+                    if (*this).needs_scroll_to_cursor {
+                        eprintln!("[PAINT] Layout just created and needs_scroll_to_cursor is true, calling do_scroll_to_cursor()");
+                        (*this).do_scroll_to_cursor();
+                    }
                 }
             });
         }
@@ -2090,6 +2274,11 @@ impl Widget for TextArea {
         self.is_focused = true;
         self.update_state();
         self.dirty = true;
+
+        // CRITICAL FIX: Ensure cursor is visible when gaining focus
+        // This prevents the scrollbar from jumping when pressing arrow keys
+        // after manually scrolling to a different position
+        self.ensure_cursor_visible();
     }
 
     fn on_focus_lost(&mut self) {
