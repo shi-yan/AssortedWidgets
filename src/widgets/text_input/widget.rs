@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::cell::RefCell;
-use std::time::Instant;
 
 use taffy::Style;
 
@@ -12,6 +11,7 @@ use crate::paint::PaintContext;
 use crate::text::{ TextLayout, TextStyle, Truncate};
 use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
+use crate::widgets::Cursor;
 
 use super::style::{InputState, InputStyle};
 
@@ -23,7 +23,7 @@ use super::style::{InputState, InputStyle};
 #[derive(Clone, Debug)]
 struct UndoState {
     text: String,
-    cursor_pos: usize,
+    cursor_pos: usize,  // Store as raw position for simplicity
     selection_start: Option<usize>,
 }
 
@@ -45,9 +45,8 @@ pub struct TextInput {
     _preedit_cursor: Option<usize>,
 
     // === Cursor & Selection ===
-    cursor_pos: usize,               // Character index
+    cursor: Cursor,                  // Unified cursor with caching
     selection_start: Option<usize>,  // None = no selection
-    cursor_blink_timer: Instant,
     drag_start_pos: Option<Point>,   // For drag selection
 
     // === Undo/Redo ===
@@ -109,9 +108,8 @@ impl TextInput {
             preedit_text: String::new(),
             _preedit_cursor: None,
 
-            cursor_pos: 0,
+            cursor: Cursor::new(),
             selection_start: None,
-            cursor_blink_timer: Instant::now(),
             drag_start_pos: None,
 
             undo_stack: Vec::new(),
@@ -283,21 +281,24 @@ impl TextInput {
         // Save undo state
         self.save_undo_state();
 
-        // Delete selection FIRST if any (modifies text and cursor_pos)
+        // Delete selection FIRST if any (modifies text and cursor position)
         if let Some(_sel_start) = self.selection_start {
             self.delete_selection();
         }
 
-        // NOW calculate byte position (after any deletion)
-        let char_indices: Vec<_> = self.text.char_indices().map(|(i, _)| i).collect();
-        let byte_pos = char_indices.get(self.cursor_pos).copied().unwrap_or(self.text.len());
+        // Get byte position using cached cursor (O(1) if cached, O(n) first time)
+        let byte_pos = self.cursor.byte_pos();
 
         // Insert new text
         self.text.insert_str(byte_pos, text);
-        self.cursor_pos += text.chars().count();
+
+        // Move cursor forward by number of inserted characters
+        let char_count = text.chars().count();
+        self.cursor.move_by(char_count as isize, self.text.chars().count());
         self.selection_start = None;
 
-        // Invalidate text layout
+        // Invalidate caches since text changed
+        self.cursor.invalidate_caches();
         *self.text_layout.borrow_mut() = None;
 
         // Validate
@@ -316,7 +317,7 @@ impl TextInput {
 
     /// Delete character before cursor (backspace)
     fn delete_before_cursor(&mut self) {
-        if self.cursor_pos == 0 && self.selection_start.is_none() {
+        if self.cursor.is_at_start() && self.selection_start.is_none() {
             return;
         }
 
@@ -324,15 +325,19 @@ impl TextInput {
 
         if let Some(_) = self.selection_start {
             self.delete_selection();
-        } else if self.cursor_pos > 0 {
-            let char_indices: Vec<_> = self.text.char_indices().map(|(i, _)| i).collect();
-            let byte_start = char_indices[self.cursor_pos - 1];
-            let byte_end = char_indices.get(self.cursor_pos).copied().unwrap_or(self.text.len());
+        } else if !self.cursor.is_at_start() {
+            // Get byte positions for the character to delete
+            // We need to calculate byte_pos for both cursor and cursor-1
+            let mut temp_cursor = self.cursor.clone();
+            temp_cursor.move_left();
+            let byte_start = temp_cursor.byte_pos_uncached(&self.text);
+            let byte_end = self.cursor.byte_pos();
 
             self.text.replace_range(byte_start..byte_end, "");
-            self.cursor_pos -= 1;
+            self.cursor.move_left();
         }
 
+        self.cursor.invalidate_caches();
         *self.text_layout.borrow_mut() = None;
         self.validate();
         self.emit_text_changed();
@@ -346,7 +351,8 @@ impl TextInput {
 
     /// Delete character after cursor (delete key)
     fn delete_after_cursor(&mut self) {
-        if self.cursor_pos >= self.text.chars().count() && self.selection_start.is_none() {
+        let max_chars = self.text.chars().count();
+        if self.cursor.is_at_end(max_chars) && self.selection_start.is_none() {
             return;
         }
 
@@ -355,13 +361,16 @@ impl TextInput {
         if let Some(_) = self.selection_start {
             self.delete_selection();
         } else {
-            let char_indices: Vec<_> = self.text.char_indices().map(|(i, _)| i).collect();
-            let byte_start = char_indices.get(self.cursor_pos).copied().unwrap_or(self.text.len());
-            let byte_end = char_indices.get(self.cursor_pos + 1).copied().unwrap_or(self.text.len());
+            // Get byte positions for the character to delete
+            let byte_start = self.cursor.byte_pos();
+            let mut temp_cursor = self.cursor.clone();
+            temp_cursor.move_right(max_chars);
+            let byte_end = temp_cursor.byte_pos_uncached(&self.text);
 
             self.text.replace_range(byte_start..byte_end, "");
         }
 
+        self.cursor.invalidate_caches();
         *self.text_layout.borrow_mut() = None;
         self.validate();
         self.emit_text_changed();
@@ -376,18 +385,21 @@ impl TextInput {
     /// Delete selected text
     fn delete_selection(&mut self) {
         if let Some(sel_start) = self.selection_start {
-            let (start, end) = if sel_start < self.cursor_pos {
-                (sel_start, self.cursor_pos)
+            let cursor_pos = self.cursor.char_pos();
+            let (start, end) = if sel_start < cursor_pos {
+                (sel_start, cursor_pos)
             } else {
-                (self.cursor_pos, sel_start)
+                (cursor_pos, sel_start)
             };
 
-            let char_indices: Vec<_> = self.text.char_indices().map(|(i, _)| i).collect();
-            let byte_start = char_indices[start];
-            let byte_end = char_indices.get(end).copied().unwrap_or(self.text.len());
+            // Calculate byte positions for start and end
+            let start_cursor = Cursor::at(start);
+            let end_cursor = Cursor::at(end);
+            let byte_start = start_cursor.byte_pos_uncached(&self.text);
+            let byte_end = end_cursor.byte_pos_uncached(&self.text);
 
             self.text.replace_range(byte_start..byte_end, "");
-            self.cursor_pos = start;
+            self.cursor.set_char_pos(start);
             self.selection_start = None;
         }
     }
@@ -395,10 +407,11 @@ impl TextInput {
     /// Get selected text (for copy/cut)
     fn get_selected_text(&self) -> Option<String> {
         if let Some(sel_start) = self.selection_start {
-            let (start, end) = if sel_start < self.cursor_pos {
-                (sel_start, self.cursor_pos)
+            let cursor_pos = self.cursor.char_pos();
+            let (start, end) = if sel_start < cursor_pos {
+                (sel_start, cursor_pos)
             } else {
-                (self.cursor_pos, sel_start)
+                (cursor_pos, sel_start)
             };
 
             let text_chars: Vec<char> = self.text.chars().collect();
@@ -414,23 +427,22 @@ impl TextInput {
 
     /// Move cursor left by one character
     fn move_cursor_left(&mut self, extend_selection: bool) {
-        if self.cursor_pos > 0 {
+        if !self.cursor.is_at_start() {
             if extend_selection {
                 if self.selection_start.is_none() {
-                    self.selection_start = Some(self.cursor_pos);
+                    self.selection_start = Some(self.cursor.char_pos());
                 }
-                self.cursor_pos -= 1;
+                self.cursor.move_left();
             } else {
                 if self.selection_start.is_some() {
                     // Collapse selection to left
                     let sel_start = self.selection_start.unwrap();
-                    self.cursor_pos = sel_start.min(self.cursor_pos);
+                    self.cursor.set_char_pos(sel_start.min(self.cursor.char_pos()));
                     self.selection_start = None;
                 } else {
-                    self.cursor_pos -= 1;
+                    self.cursor.move_left();
                 }
             }
-            self.cursor_blink_timer = Instant::now();
             self.dirty = true;
         }
     }
@@ -438,23 +450,22 @@ impl TextInput {
     /// Move cursor right by one character
     fn move_cursor_right(&mut self, extend_selection: bool) {
         let max_pos = self.text.chars().count();
-        if self.cursor_pos < max_pos {
+        if !self.cursor.is_at_end(max_pos) {
             if extend_selection {
                 if self.selection_start.is_none() {
-                    self.selection_start = Some(self.cursor_pos);
+                    self.selection_start = Some(self.cursor.char_pos());
                 }
-                self.cursor_pos += 1;
+                self.cursor.move_right(max_pos);
             } else {
                 if self.selection_start.is_some() {
                     // Collapse selection to right
                     let sel_start = self.selection_start.unwrap();
-                    self.cursor_pos = sel_start.max(self.cursor_pos);
+                    self.cursor.set_char_pos(sel_start.max(self.cursor.char_pos()));
                     self.selection_start = None;
                 } else {
-                    self.cursor_pos += 1;
+                    self.cursor.move_right(max_pos);
                 }
             }
-            self.cursor_blink_timer = Instant::now();
             self.dirty = true;
         }
     }
@@ -463,34 +474,33 @@ impl TextInput {
     fn move_cursor_home(&mut self, extend_selection: bool) {
         if extend_selection {
             if self.selection_start.is_none() {
-                self.selection_start = Some(self.cursor_pos);
+                self.selection_start = Some(self.cursor.char_pos());
             }
         } else {
             self.selection_start = None;
         }
-        self.cursor_pos = 0;
-        self.cursor_blink_timer = Instant::now();
+        self.cursor.move_to_start();
         self.dirty = true;
     }
 
     /// Move cursor to end of text
     fn move_cursor_end(&mut self, extend_selection: bool) {
+        let max_chars = self.text.chars().count();
         if extend_selection {
             if self.selection_start.is_none() {
-                self.selection_start = Some(self.cursor_pos);
+                self.selection_start = Some(self.cursor.char_pos());
             }
         } else {
             self.selection_start = None;
         }
-        self.cursor_pos = self.text.chars().count();
-        self.cursor_blink_timer = Instant::now();
+        self.cursor.move_to_end(max_chars);
         self.dirty = true;
     }
 
     /// Select all text
     fn select_all(&mut self) {
         self.selection_start = Some(0);
-        self.cursor_pos = self.text.chars().count();
+        self.cursor.move_to_end(self.text.chars().count());
         self.dirty = true;
     }
 
@@ -501,7 +511,7 @@ impl TextInput {
     fn save_undo_state(&mut self) {
         let state = UndoState {
             text: self.text.clone(),
-            cursor_pos: self.cursor_pos,
+            cursor_pos: self.cursor.char_pos(),
             selection_start: self.selection_start,
         };
 
@@ -521,16 +531,17 @@ impl TextInput {
             // Save current state to redo stack
             let current_state = UndoState {
                 text: self.text.clone(),
-                cursor_pos: self.cursor_pos,
+                cursor_pos: self.cursor.char_pos(),
                 selection_start: self.selection_start,
             };
             self.redo_stack.push(current_state);
 
             // Restore state
             self.text = state.text;
-            self.cursor_pos = state.cursor_pos;
+            self.cursor.set_char_pos(state.cursor_pos);
             self.selection_start = state.selection_start;
 
+            self.cursor.invalidate_caches();
             *self.text_layout.borrow_mut() = None;
             self.validate();
             self.emit_text_changed();
@@ -548,16 +559,17 @@ impl TextInput {
             // Save current state to undo stack
             let current_state = UndoState {
                 text: self.text.clone(),
-                cursor_pos: self.cursor_pos,
+                cursor_pos: self.cursor.char_pos(),
                 selection_start: self.selection_start,
             };
             self.undo_stack.push(current_state);
 
             // Restore state
             self.text = state.text;
-            self.cursor_pos = state.cursor_pos;
+            self.cursor.set_char_pos(state.cursor_pos);
             self.selection_start = state.selection_start;
 
+            self.cursor.invalidate_caches();
             *self.text_layout.borrow_mut() = None;
             self.validate();
             self.emit_text_changed();
@@ -730,7 +742,7 @@ impl TextInput {
     /// Ensure cursor is visible by adjusting scroll offset
     fn ensure_cursor_visible(&mut self) {
         let text_area = self.get_text_area_rect();
-        let cursor_x = self.get_cursor_x_position(self.cursor_pos);
+        let cursor_x = self.get_cursor_x_position(self.cursor.char_pos());
 
         // Get cursor X relative to text area
         let relative_x = cursor_x - text_area.origin.x as f32 + self.scroll_offset;
@@ -804,10 +816,9 @@ impl TextInput {
 
         // Position cursor
         if let Some(char_index) = self.hit_test_position(event.position.x as f32) {
-            self.cursor_pos = char_index;
+            self.cursor.set_char_pos(char_index);
             self.selection_start = None;
             self.drag_start_pos = Some(event.position);
-            self.cursor_blink_timer = Instant::now();
             self.dirty = true;
 
             // Double-click selects all
@@ -838,10 +849,11 @@ impl TextInput {
         // Handle drag selection
         if let Some(_drag_start) = self.drag_start_pos {
             if let Some(char_index) = self.hit_test_position(event.position.x as f32) {
-                if self.selection_start.is_none() && char_index != self.cursor_pos {
-                    self.selection_start = Some(self.cursor_pos);
+                let cursor_pos = self.cursor.char_pos();
+                if self.selection_start.is_none() && char_index != cursor_pos {
+                    self.selection_start = Some(cursor_pos);
                 }
-                self.cursor_pos = char_index;
+                self.cursor.set_char_pos(char_index);
                 self.dirty = true;
             }
         }
@@ -933,16 +945,16 @@ impl TextInput {
         // Handle navigation keys
         match &event.key {
             Key::Named(NamedKey::ArrowLeft) => {
-                println!("[TextInput {:?}] Arrow left, cursor_pos before: {}", self.id, self.cursor_pos);
+                println!("[TextInput {:?}] Arrow left, cursor_pos before: {}", self.id, self.cursor.char_pos());
                 self.move_cursor_left(event.modifiers.shift);
-                println!("[TextInput {:?}] Arrow left, cursor_pos after: {}", self.id, self.cursor_pos);
+                println!("[TextInput {:?}] Arrow left, cursor_pos after: {}", self.id, self.cursor.char_pos());
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::ArrowRight) => {
-                println!("[TextInput {:?}] Arrow right, cursor_pos before: {}", self.id, self.cursor_pos);
+                println!("[TextInput {:?}] Arrow right, cursor_pos before: {}", self.id, self.cursor.char_pos());
                 self.move_cursor_right(event.modifiers.shift);
-                println!("[TextInput {:?}] Arrow right, cursor_pos after: {}", self.id, self.cursor_pos);
+                println!("[TextInput {:?}] Arrow right, cursor_pos after: {}", self.id, self.cursor.char_pos());
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
@@ -1108,7 +1120,7 @@ impl Widget for TextInput {
             return None;
         }
 
-        let cursor_x = self.get_cursor_x_position(self.cursor_pos);
+        let cursor_x = self.get_cursor_x_position(self.cursor.char_pos());
         let text_area = self.get_text_area_rect();
 
         let rect = Rect::new(
@@ -1123,7 +1135,7 @@ impl Widget for TextInput {
             rect.origin.y,
             rect.size.width,
             rect.size.height,
-            self.cursor_pos,
+            self.cursor.char_pos(),
             cursor_x,
             text_area.origin.x,
             text_area.origin.y
@@ -1229,10 +1241,11 @@ impl Widget for TextInput {
         // Draw selection if any
         if self.is_focused {
             if let Some(sel_start) = self.selection_start {
-                let (start, end) = if sel_start < self.cursor_pos {
-                    (sel_start, self.cursor_pos)
+                let cursor_pos = self.cursor.char_pos();
+                let (start, end) = if sel_start < cursor_pos {
+                    (sel_start, cursor_pos)
                 } else {
-                    (self.cursor_pos, sel_start)
+                    (cursor_pos, sel_start)
                 };
 
                 let start_x = self.get_cursor_x_position(start);
@@ -1302,7 +1315,7 @@ impl Widget for TextInput {
             ctx.draw_text(
                 &self.preedit_text,
                 &preedit_style,
-                Point::new(self.get_cursor_x_position(self.cursor_pos) as f64, text_area.origin.y),
+                Point::new(self.get_cursor_x_position(self.cursor.char_pos()) as f64, text_area.origin.y),
                 None,
             );
         }
@@ -1311,12 +1324,12 @@ impl Widget for TextInput {
         if self.is_focused && self.selection_start.is_none() {
             // Blink cycle: 530ms visible, 530ms hidden (like many editors)
             const BLINK_INTERVAL_MS: u128 = 530;
-            let elapsed = self.cursor_blink_timer.elapsed().as_millis();
+            let elapsed = self.cursor.blink_timer.elapsed().as_millis();
             let blink_phase = (elapsed / BLINK_INTERVAL_MS) % 2;
 
             // Only draw cursor during "visible" phase
             if blink_phase == 0 {
-                let cursor_x = self.get_cursor_x_position(self.cursor_pos);
+                let cursor_x = self.get_cursor_x_position(self.cursor.char_pos());
                 let cursor_width = 2.0;
                 let cursor_color = style.text_color;
 

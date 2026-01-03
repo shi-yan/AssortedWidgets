@@ -2,7 +2,6 @@
 
 use std::any::Any;
 use std::cell::RefCell;
-use std::time::Instant;
 
 use taffy::Style;
 
@@ -14,7 +13,7 @@ use crate::paint::PaintContext;
 use crate::text::{TextLayout, TextStyle, Truncate};
 use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId, CursorType, FrameInfo};
 use crate::widget::Widget;
-use crate::widgets::{Padding, ScrollBar};
+use crate::widgets::{Padding, ScrollBar, Cursor};
 
 use super::style::{TextAreaState, TextAreaStyle};
 
@@ -48,19 +47,9 @@ pub struct TextArea {
     _preedit_cursor: Option<usize>,
 
     // === Cursor & Selection ===
-    cursor_pos: usize,               // Character index in full text (source of truth)
+    cursor: Cursor,                  // Unified cursor with caching (includes line info and preferred_x)
     selection_start: Option<usize>,  // None = no selection (also char index)
-    cursor_blink_timer: Instant,
     drag_start_pos: Option<Point>,   // For drag selection
-
-    // === Cached Line Info (for efficient vertical movement) ===
-    /// Cached line information: (visual_line_run_index, char_offset_within_line)
-    /// Invalidated on text change or layout reflow. Visual line = LayoutRun index.
-    cached_cursor_line: Option<(usize, usize)>,
-
-    // === Preferred Column (for up/down navigation) ===
-    /// When moving up/down, try to maintain this X position
-    preferred_cursor_x: Option<f32>,
 
     // === Undo/Redo ===
     undo_stack: Vec<UndoState>,
@@ -128,12 +117,9 @@ impl TextArea {
             preedit_text: String::new(),
             _preedit_cursor: None,
 
-            cursor_pos: 0,
+            cursor: Cursor::new(),
             selection_start: None,
-            cursor_blink_timer: Instant::now(),
             drag_start_pos: None,
-            cached_cursor_line: None,
-            preferred_cursor_x: None,
 
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
@@ -245,7 +231,8 @@ impl TextArea {
     /// Set initial text
     pub fn text(mut self, text: impl Into<String>) -> Self {
         self.text = text.into();
-        self.cursor_pos = self.text.chars().count();
+        self.cursor.set_char_pos(self.text.chars().count());
+        self.cursor.update_caches(&self.text);
         *self.cached_layout.borrow_mut() = None;
         self
     }
@@ -255,12 +242,16 @@ impl TextArea {
     // ========================================================================
 
     /// Convert character index to byte position (for cosmic-text API)
-    fn char_to_byte(&self, char_idx: usize) -> usize {
-        self.text
-            .char_indices()
-            .nth(char_idx)
-            .map(|(byte_pos, _)| byte_pos)
-            .unwrap_or(self.text.len())
+    /// Uses cursor caching for the current cursor position (performance optimization)
+    fn char_to_byte(&mut self, char_idx: usize) -> usize {
+        // Fast path: if asking for current cursor position, use cache
+        if char_idx == self.cursor.char_pos() {
+            return self.cursor.byte_pos();
+        }
+
+        // Slow path: create temporary cursor for other positions
+        let temp = Cursor::at(char_idx);
+        temp.byte_pos_uncached(&self.text)
     }
 
     /// Convert byte position to character index (from cosmic-text API)
@@ -270,9 +261,10 @@ impl TextArea {
             .count()
     }
 
-    /// Invalidate cached line info (call on text change or layout reflow)
+    /// Invalidate cached cursor data (call on text change or layout reflow)
+    #[inline]
     fn invalidate_cursor_line_cache(&mut self) {
-        self.cached_cursor_line = None;
+        self.cursor.invalidate_caches();
     }
 
     // ========================================================================
@@ -317,18 +309,21 @@ impl TextArea {
             self.delete_selection();
         }
 
-        // Calculate byte position using helper
-        let byte_pos = self.char_to_byte(self.cursor_pos);
+        // Get byte position using cached cursor
+        let byte_pos = self.cursor.byte_pos();
 
         // Insert new text
         self.text.insert_str(byte_pos, text);
-        self.cursor_pos += text.chars().count();
+
+        // Move cursor forward
+        let char_count = text.chars().count();
+        self.cursor.move_by(char_count as isize, self.text.chars().count());
+        self.cursor.update_caches(&self.text);
         self.selection_start = None;
-        self.preferred_cursor_x = None; // Reset preferred X when typing
+        self.cursor.clear_preferred_x(); // Reset preferred X when typing
 
         // Invalidate caches
         *self.cached_layout.borrow_mut() = None;
-        self.invalidate_cursor_line_cache();
 
         // Validate
         self.validate();
@@ -346,7 +341,7 @@ impl TextArea {
 
     /// Delete character before cursor (backspace)
     fn delete_before_cursor(&mut self) {
-        if self.cursor_pos == 0 && self.selection_start.is_none() {
+        if self.cursor.is_at_start() && self.selection_start.is_none() {
             return;
         }
 
@@ -354,17 +349,17 @@ impl TextArea {
 
         if self.selection_start.is_some() {
             self.delete_selection();
-        } else if self.cursor_pos > 0 {
-            let byte_start = self.char_to_byte(self.cursor_pos - 1);
-            let byte_end = self.char_to_byte(self.cursor_pos);
+        } else if !self.cursor.is_at_start() {
+            let byte_start = self.char_to_byte(self.cursor.char_pos() - 1);
+            let byte_end = self.char_to_byte(self.cursor.char_pos());
 
             self.text.replace_range(byte_start..byte_end, "");
-            self.cursor_pos -= 1;
+            self.cursor.move_left();
+            self.cursor.update_caches(&self.text);
         }
 
-        self.preferred_cursor_x = None;
+        self.cursor.clear_preferred_x();
         *self.cached_layout.borrow_mut() = None;
-        self.invalidate_cursor_line_cache();
         self.validate();
         self.emit_text_changed();
 
@@ -377,7 +372,8 @@ impl TextArea {
 
     /// Delete character after cursor (delete key)
     fn delete_after_cursor(&mut self) {
-        if self.cursor_pos >= self.text.chars().count() && self.selection_start.is_none() {
+        let max_chars = self.text.chars().count();
+        if self.cursor.is_at_end(max_chars) && self.selection_start.is_none() {
             return;
         }
 
@@ -386,15 +382,15 @@ impl TextArea {
         if self.selection_start.is_some() {
             self.delete_selection();
         } else {
-            let byte_start = self.char_to_byte(self.cursor_pos);
-            let byte_end = self.char_to_byte(self.cursor_pos + 1);
+            let byte_start = self.char_to_byte(self.cursor.char_pos());
+            let byte_end = self.char_to_byte(self.cursor.char_pos() + 1);
 
             self.text.replace_range(byte_start..byte_end, "");
+            self.cursor.update_caches(&self.text);
         }
 
-        self.preferred_cursor_x = None;
+        self.cursor.clear_preferred_x();
         *self.cached_layout.borrow_mut() = None;
-        self.invalidate_cursor_line_cache();
         self.validate();
         self.emit_text_changed();
 
@@ -408,29 +404,31 @@ impl TextArea {
     /// Delete selected text
     fn delete_selection(&mut self) {
         if let Some(sel_start) = self.selection_start {
-            let (start, end) = if sel_start < self.cursor_pos {
-                (sel_start, self.cursor_pos)
+            let cursor_pos = self.cursor.char_pos();
+            let (start, end) = if sel_start < cursor_pos {
+                (sel_start, cursor_pos)
             } else {
-                (self.cursor_pos, sel_start)
+                (cursor_pos, sel_start)
             };
 
             let byte_start = self.char_to_byte(start);
             let byte_end = self.char_to_byte(end);
 
             self.text.replace_range(byte_start..byte_end, "");
-            self.cursor_pos = start;
+            self.cursor.set_char_pos(start);
+            self.cursor.update_caches(&self.text);
             self.selection_start = None;
-            self.invalidate_cursor_line_cache();
         }
     }
 
     /// Get selected text (for copy/cut)
-    fn get_selected_text(&self) -> Option<String> {
+    fn get_selected_text(&mut self) -> Option<String> {
         if let Some(sel_start) = self.selection_start {
-            let (start, end) = if sel_start < self.cursor_pos {
-                (sel_start, self.cursor_pos)
+            let cursor_pos = self.cursor.char_pos();
+            let (start, end) = if sel_start < cursor_pos {
+                (sel_start, cursor_pos)
             } else {
-                (self.cursor_pos, sel_start)
+                (cursor_pos, sel_start)
             };
 
             let byte_start = self.char_to_byte(start);
@@ -447,25 +445,25 @@ impl TextArea {
 
     /// Move cursor left by one character
     fn move_cursor_left(&mut self, extend_selection: bool) {
-        if self.cursor_pos > 0 {
+        if !self.cursor.is_at_start() {
             if extend_selection {
                 if self.selection_start.is_none() {
-                    self.selection_start = Some(self.cursor_pos);
+                    self.selection_start = Some(self.cursor.char_pos());
                 }
-                self.cursor_pos -= 1;
+                self.cursor.move_left();
             } else {
                 if self.selection_start.is_some() {
                     // Collapse selection to left
                     let sel_start = self.selection_start.unwrap();
-                    self.cursor_pos = sel_start.min(self.cursor_pos);
+                    self.cursor.set_char_pos(sel_start.min(self.cursor.char_pos()));
                     self.selection_start = None;
                 } else {
-                    self.cursor_pos -= 1;
+                    self.cursor.move_left();
                 }
             }
-            self.preferred_cursor_x = None; // Reset preferred X
-            self.invalidate_cursor_line_cache(); // Invalidate line cache
-            self.cursor_blink_timer = Instant::now();
+            self.cursor.update_caches(&self.text);
+            self.cursor.clear_preferred_x(); // Reset preferred X
+            self.cursor.reset_blink();
             self.dirty = true;
         }
     }
@@ -473,25 +471,25 @@ impl TextArea {
     /// Move cursor right by one character
     fn move_cursor_right(&mut self, extend_selection: bool) {
         let max_pos = self.text.chars().count();
-        if self.cursor_pos < max_pos {
+        if !self.cursor.is_at_end(max_pos) {
             if extend_selection {
                 if self.selection_start.is_none() {
-                    self.selection_start = Some(self.cursor_pos);
+                    self.selection_start = Some(self.cursor.char_pos());
                 }
-                self.cursor_pos += 1;
+                self.cursor.move_right(max_pos);
             } else {
                 if self.selection_start.is_some() {
                     // Collapse selection to right
                     let sel_start = self.selection_start.unwrap();
-                    self.cursor_pos = sel_start.max(self.cursor_pos);
+                    self.cursor.set_char_pos(sel_start.max(self.cursor.char_pos()));
                     self.selection_start = None;
                 } else {
-                    self.cursor_pos += 1;
+                    self.cursor.move_right(max_pos);
                 }
             }
-            self.preferred_cursor_x = None; // Reset preferred X
-            self.invalidate_cursor_line_cache(); // Invalidate line cache
-            self.cursor_blink_timer = Instant::now();
+            self.cursor.update_caches(&self.text);
+            self.cursor.clear_preferred_x(); // Reset preferred X
+            self.cursor.reset_blink();
             self.dirty = true;
         }
     }
@@ -504,7 +502,7 @@ impl TextArea {
             let buffer = layout.buffer();
 
             // Convert global byte position to (line_index, line_relative_byte)
-            let global_byte_pos = self.char_to_byte(self.cursor_pos);
+            let global_byte_pos = self.cursor.byte_pos();
 
             // Find which logical line the cursor is on
             let mut line_byte_start = 0;
@@ -538,20 +536,21 @@ impl TextArea {
             if current_line_idx == 0 {
                 if extend_selection {
                     if self.selection_start.is_none() {
-                        self.selection_start = Some(self.cursor_pos);
+                        self.selection_start = Some(self.cursor.char_pos());
                     }
                 } else {
                     self.selection_start = None;
                 }
-                self.cursor_pos = 0;
-                self.cursor_blink_timer = Instant::now();
+                self.cursor.move_to_start();
+                self.cursor.update_caches(&self.text);
+                self.cursor.reset_blink();
                 self.dirty = true;
                 return;
             }
 
             // Get or calculate preferred X position
             eprintln!("[MOVE_UP] Current line: {}, cursor at line_relative_byte: {}", current_line_idx, line_relative_byte);
-            let target_x = if let Some(x) = self.preferred_cursor_x {
+            let target_x = if let Some(x) = self.cursor.preferred_x {
                 eprintln!("[MOVE_UP] Using PREFERRED cursor X: {:.1}", x);
                 x
             } else {
@@ -581,7 +580,7 @@ impl TextArea {
                     }
                 }
                 eprintln!("[MOVE_UP] Calculated X: {:.1}, saving as preferred", x);
-                self.preferred_cursor_x = Some(x);
+                self.cursor.preferred_x = Some(x);
                 x
             };
 
@@ -645,18 +644,19 @@ impl TextArea {
 
                 // Convert to char index using helper
                 let new_pos = self.byte_to_char(byte_index);
-                eprintln!("[MOVE_UP] Final cursor position: {} (was {})", new_pos, self.cursor_pos);
+                eprintln!("[MOVE_UP] Final cursor position: {} (was {})", new_pos, self.cursor.char_pos());
 
                 if extend_selection {
                     if self.selection_start.is_none() {
-                        self.selection_start = Some(self.cursor_pos);
+                        self.selection_start = Some(self.cursor.char_pos());
                     }
                 } else {
                     self.selection_start = None;
                 }
 
-                self.cursor_pos = new_pos;
-                self.cursor_blink_timer = Instant::now();
+                self.cursor.set_char_pos(new_pos);
+                self.cursor.update_caches(&self.text);
+                self.cursor.reset_blink();
                 self.dirty = true;
             }
         }
@@ -669,7 +669,7 @@ impl TextArea {
             let buffer = layout.buffer();
 
             // Convert global byte position to (line_index, line_relative_byte)
-            let global_byte_pos = self.char_to_byte(self.cursor_pos);
+            let global_byte_pos = self.cursor.byte_pos();
 
             // Find which logical line the cursor is on
             let mut line_byte_start = 0;
@@ -704,20 +704,21 @@ impl TextArea {
             if current_line_idx >= total_lines - 1 {
                 if extend_selection {
                     if self.selection_start.is_none() {
-                        self.selection_start = Some(self.cursor_pos);
+                        self.selection_start = Some(self.cursor.char_pos());
                     }
                 } else {
                     self.selection_start = None;
                 }
                 let end_pos = self.text.chars().count();
-                self.cursor_pos = end_pos;
-                self.cursor_blink_timer = Instant::now();
+                self.cursor.move_to_end(end_pos);
+                self.cursor.update_caches(&self.text);
+                self.cursor.reset_blink();
                 self.dirty = true;
                 return;
             }
 
             // Get or calculate preferred X position
-            let target_x = if let Some(x) = self.preferred_cursor_x {
+            let target_x = if let Some(x) = self.cursor.preferred_x {
                 x
             } else {
                 // Calculate current X position from the current run's glyphs
@@ -732,7 +733,7 @@ impl TextArea {
                         break;
                     }
                 }
-                self.preferred_cursor_x = Some(x);
+                self.cursor.preferred_x = Some(x);
                 x
             };
 
@@ -789,18 +790,19 @@ impl TextArea {
 
                 // Convert to char index using helper
                 let new_pos = self.byte_to_char(byte_index);
-                eprintln!("[MOVE_DOWN] Final cursor position: {} (was {})", new_pos, self.cursor_pos);
+                eprintln!("[MOVE_DOWN] Final cursor position: {} (was {})", new_pos, self.cursor.char_pos());
 
                 if extend_selection {
                     if self.selection_start.is_none() {
-                        self.selection_start = Some(self.cursor_pos);
+                        self.selection_start = Some(self.cursor.char_pos());
                     }
                 } else {
                     self.selection_start = None;
                 }
 
-                self.cursor_pos = new_pos;
-                self.cursor_blink_timer = Instant::now();
+                self.cursor.set_char_pos(new_pos);
+                self.cursor.update_caches(&self.text);
+                self.cursor.reset_blink();
                 self.dirty = true;
             }
         }
@@ -809,7 +811,7 @@ impl TextArea {
     /// Move cursor to start of line
     fn move_cursor_home(&mut self, extend_selection: bool) {
         // Find start of current line using helper
-        let byte_pos = self.char_to_byte(self.cursor_pos);
+        let byte_pos = self.char_to_byte(self.cursor.char_pos());
 
         // Search backwards for newline
         let line_start_byte = self.text[..byte_pos]
@@ -821,23 +823,23 @@ impl TextArea {
 
         if extend_selection {
             if self.selection_start.is_none() {
-                self.selection_start = Some(self.cursor_pos);
+                self.selection_start = Some(self.cursor.char_pos());
             }
         } else {
             self.selection_start = None;
         }
 
-        self.cursor_pos = line_start_char;
-        self.preferred_cursor_x = None;
-        self.invalidate_cursor_line_cache();
-        self.cursor_blink_timer = Instant::now();
+        self.cursor.set_char_pos(line_start_char);
+        self.cursor.update_caches(&self.text);
+        self.cursor.clear_preferred_x();
+        self.cursor.reset_blink();
         self.dirty = true;
     }
 
     /// Move cursor to end of line
     fn move_cursor_end(&mut self, extend_selection: bool) {
         // Find end of current line using helper
-        let byte_pos = self.char_to_byte(self.cursor_pos);
+        let byte_pos = self.char_to_byte(self.cursor.char_pos());
 
         // Search forwards for newline
         let line_end_byte = self.text[byte_pos..]
@@ -849,25 +851,26 @@ impl TextArea {
 
         if extend_selection {
             if self.selection_start.is_none() {
-                self.selection_start = Some(self.cursor_pos);
+                self.selection_start = Some(self.cursor.char_pos());
             }
         } else {
             self.selection_start = None;
         }
 
-        self.cursor_pos = line_end_char;
-        self.preferred_cursor_x = None;
-        self.invalidate_cursor_line_cache();
-        self.cursor_blink_timer = Instant::now();
+        self.cursor.set_char_pos(line_end_char);
+        self.cursor.update_caches(&self.text);
+        self.cursor.clear_preferred_x();
+        self.cursor.reset_blink();
         self.dirty = true;
     }
 
     /// Select all text
     fn select_all(&mut self) {
         self.selection_start = Some(0);
-        self.cursor_pos = self.text.chars().count();
-        self.preferred_cursor_x = None;
-        self.invalidate_cursor_line_cache();
+        let end_pos = self.text.chars().count();
+        self.cursor.move_to_end(end_pos);
+        self.cursor.update_caches(&self.text);
+        self.cursor.clear_preferred_x();
         self.dirty = true;
     }
 
@@ -878,7 +881,7 @@ impl TextArea {
     fn save_undo_state(&mut self) {
         let state = UndoState {
             text: self.text.clone(),
-            cursor_pos: self.cursor_pos,
+            cursor_pos: self.cursor.snapshot(),
             selection_start: self.selection_start,
         };
 
@@ -898,18 +901,18 @@ impl TextArea {
             // Save current state to redo stack
             let current_state = UndoState {
                 text: self.text.clone(),
-                cursor_pos: self.cursor_pos,
+                cursor_pos: self.cursor.snapshot(),
                 selection_start: self.selection_start,
             };
             self.redo_stack.push(current_state);
 
             // Restore state
             self.text = state.text;
-            self.cursor_pos = state.cursor_pos;
+            self.cursor.restore(state.cursor_pos);
+            self.cursor.update_caches(&self.text);
             self.selection_start = state.selection_start;
 
             *self.cached_layout.borrow_mut() = None;
-            self.invalidate_cursor_line_cache();
             self.validate();
             self.emit_text_changed();
 
@@ -926,18 +929,18 @@ impl TextArea {
             // Save current state to undo stack
             let current_state = UndoState {
                 text: self.text.clone(),
-                cursor_pos: self.cursor_pos,
+                cursor_pos: self.cursor.snapshot(),
                 selection_start: self.selection_start,
             };
             self.undo_stack.push(current_state);
 
             // Restore state
             self.text = state.text;
-            self.cursor_pos = state.cursor_pos;
+            self.cursor.restore(state.cursor_pos);
+            self.cursor.update_caches(&self.text);
             self.selection_start = state.selection_start;
 
             *self.cached_layout.borrow_mut() = None;
-            self.invalidate_cursor_line_cache();
             self.validate();
             self.emit_text_changed();
 
@@ -1149,7 +1152,7 @@ impl TextArea {
 
     /// Ensure cursor is visible by adjusting scroll offsets
     fn ensure_cursor_visible(&mut self) {
-        eprintln!("[ENSURE_CURSOR] Called (cursor at char {})", self.cursor_pos);
+        eprintln!("[ENSURE_CURSOR] Called (cursor at char {})", self.cursor.char_pos());
 
         // CRITICAL FIX: If layout is invalidated (None), we can't calculate cursor position yet.
         // This happens after text insertion/deletion. Set a flag and do the scrolling later
@@ -1173,8 +1176,7 @@ impl TextArea {
             let buffer = layout.buffer();
 
             // Find cursor position (GLOBAL byte offset in full text)
-            let char_indices: Vec<_> = self.text.char_indices().map(|(i, _)| i).collect();
-            let global_byte_pos = char_indices.get(self.cursor_pos).copied().unwrap_or(self.text.len());
+            let global_byte_pos = self.cursor.byte_pos();
 
             eprintln!("[CURSOR_SCROLL] Finding cursor line for GLOBAL byte pos: {}", global_byte_pos);
 
@@ -1258,7 +1260,7 @@ impl TextArea {
 
             eprintln!("[CURSOR_SCROLL] ========================================");
             eprintln!("[CURSOR_SCROLL] Total lines in layout: {}", total_lines);
-            eprintln!("[CURSOR_SCROLL] Cursor at line: {} (char pos: {})", cursor_line, self.cursor_pos);
+            eprintln!("[CURSOR_SCROLL] Cursor at line: {} (char pos: {})", cursor_line, self.cursor.char_pos());
             eprintln!("[CURSOR_SCROLL] Visible range: {} to {}", self.visible_start_line, last_visible_line);
             eprintln!("[CURSOR_SCROLL] Viewport height: {:.1}", self.viewport_height);
             eprintln!("[CURSOR_SCROLL] Cursor Y: {:.1}, Height: {:.1}", cursor_y, cursor_height);
@@ -1469,7 +1471,7 @@ impl TextArea {
             text_area.origin.y - vertical_offset,
         );
 
-        let byte_pos = self.char_to_byte(self.cursor_pos);
+        let byte_pos = self.cursor.byte_pos();
 
         // Find cursor position in layout
         for run in buffer.layout_runs() {
@@ -1900,46 +1902,29 @@ impl Widget for TextArea {
         // Track cursor position during text rendering (for accurate positioning)
         let mut cursor_rect_from_rendering: Option<Rect> = None;
 
-        // Calculate which LINE and LINE-RELATIVE byte offset the cursor is at
-        // We need this because cosmic-text uses line-relative positions for glyphs
-        let char_indices: Vec<_> = self.text.char_indices().map(|(i, _)| i).collect();
-        let cursor_global_byte_pos = char_indices.get(self.cursor_pos).copied().unwrap_or(self.text.len());
-
-        // Find which line the cursor is on by summing line lengths
-        let mut cursor_line_idx = 0;
-        let mut cursor_line_relative_byte_pos = cursor_global_byte_pos;
-
-        if let Some(ref layout) = *self.cached_layout.borrow() {
-            let buffer = layout.buffer();
-            let mut byte_offset = 0;
-
-            for (line_idx, line) in buffer.lines.iter().enumerate() {
-                let line_len = line.text().len();
-                if byte_offset + line_len >= cursor_global_byte_pos {
-                    cursor_line_idx = line_idx;
-                    cursor_line_relative_byte_pos = cursor_global_byte_pos - byte_offset;
-                    break;
-                }
-                byte_offset += line_len + 1; // +1 for newline
-            }
-        }
+        // ✅ PERFORMANCE FIX: Use pre-computed cached values (O(1) reads, no loops!)
+        // Cache is updated eagerly when cursor moves via update_caches(), so paint() just reads
+        let cursor_global_byte_pos = self.cursor.byte_pos();
+        let (cursor_line_idx, cursor_line_relative_byte_pos) =
+            self.cursor.line_info().unwrap_or((0, 0));
 
 
         // Draw selection if any
         if self.is_focused {
             if let Some(sel_start) = self.selection_start {
                 if let Some(layout) = self.cached_layout.borrow().as_ref() {
-                    let (start, end) = if sel_start < self.cursor_pos {
-                        (sel_start, self.cursor_pos)
+                    let cursor_pos = self.cursor.char_pos();
+                    let (start, end) = if sel_start < cursor_pos {
+                        (sel_start, cursor_pos)
                     } else {
-                        (self.cursor_pos, sel_start)
+                        (cursor_pos, sel_start)
                     };
 
                     eprintln!("[SELECTION_RENDER] selection char range: [{}, {})", start, end);
 
                     // Convert char indices to GLOBAL byte offsets
-                    let start_byte = self.char_to_byte(start);
-                    let end_byte = self.char_to_byte(end);
+                    let start_byte = Cursor::at(start).byte_pos_uncached(&self.text);
+                    let end_byte = Cursor::at(end).byte_pos_uncached(&self.text);
 
                     eprintln!("[SELECTION_RENDER] selection GLOBAL byte range: [{}, {})", start_byte, end_byte);
 
@@ -2102,7 +2087,7 @@ impl Widget for TextArea {
         // Draw cursor if focused (with blinking)
         if self.is_focused && self.selection_start.is_none() {
             const BLINK_INTERVAL_MS: u128 = 530;
-            let elapsed = self.cursor_blink_timer.elapsed().as_millis();
+            let elapsed = self.cursor.blink_timer.elapsed().as_millis();
             let blink_phase = (elapsed / BLINK_INTERVAL_MS) % 2;
 
             if blink_phase == 0 {
@@ -2313,22 +2298,23 @@ impl MouseHandler for TextArea {
         if let Some(drag_start) = self.drag_start_pos {
             eprintln!("[DRAG_SELECT] drag_start: {:?}, mouse: {:?}", drag_start, event.position);
             eprintln!("[DRAG_SELECT] current cursor_pos: {}, selection_start: {:?}",
-                     self.cursor_pos, self.selection_start);
+                     self.cursor.char_pos(), self.selection_start);
 
             if let Some(char_index) = self.hit_test_position(event.position) {
                 eprintln!("[DRAG_SELECT] hit_test returned char_index: {}", char_index);
 
-                if self.selection_start.is_none() && char_index != self.cursor_pos {
-                    self.selection_start = Some(self.cursor_pos);
-                    eprintln!("[DRAG_SELECT] started selection at: {}", self.cursor_pos);
+                if self.selection_start.is_none() && char_index != self.cursor.char_pos() {
+                    self.selection_start = Some(self.cursor.char_pos());
+                    eprintln!("[DRAG_SELECT] started selection at: {}", self.cursor.char_pos());
                 }
-                self.cursor_pos = char_index;
-                self.preferred_cursor_x = None;
+                self.cursor.set_char_pos(char_index);
+                self.cursor.update_caches(&self.text);
+                self.cursor.clear_preferred_x();
                 self.ensure_cursor_visible();
                 self.dirty = true;
 
                 eprintln!("[DRAG_SELECT] updated cursor_pos to: {}, selection: {:?}",
-                         self.cursor_pos, self.selection_start);
+                         self.cursor.char_pos(), self.selection_start);
             } else {
                 eprintln!("[DRAG_SELECT] hit_test returned None!");
             }
@@ -2358,11 +2344,12 @@ impl MouseHandler for TextArea {
 
         // Position cursor
         if let Some(char_index) = self.hit_test_position(event.position) {
-            self.cursor_pos = char_index;
+            self.cursor.set_char_pos(char_index);
+            self.cursor.update_caches(&self.text);
             self.selection_start = None;
             self.drag_start_pos = Some(event.position);
-            self.preferred_cursor_x = None;
-            self.cursor_blink_timer = Instant::now();
+            self.cursor.clear_preferred_x();
+            self.cursor.reset_blink();
             self.dirty = true;
 
             // Double-click selects all

@@ -7,6 +7,7 @@
 //! - Proper layout integration via measure()
 //! - Clean separation of concerns
 
+pub mod cursor;
 mod label;
 mod button;
 mod button_group;
@@ -22,6 +23,7 @@ pub mod rich_text_label;
 pub mod text_input;
 pub mod text_area;
 
+pub use cursor::Cursor;
 pub use label::{Label, WrapMode, Padding};
 pub use button::{Button, ButtonContent, ButtonState, ButtonStyle};
 pub use button_group::{ButtonGroup, ButtonGroupItem};
