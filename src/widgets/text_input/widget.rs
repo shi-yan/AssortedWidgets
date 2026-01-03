@@ -1247,9 +1247,24 @@ impl Widget for TextInput {
                     selection_color.r, selection_color.g, selection_color.b, selection_color.a
                 );
 
+                // Calculate selection Y position and height from line metrics
+                let (selection_y, selection_height) = if let Some(ref layout) = *self.text_layout.borrow() {
+                    let buffer = layout.buffer();
+                    if let Some(run) = buffer.layout_runs().next() {
+                        let text_y_base = text_area.origin.y + (text_area.size.height - layout.height() as f64) / 2.0;
+                        let selection_y = text_y_base + run.line_top as f64;
+                        let selection_height = run.line_height as f64;
+                        (selection_y, selection_height)
+                    } else {
+                        (text_area.origin.y, text_area.size.height)
+                    }
+                } else {
+                    (text_area.origin.y, text_area.size.height)
+                };
+
                 let selection_rect = Rect::new(
-                    Point::new(start_x as f64, text_area.origin.y),
-                    Size::new((end_x - start_x) as f64, text_area.size.height),
+                    Point::new(start_x as f64, selection_y),
+                    Size::new((end_x - start_x) as f64, selection_height),
                 );
 
                 println!(

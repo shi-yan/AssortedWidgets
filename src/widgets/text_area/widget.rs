@@ -496,22 +496,13 @@ impl TextArea {
 
     /// Move cursor up one line
     fn move_cursor_up(&mut self, extend_selection: bool) {
-        eprintln!("\n[MOVE_UP] ===== FUNCTION CALLED =====");
-        eprintln!("[MOVE_UP] extend_selection: {}", extend_selection);
-        eprintln!("[MOVE_UP] cursor_pos (char index): {}", self.cursor_pos);
-        eprintln!("[MOVE_UP] text length: {} chars", self.text.chars().count());
-        eprintln!("[MOVE_UP] cached_layout is_some: {}", self.cached_layout.borrow().is_some());
 
         // Get current cursor position in layout coordinates
         if let Some(layout) = self.cached_layout.borrow().as_ref() {
-            eprintln!("[MOVE_UP] ✓ Layout exists, proceeding...");
             let buffer = layout.buffer();
-            eprintln!("[MOVE_UP] Layout found, buffer has {} logical lines", buffer.lines.len());
-            eprintln!("[MOVE_UP] Layout runs count: {}", buffer.layout_runs().count());
 
             // Convert global byte position to (line_index, line_relative_byte)
             let global_byte_pos = self.char_to_byte(self.cursor_pos);
-            eprintln!("[MOVE_UP] Converted cursor_pos to global_byte_pos: {}", global_byte_pos);
 
             // Find which logical line the cursor is on
             let mut line_byte_start = 0;
@@ -529,26 +520,20 @@ impl TextArea {
             }
 
             let line_relative_byte = global_byte_pos - line_byte_start;
-            eprintln!("[MOVE_UP] Cursor is on line {}, line_relative_byte: {}", cursor_line_idx, line_relative_byte);
 
             // Find the layout run for this line and get its Y position
             let layout_runs: Vec<_> = buffer.layout_runs().collect();
             let current_line_idx = cursor_line_idx;
 
             if current_line_idx >= layout_runs.len() {
-                eprintln!("[MOVE_UP] ✗ Line index {} out of range (only {} runs)", current_line_idx, layout_runs.len());
                 return;
             }
 
             let current_run = &layout_runs[current_line_idx];
             let current_line_y = current_run.line_y;
-            eprintln!("[MOVE_UP] Current run {}: line_y={:.1}", current_line_idx, current_line_y);
-
-            eprintln!("[MOVE_UP] Current line: idx={}, y={:.1}", current_line_idx, current_line_y);
 
             // If already on first line, move to start of line
             if current_line_idx == 0 {
-                eprintln!("[MOVE_UP] Already on first line, moving to start");
                 if extend_selection {
                     if self.selection_start.is_none() {
                         self.selection_start = Some(self.cursor_pos);
@@ -559,37 +544,29 @@ impl TextArea {
                 self.cursor_pos = 0;
                 self.cursor_blink_timer = Instant::now();
                 self.dirty = true;
-                eprintln!("[MOVE_UP] cursor_pos set to 0");
                 return;
             }
 
-            eprintln!("[MOVE_UP] --- Calculating preferred X position ---");
             // Get or calculate preferred X position
             let target_x = if let Some(x) = self.preferred_cursor_x {
-                eprintln!("[MOVE_UP] Using cached preferred_cursor_x: {:.1}", x);
                 x
             } else {
-                eprintln!("[MOVE_UP] No cached X, calculating from line_relative_byte {}", line_relative_byte);
                 // Calculate current X position from the current run's glyphs
                 let mut x = 0.0;
                 for glyph in current_run.glyphs.iter() {
                     if glyph.start == line_relative_byte {
                         x = glyph.x;
-                        eprintln!("[MOVE_UP] Found exact glyph at line_relative_byte {}, x={:.1}", line_relative_byte, x);
                         break;
                     }
                     if line_relative_byte < glyph.end {
                         x = glyph.x;
-                        eprintln!("[MOVE_UP] Found glyph containing line_relative_byte {}, x={:.1}", line_relative_byte, x);
                         break;
                     }
                 }
                 self.preferred_cursor_x = Some(x);
-                eprintln!("[MOVE_UP] Cached preferred_cursor_x: {:.1}", x);
                 x
             };
 
-            eprintln!("[MOVE_UP] --- Calculating target Y position ---");
             // Move to previous line - use actual line height
             // For moving up, we need the height of the line we're moving TO
             // Estimate using current line's height (should be consistent in most cases)
@@ -598,22 +575,15 @@ impl TextArea {
                 .map(|run| run.line_height)
                 .unwrap_or(self.font_size * 1.2);
             let target_y = current_line_y - line_height;
-            eprintln!("[MOVE_UP] current_line_y={:.1}, line_height={:.1}, target_y={:.1}",
-                     current_line_y, line_height, target_y);
 
-            eprintln!("[MOVE_UP] --- Hit testing at ({:.1}, {:.1}) ---", target_x, target_y);
             // Hit test at (target_x, target_y)
             if let Some(mut cursor) = buffer.hit(target_x, target_y) {
-                eprintln!("[MOVE_UP] ✓ Hit test success: cursor.line={}, cursor.index={}",
-                         cursor.line, cursor.index);
 
                 // CRITICAL: Clamp to line end if target_x is beyond the line content
                 // Get the actual line length to check if we need clamping
                 if cursor.line < buffer.lines.len() {
                     let target_line_text = buffer.lines[cursor.line].text();
                     let target_line_len = target_line_text.len();
-
-                    eprintln!("[MOVE_UP] Target line {} length: {} bytes", cursor.line, target_line_len);
 
                     // If hit test returned index=0 but we're hitting far to the right,
                     // it means the line is shorter than target_x - clamp to line end
@@ -622,13 +592,10 @@ impl TextArea {
                         let target_run = &layout_runs[cursor.line];
                         let x_at_zero = target_run.glyphs.first().map(|g| g.x).unwrap_or(0.0);
 
-                        eprintln!("[MOVE_UP] x_at_zero={:.1}, target_x={:.1}", x_at_zero, target_x);
-
                         // If target_x is significantly to the right of the line start,
                         // we should clamp to the line end instead
                         if target_x > x_at_zero + 10.0 {
                             cursor.index = target_line_len;
-                            eprintln!("[MOVE_UP] Clamped cursor.index to line end: {}", cursor.index);
                         }
                     }
                 }
@@ -640,15 +607,12 @@ impl TextArea {
                     .take(cursor.line)
                     .map(|line| line.text().len() + 1)  // +1 for newline
                     .sum();
-                eprintln!("[MOVE_UP] line_byte_start for line {}: {}", cursor.line, line_byte_start);
 
                 let global_byte_index = line_byte_start + cursor.index;
                 let byte_index = global_byte_index.min(self.text.len());
-                eprintln!("[MOVE_UP] global_byte_index={}, clamped byte_index={}", global_byte_index, byte_index);
 
                 // Convert to char index using helper
                 let new_pos = self.byte_to_char(byte_index);
-                eprintln!("[MOVE_UP] Converted byte {} to char index: {}", byte_index, new_pos);
 
                 if extend_selection {
                     if self.selection_start.is_none() {
@@ -658,36 +622,21 @@ impl TextArea {
                     self.selection_start = None;
                 }
 
-                eprintln!("[MOVE_UP] Setting cursor_pos from {} to {}", self.cursor_pos, new_pos);
                 self.cursor_pos = new_pos;
                 self.cursor_blink_timer = Instant::now();
                 self.dirty = true;
-                eprintln!("[MOVE_UP] ===== Move complete =====\n");
-            } else {
-                eprintln!("[MOVE_UP] ✗ Hit test failed at ({:.1}, {:.1})", target_x, target_y);
             }
-        } else {
-            eprintln!("[MOVE_UP] ✗ No cached layout available");
         }
     }
 
     /// Move cursor down one line
     fn move_cursor_down(&mut self, extend_selection: bool) {
-        eprintln!("\n[MOVE_DOWN] ===== FUNCTION CALLED =====");
-        eprintln!("[MOVE_DOWN] extend_selection: {}", extend_selection);
-        eprintln!("[MOVE_DOWN] cursor_pos (char index): {}", self.cursor_pos);
-        eprintln!("[MOVE_DOWN] text length: {} chars", self.text.chars().count());
-        eprintln!("[MOVE_DOWN] cached_layout is_some: {}", self.cached_layout.borrow().is_some());
-
         // Get current cursor position in layout coordinates
         if let Some(layout) = self.cached_layout.borrow().as_ref() {
-            eprintln!("[MOVE_DOWN] ✓ Layout exists, proceeding...");
             let buffer = layout.buffer();
-            eprintln!("[MOVE_DOWN] Layout found, buffer has {} logical lines", buffer.lines.len());
 
             // Convert global byte position to (line_index, line_relative_byte)
             let global_byte_pos = self.char_to_byte(self.cursor_pos);
-            eprintln!("[MOVE_DOWN] Converted cursor_pos to global_byte_pos: {}", global_byte_pos);
 
             // Find which logical line the cursor is on
             let mut line_byte_start = 0;
@@ -705,26 +654,21 @@ impl TextArea {
             }
 
             let line_relative_byte = global_byte_pos - line_byte_start;
-            eprintln!("[MOVE_DOWN] Cursor is on line {}, line_relative_byte: {}", cursor_line_idx, line_relative_byte);
 
             // Find the layout run for this line and get its Y position
             let layout_runs: Vec<_> = buffer.layout_runs().collect();
             let total_lines = layout_runs.len();
             let current_line_idx = cursor_line_idx;
-            eprintln!("[MOVE_DOWN] Layout runs count: {}", total_lines);
 
             if current_line_idx >= layout_runs.len() {
-                eprintln!("[MOVE_DOWN] ✗ Line index {} out of range (only {} runs)", current_line_idx, layout_runs.len());
                 return;
             }
 
             let current_run = &layout_runs[current_line_idx];
             let current_line_y = current_run.line_y;
-            eprintln!("[MOVE_DOWN] Current run {}: line_y={:.1}", current_line_idx, current_line_y);
 
             // If already on last line, move to end of text
             if current_line_idx >= total_lines - 1 {
-                eprintln!("[MOVE_DOWN] Already on last line, moving to end");
                 if extend_selection {
                     if self.selection_start.is_none() {
                         self.selection_start = Some(self.cursor_pos);
@@ -733,59 +677,44 @@ impl TextArea {
                     self.selection_start = None;
                 }
                 let end_pos = self.text.chars().count();
-                eprintln!("[MOVE_DOWN] cursor_pos set to {}", end_pos);
                 self.cursor_pos = end_pos;
                 self.cursor_blink_timer = Instant::now();
                 self.dirty = true;
                 return;
             }
 
-            eprintln!("[MOVE_DOWN] --- Calculating preferred X position ---");
             // Get or calculate preferred X position
             let target_x = if let Some(x) = self.preferred_cursor_x {
-                eprintln!("[MOVE_DOWN] Using cached preferred_cursor_x: {:.1}", x);
                 x
             } else {
-                eprintln!("[MOVE_DOWN] No cached X, calculating from line_relative_byte {}", line_relative_byte);
                 // Calculate current X position from the current run's glyphs
                 let mut x = 0.0;
                 for glyph in current_run.glyphs.iter() {
                     if glyph.start == line_relative_byte {
                         x = glyph.x;
-                        eprintln!("[MOVE_DOWN] Found exact glyph at line_relative_byte {}, x={:.1}", line_relative_byte, x);
                         break;
                     }
                     if line_relative_byte < glyph.end {
                         x = glyph.x;
-                        eprintln!("[MOVE_DOWN] Found glyph containing line_relative_byte {}, x={:.1}", line_relative_byte, x);
                         break;
                     }
                 }
                 self.preferred_cursor_x = Some(x);
-                eprintln!("[MOVE_DOWN] Cached preferred_cursor_x: {:.1}", x);
                 x
             };
 
-            eprintln!("[MOVE_DOWN] --- Calculating target Y position ---");
             // Move to next line - use actual line height from the current run
             let current_run = &layout_runs[current_line_idx];
             let target_y = current_line_y + current_run.line_height;
-            eprintln!("[MOVE_DOWN] current_line_y={:.1}, line_height={:.1}, target_y={:.1}",
-                     current_line_y, current_run.line_height, target_y);
 
-            eprintln!("[MOVE_DOWN] --- Hit testing at ({:.1}, {:.1}) ---", target_x, target_y);
             // Hit test at (target_x, target_y)
             if let Some(mut cursor) = buffer.hit(target_x, target_y) {
-                eprintln!("[MOVE_DOWN] ✓ Hit test success: cursor.line={}, cursor.index={}",
-                         cursor.line, cursor.index);
 
                 // CRITICAL: Clamp to line end if target_x is beyond the line content
                 // Get the actual line length to check if we need clamping
                 if cursor.line < buffer.lines.len() {
                     let target_line_text = buffer.lines[cursor.line].text();
                     let target_line_len = target_line_text.len();
-
-                    eprintln!("[MOVE_DOWN] Target line {} length: {} bytes", cursor.line, target_line_len);
 
                     // If hit test returned index=0 but we're hitting far to the right,
                     // it means the line is shorter than target_x - clamp to line end
@@ -794,13 +723,10 @@ impl TextArea {
                         let target_run = &layout_runs[cursor.line];
                         let x_at_zero = target_run.glyphs.first().map(|g| g.x).unwrap_or(0.0);
 
-                        eprintln!("[MOVE_DOWN] x_at_zero={:.1}, target_x={:.1}", x_at_zero, target_x);
-
                         // If target_x is significantly to the right of the line start,
                         // we should clamp to the line end instead
                         if target_x > x_at_zero + 10.0 {
                             cursor.index = target_line_len;
-                            eprintln!("[MOVE_DOWN] Clamped cursor.index to line end: {}", cursor.index);
                         }
                     }
                 }
@@ -812,15 +738,12 @@ impl TextArea {
                     .take(cursor.line)
                     .map(|line| line.text().len() + 1)  // +1 for newline
                     .sum();
-                eprintln!("[MOVE_DOWN] line_byte_start for line {}: {}", cursor.line, line_byte_start);
 
                 let global_byte_index = line_byte_start + cursor.index;
                 let byte_index = global_byte_index.min(self.text.len());
-                eprintln!("[MOVE_DOWN] global_byte_index={}, clamped byte_index={}", global_byte_index, byte_index);
 
                 // Convert to char index using helper
                 let new_pos = self.byte_to_char(byte_index);
-                eprintln!("[MOVE_DOWN] Converted byte {} to char index: {}", byte_index, new_pos);
 
                 if extend_selection {
                     if self.selection_start.is_none() {
@@ -830,16 +753,10 @@ impl TextArea {
                     self.selection_start = None;
                 }
 
-                eprintln!("[MOVE_DOWN] Setting cursor_pos from {} to {}", self.cursor_pos, new_pos);
                 self.cursor_pos = new_pos;
                 self.cursor_blink_timer = Instant::now();
                 self.dirty = true;
-                eprintln!("[MOVE_DOWN] ===== Move complete =====\n");
-            } else {
-                eprintln!("[MOVE_DOWN] ✗ Hit test failed at ({:.1}, {:.1})", target_x, target_y);
             }
-        } else {
-            eprintln!("[MOVE_DOWN] ✗ No cached layout available");
         }
     }
 
@@ -1277,8 +1194,12 @@ impl TextArea {
         let rel_x = (position.x - text_origin.x) as f32;
         let rel_y = (position.y - text_origin.y) as f32;
 
+        eprintln!("[HIT_TEST] position: {:?}, rel_x: {:.1}, rel_y: {:.1}", position, rel_x, rel_y);
+
         // Cosmic-text hit testing (returns line-relative byte offset)
         if let Some(cursor) = buffer.hit(rel_x, rel_y) {
+            eprintln!("[HIT_TEST] cosmic hit: line={}, index={} (LINE-RELATIVE)", cursor.line, cursor.index);
+
             // cursor.index is LINE-RELATIVE byte offset
             // cursor.line is the logical line index
 
@@ -1289,11 +1210,17 @@ impl TextArea {
                 .map(|line| line.text().len() + 1)  // +1 for newline
                 .sum();
 
+            eprintln!("[HIT_TEST] line_byte_start: {}", line_byte_start);
+
             let global_byte_index = line_byte_start + cursor.index;
             let byte_index = global_byte_index.min(self.text.len());
 
+            eprintln!("[HIT_TEST] global_byte_index: {}, clamped: {}", global_byte_index, byte_index);
+
             // Convert to char index using helper
             let char_index = self.byte_to_char(byte_index);
+
+            eprintln!("[HIT_TEST] final char_index: {}", char_index);
 
             // CRITICAL FIX: Clamp to line end
             // When clicking past the end of a short line, clamp to that line's end
@@ -1348,11 +1275,6 @@ impl TextArea {
 
     /// Get cursor position for rendering
     fn get_cursor_rect(&self) -> Option<Rect> {
-        eprintln!("\n[GET_CURSOR_RECT] ===== Calculating Cursor Position =====");
-        eprintln!("[GET_CURSOR_RECT] WidgetId: {:?}", self.id);
-        eprintln!("[GET_CURSOR_RECT] cursor_pos (char index): {}", self.cursor_pos);
-        eprintln!("[GET_CURSOR_RECT] viewport_width: {}, wrap_enabled: {}", self.viewport_width, self.wrap_enabled);
-
         let text_area = self.get_text_area_rect();
 
         // If text is empty, cursor is at the start
@@ -1362,7 +1284,6 @@ impl TextArea {
                 Point::new(text_area.origin.x + self.h_scroll_offset, text_area.origin.y),
                 Size::new(2.0, line_height),
             );
-            eprintln!("[GET_CURSOR_RECT] Empty text, cursor at: {:?}", cursor_rect);
             return Some(cursor_rect);
         }
 
@@ -1381,40 +1302,28 @@ impl TextArea {
             text_area.origin.y - vertical_offset,
         );
 
-        eprintln!("[GET_CURSOR_RECT] text_area: {:?}", text_area);
-        eprintln!("[GET_CURSOR_RECT] text_origin: {:?}", text_origin);
-        eprintln!("[GET_CURSOR_RECT] vertical_offset: {}", vertical_offset);
-
         let byte_pos = self.char_to_byte(self.cursor_pos);
-
-        eprintln!("[GET_CURSOR_RECT] byte_pos: {}", byte_pos);
 
         // Find cursor position in layout
         for run in buffer.layout_runs() {
             for glyph in run.glyphs.iter() {
                 if glyph.start == byte_pos {
-                    let cursor_rect = Rect::new(
+                    return Some(Rect::new(
                         Point::new(
                             text_origin.x + glyph.x as f64,
                             text_origin.y + run.line_y as f64,
                         ),
                         Size::new(2.0, run.line_height as f64),
-                    );
-                    eprintln!("[GET_CURSOR_RECT] Found at glyph.start: glyph.x={}, run.line_y={}", glyph.x, run.line_y);
-                    eprintln!("[GET_CURSOR_RECT] Final cursor rect: {:?}", cursor_rect);
-                    return Some(cursor_rect);
+                    ));
                 }
                 if byte_pos < glyph.end {
-                    let cursor_rect = Rect::new(
+                    return Some(Rect::new(
                         Point::new(
                             text_origin.x + glyph.x as f64,
                             text_origin.y + run.line_y as f64 - run.line_height as f64,
                         ),
                         Size::new(2.0, run.line_height as f64),
-                    );
-                    eprintln!("[GET_CURSOR_RECT] Found in glyph: glyph.x={}, run.line_y={}", glyph.x, run.line_y);
-                    eprintln!("[GET_CURSOR_RECT] Final cursor rect: {:?}", cursor_rect);
-                    return Some(cursor_rect);
+                    ));
                 }
             }
 
@@ -1445,12 +1354,7 @@ impl TextArea {
     // ========================================================================
 
     fn on_key_down(&mut self, event: &mut KeyEvent) -> EventResponse {
-        eprintln!("[ON_KEY_DOWN] ===== TextArea on_key_down called =====");
-        eprintln!("[ON_KEY_DOWN] key: {:?}", event.key);
-        eprintln!("[ON_KEY_DOWN] is_disabled: {}", self.is_disabled);
-
         if self.is_disabled {
-            eprintln!("[ON_KEY_DOWN] Widget is disabled, returning Ignored");
             return EventResponse::Ignored;
         }
 
@@ -1459,11 +1363,9 @@ impl TextArea {
         } else {
             event.modifiers.control
         };
-        eprintln!("[ON_KEY_DOWN] cmd modifier: {}", cmd);
 
         // Handle shortcuts
         if cmd {
-            eprintln!("[ON_KEY_DOWN] Processing cmd shortcuts...");
             match &event.key {
                 Key::Character(c) if *c == 'c' => {
                     self.emit_copy_requested();
@@ -1497,7 +1399,6 @@ impl TextArea {
             }
         }
 
-        eprintln!("[ON_KEY_DOWN] Processing navigation keys...");
         // Handle navigation keys
         match &event.key {
             Key::Named(NamedKey::ArrowLeft) => {
@@ -1511,13 +1412,11 @@ impl TextArea {
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::ArrowUp) => {
-                eprintln!("[KEY_DOWN] ArrowUp detected, calling move_cursor_up()");
                 self.move_cursor_up(event.modifiers.shift);
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::ArrowDown) => {
-                eprintln!("[KEY_DOWN] ArrowDown detected, calling move_cursor_down()");
                 self.move_cursor_down(event.modifiers.shift);
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
@@ -1735,10 +1634,6 @@ impl Widget for TextArea {
 
         // Create layout if needed
         if self.cached_layout.borrow().is_none() && !text_to_render.is_empty() {
-            eprintln!("\n[LAYOUT] ===== Creating Text Layout =====");
-            eprintln!("[LAYOUT] viewport_width: {}", self.viewport_width);
-            eprintln!("[LAYOUT] wrap_enabled: {}", self.wrap_enabled);
-
             let text_style = TextStyle::new()
                 .size(self.font_size)
                 .color(if self.text.is_empty() {
@@ -1752,8 +1647,6 @@ impl Widget for TextArea {
             } else {
                 None
             };
-
-            eprintln!("[LAYOUT] max_width for layout: {:?}", max_width);
 
             let wrap = if self.wrap_enabled {
                 cosmic_text::Wrap::Word
@@ -1847,8 +1740,6 @@ impl Widget for TextArea {
             }
         }
 
-        eprintln!("[CURSOR_CALC] cursor_pos={}, global_byte={}, line={}, line_relative_byte={}",
-                 self.cursor_pos, cursor_global_byte_pos, cursor_line_idx, cursor_line_relative_byte_pos);
 
         // Draw selection if any
         if self.is_focused {
@@ -1860,35 +1751,67 @@ impl Widget for TextArea {
                         (self.cursor_pos, sel_start)
                     };
 
-                    // Draw selection rectangles (can span multiple lines)
-                    let char_indices: Vec<_> = self.text.char_indices().map(|(i, _)| i).collect();
-                    let start_byte = char_indices.get(start).copied().unwrap_or(self.text.len());
-                    let end_byte = char_indices.get(end).copied().unwrap_or(self.text.len());
+                    eprintln!("[SELECTION_RENDER] selection char range: [{}, {})", start, end);
+
+                    // Convert char indices to GLOBAL byte offsets
+                    let start_byte = self.char_to_byte(start);
+                    let end_byte = self.char_to_byte(end);
+
+                    eprintln!("[SELECTION_RENDER] selection GLOBAL byte range: [{}, {})", start_byte, end_byte);
 
                     let buffer = layout.buffer();
-                    for run in buffer.layout_runs() {
-                        // Find selection range within this line
-                        let line_start = run.glyphs.first().map(|g| g.start).unwrap_or(0);
-                        let line_end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
 
-                        if end_byte <= line_start || start_byte >= line_end {
-                            continue; // Selection doesn't overlap this line
+                    // Track global byte position as we iterate through lines
+                    let mut line_global_byte_start = 0;
+
+                    for (line_idx, run) in buffer.layout_runs().enumerate() {
+                        // Calculate this line's GLOBAL byte range
+                        let line_text = buffer.lines[run.line_i].text();
+                        let line_byte_len = line_text.len();
+                        let line_global_byte_end = line_global_byte_start + line_byte_len;
+
+                        eprintln!("[SELECTION_RENDER] line {}: GLOBAL byte range [{}, {})",
+                                 line_idx, line_global_byte_start, line_global_byte_end);
+
+                        // Check if selection overlaps this line (using GLOBAL coordinates)
+                        if end_byte <= line_global_byte_start || start_byte >= line_global_byte_end {
+                            eprintln!("[SELECTION_RENDER] line {}: no overlap, skipping", line_idx);
+                            line_global_byte_start = line_global_byte_end + 1; // +1 for newline
+                            continue;
                         }
 
-                        // Calculate selection bounds within this line
-                        let sel_line_start = start_byte.max(line_start);
-                        let sel_line_end = end_byte.min(line_end);
+                        // Calculate selection bounds within this line (GLOBAL coordinates)
+                        let sel_global_start = start_byte.max(line_global_byte_start);
+                        let sel_global_end = end_byte.min(line_global_byte_end);
+
+                        // Convert to LINE-RELATIVE byte offsets for glyph matching
+                        let sel_line_start = sel_global_start - line_global_byte_start;
+                        let sel_line_end = sel_global_end - line_global_byte_start;
+
+                        eprintln!("[SELECTION_RENDER] line {}: selection LINE-RELATIVE byte range [{}, {})",
+                                 line_idx, sel_line_start, sel_line_end);
 
                         let mut x_start = None;
                         let mut x_end = None;
 
+                        // Find X positions using LINE-RELATIVE byte offsets
                         for glyph in run.glyphs.iter() {
                             if x_start.is_none() && sel_line_start <= glyph.start {
                                 x_start = Some(glyph.x);
+                                eprintln!("[SELECTION_RENDER] line {}: x_start at glyph.x={:.1}", line_idx, glyph.x);
                             }
                             if sel_line_end <= glyph.end {
                                 x_end = Some(glyph.x + glyph.w);
+                                eprintln!("[SELECTION_RENDER] line {}: x_end at glyph.x+w={:.1}", line_idx, glyph.x + glyph.w);
                                 break;
+                            }
+                        }
+
+                        // Handle end of line case
+                        if x_end.is_none() && sel_line_end >= run.glyphs.last().map(|g| g.end).unwrap_or(0) {
+                            if let Some(last_glyph) = run.glyphs.last() {
+                                x_end = Some(last_glyph.x + last_glyph.w);
+                                eprintln!("[SELECTION_RENDER] line {}: x_end at line end={:.1}", line_idx, last_glyph.x + last_glyph.w);
                             }
                         }
 
@@ -1896,12 +1819,18 @@ impl Widget for TextArea {
                             let selection_rect = Rect::new(
                                 Point::new(
                                     text_origin.x + x1 as f64,
-                                    text_origin.y + run.line_y as f64,
+                                    text_origin.y + run.line_top as f64,
                                 ),
                                 Size::new((x2 - x1) as f64, run.line_height as f64),
                             );
+                            eprintln!("[SELECTION_RENDER] line {}: drawing rect at x={:.1}, y={:.1}, width={:.1}",
+                                     line_idx, text_origin.x + x1 as f64, text_origin.y + run.line_top as f64, (x2 - x1) as f64);
                             ctx.draw_rect(selection_rect, style.selection_color);
+                        } else {
+                            eprintln!("[SELECTION_RENDER] line {}: no valid x_start/x_end, skipping render", line_idx);
                         }
+
+                        line_global_byte_start = line_global_byte_end + 1; // +1 for newline
                     }
                 }
             }
@@ -1916,75 +1845,53 @@ impl Widget for TextArea {
                     style.text_color
                 };
 
-                eprintln!("[TEXT_RENDER] Looking for cursor at line={}, line_relative_byte={}",
-                         cursor_line_idx, cursor_line_relative_byte_pos);
-
                 // Render text while tracking cursor position
                 let buffer = layout.buffer();
-                for (run_idx, run) in buffer.layout_runs().enumerate() {
-                    let line_y = run.line_y;
+                for run in buffer.layout_runs() {
                     let line_height = run.line_height;
-
-                    // Debug: show glyph range for this run
-                    let first_glyph_start = run.glyphs.first().map(|g| g.start).unwrap_or(0);
-                    let last_glyph_end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
-                    eprintln!("[TEXT_RENDER] Run {}: line_i={}, glyph byte range [{}, {})",
-                             run_idx, run.line_i, first_glyph_start, last_glyph_end);
 
                     // Check if this run is the line containing the cursor
                     if cursor_rect_from_rendering.is_none() && run.line_i == cursor_line_idx {
                         for glyph in run.glyphs.iter() {
                             // Check if cursor is at this glyph's position (LINE-RELATIVE!)
                             if cursor_line_relative_byte_pos == glyph.start {
-                                eprintln!("[TEXT_RENDER] ✓ Found cursor at run={}, line={}, glyph.start={}, glyph.x={}",
-                                         run_idx, run.line_i, glyph.start, glyph.x);
-                            let cursor_x = text_origin.x + glyph.x as f64;
-                            let cursor_y = text_origin.y + run.line_top as f64;
-                            cursor_rect_from_rendering = Some(Rect::new(
-                                Point::new(cursor_x, cursor_y),
-                                Size::new(2.0, line_height as f64),
-                            ));
-
-                                    eprintln!("[TEXT_RENDER] Found cursor position at glyph.start={}, glyph.x={}, line_y={}",
-                                             glyph.start, glyph.x, line_y);
-                                    eprintln!("[TEXT_RENDER] Cursor rect from rendering: {:?}", cursor_rect_from_rendering);
-                                    break; // Found cursor, stop searching
-                                }
+                                let cursor_x = text_origin.x + glyph.x as f64;
+                                let cursor_y = text_origin.y + run.line_top as f64;
+                                cursor_rect_from_rendering = Some(Rect::new(
+                                    Point::new(cursor_x, cursor_y),
+                                    Size::new(2.0, line_height as f64),
+                                ));
+                                break; // Found cursor, stop searching
                             }
                         }
+                    }
 
-                        // Check if cursor is at end of this line (after last glyph)
-                        if cursor_rect_from_rendering.is_none() && run.line_i == cursor_line_idx {
-                            if let Some(last_glyph) = run.glyphs.last() {
-                                if cursor_line_relative_byte_pos == last_glyph.end {
+                    // Check if cursor is at end of this line (after last glyph)
+                    if cursor_rect_from_rendering.is_none() && run.line_i == cursor_line_idx {
+                        if let Some(last_glyph) = run.glyphs.last() {
+                            if cursor_line_relative_byte_pos == last_glyph.end {
                                 let cursor_x = text_origin.x + (last_glyph.x + last_glyph.w) as f64;
                                 let cursor_y = text_origin.y + run.line_top as f64;
                                 cursor_rect_from_rendering = Some(Rect::new(
                                     Point::new(cursor_x, cursor_y),
                                     Size::new(2.0, line_height as f64),
                                 ));
-
-                                eprintln!("[TEXT_RENDER] Cursor at end of line, last_glyph.end={}", last_glyph.end);
-                                eprintln!("[TEXT_RENDER] Cursor rect from rendering: {:?}", cursor_rect_from_rendering);
                             }
                         }
                     }
 
-                        // CRITICAL: Handle empty lines (no glyphs)
-                        // If this is the cursor's line and it has no glyphs, place cursor at line start
-                        if cursor_rect_from_rendering.is_none() && run.line_i == cursor_line_idx {
-                            if run.glyphs.is_empty() && cursor_line_relative_byte_pos == 0 {
-                                let cursor_x = text_origin.x;
-                                let cursor_y = text_origin.y + run.line_top as f64;
-                                cursor_rect_from_rendering = Some(Rect::new(
-                                    Point::new(cursor_x, cursor_y),
-                                    Size::new(2.0, line_height as f64),
-                                ));
-
-                                eprintln!("[TEXT_RENDER] ✓ Cursor on empty line {}, placing at line start", run.line_i);
-                                eprintln!("[TEXT_RENDER] Cursor rect from rendering: {:?}", cursor_rect_from_rendering);
-                            }
+                    // CRITICAL: Handle empty lines (no glyphs)
+                    // If this is the cursor's line and it has no glyphs, place cursor at line start
+                    if cursor_rect_from_rendering.is_none() && run.line_i == cursor_line_idx {
+                        if run.glyphs.is_empty() && cursor_line_relative_byte_pos == 0 {
+                            let cursor_x = text_origin.x;
+                            let cursor_y = text_origin.y + run.line_top as f64;
+                            cursor_rect_from_rendering = Some(Rect::new(
+                                Point::new(cursor_x, cursor_y),
+                                Size::new(2.0, line_height as f64),
+                            ));
                         }
+                    }
                 }
 
                 // Now draw the text using the standard method
@@ -2014,8 +1921,6 @@ impl Widget for TextArea {
             let elapsed = self.cursor_blink_timer.elapsed().as_millis();
             let blink_phase = (elapsed / BLINK_INTERVAL_MS) % 2;
 
-            eprintln!("[CURSOR_BLINK] elapsed: {}ms, blink_phase: {}", elapsed, blink_phase);
-
             if blink_phase == 0 {
                 // Use cursor position calculated during text rendering
                 let cursor_rect = if let Some(rect) = cursor_rect_from_rendering {
@@ -2029,12 +1934,8 @@ impl Widget for TextArea {
                     )
                 } else {
                     // This should never happen now that we handle empty lines
-                    eprintln!("[PAINT] WARNING: cursor_rect_from_rendering is None for non-empty text!");
                     return;
                 };
-
-                eprintln!("[PAINT] Drawing cursor at: {:?}", cursor_rect);
-                eprintln!("[PAINT] Cursor color: {:?}", style.cursor_color);
 
                 // Use draw_styled_rect to ensure z-order works across pipelines
                 ctx.draw_styled_rect(
@@ -2046,8 +1947,6 @@ impl Widget for TextArea {
                         shadow: None,
                     },
                 );
-            } else {
-                eprintln!("[CURSOR_BLINK] Cursor hidden (blink off phase)");
             }
         }
 
@@ -2222,15 +2121,27 @@ impl MouseHandler for TextArea {
         }
 
         // Handle drag selection
-        if let Some(_drag_start) = self.drag_start_pos {
+        if let Some(drag_start) = self.drag_start_pos {
+            eprintln!("[DRAG_SELECT] drag_start: {:?}, mouse: {:?}", drag_start, event.position);
+            eprintln!("[DRAG_SELECT] current cursor_pos: {}, selection_start: {:?}",
+                     self.cursor_pos, self.selection_start);
+
             if let Some(char_index) = self.hit_test_position(event.position) {
+                eprintln!("[DRAG_SELECT] hit_test returned char_index: {}", char_index);
+
                 if self.selection_start.is_none() && char_index != self.cursor_pos {
                     self.selection_start = Some(self.cursor_pos);
+                    eprintln!("[DRAG_SELECT] started selection at: {}", self.cursor_pos);
                 }
                 self.cursor_pos = char_index;
                 self.preferred_cursor_x = None;
                 self.ensure_cursor_visible();
                 self.dirty = true;
+
+                eprintln!("[DRAG_SELECT] updated cursor_pos to: {}, selection: {:?}",
+                         self.cursor_pos, self.selection_start);
+            } else {
+                eprintln!("[DRAG_SELECT] hit_test returned None!");
             }
         }
 
