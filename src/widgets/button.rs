@@ -327,6 +327,26 @@ impl Button {
         self.is_toggled
     }
 
+    /// Set button text at runtime (only works for Text and IconText content)
+    pub fn set_text(&mut self, text: impl Into<String>) {
+        let new_text = text.into();
+        match &mut self.content {
+            ButtonContent::Text(t) => {
+                *t = new_text;
+                *self.cached_text_layout.borrow_mut() = None;
+                self.dirty = true;
+            }
+            ButtonContent::IconText { text: t, .. } => {
+                *t = new_text;
+                *self.cached_text_layout.borrow_mut() = None;
+                self.dirty = true;
+            }
+            ButtonContent::Icon(_) => {
+                eprintln!("[Button::set_text] Warning: Cannot set text on Icon-only button");
+            }
+        }
+    }
+
     // ========================================================================
     // Default Styles
     // ========================================================================

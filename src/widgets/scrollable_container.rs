@@ -46,6 +46,102 @@ pub enum ScrollMode {
     Both,
 }
 
+use std::rc::Rc;
+use std::cell::Cell;
+
+/// Internal widget that applies scroll offset to its children (content only, not scrollbars)
+///
+/// This is an implementation detail of ScrollableContainer. It sits between the
+/// ScrollableContainer and the content_container, applying the scroll offset transformation
+/// so that scrollbars (which are siblings of this viewport) don't get offset.
+struct ScrollViewport {
+    id: WidgetId,
+    bounds: Rect,
+    dirty: bool,
+    layout_style: Style,
+    /// Shared reference to the parent ScrollableContainer's scroll offset
+    /// Uses Cell for interior mutability without runtime borrow checking
+    scroll_offset: Rc<Cell<Vector>>,
+}
+
+impl ScrollViewport {
+    fn new(scroll_offset: Rc<Cell<Vector>>, layout_style: Style) -> Self {
+        ScrollViewport {
+            id: WidgetId::new(0),
+            bounds: Rect::default(),
+            dirty: true,
+            layout_style,
+            scroll_offset,
+        }
+    }
+}
+
+impl Widget for ScrollViewport {
+    fn id(&self) -> WidgetId {
+        self.id
+    }
+
+    fn set_id(&mut self, id: WidgetId) {
+        self.id = id;
+    }
+
+    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
+        Vec::new()
+    }
+
+    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
+        Vec::new()
+    }
+
+    fn bounds(&self) -> Rect {
+        self.bounds
+    }
+
+    fn set_bounds(&mut self, bounds: Rect) {
+        if self.bounds != bounds {
+            self.bounds = bounds;
+            self.dirty = true;
+        }
+    }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.dirty = dirty;
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    fn layout(&self) -> Style {
+        self.layout_style.clone()
+    }
+
+    fn paint(&self, _ctx: &mut PaintContext) {
+        // Nothing to paint
+    }
+
+    fn before_paint_children(&self, ctx: &mut PaintContext) {
+        // Apply scroll offset transformation to children (content only)
+        // Read from the shared Cell - no borrow checking needed!
+        let offset = self.scroll_offset.get();
+        // Negative offset because scrolling down means content moves up
+        ctx.push_offset(Vector::new(-offset.x, -offset.y));
+    }
+
+    fn after_paint_children(&self, ctx: &mut PaintContext) {
+        // Pop the scroll offset
+        ctx.pop_offset();
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
 /// ScrollableContainer - A container that supports scrolling with automatic content sizing
 ///
 /// This is a composite widget that manages:
@@ -89,7 +185,8 @@ pub struct ScrollableContainer {
     // ========================================
     /// Current scroll position (offset from content origin)
     /// Positive values mean content is scrolled down/right
-    scroll_offset: Vector,
+    /// Wrapped in Rc<Cell<>> to share with ScrollViewport without borrowing
+    scroll_offset: Rc<Cell<Vector>>,
 
     /// Total size of content (measured from children bounds)
     /// Updated after layout pass
@@ -156,16 +253,18 @@ impl ScrollableContainer {
     ///
     /// A tuple of:
     /// - `Self`: The ScrollableContainer widget
-    /// - `Vec<(Box<dyn Widget>, Style, Option<WidgetId>)>`: Child widgets to add
-    ///   Each tuple is (widget, layout_style, parent_id_override)
-    ///   parent_id_override is None for children of the ScrollableContainer itself
+    /// - `Vec<(Box<dyn Widget>, Style, Option<usize>)>`: Child widgets to add
+    ///   Each tuple is (widget, layout_style, parent_index)
+    ///   parent_index is None for children of the ScrollableContainer itself,
+    ///   or Some(n) to make this widget a child of the nth child
     pub fn new(
         scroll_mode: ScrollMode,
         gui_handle: &crate::handle::GuiHandle,
-    ) -> (Self, Vec<(Box<dyn Widget>, Style, Option<WidgetId>)>) {
+    ) -> (Self, Vec<(Box<dyn Widget>, Style, Option<usize>)>) {
         use crate::elements::Container;
 
         // Pre-allocate widget IDs
+        let viewport_id = gui_handle.next_widget_id();
         let content_container_id = gui_handle.next_widget_id();
         let vertical_scrollbar_id = if matches!(scroll_mode, ScrollMode::Vertical | ScrollMode::Both) {
             Some(gui_handle.next_widget_id())
@@ -178,6 +277,9 @@ impl ScrollableContainer {
             None
         };
 
+        // Create shared scroll offset (shared between ScrollableContainer and ScrollViewport)
+        let scroll_offset = Rc::new(Cell::new(Vector::new(0.0, 0.0)));
+
         // Create the ScrollableContainer itself
         let container = ScrollableContainer {
             id: WidgetId::new(0), // Will be set by Window
@@ -185,7 +287,7 @@ impl ScrollableContainer {
             dirty: true,
             layout_style: Style::default(),
             scroll_mode,
-            scroll_offset: Vector::new(0.0, 0.0),
+            scroll_offset: scroll_offset.clone(),
             content_size: Size::new(0.0, 0.0),
             viewport_size: Size::new(0.0, 0.0),
             content_container_id: Some(content_container_id),
@@ -201,19 +303,36 @@ impl ScrollableContainer {
         // Create child widgets
         let mut children = Vec::new();
 
+        // Viewport widget - applies scroll offset to content only (not scrollbars)
+        let viewport_style = Style {
+            display: taffy::Display::Flex,
+            size: taffy::Size {
+                width: taffy::Dimension::percent(1.0),
+                height: taffy::Dimension::percent(1.0),
+            },
+            ..Default::default()
+        };
+        let mut viewport = Box::new(ScrollViewport::new(scroll_offset.clone(), viewport_style.clone()));
+        viewport.set_id(viewport_id);
+        children.push((viewport as Box<dyn Widget>, viewport_style, None));
+
         // Content container - uses flexbox column layout for stacking content
+        // This will be a child of the viewport (index 0), not the ScrollableContainer
+        // Using index-based parent reference: Some(0) = viewport
+        // Width is 100% to constrain children for text wrapping
         let content_style = Style {
             display: taffy::Display::Flex,
             flex_direction: taffy::FlexDirection::Column,
             size: taffy::Size {
-                width: taffy::Dimension::auto(),
+                width: taffy::Dimension::percent(1.0),  // 100% width for text wrapping
                 height: taffy::Dimension::auto(),
             },
             ..Default::default()
         };
         let mut content_container = Box::new(Container::new(content_style.clone()));
         content_container.set_id(content_container_id);
-        children.push((content_container as Box<dyn Widget>, content_style, None));
+        // parent_index = Some(0) means "child of viewport" (viewport is at index 0)
+        children.push((content_container as Box<dyn Widget>, content_style, Some(0)));
 
         // Create scrollbars if needed
         use crate::widgets::ScrollBar;
@@ -306,7 +425,7 @@ impl ScrollableContainer {
 
     /// Get the scroll offset (internal, used by Window)
     pub(crate) fn scroll_offset(&self) -> Vector {
-        self.scroll_offset
+        self.scroll_offset.get()
     }
 
     /// Set the content container ID (called after add_composite)
@@ -362,8 +481,10 @@ impl ScrollableContainer {
         let max_x = (self.content_size.width - self.viewport_size.width).max(0.0);
         let max_y = (self.content_size.height - self.viewport_size.height).max(0.0);
 
-        self.scroll_offset.x = self.scroll_offset.x.clamp(0.0, max_x);
-        self.scroll_offset.y = self.scroll_offset.y.clamp(0.0, max_y);
+        let mut offset = self.scroll_offset.get();
+        offset.x = offset.x.clamp(0.0, max_x);
+        offset.y = offset.y.clamp(0.0, max_y);
+        self.scroll_offset.set(offset);
     }
 }
 
@@ -380,7 +501,39 @@ impl Widget for ScrollableContainer {
         self.id = id;
     }
 
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
+    fn on_message(&mut self, message: &GuiMessage) -> Vec<DeferredCommand> {
+        // Handle value_changed signals from scrollbars
+        if let GuiMessage::Custom { source, signal_type, data } = message {
+            if signal_type == "value_changed" {
+                // Check if this message is from one of our scrollbars
+                let mut offset = self.scroll_offset.get();
+                let mut updated = false;
+
+                if Some(*source) == self.vertical_scrollbar_id {
+                    // Vertical scrollbar value changed
+                    if let Some(value) = data.downcast_ref::<i32>() {
+                        offset.y = *value as f64;
+                        updated = true;
+                        println!("[SCROLLABLE] Vertical scrollbar changed to {}", value);
+                    }
+                }
+
+                if Some(*source) == self.horizontal_scrollbar_id {
+                    // Horizontal scrollbar value changed
+                    if let Some(value) = data.downcast_ref::<i32>() {
+                        offset.x = *value as f64;
+                        updated = true;
+                        println!("[SCROLLABLE] Horizontal scrollbar changed to {}", value);
+                    }
+                }
+
+                if updated {
+                    self.scroll_offset.set(offset);
+                    self.clamp_scroll_offset();
+                    self.dirty = true;
+                }
+            }
+        }
         Vec::new()
     }
 
@@ -423,20 +576,29 @@ impl Widget for ScrollableContainer {
     }
 
     fn before_paint_children(&self, ctx: &mut PaintContext) {
-        // Push clip rect to viewport bounds (clips content to visible area)
-        ctx.push_clip(Rect::new(
+        // Push clip to viewport bounds
+        // The scroll offset is now applied by the ScrollViewport child widget,
+        // not here. This way, scrollbars (which are siblings of the viewport)
+        // don't get the scroll offset applied to them.
+        //
+        // See ScrollViewport::before_paint_children() for offset application.
+
+        println!("[SCROLLABLE] before_paint_children:");
+        println!("[SCROLLABLE]   bounds.origin = {:?}", self.bounds.origin);
+        println!("[SCROLLABLE]   viewport_size = {:?}", self.viewport_size);
+        println!("[SCROLLABLE]   scroll_offset = {:?}", self.scroll_offset.get());
+
+        let clip_rect = Rect::new(
             self.bounds.origin,
             self.viewport_size,
-        ));
+        );
+        println!("[SCROLLABLE]   clip_rect = {:?}", clip_rect);
 
-        // Push offset for scrolling (children will be rendered with this offset)
-        // Negative offset because we're moving the content up/left when scrolling down/right
-        ctx.push_offset(Vector::new(-self.scroll_offset.x, -self.scroll_offset.y));
+        ctx.push_clip(clip_rect);
     }
 
     fn after_paint_children(&self, ctx: &mut PaintContext) {
-        // Pop offset and clip after children are painted
-        ctx.pop_offset();
+        // Pop the clip rect
         ctx.pop_clip();
     }
 
@@ -446,9 +608,10 @@ impl Widget for ScrollableContainer {
     /// in the viewport, but the content is scrolled down by 200px, we need to transform
     /// that to (50, 250) in content space so hit testing finds the correct widget.
     fn transform_point_for_children(&self, point: Point) -> Point {
+        let offset = self.scroll_offset.get();
         Point::new(
-            point.x + self.scroll_offset.x,
-            point.y + self.scroll_offset.y,
+            point.x + offset.x,
+            point.y + offset.y,
         )
     }
 
@@ -471,37 +634,42 @@ impl Widget for ScrollableContainer {
 
     // Handle wheel events for scrolling
     fn on_wheel(&mut self, event: &mut WheelEvent) -> EventResponse {
+        let old_offset = self.scroll_offset.get();
+
         println!("[SCROLLABLE] on_wheel called! delta: ({:.1}, {:.1})", event.delta.x, event.delta.y);
-        println!("[SCROLLABLE]   current offset: ({:.1}, {:.1})", self.scroll_offset.x, self.scroll_offset.y);
+        println!("[SCROLLABLE]   current offset: ({:.1}, {:.1})", old_offset.x, old_offset.y);
         println!("[SCROLLABLE]   content_size: ({:.1}, {:.1})", self.content_size.width, self.content_size.height);
         println!("[SCROLLABLE]   viewport_size: ({:.1}, {:.1})", self.viewport_size.width, self.viewport_size.height);
 
-        let old_offset = self.scroll_offset;
+        let mut new_offset = old_offset;
 
         // Update scroll offset based on wheel delta
         match self.scroll_mode {
             ScrollMode::Vertical => {
-                self.scroll_offset.y += event.delta.y;
-                println!("[SCROLLABLE]   vertical scroll: {:.1} -> {:.1}", old_offset.y, self.scroll_offset.y);
+                new_offset.y += event.delta.y;
+                println!("[SCROLLABLE]   vertical scroll: {:.1} -> {:.1}", old_offset.y, new_offset.y);
             }
             ScrollMode::Horizontal => {
-                self.scroll_offset.x += event.delta.x;
-                println!("[SCROLLABLE]   horizontal scroll: {:.1} -> {:.1}", old_offset.x, self.scroll_offset.x);
+                new_offset.x += event.delta.x;
+                println!("[SCROLLABLE]   horizontal scroll: {:.1} -> {:.1}", old_offset.x, new_offset.x);
             }
             ScrollMode::Both => {
-                self.scroll_offset.x += event.delta.x;
-                self.scroll_offset.y += event.delta.y;
+                new_offset.x += event.delta.x;
+                new_offset.y += event.delta.y;
                 println!("[SCROLLABLE]   both scroll: ({:.1}, {:.1}) -> ({:.1}, {:.1})",
-                         old_offset.x, old_offset.y, self.scroll_offset.x, self.scroll_offset.y);
+                         old_offset.x, old_offset.y, new_offset.x, new_offset.y);
             }
         }
 
-        // Clamp to valid range
+        // Update the cell and clamp
+        self.scroll_offset.set(new_offset);
         self.clamp_scroll_offset();
-        println!("[SCROLLABLE]   after clamp: ({:.1}, {:.1})", self.scroll_offset.x, self.scroll_offset.y);
+        let final_offset = self.scroll_offset.get();
+
+        println!("[SCROLLABLE]   after clamp: ({:.1}, {:.1})", final_offset.x, final_offset.y);
 
         // If scroll offset changed, mark dirty and handle the event
-        if self.scroll_offset != old_offset {
+        if final_offset != old_offset {
             self.dirty = true;
             println!("[SCROLLABLE] ✓ Scroll offset changed, returning Handled");
             EventResponse::Handled

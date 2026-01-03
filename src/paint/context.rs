@@ -19,6 +19,24 @@ fn intersect_rects(a: Rect, b: Rect) -> Rect {
     )
 }
 
+/// Clip state that remembers the coordinate space it was defined in
+///
+/// When a clip is pushed, we record the cumulative offset at that moment.
+/// Later, when computing the effective clip rect, we transform it to screen space
+/// by accounting for the difference between the current offset and the offset when pushed.
+///
+/// This allows clips from different coordinate spaces (nested scrollable containers)
+/// to be correctly intersected.
+#[derive(Clone, Debug)]
+struct ClipState {
+    /// The clip rectangle in LOCAL coordinates (the space where it was pushed)
+    local_rect: Rect,
+
+    /// The cumulative offset when this clip was pushed
+    /// This tells us which coordinate space the local_rect is defined in
+    offset_at_push: crate::types::Vector,
+}
+
 /// Bundle of rendering resources passed to PaintContext
 ///
 /// This bundles all the resources needed for text rendering into a single struct,
@@ -86,8 +104,8 @@ pub struct PaintContext<'a> {
     window_size: Size,
 
     /// Clip stack for hierarchical clipping
-    /// The current clip rect is the intersection of all rects on the stack
-    clip_stack: Vec<Rect>,
+    /// Each clip remembers the coordinate space (cumulative offset) it was defined in
+    clip_stack: Vec<ClipState>,
 
     /// Offset stack for hierarchical coordinate transformation
     /// The current offset is the sum of all offsets on the stack
@@ -251,9 +269,26 @@ impl<'a> PaintContext<'a> {
     }
 
     /// Push a clip rectangle onto the stack
-    /// All subsequent draw calls will be clipped to this rect (and any parent clip rects)
+    ///
+    /// The clip rect is specified in the CURRENT coordinate space (after any push_offset calls).
+    /// We record the cumulative offset at this moment so we can later transform the clip
+    /// to screen space for intersection with other clips from different coordinate spaces.
+    ///
+    /// # Example
+    /// ```ignore
+    /// // In screen space
+    /// ctx.push_offset(Vector::new(-100, 0));  // Scroll container offset
+    ///
+    /// // Clip at (0,0)-(500,500) in the SCROLLED space
+    /// ctx.push_clip(Rect::new(Point::new(0, 0), Size::new(500, 500)));
+    /// // This clip will be transformed to (-100,0)-(400,500) in screen space
+    /// ```
     pub fn push_clip(&mut self, rect: Rect) {
-        self.clip_stack.push(rect);
+        let offset_at_push = self.current_offset();
+        self.clip_stack.push(ClipState {
+            local_rect: rect,
+            offset_at_push,
+        });
     }
 
     /// Pop the current clip rectangle from the stack
@@ -262,19 +297,74 @@ impl<'a> PaintContext<'a> {
     }
 
     /// Get the current effective clip rect (intersection of all clip rects on stack)
+    ///
+    /// This transforms each clip from its local coordinate space to the current rendering space,
+    /// then intersects them all. This is the key to supporting nested scrollable containers:
+    /// each clip was pushed in a potentially different coordinate space (with different offsets),
+    /// so we must transform them all to a common space (current rendering space) before intersecting.
+    ///
+    /// # Algorithm
+    /// 1. Get current cumulative offset
+    /// 2. For each clip state:
+    ///    - Calculate offset_delta = current_offset - offset_at_push
+    ///    - Transform local_rect by -offset_delta to get current_space_rect
+    ///    - (Subtract because: clip in "offset A" space → screen space = +A,
+    ///       then screen space → "offset B" space = -B, so total = -B + A = -(B - A))
+    /// 3. Intersect all transformed rects
     fn current_clip_rect(&self) -> Option<Rect> {
         if self.clip_stack.is_empty() {
             return None;
         }
 
-        // Start with the first clip rect
-        let mut result = self.clip_stack[0];
+        let current_offset = self.current_offset();
+        println!("[CLIP] current_offset: ({:.1}, {:.1})", current_offset.x, current_offset.y);
 
-        // Intersect with all subsequent clip rects
-        for clip in &self.clip_stack[1..] {
-            result = intersect_rects(result, *clip);
+        // Transform first clip to current rendering space
+        let offset_delta_0 = crate::types::Vector::new(
+            current_offset.x - self.clip_stack[0].offset_at_push.x,
+            current_offset.y - self.clip_stack[0].offset_at_push.y,
+        );
+        println!("[CLIP] Clip 0: local_rect={:?}, offset_at_push=({:.1}, {:.1}), delta=({:.1}, {:.1})",
+                 self.clip_stack[0].local_rect,
+                 self.clip_stack[0].offset_at_push.x,
+                 self.clip_stack[0].offset_at_push.y,
+                 offset_delta_0.x,
+                 offset_delta_0.y);
+
+        // SUBTRACT offset_delta to transform from push-time space to current rendering space
+        let mut result = self.clip_stack[0].local_rect.translate(
+            euclid::Vector2D::new(-offset_delta_0.x, -offset_delta_0.y)
+        );
+        println!("[CLIP]   → transformed to {:?}", result);
+
+        // Transform and intersect all subsequent clips
+        for (i, clip_state) in self.clip_stack[1..].iter().enumerate() {
+            // Calculate how much the coordinate space has changed since this clip was pushed
+            let offset_delta = crate::types::Vector::new(
+                current_offset.x - clip_state.offset_at_push.x,
+                current_offset.y - clip_state.offset_at_push.y,
+            );
+
+            println!("[CLIP] Clip {}: local_rect={:?}, offset_at_push=({:.1}, {:.1}), delta=({:.1}, {:.1})",
+                     i + 1,
+                     clip_state.local_rect,
+                     clip_state.offset_at_push.x,
+                     clip_state.offset_at_push.y,
+                     offset_delta.x,
+                     offset_delta.y);
+
+            // Transform clip to current rendering space (SUBTRACT offset_delta)
+            let current_space_rect = clip_state.local_rect.translate(
+                euclid::Vector2D::new(-offset_delta.x, -offset_delta.y)
+            );
+            println!("[CLIP]   → transformed to {:?}", current_space_rect);
+
+            // Intersect with accumulated result
+            result = intersect_rects(result, current_space_rect);
+            println!("[CLIP]   → after intersect: {:?}", result);
         }
 
+        println!("[CLIP] Final clip rect: {:?}", result);
         Some(result)
     }
 

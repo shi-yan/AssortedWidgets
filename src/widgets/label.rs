@@ -470,6 +470,8 @@ impl Widget for Label {
             ),
         );
 
+        ctx.draw_rect(content_rect, Color::rgb(0.2, 0.2, 0.95));
+
         // Push clip rect to ensure text doesn't overflow the label bounds
         ctx.push_clip(content_rect);
 

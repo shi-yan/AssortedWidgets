@@ -432,10 +432,10 @@ impl Window {
     /// * `widget` - The main composite widget
     /// * `style` - Layout style for the main widget
     /// * `parent_id` - Optional parent ID (None = add to root container)
-    /// * `children` - Vector of (widget, style, parent_override) tuples
+    /// * `children` - Vector of (widget, style, parent_index) tuples
     ///   - widget: Child widget to add
     ///   - style: Layout style for the child
-    ///   - parent_override: If Some, use this as parent instead of main widget
+    ///   - parent_index: If Some(n), use child n as parent; if None, use main widget as parent
     ///
     /// # Returns
     ///
@@ -458,7 +458,7 @@ impl Window {
         widget: Box<dyn Widget>,
         style: crate::layout::Style,
         parent_id: Option<WidgetId>,
-        children: Vec<(Box<dyn Widget>, crate::layout::Style, Option<WidgetId>)>,
+        children: Vec<(Box<dyn Widget>, crate::layout::Style, Option<usize>)>,
     ) -> Result<(WidgetId, Vec<WidgetId>), String> {
         // Add main widget
         let widget_id = if let Some(parent) = parent_id {
@@ -467,24 +467,78 @@ impl Window {
             self.add_to_root(widget, style)?
         };
 
-        // Add children (with parent = widget_id or override) and collect their IDs
+        // Phase 1: Add all children with main widget as temporary parent and collect IDs
+        let mut child_widgets_and_parents = Vec::new();
+        for (child, child_style, parent_index) in children {
+            // Generate widget ID
+            let child_widget_id = self.widgets.get_handle().next_widget_id();
+
+            // Store child widget, style, desired parent index, and assigned ID
+            child_widgets_and_parents.push((child, child_style, parent_index, child_widget_id));
+        }
+
+        // Phase 2: Actually add widgets to WidgetManager and LayoutManager
         let mut child_ids = Vec::new();
-        for (child, child_style, parent_override) in children {
-            let parent = parent_override.unwrap_or(widget_id);
-            let child_id = self.add_child(child, child_style, parent)?;
-            child_ids.push(child_id);
+        for (mut child, child_style, parent_index, child_widget_id) in child_widgets_and_parents {
+            // Set the ID on the widget
+            child.set_id(child_widget_id);
+
+            // Add to WidgetManager
+            self.widgets.add_widget(child);
+
+            // Create layout node
+            if self.widgets.get(child_widget_id).unwrap().needs_measure() {
+                self.layout_manager.create_measurable_node(child_widget_id, child_style)?;
+            } else {
+                self.layout_manager.create_node(child_widget_id, child_style)?;
+            }
+
+            child_ids.push(child_widget_id);
+
+            // Determine parent: either another child (by index) or the main widget
+            let parent_widget_id = if let Some(index) = parent_index {
+                if index >= child_ids.len() {
+                    return Err(format!("Invalid parent index {} (only {} children added so far)", index, child_ids.len()));
+                }
+                child_ids[index]
+            } else {
+                widget_id
+            };
+
+            // Establish parent-child relationship in LayoutManager
+            self.layout_manager.add_child(parent_widget_id, child_widget_id)?;
+
+            // Add to WidgetTree
+            self.add_scene_graph_child(parent_widget_id, child_widget_id)?;
         }
 
         // For ScrollableContainer, update the content_container_id with the actual ID
+        // and extract scrollbar IDs for signal connection
+        let mut scrollbar_ids = (None, None);
         if !child_ids.is_empty() {
             if let Some(scroll_container) = self.widgets.get_mut(widget_id) {
                 use crate::widgets::ScrollableContainer;
                 if let Some(sc) = scroll_container.as_any_mut().downcast_mut::<ScrollableContainer>() {
-                    // First child is always the content container
-                    sc.set_content_container_id(child_ids[0]);
+                    // Child indices as defined in ScrollableContainer::new():
+                    // 0: viewport, 1: content_container, 2+: scrollbars
+                    sc.set_content_container_id(child_ids[1]);
+
+                    // Extract scrollbar IDs for connection (can't call self.connect while borrowed)
+                    scrollbar_ids = (sc.vertical_scrollbar_id(), sc.horizontal_scrollbar_id());
                 }
             }
         }
+
+        // Connect scrollbar signals to the container (after releasing the borrow)
+        if let Some(vscroll_id) = scrollbar_ids.0 {
+            self.connect(vscroll_id, "value_changed".to_string(), widget_id);
+        }
+        if let Some(hscroll_id) = scrollbar_ids.1 {
+            self.connect(hscroll_id, "value_changed".to_string(), widget_id);
+        }
+
+        // Mark layout as dirty
+        self.needs_layout = true;
 
         Ok((widget_id, child_ids))
     }
@@ -1528,6 +1582,11 @@ impl Window {
                         let vscroll_id = sc.vertical_scrollbar_id();
                         let hscroll_id = sc.horizontal_scrollbar_id();
 
+                        println!("[SCROLLBAR UPDATE] content_size: {:.1}x{:.1}, viewport: {:.1}x{:.1}, offset: ({:.1}, {:.1})",
+                                 content_size.width, content_size.height,
+                                 viewport_size.width, viewport_size.height,
+                                 scroll_offset.x, scroll_offset.y);
+
                         // Update vertical scrollbar
                         if let Some(vscroll_id) = vscroll_id {
                             if let Some(scrollbar) = self.widgets.get_mut(vscroll_id) {
@@ -1535,6 +1594,9 @@ impl Window {
                                     let content_height = content_size.height as i32;
                                     let viewport_height = viewport_size.height as i32;
                                     let scroll_range = (content_height - viewport_height).max(0);
+
+                                    println!("[SCROLLBAR UPDATE] Vertical: range=0-{}, page_size={}, value={}",
+                                             scroll_range, viewport_height, scroll_offset.y as i32);
 
                                     sb.set_range(0, scroll_range);
                                     sb.set_page_size(viewport_height);
