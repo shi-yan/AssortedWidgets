@@ -23,6 +23,7 @@ pub mod rich_text_label;
 pub mod text_input;
 pub mod text_area;
 pub mod virtualized_list;
+pub mod virtualized_grid;
 
 pub use cursor::Cursor;
 pub use label::{Label, WrapMode, Padding};
@@ -40,3 +41,4 @@ pub use rich_text_label::RichTextLabel;
 pub use text_input::{TextInput, InputState, InputStyle};
 pub use text_area::{TextArea, TextAreaStyle};
 pub use virtualized_list::{VirtualizedList, ListDataSource, ListLayoutMode};
+pub use virtualized_grid::{VirtualizedGrid, GridDataSource};
