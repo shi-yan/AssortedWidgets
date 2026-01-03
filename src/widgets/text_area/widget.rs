@@ -1,7 +1,7 @@
 //! Multi-line text input widget implementation
 
 use std::any::Any;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use taffy::Style;
 
@@ -77,11 +77,11 @@ pub struct TextArea {
     // === Scrolling State ===
     visible_start_line: u32,
     h_scroll_offset: f64,
-    total_lines: u32,
-    max_line_width: f64,
+    total_lines: Cell<u32>,        // Interior mutability (updated during paint)
+    max_line_width: Cell<f64>,     // Interior mutability (updated during paint)
     viewport_width: f64,
     viewport_height: f64,
-    needs_scroll_to_cursor: bool, // Set after text changes, cleared after scrolling
+    needs_scroll_to_cursor: Cell<bool>, // Interior mutability (set during paint, cleared during update)
 
     // === Embedded Scrollbars ===
     vscrollbar: Option<ScrollBar>,
@@ -142,11 +142,11 @@ impl TextArea {
 
             visible_start_line: 0,
             h_scroll_offset: 0.0,
-            total_lines: 0,
-            max_line_width: 0.0,
+            total_lines: Cell::new(0),
+            max_line_width: Cell::new(0.0),
             viewport_width: 0.0,
             viewport_height: 0.0,
-            needs_scroll_to_cursor: false,
+            needs_scroll_to_cursor: Cell::new(false),
 
             vscrollbar: None,
             hscrollbar: None,
@@ -1051,8 +1051,8 @@ impl TextArea {
 
     fn update_scrollbars(&mut self) {
         let visible_lines = self.num_visible_lines();
-        let needs_vscroll = self.total_lines > visible_lines;
-        let needs_hscroll = !self.wrap_enabled && self.max_line_width > self.viewport_width;
+        let needs_vscroll = self.total_lines.get() > visible_lines;
+        let needs_hscroll = !self.wrap_enabled && self.max_line_width.get() > self.viewport_width;
 
         let had_vscroll = self.vscrollbar.is_some();
         let had_hscroll = self.hscrollbar.is_some();
@@ -1060,14 +1060,14 @@ impl TextArea {
         // Create or destroy vertical scrollbar
         if needs_vscroll {
             if self.vscrollbar.is_none() {
-                let total_lines = self.total_lines as i32;
+                let total_lines = self.total_lines.get() as i32;
                 let visible_lines = self.num_visible_lines() as i32;
                 let max_scroll = (total_lines - visible_lines).max(0);
                 let vscroll = ScrollBar::vertical(0, max_scroll, visible_lines);
                 self.vscrollbar = Some(vscroll);
             } else {
                 // Update range
-                let total_lines = self.total_lines as i32;
+                let total_lines = self.total_lines.get() as i32;
                 let visible_lines = self.num_visible_lines() as i32;
                 let max_scroll = (total_lines - visible_lines).max(0);
                 if let Some(ref mut vscroll) = self.vscrollbar {
@@ -1082,12 +1082,12 @@ impl TextArea {
         // Create or destroy horizontal scrollbar
         if needs_hscroll {
             if self.hscrollbar.is_none() {
-                let max_scroll = (self.max_line_width - self.viewport_width).max(0.0) as i32;
+                let max_scroll = (self.max_line_width.get() - self.viewport_width).max(0.0) as i32;
                 let hscroll = ScrollBar::horizontal(0, max_scroll.max(100), 20);
                 self.hscrollbar = Some(hscroll);
             } else {
                 // Update range
-                let max_scroll = (self.max_line_width - self.viewport_width).max(0.0) as i32;
+                let max_scroll = (self.max_line_width.get() - self.viewport_width).max(0.0) as i32;
                 if let Some(ref mut hscroll) = self.hscrollbar {
                     hscroll.set_range(0, max_scroll.max(100));
                 }
@@ -1159,7 +1159,7 @@ impl TextArea {
         // in update() or paint() after the layout is recreated.
         if self.cached_layout.borrow().is_none() {
             eprintln!("[ENSURE_CURSOR] Layout is None, deferring scroll (setting needs_scroll_to_cursor flag)");
-            self.needs_scroll_to_cursor = true;
+            self.needs_scroll_to_cursor.set(true);
             self.dirty = true;
             return;
         }
@@ -1326,11 +1326,11 @@ impl TextArea {
                 }
 
                 // Clamp
-                let max_scroll = (self.max_line_width - self.viewport_width).max(0.0);
+                let max_scroll = (self.max_line_width.get() - self.viewport_width).max(0.0);
                 self.h_scroll_offset = self.h_scroll_offset.clamp(-max_scroll, 0.0);
             }
 
-            self.needs_scroll_to_cursor = false;
+            self.needs_scroll_to_cursor.set(false);
         }
     }
 
@@ -1471,43 +1471,72 @@ impl TextArea {
             text_area.origin.y - vertical_offset,
         );
 
-        let byte_pos = self.cursor.byte_pos();
+        // CRITICAL: cosmic-text uses LINE-RELATIVE byte positions
+        // We need to convert cursor's GLOBAL byte position to LINE-RELATIVE
+        let global_byte_pos = self.cursor.byte_pos();
 
-        // Find cursor position in layout
-        for run in buffer.layout_runs() {
-            for glyph in run.glyphs.iter() {
-                if glyph.start == byte_pos {
-                    return Some(Rect::new(
-                        Point::new(
-                            text_origin.x + glyph.x as f64,
-                            text_origin.y + run.line_y as f64,
-                        ),
-                        Size::new(2.0, run.line_height as f64),
-                    ));
+        // Find which line the cursor is on and convert to line-relative byte position
+        let mut line_byte_start = 0_usize;
+        for (line_idx, line) in buffer.lines.iter().enumerate() {
+            let line_len = line.text().len();
+            let line_byte_end = line_byte_start + line_len;
+
+            // Check if cursor is in this line (using GLOBAL byte positions)
+            if global_byte_pos >= line_byte_start && global_byte_pos <= line_byte_end {
+                // Convert to LINE-RELATIVE byte position for glyph lookup
+                let line_relative_byte = global_byte_pos - line_byte_start;
+
+                // Get the layout run for this line
+                if let Some(run) = buffer.layout_runs().nth(line_idx) {
+                    // Find cursor X position using LINE-RELATIVE byte offset
+                    for glyph in run.glyphs.iter() {
+                        if glyph.start == line_relative_byte {
+                            return Some(Rect::new(
+                                Point::new(
+                                    text_origin.x + glyph.x as f64,
+                                    text_origin.y + run.line_y as f64,
+                                ),
+                                Size::new(2.0, run.line_height as f64),
+                            ));
+                        }
+                        if line_relative_byte < glyph.end {
+                            return Some(Rect::new(
+                                Point::new(
+                                    text_origin.x + glyph.x as f64,
+                                    text_origin.y + run.line_y as f64,
+                                ),
+                                Size::new(2.0, run.line_height as f64),
+                            ));
+                        }
+                    }
+
+                    // If cursor is at end of line (after last glyph)
+                    if let Some(last_glyph) = run.glyphs.last() {
+                        if line_relative_byte >= last_glyph.end {
+                            return Some(Rect::new(
+                                Point::new(
+                                    text_origin.x + last_glyph.x as f64 + last_glyph.w as f64,
+                                    text_origin.y + run.line_y as f64,
+                                ),
+                                Size::new(2.0, run.line_height as f64),
+                            ));
+                        }
+                    } else {
+                        // Empty line - cursor at start
+                        return Some(Rect::new(
+                            Point::new(
+                                text_origin.x,
+                                text_origin.y + run.line_y as f64,
+                            ),
+                            Size::new(2.0, run.line_height as f64),
+                        ));
+                    }
                 }
-                if byte_pos < glyph.end {
-                    return Some(Rect::new(
-                        Point::new(
-                            text_origin.x + glyph.x as f64,
-                            text_origin.y + run.line_y as f64 - run.line_height as f64,
-                        ),
-                        Size::new(2.0, run.line_height as f64),
-                    ));
-                }
+
+                break;
             }
 
-            // If cursor is at end of line
-            if let Some(last_glyph) = run.glyphs.last() {
-                if byte_pos == last_glyph.end {
-                    return Some(Rect::new(
-                        Point::new(
-                            text_origin.x + last_glyph.x as f64 + last_glyph.w as f64,
-                            text_origin.y + run.line_y as f64,
-                        ),
-                        Size::new(2.0, run.line_height as f64),
-                    ));
-                }
-            }
+            line_byte_start = line_byte_end + 1; // +1 for newline
         }
 
         // Cursor at very end of text (use approximation for fallback height)
@@ -1770,7 +1799,7 @@ impl Widget for TextArea {
 
         // CRITICAL FIX: Try to scroll to cursor before updating scrollbars
         // This ensures scrollbar ranges are correct for the new scroll position
-        if self.needs_scroll_to_cursor {
+        if self.needs_scroll_to_cursor.get() {
             if self.cached_layout.borrow().is_some() {
                 eprintln!("[UPDATE] needs_scroll_to_cursor is true and layout is available, calling do_scroll_to_cursor()");
                 self.do_scroll_to_cursor();
@@ -1835,42 +1864,38 @@ impl Widget for TextArea {
             };
 
             ctx.with_text_engine(|engine| {
-                // SAFETY: We're in a rendering context with exclusive access
-                // This mutation is needed to cache the layout for immediate use
-                unsafe {
-                    let this = self as *const Self as *mut Self;
+                // Create layout with text shaping
+                let layout = engine.create_layout_with_wrap(
+                    text_to_render,
+                    &text_style,
+                    max_width,
+                    Truncate::None,
+                    wrap,
+                );
 
-                    let layout = engine.create_layout_with_wrap(
-                        text_to_render,
-                        &text_style,
-                        max_width,
-                        Truncate::None,
-                        wrap,
-                    );
+                // Update metadata using interior mutability (Cell)
+                let line_height = self.font_size as f64 * 1.2;
+                let new_total_lines = if line_height > 0.0 {
+                    (layout.size().height / line_height).ceil() as u32
+                } else {
+                    0
+                };
+                self.total_lines.set(new_total_lines);
 
-                    // Update metadata
-                    let line_height = self.font_size as f64 * 1.2;
-                    (*this).total_lines = if line_height > 0.0 {
-                        (layout.size().height / line_height).ceil() as u32
-                    } else {
-                        0
-                    };
+                let new_max_line_width = layout
+                    .buffer()
+                    .layout_runs()
+                    .map(|run| run.line_w as f64)
+                    .fold(0.0_f64, |max, w| max.max(w));
+                self.max_line_width.set(new_max_line_width);
 
-                    (*this).max_line_width = layout
-                        .buffer()
-                        .layout_runs()
-                        .map(|run| run.line_w as f64)
-                        .fold(0.0_f64, |max, w| max.max(w));
+                // Cache the layout (already uses RefCell for interior mutability)
+                *self.cached_layout.borrow_mut() = Some(layout);
+                *self.cached_layout_width.borrow_mut() = max_width;
 
-                    *self.cached_layout.borrow_mut() = Some(layout);
-                    *self.cached_layout_width.borrow_mut() = max_width;
-
-                    // CRITICAL FIX: If we need to scroll to cursor, do it now that layout is ready
-                    if (*this).needs_scroll_to_cursor {
-                        eprintln!("[PAINT] Layout just created and needs_scroll_to_cursor is true, calling do_scroll_to_cursor()");
-                        (*this).do_scroll_to_cursor();
-                    }
-                }
+                // Note: We don't call do_scroll_to_cursor() here because it needs &mut self.
+                // The needs_scroll_to_cursor flag is already set, and update() will handle it
+                // in the next frame with proper &mut access.
             });
         }
 
@@ -2155,7 +2180,7 @@ impl Widget for TextArea {
                 if let Some(ref hscroll) = self.hscrollbar {
                     if *source == hscroll.id() {
                         if let Some(value) = data.downcast_ref::<i32>() {
-                            let max_scroll = (self.max_line_width - self.viewport_width).max(0.0);
+                            let max_scroll = (self.max_line_width.get() - self.viewport_width).max(0.0);
                             if max_scroll > 0.0 {
                                 let max_val = hscroll.max() as f64;
                                 if max_val > 0.0 {
@@ -2199,7 +2224,7 @@ impl Widget for TextArea {
         let lines_delta = (event.delta.y / line_height).round() as i32;
         if lines_delta != 0 {
             let visible_lines = self.num_visible_lines();
-            let max_line = self.total_lines.saturating_sub(visible_lines).max(0);
+            let max_line = self.total_lines.get().saturating_sub(visible_lines).max(0);
             let new_line = (self.visible_start_line as i32 + lines_delta).clamp(0, max_line as i32) as u32;
 
             if new_line != self.visible_start_line {
@@ -2217,7 +2242,7 @@ impl Widget for TextArea {
         // Handle horizontal scrolling if wrapping disabled
         if !self.wrap_enabled && event.delta.x.abs() > 0.001 {
             let new_offset = self.h_scroll_offset - event.delta.x;
-            let max_scroll = self.max_line_width - self.viewport_width;
+            let max_scroll = self.max_line_width.get() - self.viewport_width;
             self.h_scroll_offset = new_offset.clamp(-max_scroll.max(0.0), 0.0);
 
             // Update horizontal scrollbar
