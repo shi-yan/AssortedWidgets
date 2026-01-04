@@ -29,7 +29,8 @@
 use std::any::Any;
 use std::cell::Cell;
 use std::rc::Rc;
-use crate::event::input::{EventResponse, WheelEvent};
+use crate::event::input::{EventResponse, MouseEvent, WheelEvent};
+use crate::event::handlers::MouseHandler;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::PaintContext;
@@ -37,6 +38,7 @@ use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Point, Rect, Size, V
 use crate::widget::Widget;
 use crate::widgets::scrollable_container::viewport::ScrollViewport;
 use crate::widgets::scrollable_container::viewport::ScrollMode;
+use crate::widgets::ScrollBar;
 
 
 /// ScrollableContainer - A container that supports scrolling with automatic content sizing
@@ -95,23 +97,20 @@ pub struct ScrollableContainer {
     // ========================================
     // Child Widget IDs
     // ========================================
+    /// Viewport widget ID (applies scroll offset and clipping)
+    viewport_id: Option<WidgetId>,
+
     /// Content container ID (holds actual child widgets)
     content_container_id: Option<WidgetId>,
 
-    /// Vertical scrollbar widget ID (if vertical scrolling enabled)
-    vertical_scrollbar_id: Option<WidgetId>,
-
-    /// Horizontal scrollbar widget ID (if horizontal scrolling enabled)
-    horizontal_scrollbar_id: Option<WidgetId>,
-
     // ========================================
-    // Scrollbar Visibility
+    // Embedded Scrollbars (owned directly, like TextArea)
     // ========================================
-    /// True if vertical scrollbar should be shown
-    show_vertical_scrollbar: bool,
+    /// Vertical scrollbar (created on-demand when content overflows)
+    vertical_scrollbar: Option<ScrollBar>,
 
-    /// True if horizontal scrollbar should be shown
-    show_horizontal_scrollbar: bool,
+    /// Horizontal scrollbar (created on-demand when content overflows)
+    horizontal_scrollbar: Option<ScrollBar>,
 
     // ========================================
     // Constants
@@ -123,10 +122,10 @@ pub struct ScrollableContainer {
     scrollbar_height: f32,
 
     // ========================================
-    // Deferred Commands
+    // GUI Handle
     // ========================================
-    /// Queue for signals and other deferred operations
-    pending_commands: Vec<DeferredCommand>,
+    /// Handle for emitting signals
+    gui_handle: crate::handle::GuiHandle,
 }
 
 impl ScrollableContainer {
@@ -160,24 +159,15 @@ impl ScrollableContainer {
     ) -> (Self, Vec<(Box<dyn Widget>, Style, Option<usize>)>) {
         use crate::elements::Container;
 
-        // Pre-allocate widget IDs
+        // Pre-allocate widget IDs (only for viewport and content container)
         let viewport_id = gui_handle.next_widget_id();
         let content_container_id = gui_handle.next_widget_id();
-        let vertical_scrollbar_id = if matches!(scroll_mode, ScrollMode::Vertical | ScrollMode::Both) {
-            Some(gui_handle.next_widget_id())
-        } else {
-            None
-        };
-        let horizontal_scrollbar_id = if matches!(scroll_mode, ScrollMode::Horizontal | ScrollMode::Both) {
-            Some(gui_handle.next_widget_id())
-        } else {
-            None
-        };
 
         // Create shared scroll offset (shared between ScrollableContainer and ScrollViewport)
         let scroll_offset = Rc::new(Cell::new(Vector::new(0.0, 0.0)));
 
         // Create the ScrollableContainer itself
+        // Scrollbars will be created on-demand in update_scrollbar_visibility()
         let container = ScrollableContainer {
             id: WidgetId::new(0), // Will be set by Window
             bounds: Rect::default(),
@@ -187,17 +177,16 @@ impl ScrollableContainer {
             scroll_offset: scroll_offset.clone(),
             content_size: Size::new(0.0, 0.0),
             viewport_size: Size::new(0.0, 0.0),
+            viewport_id: Some(viewport_id),
             content_container_id: Some(content_container_id),
-            vertical_scrollbar_id,
-            horizontal_scrollbar_id,
-            show_vertical_scrollbar: false,
-            show_horizontal_scrollbar: false,
+            vertical_scrollbar: None,  // Created on-demand when content overflows
+            horizontal_scrollbar: None,
             scrollbar_width: Self::SCROLLBAR_WIDTH,
             scrollbar_height: Self::SCROLLBAR_HEIGHT,
-            pending_commands: Vec::new(),
+            gui_handle: gui_handle.clone(),
         };
 
-        // Create child widgets
+        // Create child widgets (only viewport and content container)
         let mut children = Vec::new();
 
         // Viewport widget - applies scroll offset to content only (not scrollbars)
@@ -231,64 +220,16 @@ impl ScrollableContainer {
         // parent_index = Some(0) means "child of viewport" (viewport is at index 0)
         children.push((content_container as Box<dyn Widget>, content_style, Some(0)));
 
-        // Create scrollbars if needed
-        use crate::widgets::ScrollBar;
-
-        if let Some(vscroll_id) = vertical_scrollbar_id {
-            // Vertical scrollbar - positioned on the right edge
-            let scrollbar_style = Style {
-                display: taffy::Display::Flex,
-                position: taffy::Position::Absolute,
-                inset: taffy::Rect {
-                    top: taffy::LengthPercentageAuto::length(0.0),
-                    right: taffy::LengthPercentageAuto::length(0.0),
-                    bottom: taffy::LengthPercentageAuto::length(0.0),
-                    left: taffy::LengthPercentageAuto::auto(),
-                },
-                size: taffy::Size {
-                    width: taffy::Dimension::length(Self::SCROLLBAR_WIDTH),
-                    height: taffy::Dimension::percent(1.0),
-                },
-                ..Default::default()
-            };
-
-            let mut scrollbar = Box::new(
-                ScrollBar::vertical(0, 100, 10)
-                    .width(Self::SCROLLBAR_WIDTH)
-                    .layout_style(scrollbar_style.clone())
-            );
-            scrollbar.set_id(vscroll_id);
-            children.push((scrollbar as Box<dyn Widget>, scrollbar_style, None));
-        }
-
-        if let Some(hscroll_id) = horizontal_scrollbar_id {
-            // Horizontal scrollbar - positioned on the bottom edge
-            let scrollbar_style = Style {
-                display: taffy::Display::Flex,
-                position: taffy::Position::Absolute,
-                inset: taffy::Rect {
-                    top: taffy::LengthPercentageAuto::auto(),
-                    right: taffy::LengthPercentageAuto::length(0.0),
-                    bottom: taffy::LengthPercentageAuto::length(0.0),
-                    left: taffy::LengthPercentageAuto::length(0.0),
-                },
-                size: taffy::Size {
-                    width: taffy::Dimension::percent(1.0),
-                    height: taffy::Dimension::length(Self::SCROLLBAR_HEIGHT),
-                },
-                ..Default::default()
-            };
-
-            let mut scrollbar = Box::new(
-                ScrollBar::horizontal(0, 100, 10)
-                    .width(Self::SCROLLBAR_HEIGHT)
-                    .layout_style(scrollbar_style.clone())
-            );
-            scrollbar.set_id(hscroll_id);
-            children.push((scrollbar as Box<dyn Widget>, scrollbar_style, None));
-        }
+        // Note: Scrollbars are NOT created here as child widgets
+        // They will be created on-demand as owned Option<ScrollBar> fields
+        // when content overflows (see update_scrollbar_visibility)
 
         (container, children)
+    }
+
+    /// Get the viewport widget ID (internal, used by Window)
+    pub(crate) fn viewport_id(&self) -> Option<WidgetId> {
+        self.viewport_id
     }
 
     /// Get the content container ID
@@ -298,16 +239,6 @@ impl ScrollableContainer {
     /// The actual ID is assigned by Window::add_composite.
     pub fn content_container_id(&self) -> Option<WidgetId> {
         self.content_container_id
-    }
-
-    /// Get the vertical scrollbar ID (internal, used by Window)
-    pub(crate) fn vertical_scrollbar_id(&self) -> Option<WidgetId> {
-        self.vertical_scrollbar_id
-    }
-
-    /// Get the horizontal scrollbar ID (internal, used by Window)
-    pub(crate) fn horizontal_scrollbar_id(&self) -> Option<WidgetId> {
-        self.horizontal_scrollbar_id
     }
 
     /// Get the content size (internal, used by Window)
@@ -325,6 +256,11 @@ impl ScrollableContainer {
         self.scroll_offset.get()
     }
 
+    /// Set the viewport widget ID (called after add_composite)
+    pub(crate) fn set_viewport_id(&mut self, id: WidgetId) {
+        self.viewport_id = Some(id);
+    }
+
     /// Set the content container ID (called after add_composite)
     pub(crate) fn set_content_container_id(&mut self, id: WidgetId) {
         self.content_container_id = Some(id);
@@ -332,28 +268,160 @@ impl ScrollableContainer {
 
     /// Update content size from content container bounds (called after layout)
     pub(crate) fn update_content_size(&mut self, content_bounds: Size) {
+        println!("[SCROLLABLE] update_content_size called: content_bounds = {:?}, current content_size = {:?}",
+                 content_bounds, self.content_size);
         if self.content_size != content_bounds {
+            println!("[SCROLLABLE]   Content size changed, updating scrollbars...");
             self.content_size = content_bounds;
-            self.update_scrollbar_visibility();
+            self.update_scrollbar_visibility(); // Creates/destroys scrollbars and updates ranges
             self.clamp_scroll_offset();
             self.dirty = DirtyLevel::Visual; // Content size affects scrollbar visibility
         }
     }
 
     /// Update scrollbar visibility based on content size vs viewport size
+    /// Update scrollbar visibility and ranges based on content overflow
+    /// Creates/destroys scrollbars on-demand (overflow:auto behavior)
     fn update_scrollbar_visibility(&mut self) {
-        match self.scroll_mode {
-            ScrollMode::Vertical => {
-                self.show_vertical_scrollbar = self.content_size.height > self.viewport_size.height;
-                self.show_horizontal_scrollbar = false;
+        println!("[SCROLLABLE] update_scrollbar_visibility called:");
+        println!("[SCROLLABLE]   content_size = {:?}, viewport_size = {:?}",
+                 self.content_size, self.viewport_size);
+
+        // Track initial scrollbar state to detect changes
+        let had_vscroll = self.vertical_scrollbar.is_some();
+        let had_hscroll = self.horizontal_scrollbar.is_some();
+
+        // Determine if scrollbars are needed based on scroll mode and content overflow
+        let needs_vscroll = matches!(self.scroll_mode, ScrollMode::Vertical | ScrollMode::Both)
+            && self.content_size.height > self.viewport_size.height;
+        let needs_hscroll = matches!(self.scroll_mode, ScrollMode::Horizontal | ScrollMode::Both)
+            && self.content_size.width > self.viewport_size.width;
+
+        println!("[SCROLLABLE]   needs_vscroll = {}, needs_hscroll = {}", needs_vscroll, needs_hscroll);
+
+        // Create or destroy vertical scrollbar
+        if needs_vscroll {
+            let max_y = (self.content_size.height - self.viewport_size.height).max(0.0) as i32;
+            let page_y = self.viewport_size.height as i32;
+
+            if self.vertical_scrollbar.is_none() {
+                // Create new scrollbar
+                println!("[SCROLLABLE]   Creating vertical scrollbar: range 0-{}, page {}", max_y, page_y);
+                let mut vscroll = ScrollBar::vertical(0, max_y, page_y)
+                    .width(self.scrollbar_width);
+                vscroll.set_id(self.id); // Use container's ID temporarily
+                self.vertical_scrollbar = Some(vscroll);
+            } else {
+                // Update existing scrollbar range
+                println!("[SCROLLABLE]   Updating vertical scrollbar range");
+                if let Some(ref mut vscroll) = self.vertical_scrollbar {
+                    vscroll.set_range(0, max_y);
+                    vscroll.set_page_size(page_y);
+                }
             }
-            ScrollMode::Horizontal => {
-                self.show_horizontal_scrollbar = self.content_size.width > self.viewport_size.width;
-                self.show_vertical_scrollbar = false;
+        } else {
+            if self.vertical_scrollbar.is_some() {
+                println!("[SCROLLABLE]   Destroying vertical scrollbar");
             }
-            ScrollMode::Both => {
-                self.show_vertical_scrollbar = self.content_size.height > self.viewport_size.height;
-                self.show_horizontal_scrollbar = self.content_size.width > self.viewport_size.width;
+            self.vertical_scrollbar = None;
+        }
+
+        // Create or destroy horizontal scrollbar
+        if needs_hscroll {
+            let max_x = (self.content_size.width - self.viewport_size.width).max(0.0) as i32;
+            let page_x = self.viewport_size.width as i32;
+
+            if self.horizontal_scrollbar.is_none() {
+                // Create new scrollbar
+                let mut hscroll = ScrollBar::horizontal(0, max_x, page_x)
+                    .width(self.scrollbar_height);
+                hscroll.set_id(self.id); // Use container's ID temporarily
+                self.horizontal_scrollbar = Some(hscroll);
+            } else {
+                // Update existing scrollbar range
+                if let Some(ref mut hscroll) = self.horizontal_scrollbar {
+                    hscroll.set_range(0, max_x);
+                    hscroll.set_page_size(page_x);
+                }
+            }
+        } else {
+            self.horizontal_scrollbar = None;
+        }
+
+        // If scrollbar state changed, recalculate viewport and check again
+        // This handles the case where adding one scrollbar causes the need for another
+        let scrollbar_changed = (had_vscroll != self.vertical_scrollbar.is_some())
+                             || (had_hscroll != self.horizontal_scrollbar.is_some());
+
+        println!("[SCROLLABLE]   scrollbar_changed = {} (vscroll: {} -> {}, hscroll: {} -> {})",
+                 scrollbar_changed, had_vscroll, self.vertical_scrollbar.is_some(),
+                 had_hscroll, self.horizontal_scrollbar.is_some());
+
+        if scrollbar_changed {
+            println!("[SCROLLABLE]   Scrollbar state changed, recalculating viewport...");
+            // Recalculate viewport size with new scrollbar configuration
+            self.viewport_size = self.calculate_viewport_size();
+
+            // Position scrollbars with updated sizes
+            self.position_scrollbars();
+
+            // Check one more time if we need to add/remove scrollbars with new viewport
+            let needs_vscroll_again = matches!(self.scroll_mode, ScrollMode::Vertical | ScrollMode::Both)
+                && self.content_size.height > self.viewport_size.height;
+            let needs_hscroll_again = matches!(self.scroll_mode, ScrollMode::Horizontal | ScrollMode::Both)
+                && self.content_size.width > self.viewport_size.width;
+
+            // Update vertical scrollbar if needed
+            if needs_vscroll_again && self.vertical_scrollbar.is_none() {
+                let max_y = (self.content_size.height - self.viewport_size.height).max(0.0) as i32;
+                let page_y = self.viewport_size.height as i32;
+                let mut vscroll = ScrollBar::vertical(0, max_y, page_y)
+                    .width(self.scrollbar_width);
+                vscroll.set_id(self.id);
+                self.vertical_scrollbar = Some(vscroll);
+            } else if !needs_vscroll_again && self.vertical_scrollbar.is_some() {
+                self.vertical_scrollbar = None;
+            } else if let Some(ref mut vscroll) = self.vertical_scrollbar {
+                // Update range with new viewport size
+                let max_y = (self.content_size.height - self.viewport_size.height).max(0.0) as i32;
+                let page_y = self.viewport_size.height as i32;
+                vscroll.set_range(0, max_y);
+                vscroll.set_page_size(page_y);
+            }
+
+            // Update horizontal scrollbar if needed
+            if needs_hscroll_again && self.horizontal_scrollbar.is_none() {
+                let max_x = (self.content_size.width - self.viewport_size.width).max(0.0) as i32;
+                let page_x = self.viewport_size.width as i32;
+                let mut hscroll = ScrollBar::horizontal(0, max_x, page_x)
+                    .width(self.scrollbar_height);
+                hscroll.set_id(self.id);
+                self.horizontal_scrollbar = Some(hscroll);
+            } else if !needs_hscroll_again && self.horizontal_scrollbar.is_some() {
+                self.horizontal_scrollbar = None;
+            } else if let Some(ref mut hscroll) = self.horizontal_scrollbar {
+                // Update range with new viewport size
+                let max_x = (self.content_size.width - self.viewport_size.width).max(0.0) as i32;
+                let page_x = self.viewport_size.width as i32;
+                hscroll.set_range(0, max_x);
+                hscroll.set_page_size(page_x);
+            }
+
+            // Final viewport and position update
+            self.viewport_size = self.calculate_viewport_size();
+            self.position_scrollbars();
+
+            // Emit signal to resize viewport widget to account for scrollbars
+            if let Some(_viewport_id) = self.viewport_id {
+                let viewport_bounds = Rect::new(
+                    Point::new(self.bounds.origin.x, self.bounds.origin.y),
+                    self.viewport_size,
+                );
+                self.gui_handle.emit(
+                    self.id,
+                    "viewport_resize".to_string(),
+                    Box::new(viewport_bounds),
+                );
             }
         }
     }
@@ -362,15 +430,59 @@ impl ScrollableContainer {
     fn calculate_viewport_size(&self) -> Size {
         let mut size = self.bounds.size;
 
-        if self.show_vertical_scrollbar {
+        // Subtract scrollbar dimensions if they exist
+        if self.vertical_scrollbar.is_some() {
             size.width -= self.scrollbar_width as f64;
         }
 
-        if self.show_horizontal_scrollbar {
+        if self.horizontal_scrollbar.is_some() {
             size.height -= self.scrollbar_height as f64;
         }
 
         size
+    }
+
+    /// Position scrollbars within the container bounds
+    fn position_scrollbars(&mut self) {
+        let hscroll_height = if self.horizontal_scrollbar.is_some() {
+            self.scrollbar_height as f64
+        } else {
+            0.0
+        };
+
+        // Position vertical scrollbar on right edge
+        if let Some(ref mut vscroll) = self.vertical_scrollbar {
+            vscroll.set_bounds(Rect::new(
+                Point::new(
+                    self.bounds.origin.x + self.bounds.size.width - self.scrollbar_width as f64,
+                    self.bounds.origin.y,
+                ),
+                Size::new(
+                    self.scrollbar_width as f64,
+                    self.bounds.size.height - hscroll_height,
+                ),
+            ));
+        }
+
+        // Position horizontal scrollbar on bottom edge
+        let vscroll_width = if self.vertical_scrollbar.is_some() {
+            self.scrollbar_width as f64
+        } else {
+            0.0
+        };
+
+        if let Some(ref mut hscroll) = self.horizontal_scrollbar {
+            hscroll.set_bounds(Rect::new(
+                Point::new(
+                    self.bounds.origin.x,
+                    self.bounds.origin.y + self.bounds.size.height - self.scrollbar_height as f64,
+                ),
+                Size::new(
+                    self.bounds.size.width - vscroll_width,
+                    self.scrollbar_height as f64,
+                ),
+            ));
+        }
     }
 
     /// Clamp scroll offset to valid range
@@ -398,39 +510,9 @@ impl Widget for ScrollableContainer {
         self.id = id;
     }
 
-    fn on_message(&mut self, message: &GuiMessage) -> Vec<DeferredCommand> {
-        // Handle value_changed signals from scrollbars
-        if let GuiMessage::Custom { source, signal_type, data } = message {
-            if signal_type == "value_changed" {
-                // Check if this message is from one of our scrollbars
-                let mut offset = self.scroll_offset.get();
-                let mut updated = false;
-
-                if Some(*source) == self.vertical_scrollbar_id {
-                    // Vertical scrollbar value changed
-                    if let Some(value) = data.downcast_ref::<i32>() {
-                        offset.y = *value as f64;
-                        updated = true;
-                        println!("[SCROLLABLE] Vertical scrollbar changed to {}", value);
-                    }
-                }
-
-                if Some(*source) == self.horizontal_scrollbar_id {
-                    // Horizontal scrollbar value changed
-                    if let Some(value) = data.downcast_ref::<i32>() {
-                        offset.x = *value as f64;
-                        updated = true;
-                        println!("[SCROLLABLE] Horizontal scrollbar changed to {}", value);
-                    }
-                }
-
-                if updated {
-                    self.scroll_offset.set(offset);
-                    self.clamp_scroll_offset();
-                    self.dirty = DirtyLevel::Visual; // Scroll position change (visual only)
-                }
-            }
-        }
+    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
+        // Scrollbars are now owned directly, no message-based communication needed
+        // Scrollbar value changes are handled in update() by checking scrollbar values
         Vec::new()
     }
 
@@ -448,8 +530,8 @@ impl Widget for ScrollableContainer {
             self.bounds = bounds;
             self.viewport_size = self.calculate_viewport_size();
             println!("[SCROLLABLE]   calculated viewport_size = {:?}", self.viewport_size);
-            println!("[SCROLLABLE]   show_vertical_scrollbar = {}", self.show_vertical_scrollbar);
-            self.update_scrollbar_visibility();
+            self.update_scrollbar_visibility(); // Creates/destroys scrollbars and updates ranges
+            self.position_scrollbars(); // Position scrollbars within new bounds
             self.clamp_scroll_offset();
             self.dirty = DirtyLevel::Visual; // Bounds changed (set by layout system)
         }
@@ -469,7 +551,7 @@ impl Widget for ScrollableContainer {
 
     fn paint(&self, _ctx: &mut PaintContext) {
         // Nothing to paint for the container itself
-        // Scrollbars are separate child widgets painted by Window traverse
+        // Scrollbars are painted in after_paint_children() to render on top
     }
 
     fn before_paint_children(&self, _ctx: &mut PaintContext) {
@@ -477,8 +559,14 @@ impl Widget for ScrollableContainer {
         // See ScrollViewport::before_paint_children()
     }
 
-    fn after_paint_children(&self, _ctx: &mut PaintContext) {
-        // Clipping is now handled by ScrollViewport
+    fn after_paint_children(&self, ctx: &mut PaintContext) {
+        // Paint scrollbars on top of content (owned directly, not as child widgets)
+        if let Some(ref vscroll) = self.vertical_scrollbar {
+            vscroll.paint(ctx);
+        }
+        if let Some(ref hscroll) = self.horizontal_scrollbar {
+            hscroll.paint(ctx);
+        }
     }
 
     /// Transform point from viewport space to content space
@@ -495,7 +583,8 @@ impl Widget for ScrollableContainer {
     }
 
     fn drain_deferred_commands(&mut self) -> Vec<DeferredCommand> {
-        std::mem::take(&mut self.pending_commands)
+        // No deferred commands - using signal/slot system instead
+        Vec::new()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -509,6 +598,43 @@ impl Widget for ScrollableContainer {
     // Mark as interactive to receive wheel events for scrolling
     fn is_interactive(&self) -> bool {
         true
+    }
+
+    fn update(&mut self, frame_info: &crate::types::FrameInfo) {
+        // Check if scrollbar values changed (user dragged scrollbar)
+        let old_offset = self.scroll_offset.get();
+        let mut new_offset = old_offset;
+        let mut changed = false;
+
+        if let Some(ref vscroll) = self.vertical_scrollbar {
+            let scrollbar_value = vscroll.value() as f64;
+            if (scrollbar_value - old_offset.y).abs() > 0.1 {
+                new_offset.y = scrollbar_value;
+                changed = true;
+            }
+        }
+
+        if let Some(ref hscroll) = self.horizontal_scrollbar {
+            let scrollbar_value = hscroll.value() as f64;
+            if (scrollbar_value - old_offset.x).abs() > 0.1 {
+                new_offset.x = scrollbar_value;
+                changed = true;
+            }
+        }
+
+        if changed {
+            self.scroll_offset.set(new_offset);
+            self.clamp_scroll_offset();
+            self.dirty = DirtyLevel::Visual;
+        }
+
+        // Update scrollbar widgets
+        if let Some(ref mut vscroll) = self.vertical_scrollbar {
+            vscroll.update(frame_info);
+        }
+        if let Some(ref mut hscroll) = self.horizontal_scrollbar {
+            hscroll.update(frame_info);
+        }
     }
 
     // Handle wheel events for scrolling
@@ -550,11 +676,80 @@ impl Widget for ScrollableContainer {
         // If scroll offset changed, mark dirty and handle the event
         if final_offset != old_offset {
             self.dirty = DirtyLevel::Visual; // Scroll position change (visual only)
+
+            // Update scrollbar visual position directly
+            if let Some(ref mut vscroll) = self.vertical_scrollbar {
+                println!("[SCROLLABLE]   Setting vertical scrollbar value: {}", final_offset.y as i32);
+                vscroll.set_value(final_offset.y as i32);
+            }
+
+            if let Some(ref mut hscroll) = self.horizontal_scrollbar {
+                println!("[SCROLLABLE]   Setting horizontal scrollbar value: {}", final_offset.x as i32);
+                hscroll.set_value(final_offset.x as i32);
+            }
+
             println!("[SCROLLABLE] ✓ Scroll offset changed, returning Handled");
             EventResponse::Handled
         } else {
             println!("[SCROLLABLE] ✗ Scroll offset unchanged (clamped), returning Ignored");
             EventResponse::Ignored
         }
+    }
+}
+
+// Implement MouseHandler trait for scrollbar interaction
+impl MouseHandler for ScrollableContainer {
+    fn on_mouse_down(&mut self, event: &mut MouseEvent) -> EventResponse {
+        // Check if mouse is over vertical scrollbar
+        if let Some(ref mut vscroll) = self.vertical_scrollbar {
+            if vscroll.bounds().contains(event.position) {
+                return vscroll.on_mouse_down(event);
+            }
+        }
+
+        // Check if mouse is over horizontal scrollbar
+        if let Some(ref mut hscroll) = self.horizontal_scrollbar {
+            if hscroll.bounds().contains(event.position) {
+                return hscroll.on_mouse_down(event);
+            }
+        }
+
+        EventResponse::Ignored
+    }
+
+    fn on_mouse_up(&mut self, event: &mut MouseEvent) -> EventResponse {
+        // Check if vertical scrollbar is dragging
+        if let Some(ref mut vscroll) = self.vertical_scrollbar {
+            if vscroll.bounds().contains(event.position) || vscroll.is_dragging() {
+                return vscroll.on_mouse_up(event);
+            }
+        }
+
+        // Check if horizontal scrollbar is dragging
+        if let Some(ref mut hscroll) = self.horizontal_scrollbar {
+            if hscroll.bounds().contains(event.position) || hscroll.is_dragging() {
+                return hscroll.on_mouse_up(event);
+            }
+        }
+
+        EventResponse::Ignored
+    }
+
+    fn on_mouse_move(&mut self, event: &mut MouseEvent) -> EventResponse {
+        // Check if vertical scrollbar is dragging or hovered
+        if let Some(ref mut vscroll) = self.vertical_scrollbar {
+            if vscroll.is_dragging() || vscroll.bounds().contains(event.position) {
+                return vscroll.on_mouse_move(event);
+            }
+        }
+
+        // Check if horizontal scrollbar is dragging or hovered
+        if let Some(ref mut hscroll) = self.horizontal_scrollbar {
+            if hscroll.is_dragging() || hscroll.bounds().contains(event.position) {
+                return hscroll.on_mouse_move(event);
+            }
+        }
+
+        EventResponse::Ignored
     }
 }

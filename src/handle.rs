@@ -18,7 +18,7 @@ pub struct GuiHandle {
     tx: Sender<GuiMessage>,
     /// App-level widget ID counter (shared across all windows)
     /// Ensures globally unique widget IDs in multi-window applications
-    next_widget_id: Arc<AtomicU64>,
+    pub(crate) next_widget_id: Arc<AtomicU64>,
 }
 
 impl GuiHandle {

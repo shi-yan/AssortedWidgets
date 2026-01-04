@@ -454,6 +454,7 @@ impl CustomView {
         // Apply manual inversion to match user's system preference
         // - Natural scrolling ON: swipe up = content moves up (positive delta)
         // - Natural scrolling OFF: swipe up = content moves down (negative delta)
+        let delta_x = if !is_direction_inverted { -raw_delta_x } else { raw_delta_x };
         let delta_y = if !is_direction_inverted { -raw_delta_y } else { raw_delta_y };
 
         // Detect wheel phase (for trackpad momentum)
@@ -470,7 +471,7 @@ impl CustomView {
             }
         };
 
-        WheelEvent::new(vector(raw_delta_x, delta_y), modifiers)
+        WheelEvent::new(vector(delta_x, delta_y), modifiers)
             .with_phase(phase)
     }
 

@@ -199,6 +199,8 @@ impl ScrollBar {
     pub fn set_value(&mut self, value: i32) {
         let clamped = value.clamp(self.min, self.max);
         if self.value != clamped {
+            println!("[SCROLLBAR {}] set_value called: {} -> {} (clamped from {})",
+                     self.id.as_u64(), self.value, clamped, value);
             self.value = clamped;
             self.dirty = true;
         }
@@ -344,6 +346,7 @@ impl ScrollBar {
     /// Trigger value changed callback if value actually changed
     fn notify_value_changed(&mut self, new_value: i32) {
         if new_value != self.value {
+            println!("[SCROLLBAR {}] Value changed: {} -> {}", self.id.as_u64(), self.value, new_value);
             self.value = new_value;
             self.dirty = true;
 
@@ -353,6 +356,7 @@ impl ScrollBar {
             }
 
             // Emit a signal that other widgets can listen to
+            println!("[SCROLLBAR {}] Emitting value_changed signal", self.id.as_u64());
             self.pending_commands.push(DeferredCommand {
                 target: self.id,
                 message: GuiMessage::Custom {
@@ -486,7 +490,28 @@ impl Widget for ScrollBar {
         self.id = id;
     }
 
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
+    fn on_message(&mut self, message: &GuiMessage) -> Vec<DeferredCommand> {
+        // Handle messages from parent containers
+        if let GuiMessage::Custom { source, signal_type, data } = message {
+            match signal_type.as_str() {
+                "set_value" => {
+                    if let Some(value) = data.downcast_ref::<i32>() {
+                        println!("[SCROLLBAR {}] Received set_value message from widget {}: {}",
+                                 self.id.as_u64(), source.as_u64(), value);
+                        self.set_value(*value);
+                    }
+                }
+                "set_range" => {
+                    if let Some((min, max, page_size)) = data.downcast_ref::<(i32, i32, i32)>() {
+                        println!("[SCROLLBAR {}] Received set_range message: min={}, max={}, page_size={}",
+                                 self.id.as_u64(), min, max, page_size);
+                        self.set_range(*min, *max);
+                        self.set_page_size(*page_size);
+                    }
+                }
+                _ => {}
+            }
+        }
         Vec::new()
     }
 

@@ -54,6 +54,10 @@ impl WidgetId {
     pub fn new(id: u64) -> Self {
         WidgetId(id)
     }
+
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
 }
 
 /// Unique identifier for each window

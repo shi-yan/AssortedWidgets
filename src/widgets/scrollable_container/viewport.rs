@@ -33,7 +33,7 @@ use std::cell::Cell;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::PaintContext;
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Vector, WidgetId};
+use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Point, Rect, Vector, WidgetId};
 use crate::widget::Widget;
 
 /// Scrolling mode for ScrollableContainer
@@ -55,7 +55,7 @@ pub enum ScrollMode {
 pub struct ScrollViewport {
     id: WidgetId,
     bounds: Rect,
-    dirty: bool,
+    dirty: DirtyLevel,
     layout_style: Style,
     /// Shared reference to the parent ScrollableContainer's scroll offset
     /// Uses Cell for interior mutability without runtime borrow checking
@@ -67,7 +67,7 @@ impl ScrollViewport {
         ScrollViewport {
             id: WidgetId::new(0),
             bounds: Rect::default(),
-            dirty: true,
+            dirty: DirtyLevel::Layout,
             layout_style,
             scroll_offset,
         }
@@ -83,7 +83,40 @@ impl Widget for ScrollViewport {
         self.id = id;
     }
 
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
+    fn on_message(&mut self, message: &GuiMessage) -> Vec<DeferredCommand> {
+        // Handle viewport_resize signal from parent ScrollableContainer
+        if let GuiMessage::Custom { signal_type, data, .. } = message {
+            if signal_type == "viewport_resize" {
+                if let Some(bounds) = data.downcast_ref::<Rect>() {
+                    println!("[VIEWPORT {}] Received viewport_resize signal", self.id.as_u64());
+                    println!("[VIEWPORT {}]   Old bounds: {:?}", self.id.as_u64(), self.bounds);
+                    println!("[VIEWPORT {}]   New bounds: {:?}", self.id.as_u64(), bounds);
+                    self.bounds = *bounds;
+
+                    // CRITICAL: Mark as Layout dirty so Window updates the Taffy node
+                    self.dirty = DirtyLevel::Layout;
+
+                    // CRITICAL: Update layout_style to use the new absolute dimensions
+                    // This ensures Taffy will use the correct size during layout recalculation
+                    self.layout_style.size.width = taffy::Dimension::length(bounds.width() as f32);
+                    self.layout_style.size.height = taffy::Dimension::length(bounds.height() as f32);
+                    println!("[VIEWPORT {}]   Updated layout_style: width={:?}, height={:?}",
+                             self.id.as_u64(), self.layout_style.size.width, self.layout_style.size.height);
+
+                    // Request layout recalculation so children reflow to new width
+                    // This is sent back through the command queue and Window will intercept it
+                    println!("[VIEWPORT {}]   Returning request_layout command", self.id.as_u64());
+                    return vec![DeferredCommand {
+                        target: self.id,
+                        message: GuiMessage::Custom {
+                            source: self.id,
+                            signal_type: "request_layout".to_string(),
+                            data: Box::new(()),
+                        },
+                    }];
+                }
+            }
+        }
         Vec::new()
     }
 
@@ -98,16 +131,25 @@ impl Widget for ScrollViewport {
     fn set_bounds(&mut self, bounds: Rect) {
         if self.bounds != bounds {
             self.bounds = bounds;
-            self.dirty = true;
+            self.dirty = DirtyLevel::Layout;
         }
     }
 
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+    fn set_dirty(&mut self, _dirty: bool) {
+        // Deprecated - use set_dirty_level instead
+        self.dirty = DirtyLevel::Visual;
     }
 
     fn is_dirty(&self) -> bool {
+        self.dirty != DirtyLevel::Clean
+    }
+
+    fn dirty_level(&self) -> DirtyLevel {
         self.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: DirtyLevel) {
+        self.dirty = level;
     }
 
     fn layout(&self) -> Style {

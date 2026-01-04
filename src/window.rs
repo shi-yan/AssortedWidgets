@@ -513,28 +513,22 @@ impl Window {
         }
 
         // For ScrollableContainer, update the content_container_id with the actual ID
-        // and extract scrollbar IDs for signal connection
-        let mut scrollbar_ids = (None, None);
         if !child_ids.is_empty() {
             if let Some(scroll_container) = self.widgets.get_mut(widget_id) {
                 use crate::widgets::ScrollableContainer;
                 if let Some(sc) = scroll_container.as_any_mut().downcast_mut::<ScrollableContainer>() {
                     // Child indices as defined in ScrollableContainer::new():
-                    // 0: viewport, 1: content_container, 2+: scrollbars
+                    // 0: viewport, 1: content_container
+                    // Note: Scrollbars are now owned directly, not separate child widgets
+                    sc.set_viewport_id(child_ids[0]);
                     sc.set_content_container_id(child_ids[1]);
 
-                    // Extract scrollbar IDs for connection (can't call self.connect while borrowed)
-                    scrollbar_ids = (sc.vertical_scrollbar_id(), sc.horizontal_scrollbar_id());
+                    // Set up signal/slot connection: ScrollableContainer -> ScrollViewport
+                    // When scrollbar visibility changes, viewport needs to resize
+                    let viewport_id = child_ids[0];
+                    self.connect(widget_id, "viewport_resize".to_string(), viewport_id);
                 }
             }
-        }
-
-        // Connect scrollbar signals to the container (after releasing the borrow)
-        if let Some(vscroll_id) = scrollbar_ids.0 {
-            self.connect(vscroll_id, "value_changed".to_string(), widget_id);
-        }
-        if let Some(hscroll_id) = scrollbar_ids.1 {
-            self.connect(hscroll_id, "value_changed".to_string(), widget_id);
         }
 
         // Mark layout as dirty
@@ -1330,7 +1324,26 @@ impl Window {
     /// This is the signal/slot system that allows widgets to communicate
     /// with each other asynchronously.
     pub fn process_messages(&mut self) {
+        println!("[WINDOW] process_messages() called, needs_layout before={}", self.needs_layout);
         self.widgets.process_messages();
+
+        // Check if any widgets requested layout style updates (e.g., viewport resizing)
+        let layout_update_requests = self.widgets.take_layout_update_requests();
+        if !layout_update_requests.is_empty() {
+            println!("[WINDOW] {} widget(s) requested layout updates", layout_update_requests.len());
+            for widget_id in layout_update_requests {
+                if let Some(widget) = self.widgets.get(widget_id) {
+                    println!("[WINDOW]   Updating Taffy style for widget {}", widget_id.as_u64());
+                    // Update the Taffy node's style to reflect the widget's current layout style
+                    if let Err(e) = self.layout_manager.set_style(widget_id, widget.layout()) {
+                        eprintln!("Failed to update Taffy style for widget {:?}: {}", widget_id, e);
+                    }
+                }
+            }
+            println!("[WINDOW] Layout recalculation requested, marking needs_layout=true");
+            self.needs_layout = true;
+        }
+        println!("[WINDOW] process_messages() done, needs_layout after={}", self.needs_layout);
     }
 
     /// Connect a signal from source widget to target widget
@@ -1338,7 +1351,8 @@ impl Window {
     /// When the source widget emits a signal of the given type, the target widget
     /// will receive it via on_message().
     pub fn connect(&mut self, source: WidgetId, signal_type: String, target: WidgetId) {
-        self.connection_table.connect(source, signal_type, target);
+        // Use WidgetManager's connection table (which handles GuiHandle.emit() routing)
+        self.widgets.connect(source, signal_type, target);
     }
 
     /// Emit a signal from a widget
@@ -1432,8 +1446,10 @@ impl Window {
         self.frame_number += 1;
 
         // 1. Compute layout if needed (skip if no widget tree)
+        println!("[WINDOW] About to check layout condition: needs_layout={}, has_root={}",
+                 self.needs_layout, self.widget_tree.root().is_some());
         if self.needs_layout && self.widget_tree.root().is_some() {
-            //println!("[Window {:?}] Computing layout...", self.id);
+            println!("[WINDOW] ===== COMPUTING LAYOUT (needs_layout=true) =====");
 
             // Mark Taffy nodes dirty ONLY for widgets with layout-affecting changes
             // Uses hierarchical DirtyLevel: only mark if dirty_level >= Layout
@@ -1573,59 +1589,14 @@ impl Window {
                 }
             }
 
-            // Update scrollbars for ScrollableContainers
-            let widget_ids: Vec<_> = self.widgets.widget_ids().collect();
-            for widget_id in widget_ids {
-                if let Some(element) = self.widgets.get(widget_id) {
-                    if let Some(sc) = element.as_any().downcast_ref::<crate::widgets::ScrollableContainer>() {
-                        let content_size = sc.content_size();
-                        let viewport_size = sc.viewport_size();
-                        let scroll_offset = sc.scroll_offset();
-                        let vscroll_id = sc.vertical_scrollbar_id();
-                        let hscroll_id = sc.horizontal_scrollbar_id();
+            // Note: ScrollableContainer now manages its own scrollbars internally
+            // Scrollbar updates are handled in ScrollableContainer::set_bounds() and update_scrollbar_visibility()
 
-                        println!("[SCROLLBAR UPDATE] content_size: {:.1}x{:.1}, viewport: {:.1}x{:.1}, offset: ({:.1}, {:.1})",
-                                 content_size.width, content_size.height,
-                                 viewport_size.width, viewport_size.height,
-                                 scroll_offset.x, scroll_offset.y);
-
-                        // Update vertical scrollbar
-                        if let Some(vscroll_id) = vscroll_id {
-                            if let Some(scrollbar) = self.widgets.get_mut(vscroll_id) {
-                                if let Some(sb) = scrollbar.as_any_mut().downcast_mut::<crate::widgets::ScrollBar>() {
-                                    let content_height = content_size.height as i32;
-                                    let viewport_height = viewport_size.height as i32;
-                                    let scroll_range = (content_height - viewport_height).max(0);
-
-                                    println!("[SCROLLBAR UPDATE] Vertical: range=0-{}, page_size={}, value={}",
-                                             scroll_range, viewport_height, scroll_offset.y as i32);
-
-                                    sb.set_range(0, scroll_range);
-                                    sb.set_page_size(viewport_height);
-                                    sb.set_value(scroll_offset.y as i32);
-                                }
-                            }
-                        }
-
-                        // Update horizontal scrollbar
-                        if let Some(hscroll_id) = hscroll_id {
-                            if let Some(scrollbar) = self.widgets.get_mut(hscroll_id) {
-                                if let Some(sb) = scrollbar.as_any_mut().downcast_mut::<crate::widgets::ScrollBar>() {
-                                    let content_width = content_size.width as i32;
-                                    let viewport_width = viewport_size.width as i32;
-                                    let scroll_range = (content_width - viewport_width).max(0);
-
-                                    sb.set_range(0, scroll_range);
-                                    sb.set_page_size(viewport_width);
-                                    sb.set_value(scroll_offset.x as i32);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
+            println!("[WINDOW] ===== LAYOUT COMPLETE =====");
             self.needs_layout = false;
+        } else {
+            println!("[WINDOW] Skipping layout computation (needs_layout={}, has_root={})",
+                     self.needs_layout, self.widget_tree.root().is_some());
         }
 
         // 2. Paint elements in tree order (collect draw commands and hit testing)

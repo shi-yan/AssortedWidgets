@@ -833,6 +833,12 @@ impl Application {
                 window.render_frame(&self.render_context);
             }
 
+            // Process messages generated during layout/rendering (e.g., from set_bounds)
+            // This ensures signals emitted during layout are processed in the same frame
+            for window in self.windows.values_mut() {
+                window.process_messages();
+            }
+
             // Request next frame for continuous animation (all windows)
             for window in self.windows.values_mut() {
                 window.platform_window_mut().invalidate();
