@@ -339,6 +339,8 @@ impl Label {
             || *self.cached_max_width.borrow() != max_width;
 
         if needs_reshape {
+
+            println!("Label: reshaping text layout for max_width={:?}", max_width);
             // Convert WrapMode to cosmic-text wrapping and truncation
             let (truncate, wrap) = match self.wrap_mode {
                 WrapMode::SingleLine => (Truncate::None, cosmic_text::Wrap::None),
@@ -470,10 +472,10 @@ impl Widget for Label {
             ),
         );
 
-        ctx.draw_rect(content_rect, Color::rgb(0.2, 0.2, 0.95));
+        //ctx.draw_rect(content_rect, Color::rgb(0.2, 0.2, 0.95));
 
         // Push clip rect to ensure text doesn't overflow the label bounds
-        ctx.push_clip(content_rect);
+         ctx.push_clip(content_rect);
 
         // Calculate text rendering position (with padding)
         let text_origin = Point::new(

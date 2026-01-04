@@ -18,7 +18,7 @@ mod checkbox;
 mod radio_group;
 mod switch;
 mod spinner;
-mod scrollable_container;
+pub mod scrollable_container;
 pub mod rich_text_label;
 pub mod text_input;
 pub mod text_area;

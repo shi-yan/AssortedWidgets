@@ -36,6 +36,7 @@ fn main() {
             let label = Label::new(long_text)
                 .font_size(18.0)
                 .text_color(Color::rgb(1.0, 1.0, 1.0))
+                .bg_color(Color::rgb(0.2, 0.3, 0.4))  // Add blue background to test clipping
                 .wrap_mode(WrapMode::WrapAnywhere);
 
             let label_style = taffy::Style {

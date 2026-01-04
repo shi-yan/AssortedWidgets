@@ -27,120 +27,17 @@
 //! ```
 
 use std::any::Any;
-
+use std::cell::Cell;
+use std::rc::Rc;
 use crate::event::input::{EventResponse, WheelEvent};
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::PaintContext;
 use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, Vector, WidgetId};
 use crate::widget::Widget;
+use crate::widgets::scrollable_container::viewport::ScrollViewport;
+use crate::widgets::scrollable_container::viewport::ScrollMode;
 
-/// Scrolling mode for ScrollableContainer
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ScrollMode {
-    /// Vertical scrolling only
-    Vertical,
-    /// Horizontal scrolling only
-    Horizontal,
-    /// Both vertical and horizontal scrolling
-    Both,
-}
-
-use std::rc::Rc;
-use std::cell::Cell;
-
-/// Internal widget that applies scroll offset to its children (content only, not scrollbars)
-///
-/// This is an implementation detail of ScrollableContainer. It sits between the
-/// ScrollableContainer and the content_container, applying the scroll offset transformation
-/// so that scrollbars (which are siblings of this viewport) don't get offset.
-struct ScrollViewport {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
-    layout_style: Style,
-    /// Shared reference to the parent ScrollableContainer's scroll offset
-    /// Uses Cell for interior mutability without runtime borrow checking
-    scroll_offset: Rc<Cell<Vector>>,
-}
-
-impl ScrollViewport {
-    fn new(scroll_offset: Rc<Cell<Vector>>, layout_style: Style) -> Self {
-        ScrollViewport {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
-            layout_style,
-            scroll_offset,
-        }
-    }
-}
-
-impl Widget for ScrollViewport {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
-    fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
-
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
-
-    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
-
-    fn bounds(&self) -> Rect {
-        self.bounds
-    }
-
-    fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
-            self.dirty = true;
-        }
-    }
-
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.dirty
-    }
-
-    fn layout(&self) -> Style {
-        self.layout_style.clone()
-    }
-
-    fn paint(&self, _ctx: &mut PaintContext) {
-        // Nothing to paint
-    }
-
-    fn before_paint_children(&self, ctx: &mut PaintContext) {
-        // Apply scroll offset transformation to children (content only)
-        // Read from the shared Cell - no borrow checking needed!
-        let offset = self.scroll_offset.get();
-        // Negative offset because scrolling down means content moves up
-        ctx.push_offset(Vector::new(-offset.x, -offset.y));
-    }
-
-    fn after_paint_children(&self, ctx: &mut PaintContext) {
-        // Pop the scroll offset
-        ctx.pop_offset();
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-}
 
 /// ScrollableContainer - A container that supports scrolling with automatic content sizing
 ///
@@ -575,31 +472,13 @@ impl Widget for ScrollableContainer {
         // Scrollbars are separate child widgets painted by Window traverse
     }
 
-    fn before_paint_children(&self, ctx: &mut PaintContext) {
-        // Push clip to viewport bounds
-        // The scroll offset is now applied by the ScrollViewport child widget,
-        // not here. This way, scrollbars (which are siblings of the viewport)
-        // don't get the scroll offset applied to them.
-        //
-        // See ScrollViewport::before_paint_children() for offset application.
-
-        println!("[SCROLLABLE] before_paint_children:");
-        println!("[SCROLLABLE]   bounds.origin = {:?}", self.bounds.origin);
-        println!("[SCROLLABLE]   viewport_size = {:?}", self.viewport_size);
-        println!("[SCROLLABLE]   scroll_offset = {:?}", self.scroll_offset.get());
-
-        let clip_rect = Rect::new(
-            self.bounds.origin,
-            self.viewport_size,
-        );
-        println!("[SCROLLABLE]   clip_rect = {:?}", clip_rect);
-
-        ctx.push_clip(clip_rect);
+    fn before_paint_children(&self, _ctx: &mut PaintContext) {
+        // Clipping is now handled by ScrollViewport to ensure correct coordinate space
+        // See ScrollViewport::before_paint_children()
     }
 
-    fn after_paint_children(&self, ctx: &mut PaintContext) {
-        // Pop the clip rect
-        ctx.pop_clip();
+    fn after_paint_children(&self, _ctx: &mut PaintContext) {
+        // Clipping is now handled by ScrollViewport
     }
 
     /// Transform point from viewport space to content space

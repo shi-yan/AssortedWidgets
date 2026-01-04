@@ -319,48 +319,21 @@ impl<'a> PaintContext<'a> {
         let current_offset = self.current_offset();
         println!("[CLIP] current_offset: ({:.1}, {:.1})", current_offset.x, current_offset.y);
 
-        // Transform first clip to current rendering space
-        let offset_delta_0 = crate::types::Vector::new(
-            current_offset.x - self.clip_stack[0].offset_at_push.x,
-            current_offset.y - self.clip_stack[0].offset_at_push.y,
-        );
-        println!("[CLIP] Clip 0: local_rect={:?}, offset_at_push=({:.1}, {:.1}), delta=({:.1}, {:.1})",
-                 self.clip_stack[0].local_rect,
-                 self.clip_stack[0].offset_at_push.x,
-                 self.clip_stack[0].offset_at_push.y,
-                 offset_delta_0.x,
-                 offset_delta_0.y);
+        // Start with the first clip rect (NO transformation needed!)
+        // Clip rects should remain in viewport/world coordinates.
+        // Content positions are already offset by push_offset(), so clip rects
+        // should NOT be transformed - they stay in viewport space.
+        println!("[CLIP] Clip 0: local_rect={:?}", self.clip_stack[0].local_rect);
 
-        // SUBTRACT offset_delta to transform from push-time space to current rendering space
-        let mut result = self.clip_stack[0].local_rect.translate(
-            euclid::Vector2D::new(-offset_delta_0.x, -offset_delta_0.y)
-        );
-        println!("[CLIP]   → transformed to {:?}", result);
+        let mut result = self.clip_stack[0].local_rect;
+        println!("[CLIP]   → using as-is (viewport coordinates): {:?}", result);
 
-        // Transform and intersect all subsequent clips
+        // Intersect all subsequent clips (also no transformation needed)
         for (i, clip_state) in self.clip_stack[1..].iter().enumerate() {
-            // Calculate how much the coordinate space has changed since this clip was pushed
-            let offset_delta = crate::types::Vector::new(
-                current_offset.x - clip_state.offset_at_push.x,
-                current_offset.y - clip_state.offset_at_push.y,
-            );
+            println!("[CLIP] Clip {}: local_rect={:?}", i + 1, clip_state.local_rect);
 
-            println!("[CLIP] Clip {}: local_rect={:?}, offset_at_push=({:.1}, {:.1}), delta=({:.1}, {:.1})",
-                     i + 1,
-                     clip_state.local_rect,
-                     clip_state.offset_at_push.x,
-                     clip_state.offset_at_push.y,
-                     offset_delta.x,
-                     offset_delta.y);
-
-            // Transform clip to current rendering space (SUBTRACT offset_delta)
-            let current_space_rect = clip_state.local_rect.translate(
-                euclid::Vector2D::new(-offset_delta.x, -offset_delta.y)
-            );
-            println!("[CLIP]   → transformed to {:?}", current_space_rect);
-
-            // Intersect with accumulated result
-            result = intersect_rects(result, current_space_rect);
+            // Intersect with accumulated result (no transformation!)
+            result = intersect_rects(result, clip_state.local_rect);
             println!("[CLIP]   → after intersect: {:?}", result);
         }
 
