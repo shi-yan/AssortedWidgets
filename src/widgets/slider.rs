@@ -38,8 +38,9 @@ use crate::paint::primitives::Color;
 use crate::paint::types::{Brush, CornerRadius, ShapeStyle};
 use crate::paint::PaintContext;
 use crate::text::TextStyle;
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
+use crate::WidgetState;
 
 /// Slider orientation
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -58,9 +59,7 @@ pub enum SliderState {
 
 /// Slider widget - draggable slider with continuous values
 pub struct Slider {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
     layout_style: Style,
 
     // Orientation
@@ -73,7 +72,7 @@ pub struct Slider {
     step: f64, // 0.0 = continuous
 
     // Visual state
-    state: SliderState,
+    current_state: SliderState,
     is_dragging: bool,
     is_slider_hovered: bool,
     drag_start_value: f64,
@@ -106,16 +105,14 @@ impl Slider {
     /// Create a new slider with the given orientation and value range
     pub fn new(orientation: Orientation, min: f64, max: f64) -> Self {
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
             layout_style: Style::default(),
             orientation,
             value: min,
             min,
             max,
             step: 0.0, // Continuous by default
-            state: SliderState::Normal,
+            current_state: SliderState::Normal,
             is_dragging: false,
             is_slider_hovered: false,
             drag_start_value: 0.0,
@@ -250,7 +247,7 @@ impl Slider {
         let clamped = self.clamp_to_step(value.clamp(self.min, self.max));
         if (self.value - clamped).abs() > f64::EPSILON {
             self.value = clamped;
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -264,7 +261,7 @@ impl Slider {
         self.min = min;
         self.max = max;
         self.value = self.value.clamp(min, max);
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 
     // ========================================================================
@@ -283,7 +280,7 @@ impl Slider {
 
     /// Get the track rectangle (excludes label/value areas)
     fn get_track_bounds(&self) -> Rect {
-        let mut bounds = self.bounds;
+        let mut bounds = self.state.bounds;
 
         // Reserve space for label at the top
         if self.label.is_some() {
@@ -309,7 +306,7 @@ impl Slider {
     /// Calculate the slider knob position
     fn calculate_slider_position(&self) -> Point {
         if self.max <= self.min {
-            return self.bounds.origin;
+            return self.state.bounds.origin;
         }
 
         let track_bounds = self.get_track_bounds();
@@ -370,7 +367,7 @@ impl Slider {
 
     /// Update state based on flags
     fn update_state(&mut self) {
-        self.state = if self.is_dragging {
+        self.current_state = if self.is_dragging {
             SliderState::Dragging
         } else if self.is_slider_hovered {
             SliderState::Hovered
@@ -381,7 +378,7 @@ impl Slider {
 
     /// Get the current slider color based on state
     fn get_slider_color(&self) -> Color {
-        match self.state {
+        match self.current_state {
             SliderState::Normal => self.slider_color,
             SliderState::Hovered => self.slider_hover_color,
             SliderState::Dragging => self.slider_drag_color,
@@ -393,16 +390,16 @@ impl Slider {
         let clamped = self.clamp_to_step(new_value.clamp(self.min, self.max));
         if (self.value - clamped).abs() > f64::EPSILON {
             self.value = clamped;
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
 
             if let Some(ref mut callback) = self.on_value_changed {
                 callback(clamped);
             }
 
             self.pending_commands.push(DeferredCommand {
-                target: self.id,
+                target: self.state.id,
                 message: GuiMessage::Custom {
-                    source: self.id,
+                    source: self.state.id,
                     signal_type: "value_changed".to_string(),
                     data: Box::new(clamped),
                 },
@@ -438,7 +435,7 @@ impl MouseHandler for Slider {
                 Orientation::Vertical => mouse_pos.y,
             };
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
             EventResponse::Handled
         } else if self.get_track_bounds().contains(mouse_pos) {
             // Clicked on track - jump to that position
@@ -454,7 +451,7 @@ impl MouseHandler for Slider {
         if self.is_dragging {
             self.is_dragging = false;
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
             EventResponse::Handled
         } else {
             EventResponse::Ignored
@@ -476,7 +473,7 @@ impl MouseHandler for Slider {
             if is_hovered != self.is_slider_hovered {
                 self.is_slider_hovered = is_hovered;
                 self.update_state();
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
             }
 
             EventResponse::PassThrough
@@ -488,7 +485,7 @@ impl MouseHandler for Slider {
         if slider_rect.contains(event.position) {
             self.is_slider_hovered = true;
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
         EventResponse::PassThrough
     }
@@ -497,7 +494,7 @@ impl MouseHandler for Slider {
         if !self.is_dragging {
             self.is_slider_hovered = false;
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
         EventResponse::Handled
     }
@@ -508,41 +505,46 @@ impl MouseHandler for Slider {
 // ========================================================================
 
 impl Widget for Slider {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
+    fn id(&self) -> WidgetId {{
+        self.state.id
+    }}
 
-    fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
+    fn set_id(&mut self, id: WidgetId) {{
+        self.state.id = id;
+    }}
 
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
+    fn bounds(&self) -> Rect {{
+        self.state.bounds
+    }}
 
-    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
+    fn set_bounds(&mut self, bounds: Rect) {{
+        self.state.bounds = bounds;
+    }}
 
-    fn drain_deferred_commands(&mut self) -> Vec<DeferredCommand> {
-        std::mem::take(&mut self.pending_commands)
-    }
+    fn dirty_level(&self) -> crate::types::DirtyLevel {{
+        self.state.dirty
+    }}
 
-    fn bounds(&self) -> Rect {
-        self.bounds
-    }
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {{
+        self.state.dirty = level;
+    }}
 
-    fn set_bounds(&mut self, bounds: Rect) {
-        self.bounds = bounds;
-    }
+    fn set_dirty(&mut self, dirty: bool) {{
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
+    }}
 
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
-    }
+    fn is_dirty(&self) -> bool {{
+        self.dirty_level().needs_repaint()
+    }}
 
-    fn is_dirty(&self) -> bool {
-        self.dirty
-    }
+    fn as_any(&self) -> &dyn std::any::Any {{
+        self
+    }}
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {{
+        self
+    }}
+
 
     fn layout(&self) -> Style {
         self.layout_style.clone()
@@ -557,7 +559,7 @@ impl Widget for Slider {
                 .size(14.0)
                 .color(self.label_color);
 
-            let label_pos = Point::new(self.bounds.origin.x, self.bounds.origin.y + 2.0);
+            let label_pos = Point::new(self.state.bounds.origin.x, self.state.bounds.origin.y + 2.0);
             ctx.draw_text(label, &label_style, label_pos, None);
         }
 
@@ -697,13 +699,5 @@ impl Widget for Slider {
             InputEventEnum::MouseMove(e) => self.on_mouse_move(e),
             _ => EventResponse::Ignored,
         }
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }

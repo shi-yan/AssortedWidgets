@@ -12,14 +12,19 @@ use taffy::AvailableSpace;
 
 /// Implements the common boilerplate methods for a widget.
 ///
-/// This macro assumes your widget struct has the following fields:
-/// - `id: WidgetId`
-/// - `bounds: Rect`
+/// This macro assumes your widget struct has a `state: WidgetState` field.
 ///
 /// # Usage
 /// ```ignore
+/// use assorted_widgets::{Widget, WidgetState, PaintContext};
+///
+/// pub struct MyWidget {
+///     state: WidgetState,  // Required field
+///     // ... your custom fields
+/// }
+///
 /// impl Widget for MyWidget {
-///     impl_widget_essentials!();
+///     impl_widget_essentials!();  // Delegates to self.state
 ///
 ///     fn paint(&self, ctx: &mut PaintContext) {
 ///         // Your custom paint logic...
@@ -30,27 +35,27 @@ use taffy::AvailableSpace;
 macro_rules! impl_widget_essentials {
     () => {
         fn id(&self) -> $crate::types::WidgetId {
-            self.id
+            self.state.id
         }
 
         fn set_id(&mut self, id: $crate::types::WidgetId) {
-            self.id = id;
+            self.state.id = id;
         }
 
         fn bounds(&self) -> $crate::types::Rect {
-            self.bounds
+            self.state.bounds
         }
 
         fn set_bounds(&mut self, bounds: $crate::types::Rect) {
-            self.bounds = bounds;
+            self.state.bounds = bounds;
         }
 
         fn dirty_level(&self) -> $crate::types::DirtyLevel {
-            $crate::types::DirtyLevel::Clean // Default: clean
+            self.state.dirty
         }
 
-        fn set_dirty_level(&mut self, _level: $crate::types::DirtyLevel) {
-            // Default: no dirty tracking
+        fn set_dirty_level(&mut self, level: $crate::types::DirtyLevel) {
+            self.state.dirty = level;
         }
 
         fn set_dirty(&mut self, dirty: bool) {

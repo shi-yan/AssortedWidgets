@@ -28,8 +28,9 @@ use crate::layout::Style;
 use crate::paint::primitives::Color;
 use crate::paint::PaintContext;
 use crate::text::{TextAlign, TextEngine, TextStyle, Truncate};
-use crate::types::{CursorType, DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, CursorType, DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
+use crate::WidgetState;
 
 /// Individual radio button item within a RadioGroup
 #[derive(Clone, Debug)]
@@ -70,9 +71,7 @@ impl RadioStyle {
 
 /// Radio Group widget - multiple options with single selection
 pub struct RadioGroup {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
     layout_style: Style,
 
     // Items
@@ -112,9 +111,7 @@ impl RadioGroup {
         let (normal, hovered, selected, disabled) = Self::default_styles();
 
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
             layout_style: Style::default(),
             items: Vec::new(),
             font_size: 16.0,
@@ -277,12 +274,12 @@ impl RadioGroup {
             if let Some(idx) = index {
                 if idx < self.items.len() && self.items[idx].enabled {
                     self.selected_index = index;
-                    self.dirty = true;
+                    self.state.dirty = DirtyLevel::Visual;
                     self.notify_selection_changed(idx);
                 }
             } else {
                 self.selected_index = None;
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
             }
         }
     }
@@ -297,7 +294,7 @@ impl RadioGroup {
                 self.selected_index = None;
             }
 
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -327,15 +324,15 @@ impl RadioGroup {
             return bounds;
         }
 
-        let mut y = self.bounds.origin.y;
+        let mut y = self.state.bounds.origin.y;
 
         // Calculate height for each item (icon size is the minimum)
         let item_height = self.icon_size.max(self.font_size);
 
         for _i in 0..count {
             bounds.push(Rect::new(
-                Point::new(self.bounds.origin.x, y),
-                Size::new(self.bounds.size.width, item_height as f64),
+                Point::new(self.state.bounds.origin.x, y),
+                Size::new(self.state.bounds.size.width, item_height as f64),
             ));
 
             y += item_height as f64 + self.item_spacing as f64;
@@ -406,9 +403,9 @@ impl RadioGroup {
 
         // Queue deferred command for signal/slot system
         self.pending_commands.push(DeferredCommand {
-            target: self.id,
+            target: self.state.id,
             message: GuiMessage::Custom {
-                source: self.id,
+                source: self.state.id,
                 signal_type: "selection_changed".to_string(),
                 data: Box::new(index),
             },
@@ -478,7 +475,7 @@ impl MouseHandler for RadioGroup {
         if let Some(index) = self.hit_test(event.position) {
             if self.items[index].enabled {
                 self.pressed_index = Some(index);
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 return EventResponse::Handled;
             }
         }
@@ -494,7 +491,7 @@ impl MouseHandler for RadioGroup {
                 }
             }
             self.pressed_index = None;
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
             return EventResponse::Handled;
         }
         EventResponse::Ignored
@@ -504,7 +501,7 @@ impl MouseHandler for RadioGroup {
         let new_hovered = self.hit_test(event.position);
         if new_hovered != self.hovered_index {
             self.hovered_index = new_hovered;
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
             return EventResponse::Handled;
         }
         EventResponse::PassThrough
@@ -512,14 +509,14 @@ impl MouseHandler for RadioGroup {
 
     fn on_mouse_enter(&mut self, event: &mut MouseEvent) -> EventResponse {
         self.hovered_index = self.hit_test(event.position);
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
     }
 
     fn on_mouse_leave(&mut self, _event: &mut MouseEvent) -> EventResponse {
         self.hovered_index = None;
         self.pressed_index = None;
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
     }
 }
@@ -540,40 +537,46 @@ impl KeyboardHandler for RadioGroup {
 // ========================================================================
 
 impl Widget for RadioGroup {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
+    fn id(&self) -> WidgetId {{
+        self.state.id
+    }}
 
-    fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
+    fn set_id(&mut self, id: WidgetId) {{
+        self.state.id = id;
+    }}
 
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
+    fn bounds(&self) -> Rect {{
+        self.state.bounds
+    }}
 
-    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
+    fn set_bounds(&mut self, bounds: Rect) {{
+        self.state.bounds = bounds;
+    }}
 
-    fn bounds(&self) -> Rect {
-        self.bounds
-    }
+    fn dirty_level(&self) -> crate::types::DirtyLevel {{
+        self.state.dirty
+    }}
 
-    fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
-            self.dirty = true;
-        }
-    }
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {{
+        self.state.dirty = level;
+    }}
 
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
-    }
+    fn set_dirty(&mut self, dirty: bool) {{
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
+    }}
 
-    fn is_dirty(&self) -> bool {
-        self.dirty
-    }
+    fn is_dirty(&self) -> bool {{
+        self.dirty_level().needs_repaint()
+    }}
+
+    fn as_any(&self) -> &dyn std::any::Any {{
+        self
+    }}
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {{
+        self
+    }}
+
 
     fn layout(&self) -> Style {
         self.layout_style.clone()
@@ -648,13 +651,5 @@ impl Widget for RadioGroup {
 
     fn drain_deferred_commands(&mut self) -> Vec<DeferredCommand> {
         std::mem::take(&mut self.pending_commands)
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }

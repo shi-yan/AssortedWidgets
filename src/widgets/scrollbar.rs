@@ -33,8 +33,9 @@ use crate::layout::Style;
 use crate::paint::primitives::Color;
 use crate::paint::types::{Brush, CornerRadius, ShapeStyle};
 use crate::paint::PaintContext;
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
+use crate::WidgetState;
 
 /// Scrollbar orientation
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -56,9 +57,7 @@ pub enum ScrollBarState {
 /// The scrollbar uses integer values for discrete scrolling (e.g., line numbers in text).
 /// The visual slider size is calculated based on the page_size relative to the total range.
 pub struct ScrollBar {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
     layout_style: Style,
 
     // Orientation
@@ -71,7 +70,7 @@ pub struct ScrollBar {
     page_size: i32, // How much content is visible (determines slider size)
 
     // Visual state
-    state: ScrollBarState,
+    current_state: ScrollBarState,
     is_dragging: bool,
     is_slider_hovered: bool, // True when mouse is over the slider (not just the track)
     drag_start_value: i32,
@@ -105,16 +104,14 @@ impl ScrollBar {
     /// * `page_size` - How much content is visible (determines slider size)
     pub fn new(orientation: Orientation, min: i32, max: i32, page_size: i32) -> Self {
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
             layout_style: Style::default(),
             orientation,
             value: min,
             min,
             max,
             page_size: page_size.max(1), // Ensure page_size is at least 1
-            state: ScrollBarState::Normal,
+            current_state: ScrollBarState::Normal,
             is_dragging: false,
             is_slider_hovered: false,
             drag_start_value: 0,
@@ -200,9 +197,9 @@ impl ScrollBar {
         let clamped = value.clamp(self.min, self.max);
         if self.value != clamped {
             println!("[SCROLLBAR {}] set_value called: {} -> {} (clamped from {})",
-                     self.id.as_u64(), self.value, clamped, value);
+                     self.state.id.as_u64(), self.value, clamped, value);
             self.value = clamped;
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -229,13 +226,13 @@ impl ScrollBar {
         self.min = min;
         self.max = max;
         self.value = self.value.clamp(min, max);
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 
     /// Set the page size (how much content is visible)
     pub fn set_page_size(&mut self, page_size: i32) {
         self.page_size = page_size.max(1);
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 
     // ========================================================================
@@ -246,7 +243,7 @@ impl ScrollBar {
     fn calculate_slider_rect(&self) -> Rect {
         if self.max <= self.min {
             // Invalid range, return empty rect
-            return self.bounds;
+            return self.state.bounds;
         }
 
         let total_range = (self.max - self.min) as f64;
@@ -258,25 +255,25 @@ impl ScrollBar {
 
         match self.orientation {
             Orientation::Vertical => {
-                let track_height = self.bounds.size.height;
+                let track_height = self.state.bounds.size.height;
                 let slider_height = (track_height * slider_ratio).max(20.0); // Minimum 20px
                 let available_travel = track_height - slider_height;
-                let slider_y = self.bounds.origin.y + available_travel * value_ratio;
+                let slider_y = self.state.bounds.origin.y + available_travel * value_ratio;
 
                 Rect::new(
-                    Point::new(self.bounds.origin.x, slider_y),
-                    Size::new(self.bounds.size.width, slider_height),
+                    Point::new(self.state.bounds.origin.x, slider_y),
+                    Size::new(self.state.bounds.size.width, slider_height),
                 )
             }
             Orientation::Horizontal => {
-                let track_width = self.bounds.size.width;
+                let track_width = self.state.bounds.size.width;
                 let slider_width = (track_width * slider_ratio).max(20.0); // Minimum 20px
                 let available_travel = track_width - slider_width;
-                let slider_x = self.bounds.origin.x + available_travel * value_ratio;
+                let slider_x = self.state.bounds.origin.x + available_travel * value_ratio;
 
                 Rect::new(
-                    Point::new(slider_x, self.bounds.origin.y),
-                    Size::new(slider_width, self.bounds.size.height),
+                    Point::new(slider_x, self.state.bounds.origin.y),
+                    Size::new(slider_width, self.state.bounds.size.height),
                 )
             }
         }
@@ -293,7 +290,7 @@ impl ScrollBar {
 
         let value = match self.orientation {
             Orientation::Vertical => {
-                let track_height = self.bounds.size.height;
+                let track_height = self.state.bounds.size.height;
                 let slider_height = slider_rect.size.height;
                 let available_travel = track_height - slider_height;
 
@@ -301,13 +298,13 @@ impl ScrollBar {
                     return self.min;
                 }
 
-                let mouse_y = mouse_pos.y - self.bounds.origin.y;
+                let mouse_y = mouse_pos.y - self.state.bounds.origin.y;
                 let ratio = mouse_y / available_travel;
                 let value = self.min as f64 + ratio * total_range;
                 value.round() as i32
             }
             Orientation::Horizontal => {
-                let track_width = self.bounds.size.width;
+                let track_width = self.state.bounds.size.width;
                 let slider_width = slider_rect.size.width;
                 let available_travel = track_width - slider_width;
 
@@ -315,7 +312,7 @@ impl ScrollBar {
                     return self.min;
                 }
 
-                let mouse_x = mouse_pos.x - self.bounds.origin.x;
+                let mouse_x = mouse_pos.x - self.state.bounds.origin.x;
                 let ratio = mouse_x / available_travel;
                 let value = self.min as f64 + ratio * total_range;
                 value.round() as i32
@@ -327,7 +324,7 @@ impl ScrollBar {
 
     /// Update state based on hover flag
     fn update_state(&mut self) {
-        self.state = if self.is_dragging {
+        self.current_state = if self.is_dragging {
             ScrollBarState::Dragging
         } else {
             ScrollBarState::Normal
@@ -336,7 +333,7 @@ impl ScrollBar {
 
     /// Get the current slider color based on state
     fn get_slider_color(&self) -> Color {
-        match self.state {
+        match self.current_state {
             ScrollBarState::Normal => self.slider_color,
             ScrollBarState::Hovered => self.slider_hover_color,
             ScrollBarState::Dragging => self.slider_drag_color,
@@ -346,9 +343,9 @@ impl ScrollBar {
     /// Trigger value changed callback if value actually changed
     fn notify_value_changed(&mut self, new_value: i32) {
         if new_value != self.value {
-            println!("[SCROLLBAR {}] Value changed: {} -> {}", self.id.as_u64(), self.value, new_value);
+            println!("[SCROLLBAR {}] Value changed: {} -> {}", self.state.id.as_u64(), self.value, new_value);
             self.value = new_value;
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
 
             // Call the callback if present
             if let Some(ref mut callback) = self.on_value_changed {
@@ -356,11 +353,11 @@ impl ScrollBar {
             }
 
             // Emit a signal that other widgets can listen to
-            println!("[SCROLLBAR {}] Emitting value_changed signal", self.id.as_u64());
+            println!("[SCROLLBAR {}] Emitting value_changed signal", self.state.id.as_u64());
             self.pending_commands.push(DeferredCommand {
-                target: self.id,
+                target: self.state.id,
                 message: GuiMessage::Custom {
-                    source: self.id,
+                    source: self.state.id,
                     signal_type: "value_changed".to_string(),
                     data: Box::new(new_value),
                 },
@@ -387,9 +384,9 @@ impl MouseHandler for ScrollBar {
                 Orientation::Horizontal => mouse_pos.x,
             };
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
             EventResponse::Handled
-        } else if self.bounds.contains(mouse_pos) {
+        } else if self.state.bounds.contains(mouse_pos) {
             // Clicked on track - jump to that position
             let new_value = self.position_to_value(mouse_pos);
             self.notify_value_changed(new_value);
@@ -403,7 +400,7 @@ impl MouseHandler for ScrollBar {
         if self.is_dragging {
             self.is_dragging = false;
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
             EventResponse::Handled
         } else {
             EventResponse::Ignored
@@ -424,8 +421,8 @@ impl MouseHandler for ScrollBar {
             let slider_rect = self.calculate_slider_rect();
 
             let available_travel = match self.orientation {
-                Orientation::Vertical => self.bounds.size.height - slider_rect.size.height,
-                Orientation::Horizontal => self.bounds.size.width - slider_rect.size.width,
+                Orientation::Vertical => self.state.bounds.size.height - slider_rect.size.height,
+                Orientation::Horizontal => self.state.bounds.size.width - slider_rect.size.width,
             };
 
             if available_travel > 0.0 {
@@ -440,16 +437,16 @@ impl MouseHandler for ScrollBar {
             // Update hover state
             let slider_rect = self.calculate_slider_rect();
             let is_hovered = slider_rect.contains(mouse_pos);
-            let was_hovered = matches!(self.state, ScrollBarState::Hovered);
+            let was_hovered = matches!(self.current_state, ScrollBarState::Hovered);
 
             if is_hovered != was_hovered {
                 self.is_slider_hovered = is_hovered;
-                self.state = if is_hovered {
+                self.current_state = if is_hovered {
                     ScrollBarState::Hovered
                 } else {
                     ScrollBarState::Normal
                 };
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
             }
 
             EventResponse::PassThrough
@@ -461,8 +458,8 @@ impl MouseHandler for ScrollBar {
         let slider_rect = self.calculate_slider_rect();
         if slider_rect.contains(event.position) {
             self.is_slider_hovered = true;
-            self.state = ScrollBarState::Hovered;
-            self.dirty = true;
+            self.current_state = ScrollBarState::Hovered;
+            self.state.dirty = DirtyLevel::Visual;
         }
         EventResponse::PassThrough
     }
@@ -470,8 +467,8 @@ impl MouseHandler for ScrollBar {
     fn on_mouse_leave(&mut self, _event: &mut MouseEvent) -> EventResponse {
         if !self.is_dragging {
             self.is_slider_hovered = false;
-            self.state = ScrollBarState::Normal;
-            self.dirty = true;
+            self.current_state = ScrollBarState::Normal;
+            self.state.dirty = DirtyLevel::Visual;
         }
         EventResponse::Handled
     }
@@ -482,62 +479,46 @@ impl MouseHandler for ScrollBar {
 // ========================================================================
 
 impl Widget for ScrollBar {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
+    fn id(&self) -> WidgetId {{
+        self.state.id
+    }}
 
-    fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
+    fn set_id(&mut self, id: WidgetId) {{
+        self.state.id = id;
+    }}
 
-    fn on_message(&mut self, message: &GuiMessage) -> Vec<DeferredCommand> {
-        // Handle messages from parent containers
-        if let GuiMessage::Custom { source, signal_type, data } = message {
-            match signal_type.as_str() {
-                "set_value" => {
-                    if let Some(value) = data.downcast_ref::<i32>() {
-                        println!("[SCROLLBAR {}] Received set_value message from widget {}: {}",
-                                 self.id.as_u64(), source.as_u64(), value);
-                        self.set_value(*value);
-                    }
-                }
-                "set_range" => {
-                    if let Some((min, max, page_size)) = data.downcast_ref::<(i32, i32, i32)>() {
-                        println!("[SCROLLBAR {}] Received set_range message: min={}, max={}, page_size={}",
-                                 self.id.as_u64(), min, max, page_size);
-                        self.set_range(*min, *max);
-                        self.set_page_size(*page_size);
-                    }
-                }
-                _ => {}
-            }
-        }
-        Vec::new()
-    }
+    fn bounds(&self) -> Rect {{
+        self.state.bounds
+    }}
 
-    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
+    fn set_bounds(&mut self, bounds: Rect) {{
+        self.state.bounds = bounds;
+    }}
 
-    fn drain_deferred_commands(&mut self) -> Vec<DeferredCommand> {
-        std::mem::take(&mut self.pending_commands)
-    }
+    fn dirty_level(&self) -> crate::types::DirtyLevel {{
+        self.state.dirty
+    }}
 
-    fn bounds(&self) -> Rect {
-        self.bounds
-    }
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {{
+        self.state.dirty = level;
+    }}
 
-    fn set_bounds(&mut self, bounds: Rect) {
-        self.bounds = bounds;
-    }
+    fn set_dirty(&mut self, dirty: bool) {{
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
+    }}
 
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
-    }
+    fn is_dirty(&self) -> bool {{
+        self.dirty_level().needs_repaint()
+    }}
 
-    fn is_dirty(&self) -> bool {
-        self.dirty
-    }
+    fn as_any(&self) -> &dyn std::any::Any {{
+        self
+    }}
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {{
+        self
+    }}
+
 
     fn layout(&self) -> Style {
         self.layout_style.clone()
@@ -552,7 +533,7 @@ impl Widget for ScrollBar {
         // Draw track (background)
         if self.track_color.a > 0.0 {
             ctx.draw_styled_rect(
-                self.bounds,
+                self.state.bounds,
                 ShapeStyle {
                     fill: Brush::Solid(self.track_color),
                     corner_radius: CornerRadius::uniform(self.bar_width / 2.0),
@@ -638,13 +619,5 @@ impl Widget for ScrollBar {
             InputEventEnum::MouseMove(e) => self.on_mouse_move(e),
             _ => EventResponse::Ignored,
         }
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }

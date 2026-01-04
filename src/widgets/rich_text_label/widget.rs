@@ -9,6 +9,7 @@ use crate::text::{TextEngine, TextLayoutCache, TextStyle};
 use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Point, Rect, Size, WidgetId, CursorType, FrameInfo};
 use crate::widget::Widget;
 use crate::widgets::{Padding, ScrollBar};
+use crate::WidgetState;
 
 use super::types::{RichText};
 use super::markdown::parse_markdown;
@@ -24,9 +25,7 @@ use super::markdown::parse_markdown;
 /// - Embedded scrollbars (overflow:auto behavior)
 pub struct RichTextLabel {
     // Standard widget fields
-    id: WidgetId,
-    bounds: Rect,
-    dirty: DirtyLevel,
+    state: WidgetState,
     layout_style: Style,
 
     // Content
@@ -76,9 +75,7 @@ impl RichTextLabel {
         eprintln!("[RichTextLabel::new] Creating new RichTextLabel");
         let content = parse_markdown(markdown);
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: DirtyLevel::Layout,
+            state: WidgetState::new(),
             layout_style: Style {
                 // Use flex to fill available width
                 flex_grow: 1.0,
@@ -184,7 +181,7 @@ impl RichTextLabel {
         self.layout_cache.invalidate();
         self.visible_start_line = 0;
         self.h_scroll_offset = 0.0;
-        self.dirty = DirtyLevel::Layout;
+        self.state.dirty = DirtyLevel::Layout;
     }
 
     /// Enable or disable scrollbars (runtime mutation)
@@ -194,7 +191,7 @@ impl RichTextLabel {
             self.vscrollbar = None;
             self.hscrollbar = None;
         }
-        self.dirty = DirtyLevel::Visual; // Scrollbar visibility change
+        self.state.dirty = DirtyLevel::Visual; // Scrollbar visibility change
     }
 
     /// Scroll to a specific line (vertical)
@@ -207,7 +204,7 @@ impl RichTextLabel {
             vscroll.set_value(self.visible_start_line as i32);
         }
 
-        self.dirty = DirtyLevel::Visual; // Scroll position change (visual only)
+        self.state.dirty = DirtyLevel::Visual; // Scroll position change (visual only)
     }
 
     /// Get current scroll position (line number)
@@ -243,7 +240,7 @@ impl RichTextLabel {
             }
         }
 
-        self.dirty = DirtyLevel::Visual; // Scroll position change (visual only)
+        self.state.dirty = DirtyLevel::Visual; // Scroll position change (visual only)
     }
 
     /// Get maximum horizontal scroll (for scrollbar range)
@@ -437,12 +434,12 @@ impl RichTextLabel {
         if let Some(ref mut vscroll) = self.vscrollbar {
             vscroll.set_bounds(Rect::new(
                 Point::new(
-                    self.bounds.origin.x + self.bounds.size.width - self.scrollbar_width as f64,
-                    self.bounds.origin.y,
+                    self.state.bounds.origin.x + self.state.bounds.size.width - self.scrollbar_width as f64,
+                    self.state.bounds.origin.y,
                 ),
                 Size::new(
                     self.scrollbar_width as f64,
-                    self.bounds.size.height - hscroll_height,
+                    self.state.bounds.size.height - hscroll_height,
                 ),
             ));
         }
@@ -457,11 +454,11 @@ impl RichTextLabel {
         if let Some(ref mut hscroll) = self.hscrollbar {
             hscroll.set_bounds(Rect::new(
                 Point::new(
-                    self.bounds.origin.x,
-                    self.bounds.origin.y + self.bounds.size.height - self.scrollbar_width as f64,
+                    self.state.bounds.origin.x,
+                    self.state.bounds.origin.y + self.state.bounds.size.height - self.scrollbar_width as f64,
                 ),
                 Size::new(
-                    self.bounds.size.width - vscroll_width,
+                    self.state.bounds.size.width - vscroll_width,
                     self.scrollbar_width as f64,
                 ),
             ));
@@ -486,15 +483,15 @@ impl RichTextLabel {
         };
 
         let content_origin = Point::new(
-            self.bounds.origin.x + self.padding.left as f64,
-            self.bounds.origin.y + self.padding.top as f64,
+            self.state.bounds.origin.x + self.padding.left as f64,
+            self.state.bounds.origin.y + self.padding.top as f64,
         );
 
         let content_rect = Rect::new(
             content_origin,
             Size::new(
-                self.bounds.size.width - self.padding.horizontal() as f64 - vscroll_w,
-                self.bounds.size.height - self.padding.vertical() as f64 - hscroll_h,
+                self.state.bounds.size.width - self.padding.horizontal() as f64 - vscroll_w,
+                self.state.bounds.size.height - self.padding.vertical() as f64 - hscroll_h,
             ),
         );
 
@@ -823,23 +820,23 @@ impl RichTextLabel {
 impl Widget for RichTextLabel {
     // Essential widget methods (manually implemented to allow custom set_bounds)
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     // Custom set_bounds to update scrollbars when widget is resized
     fn set_bounds(&mut self, bounds: Rect) {
         println!("[RichTextLabel] set_bounds called: {:?}", bounds);
 
-        let bounds_changed = self.bounds != bounds;
-        self.bounds = bounds;
+        let bounds_changed = self.state.bounds != bounds;
+        self.state.bounds = bounds;
 
         if bounds_changed {
             println!("[RichTextLabel] Bounds changed, will update viewport and scrollbars");
@@ -857,9 +854,9 @@ impl Widget for RichTextLabel {
             };
 
             self.viewport_width =
-                (self.bounds.size.width - self.padding.horizontal() as f64 - vscroll_w).max(0.0);
+                (self.state.bounds.size.width - self.padding.horizontal() as f64 - vscroll_w).max(0.0);
             self.viewport_height =
-                (self.bounds.size.height - self.padding.vertical() as f64 - hscroll_h).max(0.0);
+                (self.state.bounds.size.height - self.padding.vertical() as f64 - hscroll_h).max(0.0);
 
             println!("[RichTextLabel] viewport updated: {}x{}", self.viewport_width, self.viewport_height);
 
@@ -869,11 +866,11 @@ impl Widget for RichTextLabel {
     }
 
     fn dirty_level(&self) -> DirtyLevel {
-        self.dirty
+        self.state.dirty
     }
 
     fn set_dirty_level(&mut self, level: DirtyLevel) {
-        self.dirty = level;
+        self.state.dirty = level;
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -899,7 +896,7 @@ impl Widget for RichTextLabel {
     fn update(&mut self, frame_info: &FrameInfo) {
         eprintln!("\n========================================");
         eprintln!("[RichTextLabel::update] CALLED");
-        eprintln!("  bounds: {:?}", self.bounds);
+        eprintln!("  bounds: {:?}", self.state.bounds);
         eprintln!("  total_lines (before update_scrollbars): {}", self.total_lines);
         eprintln!("  max_line_width (before update_scrollbars): {}", self.max_line_width);
 
@@ -916,9 +913,9 @@ impl Widget for RichTextLabel {
         };
 
         self.viewport_width =
-            (self.bounds.size.width - self.padding.horizontal() as f64 - vscroll_w).max(0.0);
+            (self.state.bounds.size.width - self.padding.horizontal() as f64 - vscroll_w).max(0.0);
         self.viewport_height =
-            (self.bounds.size.height - self.padding.vertical() as f64 - hscroll_h).max(0.0);
+            (self.state.bounds.size.height - self.padding.vertical() as f64 - hscroll_h).max(0.0);
 
         println!("  viewport: {}x{}", self.viewport_width, self.viewport_height);
         println!("  padding: {:?}", self.padding);
@@ -939,7 +936,7 @@ impl Widget for RichTextLabel {
 
     fn paint(&self, ctx: &mut PaintContext) {
         eprintln!("[RichTextLabel::paint] CALLED");
-        eprintln!("  bounds: {:?}", self.bounds);
+        eprintln!("  bounds: {:?}", self.state.bounds);
         eprintln!("  *** CURRENT total_lines = {} ***", self.total_lines);
         eprintln!("  *** CURRENT max_line_width = {} ***", self.max_line_width);
         eprintln!("  viewport: {}x{}", self.viewport_width, self.viewport_height);
@@ -953,7 +950,7 @@ impl Widget for RichTextLabel {
 
         // Draw background
          if let Some(bg) = self.bg_color {
-            ctx.draw_rect(self.bounds, bg);
+            ctx.draw_rect(self.state.bounds, bg);
         }
 
         // Calculate content viewport (excluding scrollbars and padding)
@@ -970,12 +967,12 @@ impl Widget for RichTextLabel {
 
         let content_rect = Rect::new(
             Point::new(
-                self.bounds.origin.x + self.padding.left as f64,
-                self.bounds.origin.y + self.padding.top as f64,
+                self.state.bounds.origin.x + self.padding.left as f64,
+                self.state.bounds.origin.y + self.padding.top as f64,
             ),
             Size::new(
-                (self.bounds.size.width - self.padding.horizontal() as f64 - vscroll_w).max(0.0),
-                (self.bounds.size.height - self.padding.vertical() as f64 - hscroll_h).max(0.0),
+                (self.state.bounds.size.width - self.padding.horizontal() as f64 - vscroll_w).max(0.0),
+                (self.state.bounds.size.height - self.padding.vertical() as f64 - hscroll_h).max(0.0),
             ),
         );
 
@@ -1032,7 +1029,7 @@ impl Widget for RichTextLabel {
         }
 
         // Register hitbox for entire widget bounds (includes content + scrollbars)
-        ctx.register_hitbox(self.id, self.bounds);
+        ctx.register_hitbox(self.state.id, self.state.bounds);
     }
 
     fn is_interactive(&self) -> bool {
@@ -1089,7 +1086,7 @@ impl Widget for RichTextLabel {
                     vscroll.set_value(new_line as i32);
                 }
 
-                self.dirty = DirtyLevel::Visual;
+                self.state.dirty = DirtyLevel::Visual;
             }
         } else {
             println!("[RichTextLabel] on_wheel: no vertical scroll delta");
@@ -1119,7 +1116,7 @@ impl Widget for RichTextLabel {
                     if *source == vscroll.id() {
                         if let Some(value) = data.downcast_ref::<i32>() {
                             self.visible_start_line = (*value).max(0) as u32;
-                            self.dirty = DirtyLevel::Visual;
+                            self.state.dirty = DirtyLevel::Visual;
                         }
                     }
                 }
@@ -1134,7 +1131,7 @@ impl Widget for RichTextLabel {
                                 if max_val > 0.0 {
                                     let normalized = (*value as f64) / max_val;
                                     self.h_scroll_offset = -(normalized * max_scroll);
-                                    self.dirty = DirtyLevel::Visual;
+                                    self.state.dirty = DirtyLevel::Visual;
                                 }
                             }
                         }
@@ -1168,7 +1165,7 @@ impl MouseHandler for RichTextLabel {
                 if new_value != old_value {
                     eprintln!("[RichTextLabel] V-scroll value changed: {} -> {}", old_value, new_value);
                     self.visible_start_line = new_value.max(0) as u32;
-                    self.dirty = DirtyLevel::Visual;
+                    self.state.dirty = DirtyLevel::Visual;
                 }
 
                 return response;
@@ -1206,7 +1203,7 @@ impl MouseHandler for RichTextLabel {
                     if max_val > 0.0 {
                         let normalized = (new_value as f64) / max_val;
                         self.h_scroll_offset = -(normalized * max_scroll);
-                        self.dirty = DirtyLevel::Visual;
+                        self.state.dirty = DirtyLevel::Visual;
                     }
                 }
             }
@@ -1218,7 +1215,7 @@ impl MouseHandler for RichTextLabel {
 
         if hovered_link != self.hovered_link {
             self.hovered_link = hovered_link;
-            self.dirty = DirtyLevel::Visual;
+            self.state.dirty = DirtyLevel::Visual;
         }
 
         EventResponse::PassThrough
@@ -1240,7 +1237,7 @@ impl MouseHandler for RichTextLabel {
                 if new_value != old_value {
                     eprintln!("[RichTextLabel] V-scroll value changed (click): {} -> {}", old_value, new_value);
                     self.visible_start_line = new_value.max(0) as u32;
-                    self.dirty = DirtyLevel::Visual;
+                    self.state.dirty = DirtyLevel::Visual;
                 }
 
                 return response;
@@ -1278,7 +1275,7 @@ impl MouseHandler for RichTextLabel {
                     if max_val > 0.0 {
                         let normalized = (new_value as f64) / max_val;
                         self.h_scroll_offset = -(normalized * max_scroll);
-                        self.dirty = DirtyLevel::Visual;
+                        self.state.dirty = DirtyLevel::Visual;
                     }
                 }
             }
@@ -1300,9 +1297,9 @@ impl MouseHandler for RichTextLabel {
 
                 // Emit signal
                 self.pending_commands.push(DeferredCommand {
-                    target: self.id,
+                    target: self.state.id,
                     message: GuiMessage::Custom {
-                        source: self.id,
+                        source: self.state.id,
                         signal_type: "link_clicked".to_string(),
                         data: Box::new(url),
                     },
@@ -1346,7 +1343,7 @@ impl MouseHandler for RichTextLabel {
     fn on_mouse_leave(&mut self, _event: &mut MouseEvent) -> EventResponse {
         if self.hovered_link.is_some() {
             self.hovered_link = None;
-            self.dirty = DirtyLevel::Visual;
+            self.state.dirty = DirtyLevel::Visual;
         }
         EventResponse::PassThrough
     }

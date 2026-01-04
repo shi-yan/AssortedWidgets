@@ -5,9 +5,10 @@
 //! `register_custom_render()` to access the WebGPU RenderPass directly.
 
 use crate::widget::Widget;
+use crate::WidgetState;
 use crate::layout::Style;
 use crate::paint::PaintContext;
-use crate::types::{DeferredCommand, GuiMessage, Rect, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Rect, WidgetId};
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
@@ -29,8 +30,8 @@ struct Uniforms {
 /// This demonstrates custom 3D rendering using low-level WebGPU access.
 /// The cube rotates continuously and can be placed anywhere in the UI.
 pub struct Cube3D {
-    id: WidgetId,
-    bounds: Rect,
+    state: WidgetState,
+    layout_style: Style,
 
     // GPU Resources (created once, reused every frame)
     pipeline: Arc<wgpu::RenderPipeline>,
@@ -223,7 +224,6 @@ impl Cube3D {
 
         Self {
             id,
-            bounds: Rect::default(),
             pipeline: Arc::new(pipeline),
             bind_group: Arc::new(bind_group),
             vertex_buffer: Arc::new(vertex_buffer),
@@ -282,36 +282,47 @@ impl Cube3D {
 
 impl Widget for Cube3D {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
-
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
-
-    fn on_event(&mut self, _event: &crate::event::OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        self.bounds = bounds;
+        self.state.bounds = bounds;
     }
 
-    fn set_dirty(&mut self, _dirty: bool) {
-        // Always dirty (animating)
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
+    }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
     }
 
     fn is_dirty(&self) -> bool {
-        true  // Always render (continuously animating)
+        self.dirty_level().needs_repaint()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+
+
 
     fn layout(&self) -> Style {
         Style {
@@ -324,10 +335,10 @@ impl Widget for Cube3D {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
-        println!("[Cube3D] paint() called - bounds: {:?}", self.bounds);
+        println!("[Cube3D] paint() called - bounds: {:?}", self.state.bounds);
 
         // Skip rendering if bounds are invalid
-        if self.bounds.size.width <= 0.0 || self.bounds.size.height <= 0.0 {
+        if self.state.bounds.size.width <= 0.0 || self.state.bounds.size.height <= 0.0 {
             println!("[Cube3D] Skipping - invalid bounds");
             return;
         }
@@ -342,7 +353,7 @@ impl Widget for Cube3D {
         let rotation = elapsed * 1.0;  // 1 radian per second
 
         // Calculate aspect ratio from bounds
-        let aspect_ratio = self.bounds.size.width as f32 / self.bounds.size.height as f32;
+        let aspect_ratio = self.state.bounds.size.width as f32 / self.state.bounds.size.height as f32;
 
         // Create MVP matrix using current rotation
         let mvp = Self::create_mvp_matrix_static(rotation, aspect_ratio);
@@ -369,10 +380,10 @@ impl Widget for Cube3D {
         let index_buffer = Arc::clone(&self.index_buffer);
 
         // Capture bounds for viewport
-        let x = self.bounds.origin.x as f32;
-        let y = self.bounds.origin.y as f32;
-        let w = self.bounds.size.width as f32;
-        let h = self.bounds.size.height as f32;
+        let x = self.state.bounds.origin.x as f32;
+        let y = self.state.bounds.origin.y as f32;
+        let w = self.state.bounds.size.width as f32;
+        let h = self.state.bounds.size.height as f32;
 
         // Register custom render callback for 3D rendering
         ctx.register_custom_render(move |render_pass| {
@@ -390,14 +401,6 @@ impl Widget for Cube3D {
             println!("[Cube3D] Draw call issued!");
         });
         println!("[Cube3D] Callback registered");
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
     }
 }
 

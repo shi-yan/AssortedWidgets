@@ -26,15 +26,16 @@
 //! window.add_child(Box::new(label), label_style, content_id)?;
 //! ```
 
-use std::any::Any;
 use std::rc::Rc;
 use std::cell::Cell;
 
+use crate::impl_widget_essentials;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::PaintContext;
-use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Point, Rect, Vector, WidgetId};
+use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Rect, Vector};
 use crate::widget::Widget;
+use crate::WidgetState;
 
 /// Scrolling mode for ScrollableContainer
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -53,9 +54,7 @@ pub enum ScrollMode {
 /// ScrollableContainer and the content_container, applying the scroll offset transformation
 /// so that scrollbars (which are siblings of this viewport) don't get offset.
 pub struct ScrollViewport {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: DirtyLevel,
+    state: WidgetState,
     layout_style: Style,
     /// Shared reference to the parent ScrollableContainer's scroll offset
     /// Uses Cell for interior mutability without runtime borrow checking
@@ -65,9 +64,7 @@ pub struct ScrollViewport {
 impl ScrollViewport {
     pub fn new(scroll_offset: Rc<Cell<Vector>>, layout_style: Style) -> Self {
         ScrollViewport {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: DirtyLevel::Layout,
+            state: WidgetState::new(),
             layout_style,
             scroll_offset,
         }
@@ -75,41 +72,35 @@ impl ScrollViewport {
 }
 
 impl Widget for ScrollViewport {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
-    fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
+    impl_widget_essentials!();
 
     fn on_message(&mut self, message: &GuiMessage) -> Vec<DeferredCommand> {
         // Handle viewport_resize signal from parent ScrollableContainer
         if let GuiMessage::Custom { signal_type, data, .. } = message {
             if signal_type == "viewport_resize" {
                 if let Some(bounds) = data.downcast_ref::<Rect>() {
-                    println!("[VIEWPORT {}] Received viewport_resize signal", self.id.as_u64());
-                    println!("[VIEWPORT {}]   Old bounds: {:?}", self.id.as_u64(), self.bounds);
-                    println!("[VIEWPORT {}]   New bounds: {:?}", self.id.as_u64(), bounds);
-                    self.bounds = *bounds;
+                    println!("[VIEWPORT {}] Received viewport_resize signal", self.state.id.as_u64());
+                    println!("[VIEWPORT {}]   Old bounds: {:?}", self.state.id.as_u64(), self.state.bounds);
+                    println!("[VIEWPORT {}]   New bounds: {:?}", self.state.id.as_u64(), bounds);
+                    self.state.bounds = *bounds;
 
                     // CRITICAL: Mark as Layout dirty so Window updates the Taffy node
-                    self.dirty = DirtyLevel::Layout;
+                    self.state.dirty = DirtyLevel::Layout;
 
                     // CRITICAL: Update layout_style to use the new absolute dimensions
                     // This ensures Taffy will use the correct size during layout recalculation
                     self.layout_style.size.width = taffy::Dimension::length(bounds.width() as f32);
                     self.layout_style.size.height = taffy::Dimension::length(bounds.height() as f32);
                     println!("[VIEWPORT {}]   Updated layout_style: width={:?}, height={:?}",
-                             self.id.as_u64(), self.layout_style.size.width, self.layout_style.size.height);
+                             self.state.id.as_u64(), self.layout_style.size.width, self.layout_style.size.height);
 
                     // Request layout recalculation so children reflow to new width
                     // This is sent back through the command queue and Window will intercept it
-                    println!("[VIEWPORT {}]   Returning request_layout command", self.id.as_u64());
+                    println!("[VIEWPORT {}]   Returning request_layout command", self.state.id.as_u64());
                     return vec![DeferredCommand {
-                        target: self.id,
+                        target: self.state.id,
                         message: GuiMessage::Custom {
-                            source: self.id,
+                            source: self.state.id,
                             signal_type: "request_layout".to_string(),
                             data: Box::new(()),
                         },
@@ -122,34 +113,6 @@ impl Widget for ScrollViewport {
 
     fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
         Vec::new()
-    }
-
-    fn bounds(&self) -> Rect {
-        self.bounds
-    }
-
-    fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
-            self.dirty = DirtyLevel::Layout;
-        }
-    }
-
-    fn set_dirty(&mut self, _dirty: bool) {
-        // Deprecated - use set_dirty_level instead
-        self.dirty = DirtyLevel::Visual;
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.dirty != DirtyLevel::Clean
-    }
-
-    fn dirty_level(&self) -> DirtyLevel {
-        self.dirty
-    }
-
-    fn set_dirty_level(&mut self, level: DirtyLevel) {
-        self.dirty = level;
     }
 
     fn layout(&self) -> Style {
@@ -165,8 +128,8 @@ impl Widget for ScrollViewport {
         // This keeps the clip rect in viewport coordinates (not content coordinates)
         // so it remains fixed as content scrolls
 
-        // Clip to viewport bounds (self.bounds = viewport area)
-        ctx.push_clip(self.bounds);
+        // Clip to viewport bounds (self.state.bounds = viewport area)
+        ctx.push_clip(self.state.bounds);
 
         // Apply scroll offset transformation to children (content only)
         // Read from the shared Cell - no borrow checking needed!
@@ -181,13 +144,5 @@ impl Widget for ScrollViewport {
 
         // Pop the clip rect
         ctx.pop_clip();
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }

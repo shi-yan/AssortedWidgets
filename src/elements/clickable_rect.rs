@@ -1,10 +1,11 @@
 //! Clickable rectangle widget for testing hit testing and event handling
 
 use crate::widget::Widget;
+use crate::WidgetState;
 use crate::event::{EventResponse, MouseEvent, MouseHandler, OsEvent};
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
-use crate::types::{DeferredCommand, GuiMessage, Rect, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Rect, WidgetId};
 
 /// A simple clickable colored rectangle for testing hit testing
 ///
@@ -13,8 +14,8 @@ use crate::types::{DeferredCommand, GuiMessage, Rect, WidgetId};
 /// - Hit testing with z-order (registers hitbox during paint)
 /// - Event logging to terminal for debugging
 pub struct ClickableRect {
-    id: WidgetId,
-    bounds: Rect,
+    state: WidgetState,
+    layout_style: Style,
     color: Color,
     hover_color: Color,
     label: String,
@@ -33,14 +34,14 @@ impl ClickableRect {
             a: color.a,
         };
 
+        let _ = (id, bounds); // Ignore parameters
         ClickableRect {
-            id,
-            bounds,
+            state: WidgetState::new(),
+            layout_style: Style::default(),
             color,
             hover_color,
             label: label.into(),
             is_hovered: false,
-            is_dirty: true,
         }
     }
 
@@ -53,45 +54,53 @@ impl ClickableRect {
 
 impl Widget for ClickableRect {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
-            self.is_dirty = true;
-        }
+        self.state.bounds = bounds;
     }
 
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
     }
 
-    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.is_dirty = dirty;
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
     }
 
     fn is_dirty(&self) -> bool {
-        self.is_dirty
+        self.dirty_level().needs_repaint()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+
+
 
     fn layout(&self) -> Style {
         Style {
             size: taffy::Size {
-                width: taffy::Dimension::length(self.bounds.size.width as f32),
-                height: taffy::Dimension::length(self.bounds.size.height as f32),
+                width: taffy::Dimension::length(self.state.bounds.size.width as f32),
+                height: taffy::Dimension::length(self.state.bounds.size.height as f32),
             },
             ..Default::default()
         }
@@ -105,7 +114,7 @@ impl Widget for ClickableRect {
             self.color
         };
 
-        ctx.draw_rect(self.bounds, current_color);
+        ctx.draw_rect(self.state.bounds, current_color);
 
         // Draw label in the center (if we had text rendering set up)
         // For now, just draw the rect
@@ -118,14 +127,6 @@ impl Widget for ClickableRect {
     fn is_focusable(&self) -> bool {
         false // Not keyboard-focusable (yet)
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
 }
 
 impl MouseHandler for ClickableRect {
@@ -134,10 +135,10 @@ impl MouseHandler for ClickableRect {
         println!("🖱️  MOUSE DOWN on {} (ID: {:?})", self.label, self.id);
         println!("   Position: ({:.1}, {:.1})", event.position.x, event.position.y);
         println!("   Bounds: ({:.0}, {:.0}, {:.0}, {:.0})",
-                 self.bounds.origin.x,
-                 self.bounds.origin.y,
-                 self.bounds.size.width,
-                 self.bounds.size.height);
+                 self.state.bounds.origin.x,
+                 self.state.bounds.origin.y,
+                 self.state.bounds.size.width,
+                 self.state.bounds.size.height);
         println!("   Color: rgba({:.2}, {:.2}, {:.2}, {:.2})",
                  self.color.r, self.color.g, self.color.b, self.color.a);
         println!("   Button: {:?}", event.button);

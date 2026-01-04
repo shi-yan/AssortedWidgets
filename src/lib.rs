@@ -27,6 +27,7 @@ pub mod bounds_tree;
 pub mod connection;
 pub mod widget;
 pub mod widget_manager;
+pub mod widget_state;
 pub mod elements;
 pub mod event;
 pub mod handle;
@@ -48,6 +49,7 @@ pub use application::Application;
 pub use connection::{Connection, ConnectionTable};
 pub use widget::Widget;
 pub use widget_manager::WidgetManager;
+pub use widget_state::WidgetState;
 pub use event::{GuiEvent, OsEvent};
 pub use handle::GuiHandle;
 pub use platform::{

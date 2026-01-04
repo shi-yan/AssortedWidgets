@@ -19,14 +19,16 @@
 use std::any::Any;
 
 use crate::event::handlers::{KeyboardHandler, MouseHandler};
+use crate::impl_widget_essentials;
 use crate::event::input::{EventResponse, InputEventEnum, KeyEvent, MouseEvent, NamedKey};
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::primitives::Color;
 use crate::paint::types::{Border, Brush, CornerRadius, ShapeStyle};
 use crate::paint::PaintContext;
-use crate::types::{CursorType, DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{CursorType, DeferredCommand, GuiMessage, Point, Rect, Size, DirtyLevel, WidgetId};
 use crate::widget::Widget;
+use crate::WidgetState;
 
 /// Visual state of the switch
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -41,10 +43,7 @@ pub enum SwitchState {
 
 /// Switch widget
 pub struct Switch {
-    // Widget basics
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
     layout_style: Style,
 
     // State
@@ -78,9 +77,7 @@ impl Switch {
     /// Create a new switch (off by default)
     pub fn new() -> Self {
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
             layout_style: Style::default(),
             is_on: false,
             is_hovered: false,
@@ -198,7 +195,7 @@ impl Switch {
         if self.is_on != on {
             self.is_on = on;
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -212,7 +209,7 @@ impl Switch {
         if self.is_disabled != disabled {
             self.is_disabled = disabled;
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -264,8 +261,8 @@ impl Switch {
     /// Get the track rectangle
     fn get_track_rect(&self) -> Rect {
         // Center the track within the bounds
-        let track_x = self.bounds.origin.x + (self.bounds.size.width - self.track_width as f64) / 2.0;
-        let track_y = self.bounds.origin.y + (self.bounds.size.height - self.track_height as f64) / 2.0;
+        let track_x = self.state.bounds.origin.x + (self.state.bounds.size.width - self.track_width as f64) / 2.0;
+        let track_y = self.state.bounds.origin.y + (self.state.bounds.size.height - self.track_height as f64) / 2.0;
 
         Rect::new(
             Point::new(track_x, track_y),
@@ -304,9 +301,9 @@ impl Switch {
 
         // Queue deferred command for signal/slot system
         self.pending_commands.push(DeferredCommand {
-            target: self.id,
+            target: self.state.id,
             message: GuiMessage::Custom {
-                source: self.id,
+                source: self.state.id,
                 signal_type: "toggled".to_string(),
                 data: Box::new(self.is_on),
             },
@@ -332,7 +329,7 @@ impl MouseHandler for Switch {
 
         self.is_pressed = true;
         self.update_state();
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
     }
 
@@ -348,7 +345,7 @@ impl MouseHandler for Switch {
 
         self.is_pressed = false;
         self.update_state();
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
     }
 
@@ -363,7 +360,7 @@ impl MouseHandler for Switch {
 
         self.is_hovered = true;
         self.update_state();
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
     }
 
@@ -371,7 +368,7 @@ impl MouseHandler for Switch {
         self.is_hovered = false;
         self.is_pressed = false;
         self.update_state();
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
     }
 }
@@ -388,7 +385,7 @@ impl KeyboardHandler for Switch {
                 self.is_on = !self.is_on;
                 self.notify_changed();
                 self.update_state();
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 EventResponse::Handled
             }
             _ => EventResponse::Ignored,
@@ -406,11 +403,46 @@ impl KeyboardHandler for Switch {
 
 impl Widget for Switch {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
+        self.state.id = id;
+    }
+
+    fn bounds(&self) -> Rect {
+        self.state.bounds
+    }
+
+    fn set_bounds(&mut self, bounds: Rect) {
+        if self.state.bounds != bounds {
+            self.state.bounds = bounds;
+            self.state.dirty = DirtyLevel::Visual;
+        }
+    }
+
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
+    }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty_level().needs_repaint()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 
     fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
@@ -419,25 +451,6 @@ impl Widget for Switch {
 
     fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
         Vec::new()
-    }
-
-    fn bounds(&self) -> Rect {
-        self.bounds
-    }
-
-    fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
-            self.dirty = true;
-        }
-    }
-
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.dirty
     }
 
     fn layout(&self) -> Style {
@@ -549,11 +562,4 @@ impl Widget for Switch {
         std::mem::take(&mut self.pending_commands)
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
 }

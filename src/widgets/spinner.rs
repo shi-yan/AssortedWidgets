@@ -2,8 +2,9 @@ use crate::impl_widget_essentials;
 use crate::paint::context::PaintContext;
 use crate::paint::primitives::Color;
 use crate::paint::types::Stroke;
-use crate::types::{FrameInfo, Point, Rect, WidgetId};
+use crate::types::{DirtyLevel, FrameInfo, Point};
 use crate::widget::Widget;
+use crate::WidgetState;
 use std::f32::consts::PI;
 use taffy::prelude::*;
 
@@ -35,9 +36,7 @@ pub enum SpinnerMode {
 ///     .show_percentage(true);
 /// ```
 pub struct Spinner {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
     layout_style: Style,
 
     // Spinner configuration
@@ -61,9 +60,7 @@ impl Spinner {
     /// Create an indeterminate spinner (spinning animation)
     pub fn indeterminate() -> Self {
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
             layout_style: Style::default(),
             mode: SpinnerMode::Indeterminate,
             progress: 0.0,
@@ -81,9 +78,7 @@ impl Spinner {
     /// Create a determinate spinner (progress circle)
     pub fn determinate(progress: f64) -> Self {
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
             layout_style: Style::default(),
             mode: SpinnerMode::Determinate,
             progress: progress.clamp(0.0, 1.0),
@@ -147,7 +142,7 @@ impl Spinner {
         let clamped = progress.clamp(0.0, 1.0);
         if (self.progress - clamped).abs() > 0.001 {
             self.progress = clamped;
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -161,7 +156,7 @@ impl Spinner {
         if self.mode != SpinnerMode::Indeterminate {
             self.mode = SpinnerMode::Indeterminate;
             self.rotation = 0.0;
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -171,7 +166,7 @@ impl Spinner {
         if self.mode != SpinnerMode::Determinate || (self.progress - clamped).abs() > 0.001 {
             self.mode = SpinnerMode::Determinate;
             self.progress = clamped;
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -239,14 +234,14 @@ impl Widget for Spinner {
             if self.rotation > 2.0 * PI {
                 self.rotation -= 2.0 * PI;
             }
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
         let center = Point::new(
-            self.bounds.origin.x + self.bounds.width() / 2.0,
-            self.bounds.origin.y + self.bounds.height() / 2.0,
+            self.state.bounds.origin.x + self.state.bounds.width() / 2.0,
+            self.state.bounds.origin.y + self.state.bounds.height() / 2.0,
         );
         let radius = (self.size - self.stroke_width) / 2.0;
 

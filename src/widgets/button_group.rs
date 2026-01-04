@@ -29,8 +29,9 @@ use crate::paint::primitives::Color;
 use crate::paint::types::{Border, Brush, CornerRadius, ShapeStyle};
 use crate::paint::PaintContext;
 use crate::text::{TextAlign, TextEngine, TextStyle, Truncate};
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
+use crate::WidgetState;
 use crate::event::OsEvent;
 
 pub use crate::widgets::label::Padding;
@@ -68,9 +69,7 @@ enum ButtonPosition {
 
 /// Button Group widget - connected buttons with single selection
 pub struct ButtonGroup {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
     layout_style: Style,
 
     // Content
@@ -106,9 +105,7 @@ impl ButtonGroup {
         let (normal, hovered, selected, disabled) = Self::default_styles();
 
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
             layout_style: Style::default(),
             items: Vec::new(),
             font_size: 16.0,
@@ -229,7 +226,7 @@ impl ButtonGroup {
             if let Some(idx) = index {
                 if idx < self.items.len() && self.items[idx].enabled {
                     self.selected_index = index;
-                    self.dirty = true;
+                    self.state.dirty = DirtyLevel::Visual;
 
                     if let Some(ref mut callback) = self.on_selection_change {
                         callback(idx);
@@ -237,7 +234,7 @@ impl ButtonGroup {
                 }
             } else {
                 self.selected_index = None;
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
             }
         }
     }
@@ -252,7 +249,7 @@ impl ButtonGroup {
                 self.selected_index = None;
             }
 
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -340,15 +337,15 @@ impl ButtonGroup {
 
         // Calculate width for each button (equal width distribution)
         let total_gaps = (count - 1) as f64 * self.gap as f64;
-        let available_width = self.bounds.size.width - total_gaps;
+        let available_width = self.state.bounds.size.width - total_gaps;
         let button_width = available_width / count as f64;
-        let button_height = self.bounds.size.height;
+        let button_height = self.state.bounds.size.height;
 
-        let mut x = self.bounds.origin.x;
+        let mut x = self.state.bounds.origin.x;
 
         for _i in 0..count {
             bounds.push(Rect::new(
-                Point::new(x, self.bounds.origin.y),
+                Point::new(x, self.state.bounds.origin.y),
                 Size::new(button_width, button_height),
             ));
 
@@ -523,7 +520,7 @@ impl MouseHandler for ButtonGroup {
         if let Some(index) = self.hit_test(event.position) {
             if self.items[index].enabled {
                 self.pressed_index = Some(index);
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 return EventResponse::Handled;
             }
         }
@@ -539,7 +536,7 @@ impl MouseHandler for ButtonGroup {
                 }
             }
             self.pressed_index = None;
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
             return EventResponse::Handled;
         }
         EventResponse::Ignored
@@ -549,7 +546,7 @@ impl MouseHandler for ButtonGroup {
         let new_hovered = self.hit_test(event.position);
         if new_hovered != self.hovered_index {
             self.hovered_index = new_hovered;
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
             return EventResponse::Handled;
         }
         EventResponse::PassThrough
@@ -557,14 +554,14 @@ impl MouseHandler for ButtonGroup {
 
     fn on_mouse_enter(&mut self, event: &mut MouseEvent) -> EventResponse {
         self.hovered_index = self.hit_test(event.position);
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
     }
 
     fn on_mouse_leave(&mut self, _event: &mut MouseEvent) -> EventResponse {
         self.hovered_index = None;
         self.pressed_index = None;
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
     }
 }
@@ -585,41 +582,46 @@ impl KeyboardHandler for ButtonGroup {
 // ========================================================================
 
 impl Widget for ButtonGroup {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
+    fn id(&self) -> WidgetId {{
+        self.state.id
+    }}
 
-    fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
+    fn set_id(&mut self, id: WidgetId) {{
+        self.state.id = id;
+    }}
 
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
+    fn bounds(&self) -> Rect {{
+        self.state.bounds
+    }}
 
-    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
+    fn set_bounds(&mut self, bounds: Rect) {{
+        self.state.bounds = bounds;
+    }}
 
-    fn bounds(&self) -> Rect {
-        self.bounds
-    }
+    fn dirty_level(&self) -> crate::types::DirtyLevel {{
+        self.state.dirty
+    }}
 
-    fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
-            self.dirty = true;
-            // Button bounds will be recalculated in paint()
-        }
-    }
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {{
+        self.state.dirty = level;
+    }}
 
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
-    }
+    fn set_dirty(&mut self, dirty: bool) {{
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
+    }}
 
-    fn is_dirty(&self) -> bool {
-        self.dirty
-    }
+    fn is_dirty(&self) -> bool {{
+        self.dirty_level().needs_repaint()
+    }}
+
+    fn as_any(&self) -> &dyn std::any::Any {{
+        self
+    }}
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {{
+        self
+    }}
+
 
     fn layout(&self) -> Style {
         self.layout_style.clone()
@@ -692,13 +694,5 @@ impl Widget for ButtonGroup {
             InputEventEnum::KeyUp(e) => self.on_key_up(e),
             _ => EventResponse::Ignored,
         }
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }

@@ -10,11 +10,12 @@ use std::any::Any;
 use std::cell::RefCell;
 
 use crate::widget::Widget;
+use crate::WidgetState;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
 use crate::text::{TextAlign, TextEngine, TextLayout, TextStyle, Truncate};
-use crate::types::{DeferredCommand, GuiMessage, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Rect, Size, WidgetId};
 
 /// A text label widget with automatic layout sizing
 ///
@@ -23,9 +24,8 @@ use crate::types::{DeferredCommand, GuiMessage, Rect, Size, WidgetId};
 /// - If width is auto: Text uses intrinsic width (no wrapping)
 /// - Layout is cached and only re-shaped when text or width changes
 pub struct TextLabel {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
+    layout_style: Style,
     style: Style,
 
     // Text content and styling
@@ -43,9 +43,8 @@ impl TextLabel {
     /// Create a new text label
     pub fn new(text: impl Into<String>) -> Self {
         Self {
-            id: WidgetId::new(0), // Placeholder, set by Window
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
+            layout_style: Style::default(),
             style: Style::default(),
             text: text.into(),
             text_style: TextStyle::new(),
@@ -108,7 +107,7 @@ impl TextLabel {
         if self.text != new_text {
             self.text = new_text;
             *self.cached_layout.borrow_mut() = None; // Invalidate cache
-            self.dirty = true; // Trigger layout recalculation
+            self.state.dirty = DirtyLevel::Visual; // Trigger layout recalculation
         }
     }
 
@@ -157,46 +156,47 @@ impl TextLabel {
 
 impl Widget for TextLabel {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
-
-    fn on_message(&mut self, message: &GuiMessage) -> Vec<DeferredCommand> {
-        // Handle FPS update signals
-        if let GuiMessage::Custom { source: _, signal_type, data } = message {
-            if signal_type == "fps_update" {
-                // Extract FPS value from the signal data
-                if let Some(fps) = data.downcast_ref::<f64>() {
-                    // Use set_text() to properly invalidate cached layout
-                    self.set_text(format!("FPS: {:.1}", fps));
-                }
-            }
-        }
-        Vec::new()
-    }
-
-    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        self.bounds = bounds;
+        self.state.bounds = bounds;
+    }
+
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
     }
 
     fn is_dirty(&self) -> bool {
-        self.dirty
+        self.dirty_level().needs_repaint()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+
+
 
     fn layout(&self) -> Style {
         self.style.clone()
@@ -207,13 +207,13 @@ impl Widget for TextLabel {
         // Note: The layout was already computed during measure phase
         let cached_layout = self.cached_layout.borrow();
         if let Some(layout) = cached_layout.as_ref() {
-            ctx.draw_layout(layout, self.bounds.origin, self.text_style.text_color);
+            ctx.draw_layout(layout, self.state.bounds.origin, self.text_style.text_color);
         } else {
             // Fallback: Use high-level API if no cached layout
             ctx.draw_text(
                 &self.text,
                 &self.text_style,
-                self.bounds.origin,
+                self.state.bounds.origin,
                 *self.cached_max_width.borrow(),
             );
         }
@@ -235,13 +235,5 @@ impl Widget for TextLabel {
         // This method just signals that we need measurement (via needs_measure()).
         // The real work is done in Window::render_frame() during layout computation.
         None
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }

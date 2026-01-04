@@ -27,13 +27,15 @@ use std::any::Any;
 
 use crate::event::input::{EventResponse, InputEventEnum, MouseEvent};
 use crate::event::OsEvent;
+use crate::impl_widget_essentials;
 use crate::layout::Style;
 use crate::paint::primitives::Color;
 use crate::paint::types::{Brush, CornerRadius, ShapeStyle};
 use crate::paint::PaintContext;
 use crate::text::TextStyle;
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
+use crate::WidgetState;
 
 /// Progress bar orientation
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -44,9 +46,7 @@ pub enum Orientation {
 
 /// ProgressBar widget - non-interactive progress indicator
 pub struct ProgressBar {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
     layout_style: Style,
 
     // Orientation
@@ -76,9 +76,7 @@ impl ProgressBar {
     /// Create a new progress bar with the given orientation
     pub fn new(orientation: Orientation) -> Self {
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
             layout_style: Style::default(),
             orientation,
             progress: 0.0,
@@ -187,13 +185,13 @@ impl ProgressBar {
         let clamped = progress.clamp(0.0, 1.0);
         if (self.progress - clamped).abs() > f64::EPSILON {
             self.progress = clamped;
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
 
             // Emit progress changed signal
             self.pending_commands.push(DeferredCommand {
-                target: self.id,
+                target: self.state.id,
                 message: GuiMessage::Custom {
-                    source: self.id,
+                    source: self.state.id,
                     signal_type: "progress_changed".to_string(),
                     data: Box::new(clamped),
                 },
@@ -212,7 +210,7 @@ impl ProgressBar {
 
     /// Get the progress bar area (excludes label/text areas)
     fn get_bar_bounds(&self) -> Rect {
-        let mut bounds = self.bounds;
+        let mut bounds = self.state.bounds;
 
         // Reserve space for label at the top
         if self.label.is_some() {
@@ -252,13 +250,7 @@ impl ProgressBar {
 // ========================================================================
 
 impl Widget for ProgressBar {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
-    fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
+    impl_widget_essentials!();
 
     fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
         Vec::new()
@@ -270,22 +262,6 @@ impl Widget for ProgressBar {
 
     fn drain_deferred_commands(&mut self) -> Vec<DeferredCommand> {
         std::mem::take(&mut self.pending_commands)
-    }
-
-    fn bounds(&self) -> Rect {
-        self.bounds
-    }
-
-    fn set_bounds(&mut self, bounds: Rect) {
-        self.bounds = bounds;
-    }
-
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.dirty
     }
 
     fn layout(&self) -> Style {
@@ -301,7 +277,7 @@ impl Widget for ProgressBar {
                 .size(14.0)
                 .color(self.label_color);
 
-            let label_pos = Point::new(self.bounds.origin.x, self.bounds.origin.y + 2.0);
+            let label_pos = Point::new(self.state.bounds.origin.x, self.state.bounds.origin.y + 2.0);
             ctx.draw_text(label, &label_style, label_pos, None);
         }
 
@@ -422,13 +398,5 @@ impl Widget for ProgressBar {
 
     fn dispatch_mouse_event(&mut self, _event: &mut InputEventEnum) -> EventResponse {
         EventResponse::Ignored
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }

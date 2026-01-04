@@ -13,11 +13,12 @@ use std::any::Any;
 use std::time::Instant;
 
 use crate::widget::Widget;
+use crate::WidgetState;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
 use crate::text::{TextStyle, TextAlign, Truncate};
-use crate::types::{DeferredCommand, FrameInfo, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, FrameInfo, GuiMessage, Point, Rect, Size, WidgetId};
 use taffy::AvailableSpace;
 
 /// An animated label that demonstrates dynamic text truncation
@@ -27,9 +28,8 @@ use taffy::AvailableSpace;
 /// - Expand to full text when wide enough
 /// - Re-shape on every frame to test performance
 pub struct AnimatedTextLabel {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
+    layout_style: Style,
     style: Style,
 
     // Text content
@@ -56,8 +56,6 @@ impl AnimatedTextLabel {
     pub fn new(id: WidgetId, text: impl Into<String>, min_width: f64, max_width: f64) -> Self {
         AnimatedTextLabel {
             id,
-            bounds: Rect::default(),
-            dirty: true,
             style: Style::default(),
             text: text.into(),
             text_style: TextStyle::new()
@@ -110,36 +108,47 @@ impl AnimatedTextLabel {
 
 impl Widget for AnimatedTextLabel {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
-
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
-
-    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        self.bounds = bounds;
+        self.state.bounds = bounds;
+    }
+
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
     }
 
     fn is_dirty(&self) -> bool {
-        self.dirty
+        self.dirty_level().needs_repaint()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+
+
 
     fn layout(&self) -> Style {
         self.style.clone()
@@ -147,14 +156,14 @@ impl Widget for AnimatedTextLabel {
 
     fn paint(&self, ctx: &mut PaintContext) {
         // Draw background
-        ctx.draw_rect(self.bounds, self.bg_color);
+        ctx.draw_rect(self.state.bounds, self.bg_color);
         println!("[AnimatedTextLabel] paint() - bounds: x={:.1}, y={:.1}, w={:.1}, h={:.1}",
-            self.bounds.origin.x, self.bounds.origin.y,
-            self.bounds.size.width, self.bounds.size.height);
+            self.state.bounds.origin.x, self.state.bounds.origin.y,
+            self.state.bounds.size.width, self.state.bounds.size.height);
         // Use bounds width (not current_width!) to ensure text fits within layout-determined bounds
         // The bounds were set by measure() which called current_width() at layout time
         let padding = 10.0;
-        let text_width = (self.bounds.size.width - 2.0 * padding).max(0.0) as f32;
+        let text_width = (self.state.bounds.size.width - 2.0 * padding).max(0.0) as f32;
 
         // Create text layout with ellipsis truncation
         // As width shrinks → text truncates with "..."
@@ -167,9 +176,9 @@ impl Widget for AnimatedTextLabel {
         );
 
         // Calculate text position (centered vertically with padding)
-        let text_y = self.bounds.origin.y + (self.fixed_height - layout.height()).max(0.0) / 2.0;
+        let text_y = self.state.bounds.origin.y + (self.fixed_height - layout.height()).max(0.0) / 2.0;
         let text_pos = Point::new(
-            self.bounds.origin.x + padding,
+            self.state.bounds.origin.x + padding,
             text_y,
         );
 
@@ -208,13 +217,5 @@ impl Widget for AnimatedTextLabel {
     /// This element needs continuous updates for animation
     fn needs_continuous_updates(&self) -> bool {
         true  // Always animating
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }

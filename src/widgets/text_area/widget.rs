@@ -14,6 +14,7 @@ use crate::text::{TextLayoutCache, TextStyle, Truncate};
 use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Point, Rect, Size, WidgetId, CursorType, FrameInfo};
 use crate::widget::Widget;
 use crate::widgets::{Padding, ScrollBar, Cursor};
+use crate::WidgetState;
 
 use super::style::{TextAreaState, TextAreaStyle};
 
@@ -36,9 +37,7 @@ struct UndoState {
 /// A multi-line text input widget
 pub struct TextArea {
     // === Essentials ===
-    id: WidgetId,
-    bounds: Rect,
-    dirty: DirtyLevel,
+    state: WidgetState,
     layout_style: Style,
 
     // === Content ===
@@ -107,9 +106,7 @@ impl TextArea {
     /// Create a new multi-line text area
     pub fn new() -> Self {
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: DirtyLevel::Layout,
+            state: WidgetState::new(),
             layout_style: Style::default(),
 
             text: String::new(),
@@ -334,7 +331,7 @@ impl TextArea {
             callback(&self.text);
         }
 
-        self.dirty = DirtyLevel::Layout;
+        self.state.dirty = DirtyLevel::Layout;
     }
 
     /// Delete character before cursor (backspace)
@@ -365,7 +362,7 @@ impl TextArea {
             callback(&self.text);
         }
 
-        self.dirty = DirtyLevel::Layout;
+        self.state.dirty = DirtyLevel::Layout;
     }
 
     /// Delete character after cursor (delete key)
@@ -396,7 +393,7 @@ impl TextArea {
             callback(&self.text);
         }
 
-        self.dirty = DirtyLevel::Layout;
+        self.state.dirty = DirtyLevel::Layout;
     }
 
     /// Delete selected text
@@ -462,7 +459,7 @@ impl TextArea {
             self.cursor.update_caches(&self.text);
             self.cursor.clear_preferred_x(); // Reset preferred X
             self.cursor.reset_blink();
-            self.dirty = DirtyLevel::Layout;
+            self.state.dirty = DirtyLevel::Layout;
         }
     }
 
@@ -488,7 +485,7 @@ impl TextArea {
             self.cursor.update_caches(&self.text);
             self.cursor.clear_preferred_x(); // Reset preferred X
             self.cursor.reset_blink();
-            self.dirty = DirtyLevel::Layout;
+            self.state.dirty = DirtyLevel::Layout;
         }
     }
 
@@ -542,7 +539,7 @@ impl TextArea {
                 self.cursor.move_to_start();
                 self.cursor.update_caches(&self.text);
                 self.cursor.reset_blink();
-                self.dirty = DirtyLevel::Layout;
+                self.state.dirty = DirtyLevel::Layout;
                 return;
             }
 
@@ -655,7 +652,7 @@ impl TextArea {
                 self.cursor.set_char_pos(new_pos);
                 self.cursor.update_caches(&self.text);
                 self.cursor.reset_blink();
-                self.dirty = DirtyLevel::Layout;
+                self.state.dirty = DirtyLevel::Layout;
             }
         }
     }
@@ -711,7 +708,7 @@ impl TextArea {
                 self.cursor.move_to_end(end_pos);
                 self.cursor.update_caches(&self.text);
                 self.cursor.reset_blink();
-                self.dirty = DirtyLevel::Layout;
+                self.state.dirty = DirtyLevel::Layout;
                 return;
             }
 
@@ -801,7 +798,7 @@ impl TextArea {
                 self.cursor.set_char_pos(new_pos);
                 self.cursor.update_caches(&self.text);
                 self.cursor.reset_blink();
-                self.dirty = DirtyLevel::Layout;
+                self.state.dirty = DirtyLevel::Layout;
             }
         }
     }
@@ -831,7 +828,7 @@ impl TextArea {
         self.cursor.update_caches(&self.text);
         self.cursor.clear_preferred_x();
         self.cursor.reset_blink();
-        self.dirty = DirtyLevel::Layout;
+        self.state.dirty = DirtyLevel::Layout;
     }
 
     /// Move cursor to end of line
@@ -859,7 +856,7 @@ impl TextArea {
         self.cursor.update_caches(&self.text);
         self.cursor.clear_preferred_x();
         self.cursor.reset_blink();
-        self.dirty = DirtyLevel::Layout;
+        self.state.dirty = DirtyLevel::Layout;
     }
 
     /// Select all text
@@ -869,7 +866,7 @@ impl TextArea {
         self.cursor.move_to_end(end_pos);
         self.cursor.update_caches(&self.text);
         self.cursor.clear_preferred_x();
-        self.dirty = DirtyLevel::Layout;
+        self.state.dirty = DirtyLevel::Layout;
     }
 
     // ========================================================================
@@ -918,7 +915,7 @@ impl TextArea {
                 callback(&self.text);
             }
 
-            self.dirty = DirtyLevel::Layout;
+            self.state.dirty = DirtyLevel::Layout;
         }
     }
 
@@ -946,7 +943,7 @@ impl TextArea {
                 callback(&self.text);
             }
 
-            self.dirty = DirtyLevel::Layout;
+            self.state.dirty = DirtyLevel::Layout;
         }
     }
 
@@ -974,17 +971,17 @@ impl TextArea {
 
     fn emit_text_changed(&mut self) {
         self.pending_commands.push(DeferredCommand {
-            target: self.id,
-            message: GuiMessage::TextChanged(self.id, self.text.clone()),
+            target: self.state.id,
+            message: GuiMessage::TextChanged(self.state.id, self.text.clone()),
         });
     }
 
     fn emit_copy_requested(&mut self) {
         if let Some(text) = self.get_selected_text() {
             self.pending_commands.push(DeferredCommand {
-                target: self.id,
+                target: self.state.id,
                 message: GuiMessage::Custom {
-                    source: self.id,
+                    source: self.state.id,
                     signal_type: "copy_requested".to_string(),
                     data: Box::new(text),
                 },
@@ -995,9 +992,9 @@ impl TextArea {
     fn emit_cut_requested(&mut self) {
         if let Some(text) = self.get_selected_text() {
             self.pending_commands.push(DeferredCommand {
-                target: self.id,
+                target: self.state.id,
                 message: GuiMessage::Custom {
-                    source: self.id,
+                    source: self.state.id,
                     signal_type: "cut_requested".to_string(),
                     data: Box::new(text),
                 },
@@ -1014,15 +1011,15 @@ impl TextArea {
                 callback(&self.text);
             }
 
-            self.dirty = DirtyLevel::Layout;
+            self.state.dirty = DirtyLevel::Layout;
         }
     }
 
     fn emit_paste_requested(&mut self) {
         self.pending_commands.push(DeferredCommand {
-            target: self.id,
+            target: self.state.id,
             message: GuiMessage::Custom {
-                source: self.id,
+                source: self.state.id,
                 signal_type: "paste_requested".to_string(),
                 data: Box::new(()),
             },
@@ -1100,7 +1097,7 @@ impl TextArea {
         let has_hscroll = self.hscrollbar.is_some();
         if had_vscroll != has_vscroll || had_hscroll != has_hscroll {
             self.layout_cache.invalidate();
-            self.dirty = DirtyLevel::Layout;
+            self.state.dirty = DirtyLevel::Layout;
         }
 
         self.position_scrollbars();
@@ -1117,12 +1114,12 @@ impl TextArea {
         if let Some(ref mut vscroll) = self.vscrollbar {
             vscroll.set_bounds(Rect::new(
                 Point::new(
-                    self.bounds.origin.x + self.bounds.size.width - self.scrollbar_width as f64,
-                    self.bounds.origin.y,
+                    self.state.bounds.origin.x + self.state.bounds.size.width - self.scrollbar_width as f64,
+                    self.state.bounds.origin.y,
                 ),
                 Size::new(
                     self.scrollbar_width as f64,
-                    self.bounds.size.height - hscroll_height,
+                    self.state.bounds.size.height - hscroll_height,
                 ),
             ));
         }
@@ -1137,11 +1134,11 @@ impl TextArea {
         if let Some(ref mut hscroll) = self.hscrollbar {
             hscroll.set_bounds(Rect::new(
                 Point::new(
-                    self.bounds.origin.x,
-                    self.bounds.origin.y + self.bounds.size.height - self.scrollbar_width as f64,
+                    self.state.bounds.origin.x,
+                    self.state.bounds.origin.y + self.state.bounds.size.height - self.scrollbar_width as f64,
                 ),
                 Size::new(
-                    self.bounds.size.width - vscroll_width,
+                    self.state.bounds.size.width - vscroll_width,
                     self.scrollbar_width as f64,
                 ),
             ));
@@ -1158,7 +1155,7 @@ impl TextArea {
         if self.layout_cache.get_constrained().is_none() && self.layout_cache.get_intrinsic().is_none() {
             eprintln!("[ENSURE_CURSOR] Layout is None, deferring scroll (setting needs_scroll_to_cursor flag)");
             self.needs_scroll_to_cursor.set(true);
-            self.dirty = DirtyLevel::Layout;
+            self.state.dirty = DirtyLevel::Layout;
             return;
         }
 
@@ -1306,7 +1303,7 @@ impl TextArea {
                     vscroll.set_value(self.visible_start_line as i32);
                     eprintln!("[CURSOR_SCROLL] Updated scrollbar value to {}", self.visible_start_line);
                 }
-                self.dirty = DirtyLevel::Layout;
+                self.state.dirty = DirtyLevel::Layout;
             } else {
                 eprintln!("[CURSOR_SCROLL] No scrolling needed - cursor is already visible");
             }
@@ -1317,10 +1314,10 @@ impl TextArea {
 
                 if cursor_x_global < 0.0 {
                     self.h_scroll_offset = -(cursor_x as f64);
-                    self.dirty = DirtyLevel::Layout;
+                    self.state.dirty = DirtyLevel::Layout;
                 } else if cursor_x_global > self.viewport_width {
                     self.h_scroll_offset = self.viewport_width - cursor_x as f64;
-                    self.dirty = DirtyLevel::Layout;
+                    self.state.dirty = DirtyLevel::Layout;
                 }
 
                 // Clamp
@@ -1342,8 +1339,8 @@ impl TextArea {
             .or_else(|| self.layout_cache.get_intrinsic())?;
 
         let content_origin = Point::new(
-            self.bounds.origin.x + self.padding.left as f64,
-            self.bounds.origin.y + self.padding.top as f64,
+            self.state.bounds.origin.x + self.padding.left as f64,
+            self.state.bounds.origin.y + self.padding.top as f64,
         );
 
         // Calculate vertical offset by summing actual line heights from layout
@@ -1430,12 +1427,12 @@ impl TextArea {
 
         Rect::new(
             Point::new(
-                self.bounds.origin.x + self.padding.left as f64,
-                self.bounds.origin.y + self.padding.top as f64,
+                self.state.bounds.origin.x + self.padding.left as f64,
+                self.state.bounds.origin.y + self.padding.top as f64,
             ),
             Size::new(
-                (self.bounds.size.width - self.padding.horizontal() as f64 - vscroll_w).max(0.0),
-                (self.bounds.size.height - self.padding.vertical() as f64 - hscroll_h).max(0.0),
+                (self.state.bounds.size.width - self.padding.horizontal() as f64 - vscroll_w).max(0.0),
+                (self.state.bounds.size.height - self.padding.vertical() as f64 - hscroll_h).max(0.0),
             ),
         )
     }
@@ -1677,7 +1674,7 @@ impl TextArea {
         match &event.event_type {
             ImeEventType::Preedit(text) => {
                 self.preedit_text = text.clone();
-                self.dirty = DirtyLevel::Layout;
+                self.state.dirty = DirtyLevel::Layout;
                 EventResponse::Handled
             }
             ImeEventType::Commit(text) => {
@@ -1688,7 +1685,7 @@ impl TextArea {
             }
             ImeEventType::Cancel => {
                 self.preedit_text.clear();
-                self.dirty = DirtyLevel::Layout;
+                self.state.dirty = DirtyLevel::Layout;
                 EventResponse::Handled
             }
         }
@@ -1701,20 +1698,20 @@ impl TextArea {
 
 impl Widget for TextArea {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
+        if self.state.bounds != bounds {
+            self.state.bounds = bounds;
             self.layout_cache.invalidate();
 
             // Update viewport dimensions
@@ -1732,16 +1729,16 @@ impl Widget for TextArea {
             self.viewport_width = (bounds.size.width - self.padding.horizontal() as f64 - vscroll_w).max(0.0);
             self.viewport_height = (bounds.size.height - self.padding.vertical() as f64 - hscroll_h).max(0.0);
 
-            self.dirty = DirtyLevel::Layout;
+            self.state.dirty = DirtyLevel::Layout;
         }
     }
 
     fn dirty_level(&self) -> DirtyLevel {
-        self.dirty
+        self.state.dirty
     }
 
     fn set_dirty_level(&mut self, level: DirtyLevel) {
-        self.dirty = level;
+        self.state.dirty = level;
     }
 
     fn layout(&self) -> Style {
@@ -1792,8 +1789,8 @@ impl Widget for TextArea {
             0.0
         };
 
-        self.viewport_width = (self.bounds.size.width - self.padding.horizontal() as f64 - vscroll_w).max(0.0);
-        self.viewport_height = (self.bounds.size.height - self.padding.vertical() as f64 - hscroll_h).max(0.0);
+        self.viewport_width = (self.state.bounds.size.width - self.padding.horizontal() as f64 - vscroll_w).max(0.0);
+        self.viewport_height = (self.state.bounds.size.height - self.padding.vertical() as f64 - hscroll_h).max(0.0);
 
         // CRITICAL FIX: Try to scroll to cursor before updating scrollbars
         // This ensures scrollbar ranges are correct for the new scroll position
@@ -1823,7 +1820,7 @@ impl Widget for TextArea {
 
         // Draw background
         ctx.draw_styled_rect(
-            self.bounds,
+            self.state.bounds,
             ShapeStyle {
                 fill: crate::paint::types::Brush::Solid(style.background),
                 corner_radius: style.corner_radius.clone(),
@@ -2151,7 +2148,7 @@ impl Widget for TextArea {
         }
 
         // Register hitbox
-        ctx.register_hitbox(self.id, self.bounds);
+        ctx.register_hitbox(self.state.id, self.state.bounds);
     }
 
     fn on_message(&mut self, message: &GuiMessage) -> Vec<DeferredCommand> {
@@ -2167,7 +2164,7 @@ impl Widget for TextArea {
                     if *source == vscroll.id() {
                         if let Some(value) = data.downcast_ref::<i32>() {
                             self.visible_start_line = (*value).max(0) as u32;
-                            self.dirty = DirtyLevel::Layout;
+                            self.state.dirty = DirtyLevel::Layout;
                         }
                     }
                 }
@@ -2182,7 +2179,7 @@ impl Widget for TextArea {
                                 if max_val > 0.0 {
                                     let normalized = (*value as f64) / max_val;
                                     self.h_scroll_offset = -(normalized * max_scroll);
-                                    self.dirty = DirtyLevel::Layout;
+                                    self.state.dirty = DirtyLevel::Layout;
                                 }
                             }
                         }
@@ -2231,7 +2228,7 @@ impl Widget for TextArea {
                     vscroll.set_value(new_line as i32);
                 }
 
-                self.dirty = DirtyLevel::Layout;
+                self.state.dirty = DirtyLevel::Layout;
             }
         }
 
@@ -2254,7 +2251,7 @@ impl Widget for TextArea {
                 }
             }
 
-            self.dirty = DirtyLevel::Layout;
+            self.state.dirty = DirtyLevel::Layout;
         }
 
         EventResponse::Handled
@@ -2279,7 +2276,7 @@ impl Widget for TextArea {
     fn on_focus_gained(&mut self) {
         self.is_focused = true;
         self.update_state();
-        self.dirty = DirtyLevel::Layout;
+        self.state.dirty = DirtyLevel::Layout;
 
         // CRITICAL FIX: Ensure cursor is visible when gaining focus
         // This prevents the scrollbar from jumping when pressing arrow keys
@@ -2291,7 +2288,7 @@ impl Widget for TextArea {
         self.is_focused = false;
         self.selection_start = None;
         self.update_state();
-        self.dirty = DirtyLevel::Layout;
+        self.state.dirty = DirtyLevel::Layout;
     }
 }
 
@@ -2332,7 +2329,7 @@ impl MouseHandler for TextArea {
                 self.cursor.update_caches(&self.text);
                 self.cursor.clear_preferred_x();
                 self.ensure_cursor_visible();
-                self.dirty = DirtyLevel::Layout;
+                self.state.dirty = DirtyLevel::Layout;
 
                 eprintln!("[DRAG_SELECT] updated cursor_pos to: {}, selection: {:?}",
                          self.cursor.char_pos(), self.selection_start);
@@ -2371,7 +2368,7 @@ impl MouseHandler for TextArea {
             self.drag_start_pos = Some(event.position);
             self.cursor.clear_preferred_x();
             self.cursor.reset_blink();
-            self.dirty = DirtyLevel::Layout;
+            self.state.dirty = DirtyLevel::Layout;
 
             // Double-click selects all
             if event.click_count == 2 {
@@ -2405,7 +2402,7 @@ impl MouseHandler for TextArea {
         if !self.is_disabled {
             self.is_hovered = true;
             self.update_state();
-            self.dirty = DirtyLevel::Layout;
+            self.state.dirty = DirtyLevel::Layout;
         }
         EventResponse::Handled
     }
@@ -2413,7 +2410,7 @@ impl MouseHandler for TextArea {
     fn on_mouse_leave(&mut self, _event: &mut MouseEvent) -> EventResponse {
         self.is_hovered = false;
         self.update_state();
-        self.dirty = DirtyLevel::Layout;
+        self.state.dirty = DirtyLevel::Layout;
         EventResponse::Handled
     }
 }

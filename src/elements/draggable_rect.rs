@@ -7,16 +7,17 @@
 //! - Transparent/borderless window support
 
 use crate::widget::Widget;
+use crate::WidgetState;
 use crate::event::{EventResponse, MouseEvent, MouseHandler};
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
 use crate::text::TextStyle;
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Point, Rect, WidgetId};
 
 /// Draggable rectangle that can be dragged between windows
 pub struct DraggableRect {
-    id: WidgetId,
-    bounds: Rect,
+    state: WidgetState,
+    layout_style: Style,
     is_dirty: bool,
     color: Color,
     label: String,
@@ -33,7 +34,6 @@ impl DraggableRect {
         Self {
             id,
             bounds,
-            is_dirty: true,
             color,
             label: label.to_string(),
             is_dragging: false,
@@ -65,45 +65,53 @@ impl DraggableRect {
 
 impl Widget for DraggableRect {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
-
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
-
-    fn on_event(&mut self, _event: &crate::event::OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
-            self.is_dirty = true;
-        }
+        self.state.bounds = bounds;
+    }
+
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.is_dirty = dirty;
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
     }
 
     fn is_dirty(&self) -> bool {
-        self.is_dirty
+        self.dirty_level().needs_repaint()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+
+
 
     fn layout(&self) -> Style {
         Style {
             size: taffy::Size {
-                width: taffy::Dimension::length(self.bounds.size.width as f32),
-                height: taffy::Dimension::length(self.bounds.size.height as f32),
+                width: taffy::Dimension::length(self.state.bounds.size.width as f32),
+                height: taffy::Dimension::length(self.state.bounds.size.height as f32),
             },
             ..Default::default()
         }
@@ -118,20 +126,20 @@ impl Widget for DraggableRect {
             self.color.b,
             alpha,
         );
-        ctx.draw_rect(self.bounds, color);
+        ctx.draw_rect(self.state.bounds, color);
 
         // Draw label in center
         let text_pos = Point::new(
-            self.bounds.origin.x + self.bounds.size.width / 2.0 - 60.0,
-            self.bounds.origin.y + self.bounds.size.height / 2.0 - 20.0,
+            self.state.bounds.origin.x + self.state.bounds.size.width / 2.0 - 60.0,
+            self.state.bounds.origin.y + self.state.bounds.size.height / 2.0 - 20.0,
         );
         let label_style = TextStyle::new().size(48.0).color(Color::WHITE);
         ctx.draw_text(&self.label, &label_style, text_pos, None);
 
         // Draw "DRAG ME" hint
         let hint_pos = Point::new(
-            self.bounds.origin.x + self.bounds.size.width / 2.0 - 50.0,
-            self.bounds.origin.y + self.bounds.size.height / 2.0 + 30.0,
+            self.state.bounds.origin.x + self.state.bounds.size.width / 2.0 - 50.0,
+            self.state.bounds.origin.y + self.state.bounds.size.height / 2.0 + 30.0,
         );
         let hint_style = TextStyle::new()
             .size(24.0)
@@ -178,15 +186,15 @@ impl MouseHandler for DraggableRect {
         println!("[DRAG DETECT] Mouse down on rect '{}'", self.label);
         println!("  Mouse Position: ({:.1}, {:.1})", event.position.x, event.position.y);
         println!("  Rect Bounds: ({:.1}, {:.1}) size {}x{}",
-                 self.bounds.origin.x, self.bounds.origin.y,
-                 self.bounds.size.width, self.bounds.size.height);
+                 self.state.bounds.origin.x, self.state.bounds.origin.y,
+                 self.state.bounds.size.width, self.state.bounds.size.height);
 
         // Start drag
         self.is_dragging = true;
         self.drag_start_pos = event.position;
         self.drag_offset = Point::new(
-            event.position.x - self.bounds.origin.x,
-            event.position.y - self.bounds.origin.y,
+            event.position.x - self.state.bounds.origin.x,
+            event.position.y - self.state.bounds.origin.y,
         );
 
         println!("  Drag Offset: ({:.1}, {:.1})", self.drag_offset.x, self.drag_offset.y);
@@ -225,8 +233,8 @@ impl MouseHandler for DraggableRect {
         let new_x = event.position.x - self.drag_offset.x;
         let new_y = event.position.y - self.drag_offset.y;
 
-        self.bounds.origin.x = new_x;
-        self.bounds.origin.y = new_y;
+        self.state.bounds.origin.x = new_x;
+        self.state.bounds.origin.y = new_y;
         self.is_dirty = true;
 
         println!(

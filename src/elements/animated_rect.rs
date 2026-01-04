@@ -2,10 +2,11 @@ use std::any::Any;
 use std::time::Instant;
 
 use crate::widget::Widget;
+use crate::WidgetState;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
-use crate::types::{DeferredCommand, GuiMessage, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Rect, Size, WidgetId};
 use taffy::AvailableSpace;
 
 /// An animated rectangle that changes its intrinsic width over time
@@ -14,9 +15,8 @@ use taffy::AvailableSpace;
 /// The width oscillates using a sine wave, causing the layout system
 /// to recalculate from leaves to root.
 pub struct AnimatedRect {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
+    layout_style: Style,
     color: Color,
     style: Style,
 
@@ -32,8 +32,6 @@ impl AnimatedRect {
     pub fn new(id: WidgetId, color: Color, base_width: f64, amplitude: f64) -> Self {
         AnimatedRect {
             id,
-            bounds: Rect::default(),
-            dirty: true,
             color,
             style: Style::default(),
             start_time: Instant::now(),
@@ -66,38 +64,47 @@ impl AnimatedRect {
 
 impl Widget for AnimatedRect {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
-
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
-
-    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        println!("[AnimatedRect] set_bounds() - width: {:.1}px, height: {:.1}px",
-                 bounds.size.width, bounds.size.height);
-        self.bounds = bounds;
+        self.state.bounds = bounds;
+    }
+
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
     }
 
     fn is_dirty(&self) -> bool {
-        self.dirty
+        self.dirty_level().needs_repaint()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+
+
 
     fn layout(&self) -> Style {
         self.style.clone()
@@ -105,7 +112,7 @@ impl Widget for AnimatedRect {
 
     fn paint(&self, ctx: &mut PaintContext) {
         // Draw a filled rectangle with our color
-        ctx.draw_rect(self.bounds, self.color);
+        ctx.draw_rect(self.state.bounds, self.color);
     }
 
     /// Measure function: returns current animated width
@@ -132,13 +139,5 @@ impl Widget for AnimatedRect {
     /// This element needs custom measurement
     fn needs_measure(&self) -> bool {
         true
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }

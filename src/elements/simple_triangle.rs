@@ -6,15 +6,16 @@
 use crate::layout::Style;
 use crate::paint::PaintContext;
 use crate::raw_surface::{RawSurface, RawSurfaceFramebuffer};
-use crate::types::{DeferredCommand, GuiMessage, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Rect, Size, WidgetId};
 use crate::widget::Widget;
+use crate::WidgetState;
 use std::cell::RefCell;
 use std::sync::Arc;
 use std::time::Instant;
 
 pub struct SimpleTriangle {
-    id: WidgetId,
-    bounds: Rect,
+    state: WidgetState,
+    layout_style: Style,
     pipeline: Arc<wgpu::RenderPipeline>,
     pub framebuffer: RefCell<Option<RawSurfaceFramebuffer>>, // Public for Window access
 
@@ -84,7 +85,6 @@ impl SimpleTriangle {
 
         Self {
             id,
-            bounds: Rect::default(),
             pipeline: Arc::new(pipeline),
             framebuffer: RefCell::new(None),
             device,
@@ -97,7 +97,7 @@ impl SimpleTriangle {
     }
 
     fn ensure_framebuffer(&self) {
-        let size = Size::new(self.bounds.size.width, self.bounds.size.height);
+        let size = Size::new(self.state.bounds.size.width, self.state.bounds.size.height);
 
         if size.width > 0.0 && size.height > 0.0 {
             let mut fb_borrow = self.framebuffer.borrow_mut();
@@ -170,7 +170,7 @@ impl RawSurface for SimpleTriangle {
     }
 
     fn framebuffer_size(&self) -> Size {
-        Size::new(self.bounds.size.width, self.bounds.size.height)
+        Size::new(self.state.bounds.size.width, self.state.bounds.size.height)
     }
 
     fn framebuffer_view(&self) -> Option<&wgpu::TextureView> {
@@ -181,34 +181,47 @@ impl RawSurface for SimpleTriangle {
 
 impl Widget for SimpleTriangle {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
-
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
-
-    fn on_event(&mut self, _event: &crate::event::OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        self.bounds = bounds;
+        self.state.bounds = bounds;
     }
 
-    fn set_dirty(&mut self, _dirty: bool) {}
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
+    }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
+    }
 
     fn is_dirty(&self) -> bool {
-        true // Always redraw
+        self.dirty_level().needs_repaint()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+
+
 
     fn layout(&self) -> Style {
         Style {
@@ -242,9 +255,9 @@ impl Widget for SimpleTriangle {
 
                 // Emit FPS update signal
                 ctx.emit_signal(
-                    self.id,
+                    self.state.id,
                     crate::types::GuiMessage::Custom {
-                        source: self.id,
+                        source: self.state.id,
                         signal_type: "fps_update".to_string(),
                         data: Box::new(fps),
                     },

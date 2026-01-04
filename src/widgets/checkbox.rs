@@ -25,8 +25,9 @@ use crate::paint::primitives::Color;
 use crate::paint::types::{Border, CornerRadius, Shadow, ShapeStyle};
 use crate::paint::PaintContext;
 use crate::text::{TextAlign, TextEngine, TextStyle, Truncate};
-use crate::types::{CursorType, DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, CursorType, DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
+use crate::WidgetState;
 
 /// Style configuration for checkbox in a specific state
 #[derive(Clone, Debug)]
@@ -72,9 +73,7 @@ pub enum CheckboxState {
 /// Checkbox widget
 pub struct Checkbox {
     // Widget basics
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
     layout_style: Style,
 
     // State
@@ -113,9 +112,7 @@ impl Checkbox {
         let (unchecked, checked, disabled, focused) = Self::default_styles();
 
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
             layout_style: Style::default(),
             is_checked: false,
             is_hovered: false,
@@ -262,7 +259,7 @@ impl Checkbox {
         if self.is_checked != checked {
             self.is_checked = checked;
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -276,7 +273,7 @@ impl Checkbox {
         if self.is_disabled != disabled {
             self.is_disabled = disabled;
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -325,9 +322,9 @@ impl Checkbox {
 
         // Queue deferred command for signal/slot system
         self.pending_commands.push(DeferredCommand {
-            target: self.id,
+            target: self.state.id,
             message: GuiMessage::Custom {
-                source: self.id,
+                source: self.state.id,
                 signal_type: "checked_changed".to_string(),
                 data: Box::new(self.is_checked),
             },
@@ -392,7 +389,7 @@ impl MouseHandler for Checkbox {
 
         self.is_pressed = true;
         self.update_state();
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
     }
 
@@ -408,7 +405,7 @@ impl MouseHandler for Checkbox {
 
         self.is_pressed = false;
         self.update_state();
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
     }
 
@@ -423,7 +420,7 @@ impl MouseHandler for Checkbox {
 
         self.is_hovered = true;
         self.update_state();
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
     }
 
@@ -431,7 +428,7 @@ impl MouseHandler for Checkbox {
         self.is_hovered = false;
         self.is_pressed = false;
         self.update_state();
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
     }
 }
@@ -448,7 +445,7 @@ impl KeyboardHandler for Checkbox {
                 self.is_checked = !self.is_checked;
                 self.notify_changed();
                 self.update_state();
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 EventResponse::Handled
             }
             _ => EventResponse::Ignored,
@@ -466,11 +463,46 @@ impl KeyboardHandler for Checkbox {
 
 impl Widget for Checkbox {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
+        self.state.id = id;
+    }
+
+    fn bounds(&self) -> Rect {
+        self.state.bounds
+    }
+
+    fn set_bounds(&mut self, bounds: Rect) {
+        if self.state.bounds != bounds {
+            self.state.bounds = bounds;
+            self.state.dirty = DirtyLevel::Visual;
+        }
+    }
+
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
+    }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty_level().needs_repaint()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 
     fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
@@ -479,25 +511,6 @@ impl Widget for Checkbox {
 
     fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
         Vec::new()
-    }
-
-    fn bounds(&self) -> Rect {
-        self.bounds
-    }
-
-    fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
-            self.dirty = true;
-        }
-    }
-
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.dirty
     }
 
     fn layout(&self) -> Style {
@@ -515,8 +528,8 @@ impl Widget for Checkbox {
         };
 
         // Calculate icon position (vertically centered)
-        let icon_y = self.bounds.origin.y + (self.bounds.size.height - self.icon_size as f64) / 2.0;
-        let icon_pos = Point::new(self.bounds.origin.x, icon_y);
+        let icon_y = self.state.bounds.origin.y + (self.state.bounds.size.height - self.icon_size as f64) / 2.0;
+        let icon_pos = Point::new(self.state.bounds.origin.x, icon_y);
 
         // Draw checkbox icon
         ctx.draw_icon(icon_id, icon_pos, self.icon_size, style.icon_color);
@@ -533,8 +546,8 @@ impl Widget for Checkbox {
             }
 
             // Calculate label position (after icon + gap, vertically centered)
-            let label_x = self.bounds.origin.x + self.icon_size as f64 + self.gap as f64;
-            let label_y = self.bounds.origin.y + (self.bounds.size.height - self.font_size as f64) / 2.0;
+            let label_x = self.state.bounds.origin.x + self.icon_size as f64 + self.gap as f64;
+            let label_y = self.state.bounds.origin.y + (self.state.bounds.size.height - self.font_size as f64) / 2.0;
             let label_pos = Point::new(label_x, label_y);
 
             ctx.draw_text(label, &text_style, label_pos, None);
@@ -543,8 +556,8 @@ impl Widget for Checkbox {
         // Draw focus ring if focused
         if self.is_focused && !self.is_disabled {
             let focus_rect = Rect::new(
-                Point::new(self.bounds.origin.x - 2.0, self.bounds.origin.y - 2.0),
-                Size::new(self.bounds.size.width + 4.0, self.bounds.size.height + 4.0),
+                Point::new(self.state.bounds.origin.x - 2.0, self.state.bounds.origin.y - 2.0),
+                Size::new(self.state.bounds.size.width + 4.0, self.state.bounds.size.height + 4.0),
             );
 
             ctx.draw_styled_rect(
@@ -614,13 +627,5 @@ impl Widget for Checkbox {
 
     fn drain_deferred_commands(&mut self) -> Vec<DeferredCommand> {
         std::mem::take(&mut self.pending_commands)
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }

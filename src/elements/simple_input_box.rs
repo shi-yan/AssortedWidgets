@@ -6,6 +6,7 @@
 //! - Visual feedback for preedit vs committed text
 
 use crate::widget::Widget;
+use crate::WidgetState;
 use crate::event::{
     EventResponse, ImeEvent, ImeEventType, ImeHandler, Key, KeyEvent, KeyboardHandler, MouseEvent,
     MouseHandler, NamedKey,
@@ -13,7 +14,7 @@ use crate::event::{
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
 use crate::text::TextStyle;
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 
 /// Simple input box for IME testing
 ///
@@ -24,8 +25,8 @@ use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 /// - Handles basic character input
 /// - IME composition support (setMarkedText/insertText)
 pub struct SimpleInputBox {
-    id: WidgetId,
-    bounds: Rect,
+    state: WidgetState,
+    layout_style: Style,
     is_dirty: bool,
 
     /// Committed text (final text)
@@ -40,8 +41,6 @@ impl SimpleInputBox {
     pub fn new(id: WidgetId) -> Self {
         Self {
             id,
-            bounds: Rect::default(),
-            is_dirty: true,
             text: String::new(),
             preedit: String::new(),
         }
@@ -61,39 +60,47 @@ impl SimpleInputBox {
 
 impl Widget for SimpleInputBox {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
-
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()
-    }
-
-    fn on_event(&mut self, _event: &crate::event::OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
-            self.is_dirty = true;
-        }
+        self.state.bounds = bounds;
+    }
+
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.is_dirty = dirty;
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
     }
 
     fn is_dirty(&self) -> bool {
-        self.is_dirty
+        self.dirty_level().needs_repaint()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+
+
 
     fn layout(&self) -> Style {
         Style {
@@ -113,15 +120,15 @@ impl Widget for SimpleInputBox {
 
     fn paint(&self, ctx: &mut PaintContext) {
         // Draw border (outer rect) - inflate by 2.0 to make it larger
-        let border = self.bounds.inflate(2.0, 2.0);
+        let border = self.state.bounds.inflate(2.0, 2.0);
         ctx.draw_rect(border, Color::rgba(100.0/255.0, 100.0/255.0, 120.0/255.0, 1.0));
 
         // Draw background
-        ctx.draw_rect(self.bounds, Color::rgba(40.0/255.0, 40.0/255.0, 45.0/255.0, 1.0));
+        ctx.draw_rect(self.state.bounds, Color::rgba(40.0/255.0, 40.0/255.0, 45.0/255.0, 1.0));
 
         // Draw committed text in white
         if !self.text.is_empty() {
-            let text_pos = Point::new(self.bounds.origin.x + 10.0, self.bounds.origin.y + 25.0);
+            let text_pos = Point::new(self.state.bounds.origin.x + 10.0, self.state.bounds.origin.y + 25.0);
             let text_style = TextStyle::new().size(18.0).color(Color::WHITE);
             ctx.draw_text(&self.text, &text_style, text_pos, None);
         }
@@ -136,8 +143,8 @@ impl Widget for SimpleInputBox {
             };
 
             let preedit_pos = Point::new(
-                self.bounds.origin.x + 10.0 + committed_width,
-                self.bounds.origin.y + 25.0
+                self.state.bounds.origin.x + 10.0 + committed_width,
+                self.state.bounds.origin.y + 25.0
             );
             let preedit_style = TextStyle::new()
                 .size(18.0)
@@ -179,7 +186,7 @@ impl Widget for SimpleInputBox {
         let cursor_y = 15.0;
 
         Some(Rect::new(
-            Point::new(self.bounds.origin.x + cursor_x, self.bounds.origin.y + cursor_y),
+            Point::new(self.state.bounds.origin.x + cursor_x, self.state.bounds.origin.y + cursor_y),
             Size::new(2.0, 30.0),
         ))
     }

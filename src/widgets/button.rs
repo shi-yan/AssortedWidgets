@@ -22,9 +22,10 @@ use crate::paint::primitives::Color;
 use crate::paint::types::{Border, Brush, CornerRadius, Shadow, ShapeStyle};
 use crate::paint::PaintContext;
 use crate::text::{TextAlign, TextEngine, TextLayout, TextStyle, Truncate};
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
 use crate::event::OsEvent;
+use crate::WidgetState;
 
 // Re-export Padding from label widget
 pub use crate::widgets::label::Padding;
@@ -106,9 +107,7 @@ impl Default for ButtonStyle {
 ///     .hovered_style(custom_hover_style);
 /// ```
 pub struct Button {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
     layout_style: Style,
 
     // Content
@@ -153,9 +152,7 @@ impl Button {
         let (normal, hovered, pressed, active, disabled, focused) = Self::default_styles();
 
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
             layout_style: Style::default(),
             content,
             font_size: 16.0,
@@ -309,7 +306,7 @@ impl Button {
         if self.is_disabled != disabled {
             self.is_disabled = disabled;
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -318,7 +315,7 @@ impl Button {
         if self.is_togglable && self.is_toggled != toggled {
             self.is_toggled = toggled;
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -334,12 +331,12 @@ impl Button {
             ButtonContent::Text(t) => {
                 *t = new_text;
                 *self.cached_text_layout.borrow_mut() = None;
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
             }
             ButtonContent::IconText { text: t, .. } => {
                 *t = new_text;
                 *self.cached_text_layout.borrow_mut() = None;
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
             }
             ButtonContent::Icon(_) => {
                 eprintln!("[Button::set_text] Warning: Cannot set text on Icon-only button");
@@ -640,7 +637,7 @@ impl MouseHandler for Button {
 
         self.is_pressed = true;
         self.update_state();
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
 
         EventResponse::Handled
     }
@@ -658,7 +655,7 @@ impl MouseHandler for Button {
 
             self.is_pressed = false;
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
 
             // Call callback if set
             if let Some(ref mut callback) = self.on_click {
@@ -680,7 +677,7 @@ impl MouseHandler for Button {
 
         self.is_hovered = true;
         self.update_state();
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
 
         EventResponse::Handled
     }
@@ -689,7 +686,7 @@ impl MouseHandler for Button {
         self.is_hovered = false;
         self.is_pressed = false;
         self.update_state();
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
 
         EventResponse::Handled
     }
@@ -709,7 +706,7 @@ impl KeyboardHandler for Button {
                 }
 
                 self.update_state();
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
 
                 // Call callback if set
                 if let Some(ref mut callback) = self.on_click {
@@ -786,12 +783,12 @@ impl Widget for Button {
         if self.is_focused && !self.is_disabled {
             let focus_ring_rect = Rect::new(
                 Point::new(
-                    self.bounds.origin.x - 2.0,
-                    self.bounds.origin.y - 2.0,
+                    self.state.bounds.origin.x - 2.0,
+                    self.state.bounds.origin.y - 2.0,
                 ),
                 Size::new(
-                    self.bounds.size.width + 4.0,
-                    self.bounds.size.height + 4.0,
+                    self.state.bounds.size.width + 4.0,
+                    self.state.bounds.size.height + 4.0,
                 ),
             );
 
@@ -809,12 +806,12 @@ impl Widget for Button {
         // Calculate content area (bounds minus padding)
         let content_area = Rect::new(
             Point::new(
-                self.bounds.origin.x + self.padding.left as f64,
-                self.bounds.origin.y + self.padding.top as f64,
+                self.state.bounds.origin.x + self.padding.left as f64,
+                self.state.bounds.origin.y + self.padding.top as f64,
             ),
             Size::new(
-                (self.bounds.size.width - self.padding.horizontal() as f64).max(0.0),
-                (self.bounds.size.height - self.padding.vertical() as f64).max(0.0),
+                (self.state.bounds.size.width - self.padding.horizontal() as f64).max(0.0),
+                (self.state.bounds.size.height - self.padding.vertical() as f64).max(0.0),
             ),
         );
 

@@ -11,11 +11,12 @@
 //! This is how real integrators should use the framework!
 
 use crate::widget::Widget;
+use crate::WidgetState;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
 use crate::text::{TextStyle, TextAlign};
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 use std::any::Any;
 
 /// Demo widget showcasing Phase 3.2 text rendering features
@@ -28,54 +29,63 @@ use std::any::Any;
 /// - Text wrapping with width constraints
 /// - High-level API usage (like real widgets would use)
 pub struct TextDemoElement {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
+    layout_style: Style,
 }
 
 impl TextDemoElement {
     /// Create a new text demo element
     pub fn new(id: WidgetId) -> Self {
+        let _ = id; // Ignore id parameter
         Self {
-            id,
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
+            layout_style: Style::default(),
         }
     }
 }
 
 impl Widget for TextDemoElement {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
-
-    fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
-        Vec::new()  // Demo widget doesn't handle messages
-    }
-
-    fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
-        Vec::new()  // Demo widget doesn't handle events
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        self.bounds = bounds;
+        self.state.bounds = bounds;
+    }
+
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
     }
 
     fn is_dirty(&self) -> bool {
-        self.dirty
+        self.dirty_level().needs_repaint()
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+
 
     fn layout(&self) -> Style {
         Style::default()  // Demo widget uses fixed positioning
@@ -239,13 +249,5 @@ impl Widget for TextDemoElement {
         _available_space: taffy::Size<taffy::AvailableSpace>,
     ) -> Option<Size> {
         None  // Demo widget uses fixed positioning
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }

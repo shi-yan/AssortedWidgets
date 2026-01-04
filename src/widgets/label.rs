@@ -10,14 +10,14 @@
 //! - Automatic URL detection and link styling
 //! - Ergonomic builder pattern API
 
-use std::any::Any;
-
+use crate::impl_widget_essentials;
 use crate::widget::Widget;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
 use crate::text::{TextAlign, TextEngine, TextLayout, TextLayoutCache, TextStyle, Truncate};
-use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Point, Rect, Size};
+use crate::WidgetState;
 
 /// Text wrapping and truncation mode
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -124,9 +124,7 @@ struct UrlSegment {
 ///     .align(TextAlign::Center);
 /// ```
 pub struct Label {
-    id: WidgetId,
-    bounds: Rect,
-    dirty: DirtyLevel,
+    state: WidgetState,
     layout_style: Style,
 
     // Content
@@ -159,9 +157,7 @@ impl Label {
         let url_segments = Self::detect_urls(&text);
 
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: DirtyLevel::Layout,
+            state: WidgetState::new(),
             layout_style: Style::default(),
             text,
             // icon: None,  // TODO: Implement icon support
@@ -275,7 +271,7 @@ impl Label {
             self.text = new_text;
             self.url_segments = Self::detect_urls(&self.text);
             self.layout_cache.invalidate();
-            self.dirty = DirtyLevel::Layout;
+            self.state.dirty = DirtyLevel::Layout;
         }
     }
 
@@ -284,7 +280,7 @@ impl Label {
         if self.wrap_mode != mode {
             self.wrap_mode = mode;
             self.layout_cache.invalidate();
-            self.dirty = DirtyLevel::Layout;
+            self.state.dirty = DirtyLevel::Layout;
         }
     }
 
@@ -397,13 +393,7 @@ impl Label {
 }
 
 impl Widget for Label {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
-    fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
-    }
+    impl_widget_essentials!();
 
     fn on_message(&mut self, message: &GuiMessage) -> Vec<DeferredCommand> {
         // Handle value_changed signal from other widgets (e.g., ScrollBar)
@@ -424,22 +414,6 @@ impl Widget for Label {
         Vec::new()
     }
 
-    fn bounds(&self) -> Rect {
-        self.bounds
-    }
-
-    fn set_bounds(&mut self, bounds: Rect) {
-        self.bounds = bounds;
-    }
-
-    fn dirty_level(&self) -> DirtyLevel {
-        self.dirty
-    }
-
-    fn set_dirty_level(&mut self, level: DirtyLevel) {
-        self.dirty = level;
-    }
-
     fn layout(&self) -> Style {
         self.layout_style.clone()
     }
@@ -447,18 +421,18 @@ impl Widget for Label {
     fn paint(&self, ctx: &mut PaintContext) {
         // Draw background if specified
         if let Some(bg_color) = self.bg_color {
-            ctx.draw_rect(self.bounds, bg_color);
+            ctx.draw_rect(self.state.bounds, bg_color);
         }
 
         // Calculate content bounds (bounds minus padding) for clipping
         let content_rect = Rect::new(
             Point::new(
-                self.bounds.origin.x + self.padding.left as f64,
-                self.bounds.origin.y + self.padding.top as f64,
+                self.state.bounds.origin.x + self.padding.left as f64,
+                self.state.bounds.origin.y + self.padding.top as f64,
             ),
             Size::new(
-                (self.bounds.size.width - self.padding.horizontal() as f64).max(0.0),
-                (self.bounds.size.height - self.padding.vertical() as f64).max(0.0),
+                (self.state.bounds.size.width - self.padding.horizontal() as f64).max(0.0),
+                (self.state.bounds.size.height - self.padding.vertical() as f64).max(0.0),
             ),
         );
 
@@ -467,8 +441,8 @@ impl Widget for Label {
 
         // Calculate text rendering position (with padding)
         let text_origin = Point::new(
-            self.bounds.origin.x + self.padding.left as f64,
-            self.bounds.origin.y + self.padding.top as f64,
+            self.state.bounds.origin.x + self.padding.left as f64,
+            self.state.bounds.origin.y + self.padding.top as f64,
         );
 
         // Ensure text layout is valid for current bounds width
@@ -476,7 +450,7 @@ impl Widget for Label {
         // constraints. We must re-ensure the layout using the final bounds before painting.
         ctx.with_text_engine(|engine| {
             // Just ensure the layout is cached, don't hold the reference
-            let _ = self.ensure_layout(engine, Some(self.bounds.size.width as f32));
+            let _ = self.ensure_layout(engine, Some(self.state.bounds.size.width as f32));
         });
 
         // Now draw the cached layout
@@ -509,13 +483,5 @@ impl Widget for Label {
     ) -> Option<Size> {
         // Actual measurement happens in measure_with_engine() called by Window
         None
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }
