@@ -296,12 +296,16 @@ impl<'a> PaintContext<'a> {
             offset_at_push,
         });
 
-        // Update intersection stack: new intersection = previous ∩ new_rect
+        // Transform the clip rect from local space to screen space
+        // by applying the offset that was active when it was pushed
+        let screen_rect = rect.translate(euclid::Vector2D::new(offset_at_push.x, offset_at_push.y));
+
+        // Update intersection stack: new intersection = previous ∩ new_rect (both in screen space)
         let new_intersection = if let Some(&previous) = self.clip_intersection_stack.last() {
-            intersect_rects(previous, rect)
+            intersect_rects(previous, screen_rect)
         } else {
-            // First clip - just use it as-is
-            rect
+            // First clip - use it in screen space
+            screen_rect
         };
         self.clip_intersection_stack.push(new_intersection);
     }
