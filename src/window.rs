@@ -1435,14 +1435,16 @@ impl Window {
         if self.needs_layout && self.widget_tree.root().is_some() {
             //println!("[Window {:?}] Computing layout...", self.id);
 
-            // Mark all elements that need measurement as dirty in Taffy
+            // Mark Taffy nodes dirty ONLY for widgets with layout-affecting changes
+            // Uses hierarchical DirtyLevel: only mark if dirty_level >= Layout
             let widget_ids: Vec<_> = self.widgets.widget_ids().collect();
             for widget_id in widget_ids {
                 if let Some(element) = self.widgets.get(widget_id) {
-                    if element.needs_measure() {
-                        //println!("[Window {:?}] Marking widget {:?} as dirty for re-measurement", self.id, widget_id);
+                    // Only mark Taffy node dirty if widget has layout-level changes
+                    // (Visual-only changes don't need layout recalculation)
+                    if element.dirty_level().needs_layout() {
                         if let Err(e) = self.layout_manager.mark_dirty(widget_id) {
-                            eprintln!("Failed to mark widget {:?} dirty: {}", widget_id, e);
+                            eprintln!("Failed to mark widget {:?} dirty in Taffy: {}", widget_id, e);
                         }
                     }
                 }

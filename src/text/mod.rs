@@ -36,12 +36,14 @@ mod atlas;
 mod engine;
 mod font_system;
 mod layout;
+mod layout_cache;
 mod style;
 
 pub use atlas::{GlyphAtlas, GlyphKey, GlyphLocation, UvRect};
 pub use engine::{TextEngine, CacheStats};
 pub use font_system::{FontSystemWrapper, RasterizedGlyph};
 pub use layout::TextLayout;
+pub use layout_cache::TextLayoutCache;
 pub use style::{TextStyle, TextAlign, Truncate};
 
 // Import Color for TextInstance::new()

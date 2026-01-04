@@ -822,16 +822,11 @@ impl Application {
                 window.process_messages();
             }
 
-            // Check if any windows have animated elements
-            for window in self.windows.values_mut() {
-                let has_animations = window.widget_ids()
-                    .filter_map(|id| window.get(id))
-                    .any(|element| element.is_dirty());
-
-                if has_animations {
-                    window.mark_layout_dirty();
-                }
-            }
+            // NOTE: Layout dirty tracking is handled by widgets themselves.
+            // If a widget's animation affects layout (size/position changes), it should
+            // call self.mark_needs_layout() in its update() method.
+            // We don't automatically mark layout dirty for all animations because most
+            // are purely visual (color, opacity, transforms) and don't affect layout.
 
             // Render all windows
             for window in self.windows.values_mut() {

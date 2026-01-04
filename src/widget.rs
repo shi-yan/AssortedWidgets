@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::types::{DeferredCommand, FrameInfo, GuiMessage, Rect, Size, WidgetId};
+use crate::types::{DeferredCommand, DirtyLevel, FrameInfo, GuiMessage, Rect, Size, WidgetId};
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::PaintContext;
@@ -45,12 +45,20 @@ macro_rules! impl_widget_essentials {
             self.bounds = bounds;
         }
 
-        fn set_dirty(&mut self, _dirty: bool) {
+        fn dirty_level(&self) -> $crate::types::DirtyLevel {
+            $crate::types::DirtyLevel::Clean // Default: clean
+        }
+
+        fn set_dirty_level(&mut self, _level: $crate::types::DirtyLevel) {
             // Default: no dirty tracking
         }
 
+        fn set_dirty(&mut self, dirty: bool) {
+            self.set_dirty_level($crate::types::DirtyLevel::from(dirty));
+        }
+
         fn is_dirty(&self) -> bool {
-            false // Default: never dirty
+            self.dirty_level().needs_repaint()
         }
 
         fn as_any(&self) -> &dyn std::any::Any {
@@ -109,11 +117,43 @@ pub trait Widget {
     /// Set widget bounds (called by layout system)
     fn set_bounds(&mut self, bounds: Rect);
 
-    /// Mark this widget as needing redraw
-    fn set_dirty(&mut self, dirty: bool);
+    /// Get the current dirty level
+    ///
+    /// Returns the hierarchical dirty level:
+    /// - `Clean`: No changes
+    /// - `Visual`: Visual-only changes (needs repaint)
+    /// - `Layout`: Layout changes (needs layout + repaint)
+    ///
+    /// Default: Always clean (no tracking). Override to implement dirty tracking.
+    fn dirty_level(&self) -> DirtyLevel {
+        DirtyLevel::Clean
+    }
 
-    /// Check if widget needs redraw
-    fn is_dirty(&self) -> bool;
+    /// Set the dirty level
+    ///
+    /// Use this to mark specific types of changes:
+    /// - `DirtyLevel::Visual`: Color, opacity, transform changes
+    /// - `DirtyLevel::Layout`: Size, content, position changes
+    ///
+    /// Default: No-op. Override to implement dirty tracking.
+    fn set_dirty_level(&mut self, _level: DirtyLevel) {
+        // Default: no dirty tracking
+    }
+
+    /// Mark this widget as needing redraw (backward compatibility)
+    ///
+    /// Prefer using `set_dirty_level()` for more precise control.
+    /// This method sets Visual dirty if true, Clean if false.
+    fn set_dirty(&mut self, dirty: bool) {
+        self.set_dirty_level(DirtyLevel::from(dirty));
+    }
+
+    /// Check if widget needs redraw (backward compatibility)
+    ///
+    /// Returns true if dirty level is Visual or higher.
+    fn is_dirty(&self) -> bool {
+        self.dirty_level().needs_repaint()
+    }
 
     /// Get layout style for Taffy
     ///
@@ -174,8 +214,11 @@ pub trait Widget {
     ///
     /// This should be called when the widget's content changes in a way that
     /// affects its intrinsic size (e.g., text content changes, image loaded).
+    ///
+    /// Sets dirty level to `Layout`, which implies both layout recalculation
+    /// AND visual repaint.
     fn mark_needs_layout(&mut self) {
-        self.set_dirty(true);
+        self.set_dirty_level(DirtyLevel::Layout);
     }
 
     /// Update widget state (called once per frame before layout)

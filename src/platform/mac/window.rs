@@ -738,7 +738,7 @@ impl PlatformWindow for MacWindow {
     }
 
     fn set_ime_cursor_area(&mut self, x: f64, y: f64, width: f64, height: f64) {
-        println!("[IME] Cursor area set (logical): ({}, {}) {}x{}", x, y, width, height);
+        //println!("[IME] Cursor area set (logical): ({}, {}) {}x{}", x, y, width, height);
 
         // NOTE: x, y, width, height are in logical points (not physical pixels)
         // macOS screen coordinates use bottom-left origin, but our coordinates use top-left origin
@@ -759,8 +759,8 @@ impl PlatformWindow for MacWindow {
             size: NSSize { width, height },
         };
 
-        println!("[IME] Storing rect (flipped): x={}, y={} (was {}), w={}, h={}",
-                 rect.origin.x, rect.origin.y, y, rect.size.width, rect.size.height);
+        //println!("[IME] Storing rect (flipped): x={}, y={} (was {}), w={}, h={}",
+        //         rect.origin.x, rect.origin.y, y, rect.size.width, rect.size.height);
 
         // Store in window state for CustomView to access
         let mut state = self.state.borrow_mut();

@@ -1,13 +1,12 @@
 //! RichTextLabel widget implementation
 
 use std::any::Any;
-use std::cell::RefCell;
 
 use crate::event::{InputEventEnum, MouseEvent, WheelEvent, EventResponse, MouseHandler};
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext, Stroke};
-use crate::text::{TextEngine, TextLayout, TextStyle};
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId, CursorType, FrameInfo};
+use crate::text::{TextEngine, TextLayoutCache, TextStyle};
+use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Point, Rect, Size, WidgetId, CursorType, FrameInfo};
 use crate::widget::Widget;
 use crate::widgets::{Padding, ScrollBar};
 
@@ -27,7 +26,7 @@ pub struct RichTextLabel {
     // Standard widget fields
     id: WidgetId,
     bounds: Rect,
-    dirty: bool,
+    dirty: DirtyLevel,
     layout_style: Style,
 
     // Content
@@ -63,9 +62,8 @@ pub struct RichTextLabel {
     scrollbar_width: f32,
     show_scrollbars: bool,
 
-    // Cached layout
-    cached_layout: RefCell<Option<TextLayout>>,
-    cached_layout_width: RefCell<Option<f32>>,
+    // Cached layout (dual-cache for Taffy constraint solving)
+    layout_cache: TextLayoutCache,
 
     // Callbacks
     on_link_clicked: Option<Box<dyn FnMut(String)>>,
@@ -80,7 +78,7 @@ impl RichTextLabel {
         Self {
             id: WidgetId::new(0),
             bounds: Rect::default(),
-            dirty: true,
+            dirty: DirtyLevel::Layout,
             layout_style: Style {
                 // Use flex to fill available width
                 flex_grow: 1.0,
@@ -107,8 +105,7 @@ impl RichTextLabel {
             hscrollbar: None,
             scrollbar_width: 12.0,
             show_scrollbars: true,
-            cached_layout: RefCell::new(None),
-            cached_layout_width: RefCell::new(None),
+            layout_cache: TextLayoutCache::new(),
             on_link_clicked: None,
             pending_commands: Vec::new(),
         }
@@ -125,7 +122,7 @@ impl RichTextLabel {
     /// Enable or disable text wrapping (builder pattern)
     pub fn wrapping(mut self, enabled: bool) -> Self {
         self.wrap_enabled = enabled;
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self
     }
 
@@ -156,7 +153,7 @@ impl RichTextLabel {
     /// Set font size (builder pattern)
     pub fn font_size(mut self, size: f32) -> Self {
         self.base_text_style.font_size = size;
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self
     }
 
@@ -184,10 +181,10 @@ impl RichTextLabel {
     /// Set markdown content (runtime mutation)
     pub fn set_content(&mut self, markdown: &str) {
         self.content = parse_markdown(markdown);
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self.visible_start_line = 0;
         self.h_scroll_offset = 0.0;
-        self.dirty = true;
+        self.dirty = DirtyLevel::Layout;
     }
 
     /// Enable or disable scrollbars (runtime mutation)
@@ -197,7 +194,7 @@ impl RichTextLabel {
             self.vscrollbar = None;
             self.hscrollbar = None;
         }
-        self.dirty = true;
+        self.dirty = DirtyLevel::Visual; // Scrollbar visibility change
     }
 
     /// Scroll to a specific line (vertical)
@@ -210,7 +207,7 @@ impl RichTextLabel {
             vscroll.set_value(self.visible_start_line as i32);
         }
 
-        self.dirty = true;
+        self.dirty = DirtyLevel::Visual; // Scroll position change (visual only)
     }
 
     /// Get current scroll position (line number)
@@ -246,7 +243,7 @@ impl RichTextLabel {
             }
         }
 
-        self.dirty = true;
+        self.dirty = DirtyLevel::Visual; // Scroll position change (visual only)
     }
 
     /// Get maximum horizontal scroll (for scrollbar range)
@@ -287,14 +284,6 @@ impl RichTextLabel {
         engine: &mut TextEngine,
         known_dimensions: taffy::Size<Option<f32>>,
     ) -> Size {
-        eprintln!("\n========================================");
-        eprintln!("[RichTextLabel::measure_with_engine] CALLED");
-        eprintln!("  known_dimensions: {:?}", known_dimensions);
-        eprintln!("  current cached_layout exists: {}", self.cached_layout.borrow().is_some());
-        eprintln!("  current cached_layout_width: {:?}", *self.cached_layout_width.borrow());
-        eprintln!("  wrap_enabled: {}", self.wrap_enabled);
-        eprintln!("========================================");
-
         let available_width = known_dimensions.width;
 
         // Calculate max width for text (accounting for padding and potential scrollbar)
@@ -303,93 +292,52 @@ impl RichTextLabel {
             (w - self.padding.horizontal() - vscroll_w).max(0.0)
         });
 
-        // Special case: if wrapping is enabled and we get a None width constraint,
-        // but we already have a wrapped layout, keep the existing layout.
-        // This handles Taffy calling measure multiple times with different constraints.
-        let needs_reshape = if self.wrap_enabled && max_width.is_none() && self.cached_layout.borrow().is_some() {
-            eprintln!("[RichTextLabel::measure_with_engine] Wrapping enabled, no width constraint, keeping existing wrapped layout");
-            false  // Keep existing wrapped layout
-        } else {
-            self.cached_layout.borrow().is_none()
-                || *self.cached_layout_width.borrow() != max_width
-        };
-
-        if needs_reshape {
-            eprintln!("[RichTextLabel::measure_with_engine] Creating layout with max_width: {:?}", max_width);
-
+        // Get or create layout using TextLayoutCache
+        let layout = self.layout_cache.get_or_create(engine, max_width, |engine, max_width| {
             let wrap = if self.wrap_enabled {
                 cosmic_text::Wrap::Word
             } else {
                 cosmic_text::Wrap::None
             };
 
-            let layout = engine.create_rich_layout(
+            engine.create_rich_layout(
                 &self.content,
                 &self.base_text_style,
                 max_width,
                 wrap,
-            );
-
-            eprintln!("[RichTextLabel::measure_with_engine] Layout created, size: {:?}", layout.size());
-
-            // Store the layout in the cached RefCell
-            *self.cached_layout.borrow_mut() = Some(layout);
-            *self.cached_layout_width.borrow_mut() = max_width;
-        }
+            )
+        });
 
         // Update scroll metadata after layout is created/updated
         // This is needed for scrollbar visibility calculation in update()
-        eprintln!("[RichTextLabel::measure_with_engine] Checking for cached layout...");
-        if let Some(layout) = self.cached_layout.borrow().as_ref() {
-            eprintln!("[RichTextLabel::measure_with_engine] Layout exists, calculating total_lines");
-            // Count VISUAL WRAPPED LINES by dividing total layout height by line height
-            // line_i in LayoutRun refers to LOGICAL lines (buffer.lines), not visual wrapped lines!
-            let line_height = self.base_text_style.line_height_pixels() as f64;
-            let total_lines = if line_height > 0.0 {
-                (layout.size().height / line_height).ceil() as u32
-            } else {
-                0
-            };
-
-            eprintln!("[RichTextLabel::measure_with_engine] *** TOTAL_LINES CALCULATION ***");
-            eprintln!("  layout.size().height = {}", layout.size().height);
-            eprintln!("  line_height = {}", line_height);
-            eprintln!("  total_lines = {} / {} = {}", layout.size().height, line_height, total_lines);
-            eprintln!("  (before unsafe mutation)");
-
-            let max_line_width = layout
-                .buffer()
-                .layout_runs()
-                .map(|run| run.line_w as f64)
-                .fold(0.0_f64, |max, w| max.max(w));
-
-            // SAFETY: We need to mutate self but only have &self
-            // This is safe because:
-            // 1. These fields are not accessed during layout computation
-            // 2. We're in a single-threaded context
-            // 3. The widget system guarantees no concurrent access
-            unsafe {
-                let this = self as *const Self as *mut Self;
-                (*this).total_lines = total_lines;
-                (*this).max_line_width = max_line_width;
-            }
-
-            eprintln!("[RichTextLabel::measure_with_engine] *** AFTER UNSAFE MUTATION ***");
-            eprintln!("  self.total_lines = {}", self.total_lines);
-            eprintln!("  self.max_line_width = {}", self.max_line_width);
+        let line_height = self.base_text_style.line_height_pixels() as f64;
+        let total_lines = if line_height > 0.0 {
+            (layout.size().height / line_height).ceil() as u32
         } else {
-            eprintln!("[RichTextLabel::measure_with_engine] WARNING: No cached layout found! total_lines will remain {}", self.total_lines);
+            0
+        };
+
+        let max_line_width = layout
+            .buffer()
+            .layout_runs()
+            .map(|run| run.line_w as f64)
+            .fold(0.0_f64, |max, w| max.max(w));
+
+        // SAFETY: We need to mutate self but only have &self
+        // This is safe because:
+        // 1. These fields are not accessed during layout computation
+        // 2. We're in a single-threaded context
+        // 3. The widget system guarantees no concurrent access
+        unsafe {
+            let this = self as *const Self as *mut Self;
+            (*this).total_lines = total_lines;
+            (*this).max_line_width = max_line_width;
         }
 
-        // Get the size from the cached layout
-        let text_size = self
-            .cached_layout
-            .borrow()
-            .as_ref()
-            .map(|l| l.size())
-            .unwrap_or_default();
+        // Get the size from the layout
+        let text_size = layout.size();
 
-        let result = if let Some(width) = known_dimensions.width {
+        if let Some(width) = known_dimensions.width {
             Size::new(
                 width as f64,
                 (text_size.height + self.padding.vertical() as f64).max(0.0),
@@ -399,66 +347,6 @@ impl RichTextLabel {
                 text_size.width + self.padding.horizontal() as f64,
                 text_size.height + self.padding.vertical() as f64,
             )
-        };
-
-        eprintln!("[RichTextLabel::measure_with_engine] Returning size: {:?}", result);
-        eprintln!("========================================\n");
-        result
-    }
-
-    /// Ensure layout is valid and up-to-date
-    #[allow(dead_code)]
-    fn ensure_layout(&mut self, engine: &mut TextEngine, available_width: Option<f32>) {
-        println!("[RichTextLabel] ensure_layout called with available_width: {:?}", available_width);
-
-        let max_width = available_width.map(|w| {
-            let vscroll_w = if self.vscrollbar.is_some() { self.scrollbar_width } else { 0.0 };
-            (w - self.padding.horizontal() - vscroll_w).max(0.0)
-        });
-
-        println!("[RichTextLabel] max_width for text: {:?}", max_width);
-
-        let needs_reshape = self.cached_layout.borrow().is_none()
-            || *self.cached_layout_width.borrow() != max_width;
-
-        println!("[RichTextLabel] needs_reshape: {}", needs_reshape);
-
-        if needs_reshape {
-            let wrap = if self.wrap_enabled {
-                cosmic_text::Wrap::Word
-            } else {
-                cosmic_text::Wrap::None
-            };
-
-            let layout = engine.create_rich_layout(
-                &self.content,
-                &self.base_text_style,
-                max_width,
-                wrap,
-            );
-
-            println!("[RichTextLabel] layout created, size: {:?}", layout.size());
-
-            // Update scroll metadata (count visual wrapped lines from layout height)
-            let line_height = self.base_text_style.line_height_pixels() as f64;
-            self.total_lines = if line_height > 0.0 {
-                (layout.size().height / line_height).ceil() as u32
-            } else {
-                0
-            };
-
-            println!("[RichTextLabel] total_lines updated to: {}", self.total_lines);
-
-            self.max_line_width = layout
-                .buffer()
-                .layout_runs()
-                .map(|run| run.line_w as f64)
-                .fold(0.0_f64, |max, w| max.max(w));
-
-            println!("[RichTextLabel] total_lines: {}, max_line_width: {}", self.total_lines, self.max_line_width);
-
-            *self.cached_layout.borrow_mut() = Some(layout);
-            *self.cached_layout_width.borrow_mut() = max_width;
         }
     }
 
@@ -582,8 +470,8 @@ impl RichTextLabel {
 
     /// Hit test for links
     fn hit_test_link(&self, position: Point) -> Option<usize> {
-        let layout = self.cached_layout.borrow();
-        let layout = layout.as_ref()?;
+        let layout = self.layout_cache.get_constrained()
+            .or_else(|| self.layout_cache.get_intrinsic())?;
 
         // Calculate content area (excluding scrollbars and padding)
         let vscroll_w = if self.vscrollbar.is_some() {
@@ -666,8 +554,8 @@ impl RichTextLabel {
 
     /// Draw strikethrough lines for strikethrough spans
     fn draw_strikethrough(&self, ctx: &mut PaintContext, text_origin: Point) {
-        let layout = self.cached_layout.borrow();
-        let Some(layout) = layout.as_ref() else {
+        let Some(layout) = self.layout_cache.get_constrained()
+            .or_else(|| self.layout_cache.get_intrinsic()) else {
             return;
         };
 
@@ -733,8 +621,8 @@ impl RichTextLabel {
 
     /// Draw underline for link
     fn draw_link_underline(&self, ctx: &mut PaintContext, text_origin: Point, link_idx: usize) {
-        let layout = self.cached_layout.borrow();
-        let Some(layout) = layout.as_ref() else {
+        let Some(layout) = self.layout_cache.get_constrained()
+            .or_else(|| self.layout_cache.get_intrinsic()) else {
             return;
         };
 
@@ -792,15 +680,15 @@ impl RichTextLabel {
 
     /// Draw link text in link color (blue)
     fn draw_link_text(&self, ctx: &mut PaintContext, text_origin: Point) {
-        let layout = self.cached_layout.borrow();
-        let Some(layout) = layout.as_ref() else {
+        let Some(layout) = self.layout_cache.get_constrained()
+            .or_else(|| self.layout_cache.get_intrinsic()) else {
             return;
         };
 
         // Draw each link's text in the link color
         for link in &self.content.links {
             ctx.draw_layout_range(
-                layout,
+                &layout,
                 text_origin,
                 self.link_color,
                 link.char_range.clone(),
@@ -810,8 +698,8 @@ impl RichTextLabel {
 
     /// Draw debug rectangles around link hitboxes for visualization
     fn draw_link_hitboxes(&self, ctx: &mut PaintContext, text_origin: Point) {
-        let layout = self.cached_layout.borrow();
-        let Some(layout) = layout.as_ref() else {
+        let Some(layout) = self.layout_cache.get_constrained()
+            .or_else(|| self.layout_cache.get_intrinsic()) else {
             return;
         };
 
@@ -980,12 +868,12 @@ impl Widget for RichTextLabel {
         }
     }
 
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+    fn dirty_level(&self) -> DirtyLevel {
+        self.dirty
     }
 
-    fn is_dirty(&self) -> bool {
-        self.dirty
+    fn set_dirty_level(&mut self, level: DirtyLevel) {
+        self.dirty = level;
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -1014,7 +902,6 @@ impl Widget for RichTextLabel {
         eprintln!("  bounds: {:?}", self.bounds);
         eprintln!("  total_lines (before update_scrollbars): {}", self.total_lines);
         eprintln!("  max_line_width (before update_scrollbars): {}", self.max_line_width);
-        eprintln!("  cached_layout exists: {}", self.cached_layout.borrow().is_some());
 
         // Update viewport dimensions
         let vscroll_w = if self.vscrollbar.is_some() {
@@ -1053,12 +940,11 @@ impl Widget for RichTextLabel {
     fn paint(&self, ctx: &mut PaintContext) {
         eprintln!("[RichTextLabel::paint] CALLED");
         eprintln!("  bounds: {:?}", self.bounds);
-        eprintln!("  has cached layout: {}", self.cached_layout.borrow().is_some());
         eprintln!("  *** CURRENT total_lines = {} ***", self.total_lines);
         eprintln!("  *** CURRENT max_line_width = {} ***", self.max_line_width);
         eprintln!("  viewport: {}x{}", self.viewport_width, self.viewport_height);
 
-        if let Some(layout) = self.cached_layout.borrow().as_ref() {
+        if let Some(layout) = self.layout_cache.get_constrained().or_else(|| self.layout_cache.get_intrinsic()) {
             eprintln!("  cached layout.size(): {:?}", layout.size());
             eprintln!("  line_height: {}", self.base_text_style.line_height_pixels());
             let expected_total_lines = (layout.size().height / self.base_text_style.line_height_pixels() as f64).ceil() as u32;
@@ -1117,8 +1003,8 @@ impl Widget for RichTextLabel {
                  self.visible_start_line, line_height, text_origin.y, content_rect.size.height);
 
         // Draw text layout
-        if let Some(layout) = self.cached_layout.borrow().as_ref() {
-            ctx.draw_layout(layout, text_origin, self.base_text_style.text_color);
+        if let Some(layout) = self.layout_cache.get_constrained().or_else(|| self.layout_cache.get_intrinsic()) {
+            ctx.draw_layout(&layout, text_origin, self.base_text_style.text_color);
 
             // Draw strikethrough
             self.draw_strikethrough(ctx, text_origin);
@@ -1203,7 +1089,7 @@ impl Widget for RichTextLabel {
                     vscroll.set_value(new_line as i32);
                 }
 
-                self.dirty = true;
+                self.dirty = DirtyLevel::Visual;
             }
         } else {
             println!("[RichTextLabel] on_wheel: no vertical scroll delta");
@@ -1233,7 +1119,7 @@ impl Widget for RichTextLabel {
                     if *source == vscroll.id() {
                         if let Some(value) = data.downcast_ref::<i32>() {
                             self.visible_start_line = (*value).max(0) as u32;
-                            self.dirty = true;
+                            self.dirty = DirtyLevel::Visual;
                         }
                     }
                 }
@@ -1248,7 +1134,7 @@ impl Widget for RichTextLabel {
                                 if max_val > 0.0 {
                                     let normalized = (*value as f64) / max_val;
                                     self.h_scroll_offset = -(normalized * max_scroll);
-                                    self.dirty = true;
+                                    self.dirty = DirtyLevel::Visual;
                                 }
                             }
                         }
@@ -1282,7 +1168,7 @@ impl MouseHandler for RichTextLabel {
                 if new_value != old_value {
                     eprintln!("[RichTextLabel] V-scroll value changed: {} -> {}", old_value, new_value);
                     self.visible_start_line = new_value.max(0) as u32;
-                    self.dirty = true;
+                    self.dirty = DirtyLevel::Visual;
                 }
 
                 return response;
@@ -1320,7 +1206,7 @@ impl MouseHandler for RichTextLabel {
                     if max_val > 0.0 {
                         let normalized = (new_value as f64) / max_val;
                         self.h_scroll_offset = -(normalized * max_scroll);
-                        self.dirty = true;
+                        self.dirty = DirtyLevel::Visual;
                     }
                 }
             }
@@ -1332,7 +1218,7 @@ impl MouseHandler for RichTextLabel {
 
         if hovered_link != self.hovered_link {
             self.hovered_link = hovered_link;
-            self.dirty = true;
+            self.dirty = DirtyLevel::Visual;
         }
 
         EventResponse::PassThrough
@@ -1354,7 +1240,7 @@ impl MouseHandler for RichTextLabel {
                 if new_value != old_value {
                     eprintln!("[RichTextLabel] V-scroll value changed (click): {} -> {}", old_value, new_value);
                     self.visible_start_line = new_value.max(0) as u32;
-                    self.dirty = true;
+                    self.dirty = DirtyLevel::Visual;
                 }
 
                 return response;
@@ -1392,7 +1278,7 @@ impl MouseHandler for RichTextLabel {
                     if max_val > 0.0 {
                         let normalized = (new_value as f64) / max_val;
                         self.h_scroll_offset = -(normalized * max_scroll);
-                        self.dirty = true;
+                        self.dirty = DirtyLevel::Visual;
                     }
                 }
             }
@@ -1460,7 +1346,7 @@ impl MouseHandler for RichTextLabel {
     fn on_mouse_leave(&mut self, _event: &mut MouseEvent) -> EventResponse {
         if self.hovered_link.is_some() {
             self.hovered_link = None;
-            self.dirty = true;
+            self.dirty = DirtyLevel::Visual;
         }
         EventResponse::PassThrough
     }

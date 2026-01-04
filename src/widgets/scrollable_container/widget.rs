@@ -33,7 +33,7 @@ use crate::event::input::{EventResponse, WheelEvent};
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::PaintContext;
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, Vector, WidgetId};
+use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Point, Rect, Size, Vector, WidgetId};
 use crate::widget::Widget;
 use crate::widgets::scrollable_container::viewport::ScrollViewport;
 use crate::widgets::scrollable_container::viewport::ScrollMode;
@@ -68,7 +68,7 @@ pub struct ScrollableContainer {
     // ========================================
     id: WidgetId,
     bounds: Rect,
-    dirty: bool,
+    dirty: DirtyLevel,
     layout_style: Style,
 
     // ========================================
@@ -181,7 +181,7 @@ impl ScrollableContainer {
         let container = ScrollableContainer {
             id: WidgetId::new(0), // Will be set by Window
             bounds: Rect::default(),
-            dirty: true,
+            dirty: DirtyLevel::Layout, // Initial state needs layout
             layout_style: Style::default(),
             scroll_mode,
             scroll_offset: scroll_offset.clone(),
@@ -336,7 +336,7 @@ impl ScrollableContainer {
             self.content_size = content_bounds;
             self.update_scrollbar_visibility();
             self.clamp_scroll_offset();
-            self.dirty = true;
+            self.dirty = DirtyLevel::Visual; // Content size affects scrollbar visibility
         }
     }
 
@@ -427,7 +427,7 @@ impl Widget for ScrollableContainer {
                 if updated {
                     self.scroll_offset.set(offset);
                     self.clamp_scroll_offset();
-                    self.dirty = true;
+                    self.dirty = DirtyLevel::Visual; // Scroll position change (visual only)
                 }
             }
         }
@@ -451,16 +451,16 @@ impl Widget for ScrollableContainer {
             println!("[SCROLLABLE]   show_vertical_scrollbar = {}", self.show_vertical_scrollbar);
             self.update_scrollbar_visibility();
             self.clamp_scroll_offset();
-            self.dirty = true;
+            self.dirty = DirtyLevel::Visual; // Bounds changed (set by layout system)
         }
     }
 
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+    fn dirty_level(&self) -> DirtyLevel {
+        self.dirty
     }
 
-    fn is_dirty(&self) -> bool {
-        self.dirty
+    fn set_dirty_level(&mut self, level: DirtyLevel) {
+        self.dirty = level;
     }
 
     fn layout(&self) -> Style {
@@ -549,7 +549,7 @@ impl Widget for ScrollableContainer {
 
         // If scroll offset changed, mark dirty and handle the event
         if final_offset != old_offset {
-            self.dirty = true;
+            self.dirty = DirtyLevel::Visual; // Scroll position change (visual only)
             println!("[SCROLLABLE] ✓ Scroll offset changed, returning Handled");
             EventResponse::Handled
         } else {

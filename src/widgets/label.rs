@@ -11,14 +11,13 @@
 //! - Ergonomic builder pattern API
 
 use std::any::Any;
-use std::cell::RefCell;
 
 use crate::widget::Widget;
 use crate::event::OsEvent;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
-use crate::text::{TextAlign, TextEngine, TextLayout, TextStyle, Truncate};
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::text::{TextAlign, TextEngine, TextLayout, TextLayoutCache, TextStyle, Truncate};
+use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Point, Rect, Size, WidgetId};
 
 /// Text wrapping and truncation mode
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -127,7 +126,7 @@ struct UrlSegment {
 pub struct Label {
     id: WidgetId,
     bounds: Rect,
-    dirty: bool,
+    dirty: DirtyLevel,
     layout_style: Style,
 
     // Content
@@ -148,9 +147,9 @@ pub struct Label {
     link_color: Color,
     url_segments: Vec<UrlSegment>,
 
-    // Cached layout (invalidated on text/width change)
-    cached_layout: RefCell<Option<TextLayout>>,
-    cached_max_width: RefCell<Option<f32>>,
+    // Cached layout (dual cache to avoid reshaping during Taffy's constraint solving)
+    // Taffy alternates between intrinsic (None) and constrained (Some(width)) queries
+    layout_cache: TextLayoutCache,
 }
 
 impl Label {
@@ -162,7 +161,7 @@ impl Label {
         Self {
             id: WidgetId::new(0),
             bounds: Rect::default(),
-            dirty: true,
+            dirty: DirtyLevel::Layout,
             layout_style: Style::default(),
             text,
             // icon: None,  // TODO: Implement icon support
@@ -174,8 +173,7 @@ impl Label {
             bg_color: None,
             link_color: Color::rgb(0.3, 0.6, 0.9), // Blue links
             url_segments,
-            cached_layout: RefCell::new(None),
-            cached_max_width: RefCell::new(None),
+            layout_cache: TextLayoutCache::new(),
         }
     }
 
@@ -187,21 +185,21 @@ impl Label {
     pub fn text(mut self, text: impl Into<String>) -> Self {
         self.text = text.into();
         self.url_segments = Self::detect_urls(&self.text);
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self
     }
 
     /// Set the wrapping mode
     pub fn wrap_mode(mut self, mode: WrapMode) -> Self {
         self.wrap_mode = mode;
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self
     }
 
     /// Set padding
     pub fn padding(mut self, padding: Padding) -> Self {
         self.padding = padding;
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self
     }
 
@@ -229,21 +227,21 @@ impl Label {
         let font_str = font.into();
         self.font_family = Some(font_str.clone());
         self.text_style = self.text_style.family(font_str);
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self
     }
 
     /// Set font size
     pub fn font_size(mut self, size: f32) -> Self {
         self.text_style = self.text_style.size(size);
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self
     }
 
     /// Set text alignment
     pub fn align(mut self, alignment: TextAlign) -> Self {
         self.text_style = self.text_style.align(alignment);
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self
     }
 
@@ -276,8 +274,8 @@ impl Label {
         if self.text != new_text {
             self.text = new_text;
             self.url_segments = Self::detect_urls(&self.text);
-            *self.cached_layout.borrow_mut() = None;
-            self.dirty = true;
+            self.layout_cache.invalidate();
+            self.dirty = DirtyLevel::Layout;
         }
     }
 
@@ -285,8 +283,8 @@ impl Label {
     pub fn set_wrap_mode(&mut self, mode: WrapMode) {
         if self.wrap_mode != mode {
             self.wrap_mode = mode;
-            *self.cached_layout.borrow_mut() = None;
-            self.dirty = true;
+            self.layout_cache.invalidate();
+            self.dirty = DirtyLevel::Layout;
         }
     }
 
@@ -330,38 +328,38 @@ impl Label {
     // ========================================================================
 
     /// Ensure layout is cached for the given max_width
-    fn ensure_layout(&self, engine: &mut TextEngine, available_width: Option<f32>) {
+    ///
+    /// Uses TextLayoutCache dual-cache strategy to avoid reshaping during Taffy's constraint solving:
+    /// - Intrinsic cache: For max_width=None (unconstrained size queries)
+    /// - Constrained cache: For max_width=Some(width) (wrapped size queries)
+    fn ensure_layout(&self, engine: &mut TextEngine, available_width: Option<f32>) -> std::cell::Ref<'_, TextLayout> {
         // Calculate max_width for text (accounting for padding)
         let max_width = available_width.map(|w| (w - self.padding.horizontal()).max(0.0));
 
-        // Only re-shape if text or width changed
-        let needs_reshape = self.cached_layout.borrow().is_none()
-            || *self.cached_max_width.borrow() != max_width;
+        self.layout_cache.get_or_create(engine, max_width, |engine, max_width| {
+            self.create_text_layout(engine, max_width)
+        })
+    }
 
-        if needs_reshape {
+    /// Helper to create a text layout with the current style and wrap mode
+    fn create_text_layout(&self, engine: &mut TextEngine, max_width: Option<f32>) -> TextLayout {
+        // Convert WrapMode to cosmic-text wrapping and truncation
+        let (truncate, wrap) = match self.wrap_mode {
+            WrapMode::SingleLine => (Truncate::None, cosmic_text::Wrap::None),
+            WrapMode::SingleLineEllipsis => (Truncate::End, cosmic_text::Wrap::None),
+            WrapMode::WrapAnywhere => (Truncate::None, cosmic_text::Wrap::Glyph),
+            WrapMode::WrapAnywhereHyphen => (Truncate::None, cosmic_text::Wrap::Glyph), // TODO: Add hyphen support
+            WrapMode::WrapWord => (Truncate::None, cosmic_text::Wrap::Word),
+        };
 
-            println!("Label: reshaping text layout for max_width={:?}", max_width);
-            // Convert WrapMode to cosmic-text wrapping and truncation
-            let (truncate, wrap) = match self.wrap_mode {
-                WrapMode::SingleLine => (Truncate::None, cosmic_text::Wrap::None),
-                WrapMode::SingleLineEllipsis => (Truncate::End, cosmic_text::Wrap::None),
-                WrapMode::WrapAnywhere => (Truncate::None, cosmic_text::Wrap::Glyph),
-                WrapMode::WrapAnywhereHyphen => (Truncate::None, cosmic_text::Wrap::Glyph), // TODO: Add hyphen support
-                WrapMode::WrapWord => (Truncate::None, cosmic_text::Wrap::Word),
-            };
-
-            // Use the extended API to specify custom wrap mode
-            let layout = engine.create_layout_with_wrap(
-                &self.text,
-                &self.text_style,
-                max_width,
-                truncate,
-                wrap,
-            );
-
-            *self.cached_layout.borrow_mut() = Some(layout);
-            *self.cached_max_width.borrow_mut() = max_width;
-        }
+        // Use the extended API to specify custom wrap mode
+        engine.create_layout_with_wrap(
+            &self.text,
+            &self.text_style,
+            max_width,
+            truncate,
+            wrap,
+        )
     }
 
     /// Measure text for layout system
@@ -370,10 +368,10 @@ impl Label {
         engine: &mut TextEngine,
         known_dimensions: taffy::Size<Option<f32>>,
     ) -> Size {
-        // Case 1: Width is known → wrap to that width
+        // Case 1: Width is known → wrap to that width (constrained query)
         if let Some(width) = known_dimensions.width {
-            self.ensure_layout(engine, Some(width));
-            let text_size = self.cached_layout.borrow().as_ref().unwrap().size();
+            let layout = self.ensure_layout(engine, Some(width));
+            let text_size = layout.size();
 
             // Add padding to the measured size
             return Size::new(
@@ -382,14 +380,14 @@ impl Label {
             );
         }
 
-        // Case 2: Width is auto → return intrinsic size (no wrapping for single-line modes)
+        // Case 2: Width is auto → return intrinsic size (intrinsic query)
         let max_width = match self.wrap_mode {
             WrapMode::SingleLine | WrapMode::SingleLineEllipsis => None,
-            _ => known_dimensions.width,
+            _ => known_dimensions.width,  // For wrapping modes, still None since width is None
         };
 
-        self.ensure_layout(engine, max_width);
-        let text_size = self.cached_layout.borrow().as_ref().unwrap().size();
+        let layout = self.ensure_layout(engine, max_width);
+        let text_size = layout.size();
 
         Size::new(
             text_size.width + self.padding.horizontal() as f64,
@@ -434,12 +432,12 @@ impl Widget for Label {
         self.bounds = bounds;
     }
 
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+    fn dirty_level(&self) -> DirtyLevel {
+        self.dirty
     }
 
-    fn is_dirty(&self) -> bool {
-        self.dirty
+    fn set_dirty_level(&mut self, level: DirtyLevel) {
+        self.dirty = level;
     }
 
     fn layout(&self) -> Style {
@@ -447,14 +445,6 @@ impl Widget for Label {
     }
 
     fn paint(&self, ctx: &mut PaintContext) {
-        // CRITICAL: Ensure text layout is valid for current bounds width
-        // The layout system may have called measure() multiple times with different
-        // constraints, potentially invalidating our cached layout. We must re-ensure
-        // the layout using the final bounds before painting.
-        ctx.with_text_engine(|engine| {
-            self.ensure_layout(engine, Some(self.bounds.size.width as f32));
-        });
-
         // Draw background if specified
         if let Some(bg_color) = self.bg_color {
             ctx.draw_rect(self.bounds, bg_color);
@@ -472,10 +462,8 @@ impl Widget for Label {
             ),
         );
 
-        //ctx.draw_rect(content_rect, Color::rgb(0.2, 0.2, 0.95));
-
         // Push clip rect to ensure text doesn't overflow the label bounds
-         ctx.push_clip(content_rect);
+        ctx.push_clip(content_rect);
 
         // Calculate text rendering position (with padding)
         let text_origin = Point::new(
@@ -483,20 +471,22 @@ impl Widget for Label {
             self.bounds.origin.y + self.padding.top as f64,
         );
 
-        // Draw text using the correctly cached layout
-        let cached_layout = self.cached_layout.borrow();
-        if let Some(layout) = cached_layout.as_ref() {
-            // For now, draw entire text with single color
-            // TODO: Implement URL-aware rendering with link color
-            ctx.draw_layout(layout, text_origin, self.text_style.text_color);
-        } else {
-            // This should never happen after ensure_layout, but keep as fallback
-            ctx.draw_text(
-                &self.text,
-                &self.text_style,
-                text_origin,
-                *self.cached_max_width.borrow(),
-            );
+        // Ensure text layout is valid for current bounds width
+        // CRITICAL: The layout system may have called measure() multiple times with different
+        // constraints. We must re-ensure the layout using the final bounds before painting.
+        ctx.with_text_engine(|engine| {
+            // Just ensure the layout is cached, don't hold the reference
+            let _ = self.ensure_layout(engine, Some(self.bounds.size.width as f32));
+        });
+
+        // Now draw the cached layout
+        // For now, draw entire text with single color
+        // TODO: Implement URL-aware rendering with link color
+        if let Some(layout) = self.layout_cache.get_constrained() {
+            ctx.draw_layout(&layout, text_origin, self.text_style.text_color);
+        } else if let Some(layout) = self.layout_cache.get_intrinsic() {
+            // Fallback for single-line labels with auto width
+            ctx.draw_layout(&layout, text_origin, self.text_style.text_color);
         }
 
         // Pop clip rect

@@ -1,7 +1,7 @@
 //! Multi-line text input widget implementation
 
 use std::any::Any;
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 
 use taffy::Style;
 
@@ -10,8 +10,8 @@ use crate::event::{ImeEvent, ImeEventType, Key, NamedKey, MouseHandler, WheelEve
 use crate::paint::primitives::Color;
 use crate::paint::types::ShapeStyle;
 use crate::paint::PaintContext;
-use crate::text::{TextLayout, TextStyle, Truncate};
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId, CursorType, FrameInfo};
+use crate::text::{TextLayoutCache, TextStyle, Truncate};
+use crate::types::{DeferredCommand, DirtyLevel, GuiMessage, Point, Rect, Size, WidgetId, CursorType, FrameInfo};
 use crate::widget::Widget;
 use crate::widgets::{Padding, ScrollBar, Cursor};
 
@@ -38,7 +38,7 @@ pub struct TextArea {
     // === Essentials ===
     id: WidgetId,
     bounds: Rect,
-    dirty: bool,
+    dirty: DirtyLevel,
     layout_style: Style,
 
     // === Content ===
@@ -93,9 +93,8 @@ pub struct TextArea {
     validator: Option<Box<dyn Fn(&str) -> Result<(), String>>>,
     validation_error: Option<String>,
 
-    // === Text Rendering ===
-    cached_layout: RefCell<Option<TextLayout>>,
-    cached_layout_width: RefCell<Option<f32>>,
+    // === Text Rendering (dual-cache for Taffy constraint solving) ===
+    layout_cache: TextLayoutCache,
 
     // === Callbacks ===
     on_change: Option<Box<dyn FnMut(&str)>>,
@@ -110,7 +109,7 @@ impl TextArea {
         Self {
             id: WidgetId::new(0),
             bounds: Rect::default(),
-            dirty: true,
+            dirty: DirtyLevel::Layout,
             layout_style: Style::default(),
 
             text: String::new(),
@@ -156,8 +155,7 @@ impl TextArea {
             validator: None,
             validation_error: None,
 
-            cached_layout: RefCell::new(None),
-            cached_layout_width: RefCell::new(None),
+            layout_cache: TextLayoutCache::new(),
 
             on_change: None,
 
@@ -178,7 +176,7 @@ impl TextArea {
     /// Set font size
     pub fn font_size(mut self, size: f32) -> Self {
         self.font_size = size;
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self
     }
 
@@ -191,7 +189,7 @@ impl TextArea {
     /// Enable or disable text wrapping
     pub fn wrapping(mut self, enabled: bool) -> Self {
         self.wrap_enabled = enabled;
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self
     }
 
@@ -233,7 +231,7 @@ impl TextArea {
         self.text = text.into();
         self.cursor.set_char_pos(self.text.chars().count());
         self.cursor.update_caches(&self.text);
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self
     }
 
@@ -323,7 +321,7 @@ impl TextArea {
         self.cursor.clear_preferred_x(); // Reset preferred X when typing
 
         // Invalidate caches
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
 
         // Validate
         self.validate();
@@ -336,7 +334,7 @@ impl TextArea {
             callback(&self.text);
         }
 
-        self.dirty = true;
+        self.dirty = DirtyLevel::Layout;
     }
 
     /// Delete character before cursor (backspace)
@@ -359,7 +357,7 @@ impl TextArea {
         }
 
         self.cursor.clear_preferred_x();
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self.validate();
         self.emit_text_changed();
 
@@ -367,7 +365,7 @@ impl TextArea {
             callback(&self.text);
         }
 
-        self.dirty = true;
+        self.dirty = DirtyLevel::Layout;
     }
 
     /// Delete character after cursor (delete key)
@@ -390,7 +388,7 @@ impl TextArea {
         }
 
         self.cursor.clear_preferred_x();
-        *self.cached_layout.borrow_mut() = None;
+        self.layout_cache.invalidate();
         self.validate();
         self.emit_text_changed();
 
@@ -398,7 +396,7 @@ impl TextArea {
             callback(&self.text);
         }
 
-        self.dirty = true;
+        self.dirty = DirtyLevel::Layout;
     }
 
     /// Delete selected text
@@ -464,7 +462,7 @@ impl TextArea {
             self.cursor.update_caches(&self.text);
             self.cursor.clear_preferred_x(); // Reset preferred X
             self.cursor.reset_blink();
-            self.dirty = true;
+            self.dirty = DirtyLevel::Layout;
         }
     }
 
@@ -490,7 +488,7 @@ impl TextArea {
             self.cursor.update_caches(&self.text);
             self.cursor.clear_preferred_x(); // Reset preferred X
             self.cursor.reset_blink();
-            self.dirty = true;
+            self.dirty = DirtyLevel::Layout;
         }
     }
 
@@ -498,7 +496,7 @@ impl TextArea {
     fn move_cursor_up(&mut self, extend_selection: bool) {
 
         // Get current cursor position in layout coordinates
-        if let Some(layout) = self.cached_layout.borrow().as_ref() {
+        if let Some(layout) = self.layout_cache.get_constrained().or_else(|| self.layout_cache.get_intrinsic()) {
             let buffer = layout.buffer();
 
             // Convert global byte position to (line_index, line_relative_byte)
@@ -544,7 +542,7 @@ impl TextArea {
                 self.cursor.move_to_start();
                 self.cursor.update_caches(&self.text);
                 self.cursor.reset_blink();
-                self.dirty = true;
+                self.dirty = DirtyLevel::Layout;
                 return;
             }
 
@@ -657,7 +655,7 @@ impl TextArea {
                 self.cursor.set_char_pos(new_pos);
                 self.cursor.update_caches(&self.text);
                 self.cursor.reset_blink();
-                self.dirty = true;
+                self.dirty = DirtyLevel::Layout;
             }
         }
     }
@@ -665,7 +663,7 @@ impl TextArea {
     /// Move cursor down one line
     fn move_cursor_down(&mut self, extend_selection: bool) {
         // Get current cursor position in layout coordinates
-        if let Some(layout) = self.cached_layout.borrow().as_ref() {
+        if let Some(layout) = self.layout_cache.get_constrained().or_else(|| self.layout_cache.get_intrinsic()) {
             let buffer = layout.buffer();
 
             // Convert global byte position to (line_index, line_relative_byte)
@@ -713,7 +711,7 @@ impl TextArea {
                 self.cursor.move_to_end(end_pos);
                 self.cursor.update_caches(&self.text);
                 self.cursor.reset_blink();
-                self.dirty = true;
+                self.dirty = DirtyLevel::Layout;
                 return;
             }
 
@@ -803,7 +801,7 @@ impl TextArea {
                 self.cursor.set_char_pos(new_pos);
                 self.cursor.update_caches(&self.text);
                 self.cursor.reset_blink();
-                self.dirty = true;
+                self.dirty = DirtyLevel::Layout;
             }
         }
     }
@@ -833,7 +831,7 @@ impl TextArea {
         self.cursor.update_caches(&self.text);
         self.cursor.clear_preferred_x();
         self.cursor.reset_blink();
-        self.dirty = true;
+        self.dirty = DirtyLevel::Layout;
     }
 
     /// Move cursor to end of line
@@ -861,7 +859,7 @@ impl TextArea {
         self.cursor.update_caches(&self.text);
         self.cursor.clear_preferred_x();
         self.cursor.reset_blink();
-        self.dirty = true;
+        self.dirty = DirtyLevel::Layout;
     }
 
     /// Select all text
@@ -871,7 +869,7 @@ impl TextArea {
         self.cursor.move_to_end(end_pos);
         self.cursor.update_caches(&self.text);
         self.cursor.clear_preferred_x();
-        self.dirty = true;
+        self.dirty = DirtyLevel::Layout;
     }
 
     // ========================================================================
@@ -912,7 +910,7 @@ impl TextArea {
             self.cursor.update_caches(&self.text);
             self.selection_start = state.selection_start;
 
-            *self.cached_layout.borrow_mut() = None;
+            self.layout_cache.invalidate();
             self.validate();
             self.emit_text_changed();
 
@@ -920,7 +918,7 @@ impl TextArea {
                 callback(&self.text);
             }
 
-            self.dirty = true;
+            self.dirty = DirtyLevel::Layout;
         }
     }
 
@@ -940,7 +938,7 @@ impl TextArea {
             self.cursor.update_caches(&self.text);
             self.selection_start = state.selection_start;
 
-            *self.cached_layout.borrow_mut() = None;
+            self.layout_cache.invalidate();
             self.validate();
             self.emit_text_changed();
 
@@ -948,7 +946,7 @@ impl TextArea {
                 callback(&self.text);
             }
 
-            self.dirty = true;
+            self.dirty = DirtyLevel::Layout;
         }
     }
 
@@ -1008,7 +1006,7 @@ impl TextArea {
             // Delete selection after emitting signal
             self.save_undo_state();
             self.delete_selection();
-            *self.cached_layout.borrow_mut() = None;
+            self.layout_cache.invalidate();
             self.validate();
             self.emit_text_changed();
 
@@ -1016,7 +1014,7 @@ impl TextArea {
                 callback(&self.text);
             }
 
-            self.dirty = true;
+            self.dirty = DirtyLevel::Layout;
         }
     }
 
@@ -1101,8 +1099,8 @@ impl TextArea {
         let has_vscroll = self.vscrollbar.is_some();
         let has_hscroll = self.hscrollbar.is_some();
         if had_vscroll != has_vscroll || had_hscroll != has_hscroll {
-            *self.cached_layout.borrow_mut() = None;
-            self.dirty = true;
+            self.layout_cache.invalidate();
+            self.dirty = DirtyLevel::Layout;
         }
 
         self.position_scrollbars();
@@ -1157,10 +1155,10 @@ impl TextArea {
         // CRITICAL FIX: If layout is invalidated (None), we can't calculate cursor position yet.
         // This happens after text insertion/deletion. Set a flag and do the scrolling later
         // in update() or paint() after the layout is recreated.
-        if self.cached_layout.borrow().is_none() {
+        if self.layout_cache.get_constrained().is_none() && self.layout_cache.get_intrinsic().is_none() {
             eprintln!("[ENSURE_CURSOR] Layout is None, deferring scroll (setting needs_scroll_to_cursor flag)");
             self.needs_scroll_to_cursor.set(true);
-            self.dirty = true;
+            self.dirty = DirtyLevel::Layout;
             return;
         }
 
@@ -1172,7 +1170,7 @@ impl TextArea {
     /// Called from ensure_cursor_visible() when layout is available,
     /// or from update() after layout is recreated.
     fn do_scroll_to_cursor(&mut self) {
-        if let Some(layout) = self.cached_layout.borrow().as_ref() {
+        if let Some(layout) = self.layout_cache.get_constrained().or_else(|| self.layout_cache.get_intrinsic()) {
             let buffer = layout.buffer();
 
             // Find cursor position (GLOBAL byte offset in full text)
@@ -1308,7 +1306,7 @@ impl TextArea {
                     vscroll.set_value(self.visible_start_line as i32);
                     eprintln!("[CURSOR_SCROLL] Updated scrollbar value to {}", self.visible_start_line);
                 }
-                self.dirty = true;
+                self.dirty = DirtyLevel::Layout;
             } else {
                 eprintln!("[CURSOR_SCROLL] No scrolling needed - cursor is already visible");
             }
@@ -1319,10 +1317,10 @@ impl TextArea {
 
                 if cursor_x_global < 0.0 {
                     self.h_scroll_offset = -(cursor_x as f64);
-                    self.dirty = true;
+                    self.dirty = DirtyLevel::Layout;
                 } else if cursor_x_global > self.viewport_width {
                     self.h_scroll_offset = self.viewport_width - cursor_x as f64;
-                    self.dirty = true;
+                    self.dirty = DirtyLevel::Layout;
                 }
 
                 // Clamp
@@ -1340,8 +1338,8 @@ impl TextArea {
 
     /// Convert click position to character index
     fn hit_test_position(&self, position: Point) -> Option<usize> {
-        let layout = self.cached_layout.borrow();
-        let layout = layout.as_ref()?;
+        let layout = self.layout_cache.get_constrained()
+            .or_else(|| self.layout_cache.get_intrinsic())?;
 
         let content_origin = Point::new(
             self.bounds.origin.x + self.padding.left as f64,
@@ -1456,8 +1454,8 @@ impl TextArea {
             return Some(cursor_rect);
         }
 
-        let layout = self.cached_layout.borrow();
-        let layout = layout.as_ref()?;
+        let layout = self.layout_cache.get_constrained()
+            .or_else(|| self.layout_cache.get_intrinsic())?;
         let buffer = layout.buffer();
 
         // Calculate vertical offset by summing actual line heights from layout
@@ -1679,7 +1677,7 @@ impl TextArea {
         match &event.event_type {
             ImeEventType::Preedit(text) => {
                 self.preedit_text = text.clone();
-                self.dirty = true;
+                self.dirty = DirtyLevel::Layout;
                 EventResponse::Handled
             }
             ImeEventType::Commit(text) => {
@@ -1690,7 +1688,7 @@ impl TextArea {
             }
             ImeEventType::Cancel => {
                 self.preedit_text.clear();
-                self.dirty = true;
+                self.dirty = DirtyLevel::Layout;
                 EventResponse::Handled
             }
         }
@@ -1717,7 +1715,7 @@ impl Widget for TextArea {
     fn set_bounds(&mut self, bounds: Rect) {
         if self.bounds != bounds {
             self.bounds = bounds;
-            *self.cached_layout.borrow_mut() = None;
+            self.layout_cache.invalidate();
 
             // Update viewport dimensions
             let vscroll_w = if self.vscrollbar.is_some() {
@@ -1734,16 +1732,16 @@ impl Widget for TextArea {
             self.viewport_width = (bounds.size.width - self.padding.horizontal() as f64 - vscroll_w).max(0.0);
             self.viewport_height = (bounds.size.height - self.padding.vertical() as f64 - hscroll_h).max(0.0);
 
-            self.dirty = true;
+            self.dirty = DirtyLevel::Layout;
         }
     }
 
-    fn is_dirty(&self) -> bool {
+    fn dirty_level(&self) -> DirtyLevel {
         self.dirty
     }
 
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+    fn set_dirty_level(&mut self, level: DirtyLevel) {
+        self.dirty = level;
     }
 
     fn layout(&self) -> Style {
@@ -1800,7 +1798,7 @@ impl Widget for TextArea {
         // CRITICAL FIX: Try to scroll to cursor before updating scrollbars
         // This ensures scrollbar ranges are correct for the new scroll position
         if self.needs_scroll_to_cursor.get() {
-            if self.cached_layout.borrow().is_some() {
+            if self.layout_cache.get_constrained().is_some() || self.layout_cache.get_intrinsic().is_some() {
                 eprintln!("[UPDATE] needs_scroll_to_cursor is true and layout is available, calling do_scroll_to_cursor()");
                 self.do_scroll_to_cursor();
             } else {
@@ -1842,7 +1840,7 @@ impl Widget for TextArea {
         };
 
         // Create layout if needed
-        if self.cached_layout.borrow().is_none() && !text_to_render.is_empty() {
+        if !text_to_render.is_empty() {
             let text_style = TextStyle::new()
                 .size(self.font_size)
                 .color(if self.text.is_empty() {
@@ -1864,14 +1862,16 @@ impl Widget for TextArea {
             };
 
             ctx.with_text_engine(|engine| {
-                // Create layout with text shaping
-                let layout = engine.create_layout_with_wrap(
-                    text_to_render,
-                    &text_style,
-                    max_width,
-                    Truncate::None,
-                    wrap,
-                );
+                // Get or create layout using TextLayoutCache
+                let layout = self.layout_cache.get_or_create(engine, max_width, |engine, max_width| {
+                    engine.create_layout_with_wrap(
+                        text_to_render,
+                        &text_style,
+                        max_width,
+                        Truncate::None,
+                        wrap,
+                    )
+                });
 
                 // Update metadata using interior mutability (Cell)
                 let line_height = self.font_size as f64 * 1.2;
@@ -1889,10 +1889,6 @@ impl Widget for TextArea {
                     .fold(0.0_f64, |max, w| max.max(w));
                 self.max_line_width.set(new_max_line_width);
 
-                // Cache the layout (already uses RefCell for interior mutability)
-                *self.cached_layout.borrow_mut() = Some(layout);
-                *self.cached_layout_width.borrow_mut() = max_width;
-
                 // Note: We don't call do_scroll_to_cursor() here because it needs &mut self.
                 // The needs_scroll_to_cursor flag is already set, and update() will handle it
                 // in the next frame with proper &mut access.
@@ -1902,7 +1898,7 @@ impl Widget for TextArea {
         let text_area = self.get_text_area_rect();
 
         // Calculate vertical offset by summing actual line heights from layout
-        let vertical_offset = if let Some(ref layout) = *self.cached_layout.borrow() {
+        let vertical_offset = if let Some(layout) = self.layout_cache.get_constrained().or_else(|| self.layout_cache.get_intrinsic()) {
             layout.buffer().layout_runs()
                 .take(self.visible_start_line as usize)
                 .map(|run| run.line_height as f64)
@@ -1937,7 +1933,7 @@ impl Widget for TextArea {
         // Draw selection if any
         if self.is_focused {
             if let Some(sel_start) = self.selection_start {
-                if let Some(layout) = self.cached_layout.borrow().as_ref() {
+                if let Some(layout) = self.layout_cache.get_constrained().or_else(|| self.layout_cache.get_intrinsic()) {
                     let cursor_pos = self.cursor.char_pos();
                     let (start, end) = if sel_start < cursor_pos {
                         (sel_start, cursor_pos)
@@ -2032,7 +2028,7 @@ impl Widget for TextArea {
 
         // Draw text and calculate cursor position simultaneously
         if !text_to_render.is_empty() {
-            if let Some(ref layout) = *self.cached_layout.borrow() {
+            if let Some(layout) = self.layout_cache.get_constrained().or_else(|| self.layout_cache.get_intrinsic()) {
                 let text_color = if self.text.is_empty() {
                     style.placeholder_color
                 } else {
@@ -2089,7 +2085,7 @@ impl Widget for TextArea {
                 }
 
                 // Now draw the text using the standard method
-                ctx.draw_layout(layout, text_origin, text_color);
+                ctx.draw_layout(&layout, text_origin, text_color);
             }
         }
 
@@ -2171,7 +2167,7 @@ impl Widget for TextArea {
                     if *source == vscroll.id() {
                         if let Some(value) = data.downcast_ref::<i32>() {
                             self.visible_start_line = (*value).max(0) as u32;
-                            self.dirty = true;
+                            self.dirty = DirtyLevel::Layout;
                         }
                     }
                 }
@@ -2186,7 +2182,7 @@ impl Widget for TextArea {
                                 if max_val > 0.0 {
                                     let normalized = (*value as f64) / max_val;
                                     self.h_scroll_offset = -(normalized * max_scroll);
-                                    self.dirty = true;
+                                    self.dirty = DirtyLevel::Layout;
                                 }
                             }
                         }
@@ -2235,7 +2231,7 @@ impl Widget for TextArea {
                     vscroll.set_value(new_line as i32);
                 }
 
-                self.dirty = true;
+                self.dirty = DirtyLevel::Layout;
             }
         }
 
@@ -2258,7 +2254,7 @@ impl Widget for TextArea {
                 }
             }
 
-            self.dirty = true;
+            self.dirty = DirtyLevel::Layout;
         }
 
         EventResponse::Handled
@@ -2283,7 +2279,7 @@ impl Widget for TextArea {
     fn on_focus_gained(&mut self) {
         self.is_focused = true;
         self.update_state();
-        self.dirty = true;
+        self.dirty = DirtyLevel::Layout;
 
         // CRITICAL FIX: Ensure cursor is visible when gaining focus
         // This prevents the scrollbar from jumping when pressing arrow keys
@@ -2295,7 +2291,7 @@ impl Widget for TextArea {
         self.is_focused = false;
         self.selection_start = None;
         self.update_state();
-        self.dirty = true;
+        self.dirty = DirtyLevel::Layout;
     }
 }
 
@@ -2336,7 +2332,7 @@ impl MouseHandler for TextArea {
                 self.cursor.update_caches(&self.text);
                 self.cursor.clear_preferred_x();
                 self.ensure_cursor_visible();
-                self.dirty = true;
+                self.dirty = DirtyLevel::Layout;
 
                 eprintln!("[DRAG_SELECT] updated cursor_pos to: {}, selection: {:?}",
                          self.cursor.char_pos(), self.selection_start);
@@ -2375,7 +2371,7 @@ impl MouseHandler for TextArea {
             self.drag_start_pos = Some(event.position);
             self.cursor.clear_preferred_x();
             self.cursor.reset_blink();
-            self.dirty = true;
+            self.dirty = DirtyLevel::Layout;
 
             // Double-click selects all
             if event.click_count == 2 {
@@ -2409,7 +2405,7 @@ impl MouseHandler for TextArea {
         if !self.is_disabled {
             self.is_hovered = true;
             self.update_state();
-            self.dirty = true;
+            self.dirty = DirtyLevel::Layout;
         }
         EventResponse::Handled
     }
@@ -2417,7 +2413,7 @@ impl MouseHandler for TextArea {
     fn on_mouse_leave(&mut self, _event: &mut MouseEvent) -> EventResponse {
         self.is_hovered = false;
         self.update_state();
-        self.dirty = true;
+        self.dirty = DirtyLevel::Layout;
         EventResponse::Handled
     }
 }

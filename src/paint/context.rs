@@ -107,6 +107,11 @@ pub struct PaintContext<'a> {
     /// Each clip remembers the coordinate space (cumulative offset) it was defined in
     clip_stack: Vec<ClipState>,
 
+    /// Parallel stack tracking cumulative clip rect intersections
+    /// clip_intersection_stack[i] = intersection of clip_stack[0..=i]
+    /// This allows O(1) access to current clip rect and O(1) pop operations
+    clip_intersection_stack: Vec<Rect>,
+
     /// Offset stack for hierarchical coordinate transformation
     /// The current offset is the sum of all offsets on the stack
     /// Used by ScrollableContainer and other container widgets to offset child rendering
@@ -146,6 +151,7 @@ impl<'a> PaintContext<'a> {
             image_commands: Vec::new(),
             window_size,
             clip_stack: Vec::new(),
+            clip_intersection_stack: Vec::new(),
             offset_stack: Vec::new(),
             bundle,
             z_order: 0,
@@ -289,56 +295,31 @@ impl<'a> PaintContext<'a> {
             local_rect: rect,
             offset_at_push,
         });
+
+        // Update intersection stack: new intersection = previous ∩ new_rect
+        let new_intersection = if let Some(&previous) = self.clip_intersection_stack.last() {
+            intersect_rects(previous, rect)
+        } else {
+            // First clip - just use it as-is
+            rect
+        };
+        self.clip_intersection_stack.push(new_intersection);
     }
 
     /// Pop the current clip rectangle from the stack
     pub fn pop_clip(&mut self) {
         self.clip_stack.pop();
+        self.clip_intersection_stack.pop();
     }
 
     /// Get the current effective clip rect (intersection of all clip rects on stack)
     ///
-    /// This transforms each clip from its local coordinate space to the current rendering space,
-    /// then intersects them all. This is the key to supporting nested scrollable containers:
-    /// each clip was pushed in a potentially different coordinate space (with different offsets),
-    /// so we must transform them all to a common space (current rendering space) before intersecting.
+    /// Returns the cached intersection of all clip rectangles currently on the stack.
+    /// This is O(1) thanks to the parallel intersection stack maintained by push_clip/pop_clip.
     ///
-    /// # Algorithm
-    /// 1. Get current cumulative offset
-    /// 2. For each clip state:
-    ///    - Calculate offset_delta = current_offset - offset_at_push
-    ///    - Transform local_rect by -offset_delta to get current_space_rect
-    ///    - (Subtract because: clip in "offset A" space → screen space = +A,
-    ///       then screen space → "offset B" space = -B, so total = -B + A = -(B - A))
-    /// 3. Intersect all transformed rects
+    /// Returns None if no clip rects are active.
     fn current_clip_rect(&self) -> Option<Rect> {
-        if self.clip_stack.is_empty() {
-            return None;
-        }
-
-        let current_offset = self.current_offset();
-        println!("[CLIP] current_offset: ({:.1}, {:.1})", current_offset.x, current_offset.y);
-
-        // Start with the first clip rect (NO transformation needed!)
-        // Clip rects should remain in viewport/world coordinates.
-        // Content positions are already offset by push_offset(), so clip rects
-        // should NOT be transformed - they stay in viewport space.
-        println!("[CLIP] Clip 0: local_rect={:?}", self.clip_stack[0].local_rect);
-
-        let mut result = self.clip_stack[0].local_rect;
-        println!("[CLIP]   → using as-is (viewport coordinates): {:?}", result);
-
-        // Intersect all subsequent clips (also no transformation needed)
-        for (i, clip_state) in self.clip_stack[1..].iter().enumerate() {
-            println!("[CLIP] Clip {}: local_rect={:?}", i + 1, clip_state.local_rect);
-
-            // Intersect with accumulated result (no transformation!)
-            result = intersect_rects(result, clip_state.local_rect);
-            println!("[CLIP]   → after intersect: {:?}", result);
-        }
-
-        println!("[CLIP] Final clip rect: {:?}", result);
-        Some(result)
+        self.clip_intersection_stack.last().copied()
     }
 
     /// Push a coordinate offset onto the stack
