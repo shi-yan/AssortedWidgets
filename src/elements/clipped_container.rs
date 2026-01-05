@@ -25,7 +25,8 @@ pub struct ClippedContainer {
 impl ClippedContainer {
     pub fn new(id: WidgetId, bg_color: Color, overflow_color: Color) -> Self {
         ClippedContainer {
-            id,
+            state: WidgetState::with_id(id),
+            layout_style: Style::default(),
             style: Style::default(),
             bg_color,
             overflow_color,

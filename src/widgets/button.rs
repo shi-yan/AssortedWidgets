@@ -730,11 +730,43 @@ impl KeyboardHandler for Button {
 
 impl Widget for Button {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
+        self.state.id = id;
+    }
+
+    fn bounds(&self) -> Rect {
+        self.state.bounds
+    }
+
+    fn set_bounds(&mut self, bounds: Rect) {
+        self.state.bounds = bounds;
+    }
+
+    fn dirty_level(&self) -> DirtyLevel {
+        self.state.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: DirtyLevel) {
+        self.state.dirty = level;
+    }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.set_dirty_level(DirtyLevel::from(dirty));
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty_level().needs_repaint()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 
     fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
@@ -743,22 +775,6 @@ impl Widget for Button {
 
     fn on_event(&mut self, _event: &OsEvent) -> Vec<DeferredCommand> {
         Vec::new()
-    }
-
-    fn bounds(&self) -> Rect {
-        self.bounds
-    }
-
-    fn set_bounds(&mut self, bounds: Rect) {
-        self.bounds = bounds;
-    }
-
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.dirty
     }
 
     fn layout(&self) -> Style {
@@ -770,7 +786,7 @@ impl Widget for Button {
 
         // Draw button background with current style
         ctx.draw_styled_rect(
-            self.bounds,
+            self.state.bounds,
             ShapeStyle {
                 fill: style.background.clone(),
                 corner_radius: CornerRadius::uniform(style.corner_radius),
@@ -883,11 +899,5 @@ impl Widget for Button {
         }
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
 }

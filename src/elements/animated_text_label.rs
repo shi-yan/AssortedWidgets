@@ -55,7 +55,8 @@ impl AnimatedTextLabel {
     /// * `max_width` - Maximum width of the animation
     pub fn new(id: WidgetId, text: impl Into<String>, min_width: f64, max_width: f64) -> Self {
         AnimatedTextLabel {
-            id,
+            state: WidgetState::with_id(id),
+            layout_style: Style::default(),
             style: Style::default(),
             text: text.into(),
             text_style: TextStyle::new()

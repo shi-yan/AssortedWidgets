@@ -20,7 +20,6 @@ pub struct ClickableRect {
     hover_color: Color,
     label: String,
     is_hovered: bool,
-    is_dirty: bool,
 }
 
 impl ClickableRect {
@@ -132,7 +131,7 @@ impl Widget for ClickableRect {
 impl MouseHandler for ClickableRect {
     fn on_mouse_down(&mut self, event: &mut MouseEvent) -> EventResponse {
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        println!("🖱️  MOUSE DOWN on {} (ID: {:?})", self.label, self.id);
+        println!("🖱️  MOUSE DOWN on {} (ID: {:?})", self.label, self.state.id);
         println!("   Position: ({:.1}, {:.1})", event.position.x, event.position.y);
         println!("   Bounds: ({:.0}, {:.0}, {:.0}, {:.0})",
                  self.state.bounds.origin.x,
@@ -150,7 +149,7 @@ impl MouseHandler for ClickableRect {
     }
 
     fn on_mouse_up(&mut self, _event: &mut MouseEvent) -> EventResponse {
-        println!("🖱️  MOUSE UP on {} (ID: {:?})", self.label, self.id);
+        println!("🖱️  MOUSE UP on {} (ID: {:?})", self.label, self.state.id);
         EventResponse::Handled
     }
 

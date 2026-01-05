@@ -84,7 +84,8 @@ impl SimpleTriangle {
         });
 
         Self {
-            id,
+            state: WidgetState::with_id(id),
+            layout_style: Style::default(),
             pipeline: Arc::new(pipeline),
             framebuffer: RefCell::new(None),
             device,
@@ -157,7 +158,7 @@ impl SimpleTriangle {
 
 impl RawSurface for SimpleTriangle {
     fn widget_id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn paint_raw(&self, render_pass: &mut wgpu::RenderPass, _size: Size) {
@@ -271,14 +272,6 @@ impl Widget for SimpleTriangle {
 
         // Render triangle to framebuffer
         self.render_to_framebuffer();
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
     }
 
     fn as_raw_surface(&self) -> Option<&dyn crate::raw_surface::RawSurface> {

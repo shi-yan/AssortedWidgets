@@ -223,7 +223,8 @@ impl Cube3D {
         });
 
         Self {
-            id,
+            state: WidgetState::with_id(id),
+            layout_style: Style::default(),
             pipeline: Arc::new(pipeline),
             bind_group: Arc::new(bind_group),
             vertex_buffer: Arc::new(vertex_buffer),

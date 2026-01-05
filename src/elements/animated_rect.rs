@@ -31,7 +31,8 @@ pub struct AnimatedRect {
 impl AnimatedRect {
     pub fn new(id: WidgetId, color: Color, base_width: f64, amplitude: f64) -> Self {
         AnimatedRect {
-            id,
+            state: WidgetState::with_id(id),
+            layout_style: Style::default(),
             color,
             style: Style::default(),
             start_time: Instant::now(),

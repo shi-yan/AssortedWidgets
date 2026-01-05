@@ -27,7 +27,6 @@ use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Point, Rect, Size, W
 pub struct SimpleInputBox {
     state: WidgetState,
     layout_style: Style,
-    is_dirty: bool,
 
     /// Committed text (final text)
     text: String,
@@ -40,7 +39,8 @@ impl SimpleInputBox {
     /// Create a new simple input box
     pub fn new(id: WidgetId) -> Self {
         Self {
-            id,
+            state: WidgetState::with_id(id),
+            layout_style: Style::default(),
             text: String::new(),
             preedit: String::new(),
         }
@@ -54,7 +54,7 @@ impl SimpleInputBox {
     /// Set the text content
     pub fn set_text(&mut self, text: String) {
         self.text = text;
-        self.is_dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 }
 
@@ -162,14 +162,6 @@ impl Widget for SimpleInputBox {
         }
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-
     // Event handling
 
     fn is_interactive(&self) -> bool {
@@ -215,14 +207,14 @@ impl Widget for SimpleInputBox {
                     Key::Character(c) => {
                         // Simple character insertion (no IME)
                         self.text.push(*c);
-                        self.is_dirty = true;
+                        self.state.dirty = DirtyLevel::Visual;
                         println!("[SimpleInputBox] Typed: {}", c);
                         EventResponse::Handled
                     }
                     Key::Named(NamedKey::Backspace) => {
                         if !self.text.is_empty() {
                             self.text.pop();
-                            self.is_dirty = true;
+                            self.state.dirty = DirtyLevel::Visual;
                             println!("[SimpleInputBox] Backspace");
                         }
                         EventResponse::Handled
@@ -241,20 +233,20 @@ impl Widget for SimpleInputBox {
         match &event.event_type {
             ImeEventType::Preedit(text) => {
                 self.preedit = text.clone();
-                self.is_dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 println!("[SimpleInputBox] IME Preedit: {}", text);
                 EventResponse::Handled
             }
             ImeEventType::Commit(text) => {
                 self.text.push_str(text);
                 self.preedit.clear();
-                self.is_dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 println!("[SimpleInputBox] IME Commit: {}", text);
                 EventResponse::Handled
             }
             ImeEventType::Cancel => {
                 self.preedit.clear();
-                self.is_dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 println!("[SimpleInputBox] IME Cancel");
                 EventResponse::Handled
             }
@@ -274,13 +266,13 @@ impl KeyboardHandler for SimpleInputBox {
         match &event.key {
             Key::Character(c) => {
                 self.text.push(*c);
-                self.is_dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 EventResponse::Handled
             }
             Key::Named(NamedKey::Backspace) => {
                 if !self.text.is_empty() {
                     self.text.pop();
-                    self.is_dirty = true;
+                    self.state.dirty = DirtyLevel::Visual;
                 }
                 EventResponse::Handled
             }
@@ -294,18 +286,18 @@ impl ImeHandler for SimpleInputBox {
         match &event.event_type {
             ImeEventType::Preedit(text) => {
                 self.preedit = text.clone();
-                self.is_dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 EventResponse::Handled
             }
             ImeEventType::Commit(text) => {
                 self.text.push_str(text);
                 self.preedit.clear();
-                self.is_dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 EventResponse::Handled
             }
             ImeEventType::Cancel => {
                 self.preedit.clear();
-                self.is_dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 EventResponse::Handled
             }
         }

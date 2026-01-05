@@ -7,8 +7,9 @@ use crate::event::{EventResponse, InputEventEnum, MouseEvent, WheelEvent};
 use crate::event::handlers::MouseHandler;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
-use crate::types::{DeferredCommand, FrameInfo, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, FrameInfo, GuiMessage, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
+use crate::WidgetState;
 use crate::widgets::ScrollBar;
 
 use super::data_source::ListDataSource;
@@ -36,9 +37,7 @@ pub enum ListLayoutMode {
 /// ```
 pub struct VirtualizedList {
     // Standard widget fields
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
     layout_style: Style,
 
     // Layout mode
@@ -82,9 +81,7 @@ impl VirtualizedList {
     /// Create a new virtualized list with variable height mode
     pub fn new() -> Self {
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
             layout_style: Style {
                 flex_grow: 1.0,
                 flex_shrink: 1.0,
@@ -174,7 +171,7 @@ impl VirtualizedList {
             self.scroll_offset = offset.clamp(0.0, self.max_scroll_offset());
             self.update_visible_cells();
             self.update_scrollbar();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -193,7 +190,7 @@ impl VirtualizedList {
             self.recycled_cells.push(cell.widget);
         }
 
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 
     /// Calculate heights and offsets for all items
@@ -374,7 +371,7 @@ impl VirtualizedList {
 
     /// Position all visible cells based on their data indices
     fn layout_visible_cells(&mut self) {
-        let content_width = self.bounds.size.width
+        let content_width = self.state.bounds.size.width
             - if self.scrollbar.is_some() {
                 self.scrollbar_width as f64
             } else {
@@ -394,10 +391,10 @@ impl VirtualizedList {
         // Now apply the layout
         for (i, cell) in self.visible_cells.iter_mut().enumerate() {
             if let Some(&(_, offset, height)) = layout_data.get(i) {
-                let y = self.bounds.origin.y + (offset - self.scroll_offset);
+                let y = self.state.bounds.origin.y + (offset - self.scroll_offset);
 
                 cell.widget.set_bounds(Rect::new(
-                    Point::new(self.bounds.origin.x, y),
+                    Point::new(self.state.bounds.origin.x, y),
                     Size::new(content_width, height),
                 ));
             }
@@ -445,12 +442,12 @@ impl VirtualizedList {
         if let Some(ref mut scrollbar) = self.scrollbar {
             scrollbar.set_bounds(Rect::new(
                 Point::new(
-                    self.bounds.origin.x + self.bounds.size.width - self.scrollbar_width as f64,
-                    self.bounds.origin.y,
+                    self.state.bounds.origin.x + self.state.bounds.size.width - self.scrollbar_width as f64,
+                    self.state.bounds.origin.y,
                 ),
                 Size::new(
                     self.scrollbar_width as f64,
-                    self.bounds.size.height,
+                    self.state.bounds.size.height,
                 ),
             ));
         }
@@ -463,48 +460,46 @@ impl VirtualizedList {
 
 impl Widget for VirtualizedList {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
-            self.viewport_height = bounds.size.height;
+        self.state.bounds = bounds;
+    }
 
-            // Update layout
-            if self.item_offsets.is_empty() && self.data_source.is_some() {
-                self.calculate_layout();
-            }
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
 
-            self.update_scrollbar();
-            self.update_visible_cells();
-            self.dirty = true;
-        }
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
     }
 
     fn is_dirty(&self) -> bool {
-        self.dirty
+        self.dirty_level().needs_repaint()
     }
 
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
+
+
 
     fn layout(&self) -> Style {
         self.layout_style.clone()
@@ -529,20 +524,20 @@ impl Widget for VirtualizedList {
     fn paint(&self, ctx: &mut PaintContext) {
         // Draw background
         if let Some(bg_color) = self.bg_color {
-            ctx.draw_rect(self.bounds, bg_color);
+            ctx.draw_rect(self.state.bounds, bg_color);
         }
 
         // Calculate content area (excluding scrollbar)
         let content_rect = Rect::new(
-            self.bounds.origin,
+            self.state.bounds.origin,
             Size::new(
-                self.bounds.size.width
+                self.state.bounds.size.width
                     - if self.scrollbar.is_some() {
                         self.scrollbar_width as f64
                     } else {
                         0.0
                     },
-                self.bounds.size.height,
+                self.state.bounds.size.height,
             ),
         );
 
@@ -562,7 +557,7 @@ impl Widget for VirtualizedList {
         }
 
         // Register hitbox
-        ctx.register_hitbox(self.id, self.bounds);
+        ctx.register_hitbox(self.state.id, self.state.bounds);
     }
 
     fn is_interactive(&self) -> bool {
@@ -595,7 +590,7 @@ impl Widget for VirtualizedList {
             // Update visible cells
             self.update_visible_cells();
 
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
 
         EventResponse::Handled
@@ -615,7 +610,7 @@ impl Widget for VirtualizedList {
                         if let Some(value) = data.downcast_ref::<i32>() {
                             self.scroll_offset = (*value).max(0) as f64;
                             self.update_visible_cells();
-                            self.dirty = true;
+                            self.state.dirty = DirtyLevel::Visual;
                         }
                     }
                 }
@@ -649,7 +644,7 @@ impl MouseHandler for VirtualizedList {
                 if new_value != old_value {
                     self.scroll_offset = new_value.max(0) as f64;
                     self.update_visible_cells();
-                    self.dirty = true;
+                    self.state.dirty = DirtyLevel::Visual;
                 }
 
                 return response;
@@ -683,7 +678,7 @@ impl MouseHandler for VirtualizedList {
                 if new_value != old_value {
                     self.scroll_offset = new_value.max(0) as f64;
                     self.update_visible_cells();
-                    self.dirty = true;
+                    self.state.dirty = DirtyLevel::Visual;
                 }
 
                 return response;

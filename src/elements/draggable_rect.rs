@@ -18,7 +18,6 @@ use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Point, Rect, WidgetI
 pub struct DraggableRect {
     state: WidgetState,
     layout_style: Style,
-    is_dirty: bool,
     color: Color,
     label: String,
 
@@ -32,8 +31,8 @@ impl DraggableRect {
     /// Create a new draggable rectangle
     pub fn new(id: WidgetId, bounds: Rect, color: Color, label: &str) -> Self {
         Self {
-            id,
-            bounds,
+            state: WidgetState::with_id(id),
+            layout_style: Style::default(),
             color,
             label: label.to_string(),
             is_dragging: false,
@@ -147,14 +146,6 @@ impl Widget for DraggableRect {
         ctx.draw_text("DRAG ME", &hint_style, hint_pos, None);
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-
     fn is_interactive(&self) -> bool {
         true
     }
@@ -202,7 +193,7 @@ impl MouseHandler for DraggableRect {
         println!("═══════════════════════════════════════════════════════");
 
         // Note: Mouse capture will be handled by the window
-        // The window needs to call mouse_capture.capture(self.id)
+        // The window needs to call mouse_capture.capture(self.state.id)
 
         EventResponse::Handled
     }
@@ -235,7 +226,7 @@ impl MouseHandler for DraggableRect {
 
         self.state.bounds.origin.x = new_x;
         self.state.bounds.origin.y = new_y;
-        self.is_dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
 
         println!(
             "[DraggableRect '{}'] Dragging to ({}, {})",

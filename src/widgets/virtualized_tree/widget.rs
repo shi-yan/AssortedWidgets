@@ -18,8 +18,9 @@ Current Limitations:
 
 use crate::layout::Style;
 use crate::paint::{Border, Color, PaintContext, ShapeStyle, Stroke};
-use crate::types::{rect, Point, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, rect, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
+use crate::WidgetState;
 use crate::widgets::ScrollBar;
 use std::any::Any;
 use std::collections::HashSet;
@@ -66,7 +67,8 @@ struct HeaderInfo {
 /// ```
 pub struct VirtualizedTree {
     // Widget essentials
-    id: WidgetId,
+    state: WidgetState,
+    layout_style: Style,
 
     // Data source
     data_source: Option<Box<dyn TreeDataSource>>,
@@ -113,20 +115,14 @@ pub struct VirtualizedTree {
     show_grid_lines: bool,
     grid_line_color: Color,
     chevron_color: Color,
-
-    // Layout style
-    layout_style: Style,
-
-    // Bounds
-    bounds: Rect,
-    dirty: bool,
 }
 
 impl VirtualizedTree {
     /// Create a new virtualized tree
     pub fn new() -> Self {
         Self {
-            id: WidgetId::default(),
+            state: WidgetState::new(),
+            layout_style: Style::default(),
             data_source: None,
             expanded_nodes: HashSet::new(),
             visible_rows: Vec::new(),
@@ -157,9 +153,6 @@ impl VirtualizedTree {
             show_grid_lines: true,
             grid_line_color: Color::rgb(0.9, 0.9, 0.9),
             chevron_color: Color::rgb(0.4, 0.4, 0.4),
-            layout_style: Style::default(),
-            bounds: Rect::default(),
-            dirty: true,
         }
     }
 
@@ -168,7 +161,7 @@ impl VirtualizedTree {
         self.data_source = Some(data_source);
         self.visible_rows_dirty = true;
         self.layout_dirty = true;
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         self
     }
 
@@ -176,49 +169,49 @@ impl VirtualizedTree {
     pub fn default_row_height(mut self, height: f64) -> Self {
         self.default_row_height = height;
         self.layout_dirty = true;
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         self
     }
 
     /// Set header height
     pub fn header_height(mut self, height: f64) -> Self {
         self.header_height = height;
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         self
     }
 
     /// Set indentation width per depth level
     pub fn indent_width(mut self, width: f64) -> Self {
         self.indent_width = width;
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         self
     }
 
     /// Set background color
     pub fn background(mut self, color: Color) -> Self {
         self.background = color;
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         self
     }
 
     /// Set header background color
     pub fn header_background(mut self, color: Color) -> Self {
         self.header_background = color;
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         self
     }
 
     /// Enable/disable grid lines
     pub fn show_grid_lines(mut self, show: bool) -> Self {
         self.show_grid_lines = show;
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         self
     }
 
     /// Set grid line color
     pub fn grid_line_color(mut self, color: Color) -> Self {
         self.grid_line_color = color;
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         self
     }
 
@@ -359,7 +352,7 @@ impl VirtualizedTree {
     /// Calculate visible row range using binary search
     fn calculate_visible_row_range(&self) -> std::ops::Range<usize> {
         let viewport_y = self.scroll_y;
-        let viewport_height = self.bounds.height() - self.header_height;
+        let viewport_height = self.state.bounds.height() - self.header_height;
         let viewport_start = viewport_y;
         let viewport_end = viewport_y + viewport_height;
 
@@ -394,7 +387,7 @@ impl VirtualizedTree {
         };
 
         let viewport_x = self.scroll_x;
-        let viewport_width = self.bounds.width();
+        let viewport_width = self.state.bounds.width();
         let viewport_start = viewport_x;
         let viewport_end = viewport_x + viewport_width;
 
@@ -619,7 +612,7 @@ impl VirtualizedTree {
             self.expanded_nodes.insert(node);
         }
         self.visible_rows_dirty = true;
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 
     fn handle_tree_column_click(&mut self, point: Point) -> bool {
@@ -631,40 +624,46 @@ impl VirtualizedTree {
 
 impl Widget for VirtualizedTree {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
-            self.update_visible_cells();
-            self.dirty = true;
-        }
+        self.state.bounds = bounds;
+    }
+
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
     }
 
     fn is_dirty(&self) -> bool {
-        self.dirty || self.visible_rows_dirty || self.layout_dirty
+        self.dirty_level().needs_repaint()
     }
 
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
+
+
 
     fn layout(&self) -> Style {
         self.layout_style.clone()
@@ -684,10 +683,10 @@ impl Widget for VirtualizedTree {
 
     fn paint(&self, ctx: &mut PaintContext) {
         // Background
-        ctx.draw_rect(self.bounds, self.background);
+        ctx.draw_rect(self.state.bounds, self.background);
 
         // Draw header background
-        let header_rect = rect(0.0, 0.0, self.bounds.width(), self.header_height);
+        let header_rect = rect(0.0, 0.0, self.state.bounds.width(), self.header_height);
         ctx.draw_rect(header_rect, self.header_background);
 
         // Draw header widgets
@@ -699,7 +698,7 @@ impl Widget for VirtualizedTree {
         if self.show_grid_lines {
             ctx.draw_line(
                 Point::new(0.0, self.header_height),
-                Point::new(self.bounds.width(), self.header_height),
+                Point::new(self.state.bounds.width(), self.header_height),
                 Stroke::new(self.grid_line_color, 1.0),
             );
         }
@@ -763,7 +762,7 @@ impl Widget for VirtualizedTree {
                 // Horizontal line
                 ctx.draw_line(
                     Point::new(0.0, cell_bounds.origin.y + cell_bounds.height()),
-                    Point::new(self.bounds.width(), cell_bounds.origin.y + cell_bounds.height()),
+                    Point::new(self.state.bounds.width(), cell_bounds.origin.y + cell_bounds.height()),
                     Stroke::new(self.grid_line_color, 1.0),
                 );
 

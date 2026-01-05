@@ -9,8 +9,9 @@ use crate::paint::primitives::Color;
 use crate::paint::types::{CornerRadius, ShapeStyle};
 use crate::paint::PaintContext;
 use crate::text::{ TextLayout, TextStyle, Truncate};
-use crate::types::{DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, GuiMessage, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
+use crate::WidgetState;
 use crate::widgets::Cursor;
 
 use super::style::{InputState, InputStyle};
@@ -34,9 +35,7 @@ struct UndoState {
 /// A single-line text input widget with comprehensive features
 pub struct TextInput {
     // === Essentials ===
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
     layout_style: Style,
 
     // === Content ===
@@ -99,9 +98,7 @@ impl TextInput {
     /// Create a new text input
     pub fn new() -> Self {
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
             layout_style: Style::default(),
 
             text: String::new(),
@@ -138,8 +135,8 @@ impl TextInput {
             is_password: false,
             show_password_toggle: false,
             password_revealed: false,
-            eye_button_bounds: Rect::default(),
             eye_button_hovered: false,
+            eye_button_bounds: Rect::zero(),
 
             text_layout: RefCell::new(None),
             scroll_offset: 0.0,
@@ -312,7 +309,7 @@ impl TextInput {
             callback(&self.text);
         }
 
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 
     /// Delete character before cursor (backspace)
@@ -346,7 +343,7 @@ impl TextInput {
             callback(&self.text);
         }
 
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 
     /// Delete character after cursor (delete key)
@@ -379,7 +376,7 @@ impl TextInput {
             callback(&self.text);
         }
 
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 
     /// Delete selected text
@@ -443,7 +440,7 @@ impl TextInput {
                     self.cursor.move_left();
                 }
             }
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -466,7 +463,7 @@ impl TextInput {
                     self.cursor.move_right(max_pos);
                 }
             }
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -480,7 +477,7 @@ impl TextInput {
             self.selection_start = None;
         }
         self.cursor.move_to_start();
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 
     /// Move cursor to end of text
@@ -494,14 +491,14 @@ impl TextInput {
             self.selection_start = None;
         }
         self.cursor.move_to_end(max_chars);
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 
     /// Select all text
     fn select_all(&mut self) {
         self.selection_start = Some(0);
         self.cursor.move_to_end(self.text.chars().count());
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 
     // ========================================================================
@@ -550,7 +547,7 @@ impl TextInput {
                 callback(&self.text);
             }
 
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -578,7 +575,7 @@ impl TextInput {
                 callback(&self.text);
             }
 
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -606,17 +603,17 @@ impl TextInput {
 
     fn emit_text_changed(&mut self) {
         self.pending_commands.push(DeferredCommand {
-            target: self.id,
-            message: GuiMessage::TextChanged(self.id, self.text.clone()),
+            target: self.state.id,
+            message: GuiMessage::TextChanged(self.state.id, self.text.clone()),
         });
     }
 
     fn emit_copy_requested(&mut self) {
         if let Some(text) = self.get_selected_text() {
             self.pending_commands.push(DeferredCommand {
-                target: self.id,
+                target: self.state.id,
                 message: GuiMessage::Custom {
-                    source: self.id,
+                    source: self.state.id,
                     signal_type: "copy_requested".to_string(),
                     data: Box::new(text),
                 },
@@ -627,9 +624,9 @@ impl TextInput {
     fn emit_cut_requested(&mut self) {
         if let Some(text) = self.get_selected_text() {
             self.pending_commands.push(DeferredCommand {
-                target: self.id,
+                target: self.state.id,
                 message: GuiMessage::Custom {
-                    source: self.id,
+                    source: self.state.id,
                     signal_type: "cut_requested".to_string(),
                     data: Box::new(text),
                 },
@@ -646,15 +643,15 @@ impl TextInput {
                 callback(&self.text);
             }
 
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
     fn emit_paste_requested(&mut self) {
         self.pending_commands.push(DeferredCommand {
-            target: self.id,
+            target: self.state.id,
             message: GuiMessage::Custom {
-                source: self.id,
+                source: self.state.id,
                 signal_type: "paste_requested".to_string(),
                 data: Box::new(()),
             },
@@ -673,7 +670,7 @@ impl TextInput {
 
     /// Get the text area rectangle (excluding padding and icons)
     fn get_text_area_rect(&self) -> Rect {
-        let mut rect = self.bounds;
+        let mut rect = self.state.bounds;
         rect.origin.x += self.padding as f64;
         rect.origin.y += self.padding as f64;
         rect.size.width -= (self.padding * 2.0) as f64;
@@ -809,7 +806,7 @@ impl TextInput {
             if self.eye_button_bounds.contains(event.position) {
                 self.password_revealed = !self.password_revealed;
                 *self.text_layout.borrow_mut() = None;
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 return EventResponse::Handled;
             }
         }
@@ -819,7 +816,7 @@ impl TextInput {
             self.cursor.set_char_pos(char_index);
             self.selection_start = None;
             self.drag_start_pos = Some(event.position);
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
 
             // Double-click selects all
             if event.click_count == 2 {
@@ -842,7 +839,7 @@ impl TextInput {
             self.eye_button_hovered = self.eye_button_bounds.contains(event.position);
 
             if was_hovered != self.eye_button_hovered {
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
             }
         }
 
@@ -854,7 +851,7 @@ impl TextInput {
                     self.selection_start = Some(cursor_pos);
                 }
                 self.cursor.set_char_pos(char_index);
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
             }
         }
 
@@ -865,7 +862,7 @@ impl TextInput {
         if !self.is_disabled {
             self.is_hovered = true;
             self.update_state();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
         EventResponse::Handled
     }
@@ -874,7 +871,7 @@ impl TextInput {
         self.is_hovered = false;
         self.eye_button_hovered = false;
         self.update_state();
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
     }
 
@@ -891,7 +888,7 @@ impl TextInput {
         // Focus is managed by Window's focus manager
 
         println!("[TextInput {:?}] Key down: {:?}, modifiers: cmd={}, ctrl={}, shift={}, alt={}",
-            self.id, event.key, event.modifiers.command, event.modifiers.control,
+            self.state.id, event.key, event.modifiers.command, event.modifiers.control,
             event.modifiers.shift, event.modifiers.alt);
 
         let cmd = if cfg!(target_os = "macos") {
@@ -904,37 +901,37 @@ impl TextInput {
         if cmd {
             match &event.key {
                 Key::Character(c) if *c == 'c' => {
-                    println!("[TextInput {:?}] Cmd+C - Copy requested", self.id);
+                    println!("[TextInput {:?}] Cmd+C - Copy requested", self.state.id);
                     self.emit_copy_requested();
                     return EventResponse::Handled;
                 }
                 Key::Character(c) if *c == 'v' => {
-                    println!("[TextInput {:?}] Cmd+V - Paste requested", self.id);
+                    println!("[TextInput {:?}] Cmd+V - Paste requested", self.state.id);
                     self.emit_paste_requested();
                     return EventResponse::Handled;
                 }
                 Key::Character(c) if *c == 'x' => {
-                    println!("[TextInput {:?}] Cmd+X - Cut requested", self.id);
+                    println!("[TextInput {:?}] Cmd+X - Cut requested", self.state.id);
                     self.emit_cut_requested();
                     return EventResponse::Handled;
                 }
                 Key::Character(c) if *c == 'a' => {
-                    println!("[TextInput {:?}] Cmd+A - Select all", self.id);
+                    println!("[TextInput {:?}] Cmd+A - Select all", self.state.id);
                     self.select_all();
                     return EventResponse::Handled;
                 }
                 Key::Character(c) if *c == 'z' => {
                     if event.modifiers.shift {
-                        println!("[TextInput {:?}] Cmd+Shift+Z - Redo", self.id);
+                        println!("[TextInput {:?}] Cmd+Shift+Z - Redo", self.state.id);
                         self.redo();
                     } else {
-                        println!("[TextInput {:?}] Cmd+Z - Undo", self.id);
+                        println!("[TextInput {:?}] Cmd+Z - Undo", self.state.id);
                         self.undo();
                     }
                     return EventResponse::Handled;
                 }
                 Key::Character(c) if *c == 'y' => {
-                    println!("[TextInput {:?}] Cmd+Y - Redo", self.id);
+                    println!("[TextInput {:?}] Cmd+Y - Redo", self.state.id);
                     self.redo();
                     return EventResponse::Handled;
                 }
@@ -945,53 +942,53 @@ impl TextInput {
         // Handle navigation keys
         match &event.key {
             Key::Named(NamedKey::ArrowLeft) => {
-                println!("[TextInput {:?}] Arrow left, cursor_pos before: {}", self.id, self.cursor.char_pos());
+                println!("[TextInput {:?}] Arrow left, cursor_pos before: {}", self.state.id, self.cursor.char_pos());
                 self.move_cursor_left(event.modifiers.shift);
-                println!("[TextInput {:?}] Arrow left, cursor_pos after: {}", self.id, self.cursor.char_pos());
+                println!("[TextInput {:?}] Arrow left, cursor_pos after: {}", self.state.id, self.cursor.char_pos());
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::ArrowRight) => {
-                println!("[TextInput {:?}] Arrow right, cursor_pos before: {}", self.id, self.cursor.char_pos());
+                println!("[TextInput {:?}] Arrow right, cursor_pos before: {}", self.state.id, self.cursor.char_pos());
                 self.move_cursor_right(event.modifiers.shift);
-                println!("[TextInput {:?}] Arrow right, cursor_pos after: {}", self.id, self.cursor.char_pos());
+                println!("[TextInput {:?}] Arrow right, cursor_pos after: {}", self.state.id, self.cursor.char_pos());
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::Home) => {
-                println!("[TextInput {:?}] Home key", self.id);
+                println!("[TextInput {:?}] Home key", self.state.id);
                 self.move_cursor_home(event.modifiers.shift);
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::End) => {
-                println!("[TextInput {:?}] End key", self.id);
+                println!("[TextInput {:?}] End key", self.state.id);
                 self.move_cursor_end(event.modifiers.shift);
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::Backspace) => {
-                println!("[TextInput {:?}] Backspace, text before: {:?}", self.id, self.text);
+                println!("[TextInput {:?}] Backspace, text before: {:?}", self.state.id, self.text);
                 self.delete_before_cursor();
-                println!("[TextInput {:?}] Backspace, text after: {:?}", self.id, self.text);
+                println!("[TextInput {:?}] Backspace, text after: {:?}", self.state.id, self.text);
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::Delete) => {
-                println!("[TextInput {:?}] Delete key, text before: {:?}", self.id, self.text);
+                println!("[TextInput {:?}] Delete key, text before: {:?}", self.state.id, self.text);
                 self.delete_after_cursor();
-                println!("[TextInput {:?}] Delete key, text after: {:?}", self.id, self.text);
+                println!("[TextInput {:?}] Delete key, text after: {:?}", self.state.id, self.text);
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
             }
             Key::Named(NamedKey::Enter) => {
-                println!("[TextInput {:?}] Enter key - submitting", self.id);
+                println!("[TextInput {:?}] Enter key - submitting", self.state.id);
                 self.emit_submit();
                 return EventResponse::Handled;
             }
             Key::Character(c) => {
                 // Insert text
-                println!("[TextInput {:?}] Character input: {:?}", self.id, c);
+                println!("[TextInput {:?}] Character input: {:?}", self.state.id, c);
                 self.insert_text(&c.to_string());
                 self.ensure_cursor_visible();
                 return EventResponse::Handled;
@@ -1021,7 +1018,7 @@ impl TextInput {
         match &event.event_type {
             ImeEventType::Preedit(text) => {
                 self.preedit_text = text.clone();
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 EventResponse::Handled
             }
             ImeEventType::Commit(text) => {
@@ -1032,7 +1029,7 @@ impl TextInput {
             }
             ImeEventType::Cancel => {
                 self.preedit_text.clear();
-                self.dirty = true;
+                self.state.dirty = DirtyLevel::Visual;
                 EventResponse::Handled
             }
         }
@@ -1045,53 +1042,46 @@ impl TextInput {
 
 impl Widget for TextInput {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
-            *self.text_layout.borrow_mut() = None;
-            self.dirty = true;
-
-            // Debug logging
-            println!(
-                "[TextInput {:?}] Bounds set: x={:.1}, y={:.1}, w={:.1}, h={:.1}",
-                self.id,
-                bounds.origin.x,
-                bounds.origin.y,
-                bounds.size.width,
-                bounds.size.height
-            );
-
-            // Update eye button bounds if password mode is enabled
-            if self.show_password_toggle && self.is_password {
-                let eye_size = 20.0;
-                let eye_x = self.bounds.origin.x + self.bounds.size.width - self.padding as f64 - eye_size;
-                let eye_y = self.bounds.origin.y + (self.bounds.size.height - eye_size) / 2.0;
-                self.eye_button_bounds = Rect::new(
-                    Point::new(eye_x - 2.0, eye_y - 2.0),
-                    Size::new(24.0, 24.0),
-                );
-            }
-        }
+        self.state.bounds = bounds;
     }
 
-    fn is_dirty(&self) -> bool {
-        self.dirty
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
+
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
     }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty_level().needs_repaint()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+
 
     fn layout(&self) -> Style {
         self.layout_style.clone()
@@ -1130,7 +1120,7 @@ impl Widget for TextInput {
 
         println!(
             "[TextInput {:?}] IME cursor rect: x={:.1}, y={:.1}, w={:.1}, h={:.1} (cursor_pos={}, cursor_x={:.1}, text_area: x={:.1}, y={:.1})",
-            self.id,
+            self.state.id,
             rect.origin.x,
             rect.origin.y,
             rect.size.width,
@@ -1154,12 +1144,12 @@ impl Widget for TextInput {
             if PAINT_COUNT % 100 == 0 {
                 println!(
                     "[TextInput {:?}] Paint: state={:?}, bounds=({:.1}, {:.1}, {:.1}x{:.1}), placeholder={:?}",
-                    self.id,
+                    self.state.id,
                     self.current_state,
-                    self.bounds.origin.x,
-                    self.bounds.origin.y,
-                    self.bounds.size.width,
-                    self.bounds.size.height,
+                    self.state.bounds.origin.x,
+                    self.state.bounds.origin.y,
+                    self.state.bounds.size.width,
+                    self.state.bounds.size.height,
                     self.placeholder
                 );
             }
@@ -1168,7 +1158,7 @@ impl Widget for TextInput {
 
         // Draw background
           ctx.draw_styled_rect(
-            self.bounds,
+            self.state.bounds,
             ShapeStyle {
                 fill: crate::paint::types::Brush::Solid(style.background),
                 corner_radius: style.corner_radius,
@@ -1179,16 +1169,16 @@ impl Widget for TextInput {
 
         // Draw left icon if present
         if let Some(ref icon_id) = self.icon {
-            let icon_x = self.bounds.origin.x + self.padding as f64;
-            let icon_y = self.bounds.origin.y + (self.bounds.size.height - self.icon_size as f64) / 2.0;
+            let icon_x = self.state.bounds.origin.x + self.padding as f64;
+            let icon_y = self.state.bounds.origin.y + (self.state.bounds.size.height - self.icon_size as f64) / 2.0;
             ctx.draw_icon(icon_id, Point::new(icon_x, icon_y), self.icon_size, style.icon_color);
         }
 
         // Draw eye button if password mode
         if self.show_password_toggle && self.is_password {
             let eye_size = 20.0;
-            let eye_x = self.bounds.origin.x + self.bounds.size.width - self.padding as f64 - eye_size;
-            let eye_y = self.bounds.origin.y + (self.bounds.size.height - eye_size) / 2.0;
+            let eye_x = self.state.bounds.origin.x + self.state.bounds.size.width - self.padding as f64 - eye_size;
+            let eye_y = self.state.bounds.origin.y + (self.state.bounds.size.height - eye_size) / 2.0;
 
             // Calculate eye button bounds for rendering (stored for hit testing elsewhere)
 
@@ -1256,7 +1246,7 @@ impl Widget for TextInput {
 
                 println!(
                     "[TextInput {:?}] Drawing selection: start={}, end={}, start_x={:.1}, end_x={:.1}, width={:.1}, color=({:.2},{:.2},{:.2},{:.2})",
-                    self.id, start, end, start_x, end_x, end_x - start_x,
+                    self.state.id, start, end, start_x, end_x, end_x - start_x,
                     selection_color.r, selection_color.g, selection_color.b, selection_color.a
                 );
 
@@ -1282,7 +1272,7 @@ impl Widget for TextInput {
 
                 println!(
                     "[TextInput {:?}] Selection rect: x={:.1}, y={:.1}, w={:.1}, h={:.1}",
-                    self.id, selection_rect.origin.x, selection_rect.origin.y,
+                    self.state.id, selection_rect.origin.x, selection_rect.origin.y,
                     selection_rect.size.width, selection_rect.size.height
                 );
 
@@ -1368,7 +1358,7 @@ impl Widget for TextInput {
         // Draw validation error if present
         if let Some(ref error_msg) = self.validation_error {
             let error_padding = 8.0;
-            let error_y = self.bounds.origin.y - 30.0; // Above input
+            let error_y = self.state.bounds.origin.y - 30.0; // Above input
 
             let error_style = TextStyle::new()
                 .size(12.0)
@@ -1381,7 +1371,7 @@ impl Widget for TextInput {
             });
 
             let error_rect = Rect::new(
-                Point::new(self.bounds.origin.x, error_y),
+                Point::new(self.state.bounds.origin.x, error_y),
                 Size::new(error_width as f64, 24.0),
             );
 
@@ -1410,7 +1400,7 @@ impl Widget for TextInput {
         }
 
         // Register hitbox
-        ctx.register_hitbox(self.id, self.bounds);
+        ctx.register_hitbox(self.state.id, self.state.bounds);
     }
 
     fn on_message(&mut self, _message: &GuiMessage) -> Vec<DeferredCommand> {
@@ -1454,22 +1444,14 @@ impl Widget for TextInput {
         std::mem::take(&mut self.pending_commands)
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
     fn on_focus_gained(&mut self) {
-        println!("[TextInput {:?}] Focus gained", self.id);
+        println!("[TextInput {:?}] Focus gained", self.state.id);
         self.is_focused = true;
         self.update_state();
     }
 
     fn on_focus_lost(&mut self) {
-        println!("[TextInput {:?}] Focus lost", self.id);
+        println!("[TextInput {:?}] Focus lost", self.state.id);
         self.is_focused = false;
         self.selection_start = None;  // Clear selection when losing focus
         self.update_state();

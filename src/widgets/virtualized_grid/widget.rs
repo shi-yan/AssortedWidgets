@@ -7,8 +7,9 @@ use crate::event::{EventResponse, InputEventEnum, MouseEvent, WheelEvent};
 use crate::event::handlers::MouseHandler;
 use crate::layout::Style;
 use crate::paint::{Color, PaintContext};
-use crate::types::{DeferredCommand, FrameInfo, GuiMessage, Point, Rect, Size, WidgetId};
+use crate::types::{DirtyLevel, DeferredCommand, FrameInfo, GuiMessage, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
+use crate::WidgetState;
 use crate::widgets::ScrollBar;
 
 use super::data_source::GridDataSource;
@@ -37,9 +38,7 @@ use super::data_source::GridDataSource;
 /// ```
 pub struct VirtualizedGrid {
     // Standard widget fields
-    id: WidgetId,
-    bounds: Rect,
-    dirty: bool,
+    state: WidgetState,
     layout_style: Style,
 
     // Scrolling state
@@ -108,9 +107,7 @@ impl VirtualizedGrid {
     /// Create a new virtualized grid
     pub fn new() -> Self {
         Self {
-            id: WidgetId::new(0),
-            bounds: Rect::default(),
-            dirty: true,
+            state: WidgetState::new(),
             layout_style: Style {
                 flex_grow: 1.0,
                 flex_shrink: 1.0,
@@ -219,7 +216,7 @@ impl VirtualizedGrid {
             self.scroll_offset_y = y_offset.clamp(0.0, self.max_scroll_y());
             self.update_visible_cells();
             self.update_scrollbars();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
         }
     }
 
@@ -247,7 +244,7 @@ impl VirtualizedGrid {
             self.recycled_cells.push(row_header.widget);
         }
 
-        self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 
     /// Calculate column widths and offsets (prefix sum)
@@ -525,8 +522,8 @@ impl VirtualizedGrid {
                 let width = self.width_of_column(col_idx).unwrap_or(100.0);
                 let height = self.height_of_row(cell.row).unwrap_or(self.default_row_height);
 
-                let x = self.bounds.origin.x + row_header_width + (x_offset - self.scroll_offset_x - row_header_width);
-                let y = self.bounds.origin.y + self.header_height + (y_offset - self.scroll_offset_y);
+                let x = self.state.bounds.origin.x + row_header_width + (x_offset - self.scroll_offset_x - row_header_width);
+                let y = self.state.bounds.origin.y + self.header_height + (y_offset - self.scroll_offset_y);
 
                 Some((cell.row, cell.col, Rect::new(Point::new(x, y), Size::new(width, height))))
             })
@@ -539,8 +536,8 @@ impl VirtualizedGrid {
                 let x_offset = self.offset_of_column(col_idx)?;
                 let width = self.width_of_column(col_idx).unwrap_or(100.0);
 
-                let x = self.bounds.origin.x + row_header_width + (x_offset - self.scroll_offset_x - row_header_width);
-                let y = self.bounds.origin.y;
+                let x = self.state.bounds.origin.x + row_header_width + (x_offset - self.scroll_offset_x - row_header_width);
+                let y = self.state.bounds.origin.y;
 
                 Some((header.col, Rect::new(Point::new(x, y), Size::new(width, self.header_height))))
             })
@@ -552,8 +549,8 @@ impl VirtualizedGrid {
                 let y_offset = self.offset_of_row(row_header.row)?;
                 let height = self.height_of_row(row_header.row).unwrap_or(self.default_row_height);
 
-                let x = self.bounds.origin.x;
-                let y = self.bounds.origin.y + self.header_height + (y_offset - self.scroll_offset_y);
+                let x = self.state.bounds.origin.x;
+                let y = self.state.bounds.origin.y + self.header_height + (y_offset - self.scroll_offset_y);
 
                 Some((row_header.row, Rect::new(Point::new(x, y), Size::new(row_header_width, height))))
             })
@@ -644,12 +641,12 @@ impl VirtualizedGrid {
         if let Some(ref mut vscroll) = self.vscrollbar {
             vscroll.set_bounds(Rect::new(
                 Point::new(
-                    self.bounds.origin.x + self.bounds.size.width - self.scrollbar_width as f64,
-                    self.bounds.origin.y,
+                    self.state.bounds.origin.x + self.state.bounds.size.width - self.scrollbar_width as f64,
+                    self.state.bounds.origin.y,
                 ),
                 Size::new(
                     self.scrollbar_width as f64,
-                    self.bounds.size.height - hscroll_h,
+                    self.state.bounds.size.height - hscroll_h,
                 ),
             ));
         }
@@ -664,11 +661,11 @@ impl VirtualizedGrid {
         if let Some(ref mut hscroll) = self.hscrollbar {
             hscroll.set_bounds(Rect::new(
                 Point::new(
-                    self.bounds.origin.x,
-                    self.bounds.origin.y + self.bounds.size.height - self.scrollbar_width as f64,
+                    self.state.bounds.origin.x,
+                    self.state.bounds.origin.y + self.state.bounds.size.height - self.scrollbar_width as f64,
                 ),
                 Size::new(
-                    self.bounds.size.width - vscroll_w,
+                    self.state.bounds.size.width - vscroll_w,
                     self.scrollbar_width as f64,
                 ),
             ));
@@ -699,58 +696,46 @@ impl Widget for DummyWidget {
 
 impl Widget for VirtualizedGrid {
     fn id(&self) -> WidgetId {
-        self.id
+        self.state.id
     }
 
     fn set_id(&mut self, id: WidgetId) {
-        self.id = id;
+        self.state.id = id;
     }
 
     fn bounds(&self) -> Rect {
-        self.bounds
+        self.state.bounds
     }
 
     fn set_bounds(&mut self, bounds: Rect) {
-        if self.bounds != bounds {
-            self.bounds = bounds;
-            self.viewport_width = bounds.size.width - if self.vscrollbar.is_some() {
-                self.scrollbar_width as f64
-            } else {
-                0.0
-            };
-            self.viewport_height = bounds.size.height - if self.hscrollbar.is_some() {
-                self.scrollbar_width as f64
-            } else {
-                0.0
-            };
+        self.state.bounds = bounds;
+    }
 
-            // Calculate layout if needed
-            if self.column_offsets.is_empty() && self.data_source.is_some() {
-                self.calculate_column_layout();
-                self.calculate_row_layout();
-            }
+    fn dirty_level(&self) -> crate::types::DirtyLevel {
+        self.state.dirty
+    }
 
-            self.update_scrollbars();
-            self.update_visible_cells();
-            self.dirty = true;
-        }
+    fn set_dirty_level(&mut self, level: crate::types::DirtyLevel) {
+        self.state.dirty = level;
     }
 
     fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
+        self.set_dirty_level(crate::types::DirtyLevel::from(dirty));
     }
 
     fn is_dirty(&self) -> bool {
-        self.dirty
+        self.dirty_level().needs_repaint()
     }
 
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
+
+
 
     fn layout(&self) -> Style {
         self.layout_style.clone()
@@ -784,7 +769,7 @@ impl Widget for VirtualizedGrid {
     fn paint(&self, ctx: &mut PaintContext) {
         // Draw background
         if let Some(bg_color) = self.bg_color {
-            ctx.draw_rect(self.bounds, bg_color);
+            ctx.draw_rect(self.state.bounds, bg_color);
         }
 
         let Some(ref data_source) = self.data_source else {
@@ -812,12 +797,12 @@ impl Widget for VirtualizedGrid {
         // Clip to content area (excluding header and scrollbars)
         let content_rect = Rect::new(
             Point::new(
-                self.bounds.origin.x + row_header_width,
-                self.bounds.origin.y + self.header_height,
+                self.state.bounds.origin.x + row_header_width,
+                self.state.bounds.origin.y + self.header_height,
             ),
             Size::new(
-                self.bounds.size.width - row_header_width - vscroll_w,
-                self.bounds.size.height - self.header_height - hscroll_h,
+                self.state.bounds.size.width - row_header_width - vscroll_w,
+                self.state.bounds.size.height - self.header_height - hscroll_h,
             ),
         );
 
@@ -849,8 +834,8 @@ impl Widget for VirtualizedGrid {
 
         // Draw header background
         let header_rect = Rect::new(
-            Point::new(self.bounds.origin.x + row_header_width, self.bounds.origin.y),
-            Size::new(self.bounds.size.width - row_header_width - vscroll_w, self.header_height),
+            Point::new(self.state.bounds.origin.x + row_header_width, self.state.bounds.origin.y),
+            Size::new(self.state.bounds.size.width - row_header_width - vscroll_w, self.header_height),
         );
         ctx.draw_rect(header_rect, self.header_bg_color);
 
@@ -877,8 +862,8 @@ impl Widget for VirtualizedGrid {
         // Draw row headers if enabled
         if data_source.has_row_headers() {
             let row_header_rect = Rect::new(
-                Point::new(self.bounds.origin.x, self.bounds.origin.y + self.header_height),
-                Size::new(row_header_width, self.bounds.size.height - self.header_height - hscroll_h),
+                Point::new(self.state.bounds.origin.x, self.state.bounds.origin.y + self.header_height),
+                Size::new(row_header_width, self.state.bounds.size.height - self.header_height - hscroll_h),
             );
             ctx.draw_rect(row_header_rect, self.header_bg_color);
 
@@ -907,7 +892,7 @@ impl Widget for VirtualizedGrid {
 
             // Draw corner cell (top-left, above row headers)
             let corner_rect = Rect::new(
-                self.bounds.origin,
+                self.state.bounds.origin,
                 Size::new(row_header_width, self.header_height),
             );
             ctx.draw_rect(corner_rect, self.header_bg_color);
@@ -922,7 +907,7 @@ impl Widget for VirtualizedGrid {
         }
 
         // Register hitbox
-        ctx.register_hitbox(self.id, self.bounds);
+        ctx.register_hitbox(self.state.id, self.state.bounds);
     }
 
     fn is_interactive(&self) -> bool {
@@ -977,7 +962,7 @@ impl Widget for VirtualizedGrid {
 
         if handled {
             self.update_visible_cells();
-            self.dirty = true;
+            self.state.dirty = DirtyLevel::Visual;
             EventResponse::Handled
         } else {
             EventResponse::Ignored
@@ -999,7 +984,7 @@ impl Widget for VirtualizedGrid {
                         if let Some(value) = data.downcast_ref::<i32>() {
                             self.scroll_offset_y = (*value).max(0) as f64;
                             self.update_visible_cells();
-                            self.dirty = true;
+                            self.state.dirty = DirtyLevel::Visual;
                         }
                     }
                 }
@@ -1010,7 +995,7 @@ impl Widget for VirtualizedGrid {
                         if let Some(value) = data.downcast_ref::<i32>() {
                             self.scroll_offset_x = (*value).max(0) as f64;
                             self.update_visible_cells();
-                            self.dirty = true;
+                            self.state.dirty = DirtyLevel::Visual;
                         }
                     }
                 }
@@ -1041,7 +1026,7 @@ impl MouseHandler for VirtualizedGrid {
                 if new_value != old_value {
                     self.scroll_offset_y = new_value.max(0) as f64;
                     self.update_visible_cells();
-                    self.dirty = true;
+                    self.state.dirty = DirtyLevel::Visual;
                 }
 
                 return response;
@@ -1059,7 +1044,7 @@ impl MouseHandler for VirtualizedGrid {
                 if new_value != old_value {
                     self.scroll_offset_x = new_value.max(0) as f64;
                     self.update_visible_cells();
-                    self.dirty = true;
+                    self.state.dirty = DirtyLevel::Visual;
                 }
 
                 return response;
@@ -1092,7 +1077,7 @@ impl MouseHandler for VirtualizedGrid {
                 if new_value != old_value {
                     self.scroll_offset_y = new_value.max(0) as f64;
                     self.update_visible_cells();
-                    self.dirty = true;
+                    self.state.dirty = DirtyLevel::Visual;
                 }
 
                 return response;
@@ -1110,7 +1095,7 @@ impl MouseHandler for VirtualizedGrid {
                 if new_value != old_value {
                     self.scroll_offset_x = new_value.max(0) as f64;
                     self.update_visible_cells();
-                    self.dirty = true;
+                    self.state.dirty = DirtyLevel::Visual;
                 }
 
                 return response;
