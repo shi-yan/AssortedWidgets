@@ -29,6 +29,7 @@ use alacritty_terminal::vte::ansi::Color as AnsiColor;
 ///
 /// Manages minimap pages for the terminal.
 /// Unlike code editor, pages may not align with newline boundaries.
+/// Phase 3: Supports incremental updates with dirty line tracking.
 pub struct TerminalMinimapManager {
     /// Page storage (keyed by page number)
     pages: BTreeMap<usize, TerminalMinimapPage>,
@@ -44,6 +45,13 @@ pub struct TerminalMinimapManager {
 
     /// Currently visible page (for prioritization)
     visible_page: Option<usize>,
+
+    /// Dirty line tracking (Phase 3)
+    /// Tracks which lines have changed and need rasterization
+    dirty_lines: RangeSet,
+
+    /// Last update total lines count (for detecting scrollback changes)
+    last_total_lines: usize,
 }
 
 impl TerminalMinimapManager {
@@ -59,6 +67,8 @@ impl TerminalMinimapManager {
             width_pixels,
             grid_generation: 0,
             visible_page: None,
+            dirty_lines: RangeSet::new(),
+            last_total_lines: 0,
         }
     }
 
@@ -85,6 +95,49 @@ impl TerminalMinimapManager {
             page.status = PageStatus::Stale;
             page.grid_generation = self.grid_generation;
         }
+
+        // Mark all lines as dirty (Phase 3)
+        if self.last_total_lines > 0 {
+            self.dirty_lines.add_range(0..self.last_total_lines);
+        }
+    }
+
+    /// Mark a single line as dirty
+    ///
+    /// # Arguments
+    /// * `line` - Line number to mark dirty
+    pub fn mark_dirty_line(&mut self, line: usize) {
+        self.dirty_lines.add_line(line);
+    }
+
+    /// Mark a range of lines as dirty
+    ///
+    /// # Arguments
+    /// * `start_line` - First line to mark dirty
+    /// * `end_line` - One past the last line to mark dirty
+    pub fn mark_dirty_range(&mut self, start_line: usize, end_line: usize) {
+        self.dirty_lines.add_range(start_line..end_line);
+    }
+
+    /// Get pages that overlap with dirty lines
+    fn get_dirty_pages(&self) -> Vec<usize> {
+        if self.dirty_lines.is_empty() {
+            return Vec::new();
+        }
+
+        let mut dirty_pages = Vec::new();
+        for range in self.dirty_lines.ranges() {
+            let start_page = range.start / MINIMAP_PAGE_SIZE;
+            let end_page = (range.end.saturating_sub(1)) / MINIMAP_PAGE_SIZE;
+
+            for page_num in start_page..=end_page {
+                if self.pages.contains_key(&page_num) && !dirty_pages.contains(&page_num) {
+                    dirty_pages.push(page_num);
+                }
+            }
+        }
+
+        dirty_pages
     }
 
     /// Clear all pages
@@ -100,6 +153,7 @@ impl TerminalMinimapManager {
     /// Update minimap for the current terminal state
     ///
     /// Creates pages as needed and rasterizes dirty pages.
+    /// Phase 3: Uses dirty line tracking for efficient incremental updates.
     ///
     /// # Arguments
     /// * `term` - Terminal state
@@ -112,6 +166,18 @@ impl TerminalMinimapManager {
         let total_lines = term.grid().history_size() + term.grid().screen_lines();
         let num_pages = (total_lines + MINIMAP_PAGE_SIZE - 1) / MINIMAP_PAGE_SIZE;
 
+        // Detect scrollback changes (new content appeared)
+        if total_lines != self.last_total_lines {
+            if total_lines > self.last_total_lines {
+                // New lines added, mark them as dirty
+                self.dirty_lines.add_range(self.last_total_lines..total_lines);
+            } else {
+                // Lines removed (rare, but possible) - invalidate all
+                self.invalidate_all();
+            }
+            self.last_total_lines = total_lines;
+        }
+
         // Ensure all needed pages exist
         for page_num in 0..num_pages {
             if !self.pages.contains_key(&page_num) {
@@ -123,21 +189,66 @@ impl TerminalMinimapManager {
                     self.width_pixels,
                     self.grid_generation,
                 );
+                // New pages are automatically dirty (they need initial rasterization)
+                self.dirty_lines.add_range(start_line..start_line + line_count);
                 self.pages.insert(page_num, page);
             }
         }
 
-        // Rasterize dirty pages (synchronous for Phase 2)
+        // Phase 3: Rasterize only dirty pages with visible-first strategy
         self.rasterize_dirty_pages(term);
     }
 
-    /// Rasterize all dirty pages
+    /// Rasterize dirty pages (Phase 3: visible-first, incremental)
+    ///
+    /// Strategy:
+    /// 1. Rasterize visible page first (if dirty)
+    /// 2. Rasterize other dirty pages
+    /// 3. Only process pages that have dirty lines or are marked stale
     fn rasterize_dirty_pages<L: EventListener>(&mut self, term: &Term<L>) {
-        let char_sheet = &self.char_sheet;
-        for (page_num, page) in self.pages.iter_mut() {
-            if page.status == PageStatus::Dirty || page.status == PageStatus::Stale {
-                Self::rasterize_page(*page_num, page, term, char_sheet);
+        // Get pages that need rasterization
+        let dirty_pages = self.get_dirty_pages();
+        let stale_pages: Vec<usize> = self.pages.iter()
+            .filter(|(_, p)| p.status == PageStatus::Stale)
+            .map(|(num, _)| *num)
+            .collect();
+
+        // Combine dirty and stale pages
+        let mut pages_to_update: Vec<usize> = dirty_pages.clone();
+        for page_num in stale_pages {
+            if !pages_to_update.contains(&page_num) {
+                pages_to_update.push(page_num);
             }
+        }
+
+        // Phase 3: Visible-first strategy
+        // Sort so visible page is first
+        if let Some(visible_page) = self.visible_page {
+            pages_to_update.sort_by_key(|&page_num| {
+                if page_num == visible_page {
+                    0  // Visible page first
+                } else {
+                    // Other pages by distance from visible
+                    page_num.abs_diff(visible_page) + 1
+                }
+            });
+        }
+
+        // Rasterize pages
+        let char_sheet = self.char_sheet.clone();
+        for page_num in pages_to_update {
+            if let Some(page) = self.pages.get_mut(&page_num) {
+                Self::rasterize_page(page_num, page, term, &char_sheet);
+                page.status = PageStatus::Clean;
+            }
+        }
+
+        // Clear dirty lines that have been rasterized
+        for &page_num in &dirty_pages {
+            let start_line = page_num * MINIMAP_PAGE_SIZE;
+            let page = self.pages.get(&page_num).unwrap();
+            let end_line = start_line + page.line_count;
+            self.dirty_lines.remove_range(&(start_line..end_line));
         }
     }
 
