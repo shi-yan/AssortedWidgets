@@ -2,8 +2,10 @@
 //
 // A terminal emulator widget with minimap support.
 // Phase 1: Basic terminal rendering and interaction.
+// Phase 2: Minimap infrastructure.
 
 mod config;
+mod minimap;
 
 use crate::types::{Rect, Point};
 use crate::widget::{Widget, EventResult};
