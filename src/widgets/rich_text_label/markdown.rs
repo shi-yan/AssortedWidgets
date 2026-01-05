@@ -1,7 +1,7 @@
 //! Markdown parser with filtering for limited rich text support
 
 use super::types::{RichText, Span, SpanAttrs, LinkSpan, BulletItem};
-use pulldown_cmark::{Event, Parser, Tag, Options};
+use pulldown_cmark::{Event, Parser, Tag, TagEnd, Options};
 use crate::paint::Color;
 
 /// Parse filtered markdown into a RichText document
@@ -50,7 +50,7 @@ pub fn parse_markdown(input: &str) -> RichText {
                     attr_stack.push((current_attrs.clone(), text.chars().count()));
                     current_attrs.strikethrough = true;
                 }
-                Tag::Link(_, dest_url, _) => {
+                Tag::Link { dest_url, .. } => {
                     attr_stack.push((current_attrs.clone(), text.chars().count()));
                     // Set link color (blue)
                     current_attrs.color = Some(Color::rgb(0.4, 0.6, 1.0));
@@ -95,13 +95,13 @@ pub fn parse_markdown(input: &str) -> RichText {
             },
 
             Event::End(tag) => match tag {
-                Tag::Strong | Tag::Emphasis | Tag::Strikethrough => {
+                TagEnd::Strong | TagEnd::Emphasis | TagEnd::Strikethrough => {
                     // Restore previous attributes (span was already created when text was encountered)
                     if let Some((prev_attrs, _start_char)) = attr_stack.pop() {
                         current_attrs = prev_attrs;
                     }
                 }
-                Tag::Link(_, _, _) => {
+                TagEnd::Link => {
                     if let Some((start_char, url)) = link_stack.pop() {
                         let end_char = text.chars().count();
                         let link_text: String = text.chars().skip(start_char).take(end_char - start_char).collect();
@@ -118,28 +118,28 @@ pub fn parse_markdown(input: &str) -> RichText {
                         }
                     }
                 }
-                Tag::Paragraph => {
+                TagEnd::Paragraph => {
                     // End of paragraph - add double newline for spacing
                     if !text.ends_with('\n') {
                         text.push('\n');
                     }
                     text.push('\n');
                 }
-                Tag::Heading { .. } => {
+                TagEnd::Heading(_) => {
                     // End of heading - add double newline for spacing
                     if !text.ends_with('\n') {
                         text.push('\n');
                     }
                     text.push('\n');
                 }
-                Tag::List(_) => {
+                TagEnd::List(_) => {
                     list_depth = list_depth.saturating_sub(1);
                     // Add newline after list ends
                     if !text.ends_with('\n') {
                         text.push('\n');
                     }
                 }
-                Tag::Item => {
+                TagEnd::Item => {
                     // Add newline after item
                     if !text.ends_with('\n') {
                         println!("End of bullet item : {:?}", text);
