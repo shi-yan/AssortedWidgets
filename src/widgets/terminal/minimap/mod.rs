@@ -21,6 +21,7 @@ use std::time::{Duration, Instant};
 
 use super::config::MINIMAP_PAGE_SIZE;
 use crate::widgets::code_editor::CharSheet;
+use raster_job::{CellSnapshot, GridLine};
 
 use alacritty_terminal::term::Term;
 use alacritty_terminal::event::EventListener;
@@ -403,6 +404,91 @@ impl TerminalMinimapManager {
         }
 
         page.mark_clean();
+    }
+
+    /// Extract grid data for background rasterization (Phase 5)
+    ///
+    /// Extracts cell data from the terminal grid into owned snapshots
+    /// that can be sent to background threads.
+    ///
+    /// # Arguments
+    /// * `term` - Terminal state
+    /// * `page_num` - Page number to extract
+    ///
+    /// # Returns
+    /// Grid snapshot (Vec<GridLine>) containing all cell data for the page
+    fn extract_grid_snapshot<L: EventListener>(
+        term: &Term<L>,
+        page_num: usize,
+        line_count: usize,
+    ) -> Vec<GridLine> {
+        let mut grid_snapshot = Vec::with_capacity(line_count);
+
+        let grid = term.grid();
+        let start_line = page_num * MINIMAP_PAGE_SIZE;
+        let end_line = (start_line + line_count).min(grid.history_size() + grid.screen_lines());
+
+        for line_idx in start_line..end_line {
+            // Calculate grid line index
+            let grid_line_offset = line_idx as i32 - grid.history_size() as i32;
+            let line = Line(grid_line_offset);
+
+            let mut cells = Vec::with_capacity(grid.columns());
+
+            // Extract all cells for this line
+            for col_idx in 0..grid.columns() {
+                let column = Column(col_idx);
+
+                let cell_snapshot = match grid.get(line, column) {
+                    Some(cell) => {
+                        let c = cell.c;
+                        let fg = ansi_color_to_rgb(&cell.fg);
+                        let bg = ansi_color_to_rgb(&cell.bg);
+                        let width = if c.width().map(|w| w.get()).unwrap_or(1) > 1 { 2 } else { 1 };
+
+                        CellSnapshot::new(c, fg, bg, width)
+                    }
+                    None => CellSnapshot::empty(),
+                };
+
+                cells.push(cell_snapshot);
+            }
+
+            grid_snapshot.push(GridLine::new(cells));
+        }
+
+        grid_snapshot
+    }
+
+    /// Create a raster job for background processing (Phase 5)
+    ///
+    /// # Arguments
+    /// * `term` - Terminal state
+    /// * `page_num` - Page number to create job for
+    /// * `high_priority` - Whether this is a high priority job (visible page)
+    ///
+    /// # Returns
+    /// RasterJob ready to be sent to background thread
+    pub fn create_raster_job<L: EventListener>(
+        &self,
+        term: &Term<L>,
+        page_num: usize,
+        high_priority: bool,
+    ) -> Option<RasterJob> {
+        let page = self.pages.get(&page_num)?;
+
+        let grid_snapshot = Self::extract_grid_snapshot(term, page_num, page.line_count);
+
+        Some(RasterJob {
+            page_num,
+            grid_generation: self.grid_generation,
+            start_line: page.start_line,
+            grid_snapshot,
+            width_pixels: page.width_pixels,
+            height_pixels: page.height_pixels,
+            char_sheet: self.char_sheet.clone(),
+            high_priority,
+        })
     }
 }
 
