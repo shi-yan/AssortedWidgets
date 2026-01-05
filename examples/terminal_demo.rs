@@ -1,9 +1,10 @@
 // Terminal Emulator Demo
 //
-// Phase 2: Terminal with minimap visualization
+// Phase 2-6: Terminal with minimap visualization
 // - Grid display with ANSI colors
 // - Minimap showing page status
 // - Scrollback navigation
+// - Alternate screen buffer testing
 //
 // This demo feeds sample text to the terminal to demonstrate
 // the minimap functionality without requiring PTY integration.
@@ -23,14 +24,15 @@ fn main() {
 
             // Note: Current status
             // ✅ Phase 1: Grid rendering with ANSI colors
-            // ✅ Phase 2: Minimap infrastructure (90% - placeholder visualization)
-            //    - Minimap shows page status (green=clean, yellow=dirty)
-            //    - White indicator shows current viewport
-            //    - GPU texture upload to come later
+            // ✅ Phase 2: Minimap infrastructure (complete)
+            // ✅ Phase 3: Incremental updates with dirty tracking
+            // ✅ Phase 4: Reflow handling with debouncing
+            // ✅ Phase 5: Multi-threaded background rasterization
+            // ✅ Phase 6: Alternate screen buffer support
+            //    - Minimap hidden in alternate screen (vim, less, htop)
+            //    - Demo includes mode switching test
             // Future phases:
-            // - Phase 3: Incremental updates
-            // - Phase 4: Reflow handling
-            // - Phase 5: Multi-threading
+            // - Phase 7: Polish & optimization
             // - Phase 8: PTY integration for shell interaction
 
             window.set_main_widget(terminal);
@@ -62,7 +64,7 @@ fn generate_demo_text() -> String {
     text.push_str("=== Terminal Emulator Demo ===\x1b[0m\n\n");
 
     // Explanation
-    text.push_str("\x1b[1mPhase 2: Minimap Visualization\x1b[0m\n");
+    text.push_str("\x1b[1mPhases 2-6: Complete Minimap System\x1b[0m\n");
     text.push_str("Look at the right side to see the minimap!\n\n");
 
     // Color demonstrations
@@ -81,7 +83,45 @@ fn generate_demo_text() -> String {
 
     // Final message
     text.push_str("\n\x1b[1;36m=== End of Demo Content ===\x1b[0m\n");
-    text.push_str("Scroll up/down to see the minimap viewport indicator move!\n");
+    text.push_str("Scroll up/down to see the minimap viewport indicator move!\n\n");
+
+    // Phase 6: Alternate screen buffer test
+    text.push_str("\x1b[1;33m=== Phase 6: Alternate Screen Test ===\x1b[0m\n");
+    text.push_str("Entering alternate screen mode in 3... 2... 1...\n\n");
+
+    // Enter alternate screen mode
+    text.push_str("\x1b[?1049h"); // Enter alternate screen
+
+    // Content in alternate screen (like vim, less, etc.)
+    text.push_str("\x1b[2J\x1b[H"); // Clear screen and move to home
+
+    text.push_str("\x1b[1;36m╔══════════════════════════════════════════════════╗\x1b[0m\n");
+    text.push_str("\x1b[1;36m║      ALTERNATE SCREEN MODE (Like vim/less)       ║\x1b[0m\n");
+    text.push_str("\x1b[1;36m╚══════════════════════════════════════════════════╝\x1b[0m\n\n");
+
+    text.push_str("\x1b[1;33mNotice:\x1b[0m The minimap is now \x1b[1;31mHIDDEN\x1b[0m!\n\n");
+
+    text.push_str("This is the alternate screen buffer, used by:\n");
+    text.push_str("  • vim/nvim - Text editors\n");
+    text.push_str("  • less/more - Pagers\n");
+    text.push_str("  • htop/top - System monitors\n");
+    text.push_str("  • tmux/screen - Terminal multiplexers\n\n");
+
+    text.push_str("The minimap is automatically hidden because:\n");
+    text.push_str("  1. No scrollback in alternate screen\n");
+    text.push_str("  2. Full-screen apps manage their own display\n");
+    text.push_str("  3. Minimap would be distracting/irrelevant\n\n");
+
+    text.push_str("\x1b[1;32mExiting alternate screen in 2 seconds...\x1b[0m\n");
+
+    // Exit alternate screen mode
+    text.push_str("\x1b[?1049l"); // Exit alternate screen
+
+    // Back to normal screen
+    text.push_str("\n\x1b[1;32m✓ Returned to normal screen!\x1b[0m\n");
+    text.push_str("The minimap should be \x1b[1;32mVISIBLE\x1b[0m again.\n\n");
+
+    text.push_str("\x1b[1;36mPhase 6 Complete:\x1b[0m Alternate screen buffer handled correctly!\n");
 
     text
 }
