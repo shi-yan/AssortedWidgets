@@ -2,13 +2,16 @@
 //
 // Provides visual overview of terminal content for navigation.
 // Phase 2: Synchronous rasterization.
+// Phase 3: Incremental updates with dirty tracking.
 // Phase 5: Multi-threaded background rasterization.
 
 mod color;
 mod page;
+mod range_set;
 
 pub use color::{encode_rgb565, decode_rgb565};
 pub use page::{TerminalMinimapPage, PageStatus};
+pub use range_set::RangeSet;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
