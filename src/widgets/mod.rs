@@ -26,6 +26,7 @@ pub mod virtualized_list;
 pub mod virtualized_grid;
 pub mod virtualized_tree;
 pub mod code_editor;
+pub mod terminal;
 
 pub use cursor::Cursor;
 pub use label::{Label, WrapMode, Padding};
@@ -46,3 +47,4 @@ pub use virtualized_list::{VirtualizedList, ListDataSource, ListLayoutMode};
 pub use virtualized_grid::{VirtualizedGrid, GridDataSource};
 pub use virtualized_tree::{VirtualizedTree, TreeDataSource, TreeNodeId};
 pub use code_editor::{CodeEditor, EditorConfig, EditorModel, WrapMode as EditorWrapMode};
+pub use terminal::{TerminalEmulator, TerminalConfig};

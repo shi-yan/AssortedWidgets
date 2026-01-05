@@ -23,6 +23,10 @@ path = "examples/icons_and_images.rs"
 name = "code_editor_demo"
 path = "examples/code_editor_demo.rs"
 
+[[example]]
+name = "terminal_demo"
+path = "examples/terminal_demo.rs"
+
 [dependencies]
 euclid = { version = "0.22", features = ["serde"] }
 wgpu = "28.0"
@@ -41,6 +45,8 @@ lru = "0.16"
 pulldown-cmark = "0.13"
 ropey = "1.6"
 regex = "1.11"
+alacritty_terminal = "0.25"
+crossbeam-channel = "0.5"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
