@@ -14,12 +14,14 @@ fn main() {
     Application::launch(|app| {
         app.spawn_window("Code Editor Demo", 1200.0, 800.0, |window| {
             // Create code editor with sample Rust code
-            let sample_code = r#"// Sample Rust Code
+            let sample_code = r#"// Sample Rust Code with 🦀 Emoji and 中文 Chinese
 fn main() {
-    println!("Hello, world!");
+    println!("Hello, world! 你好世界!");
+    println!("Test emoji: 👋 🌍 🚀 ✨");
 
     let numbers = vec![1, 2, 3, 4, 5];
 
+    // Mixed content: ASCII + 中文 + Emoji 🎉
     for num in numbers {
         if num % 2 == 0 {
             println!("{} is even", num);
@@ -65,6 +67,11 @@ fn test_strings() {
     let number = 42;
     let hex = 0xFF;
     let float = 3.14;
+
+    // Unicode test: 日本語 (Japanese), 한글 (Korean), 中文 (Chinese)
+    let greeting = "こんにちは世界";  // Hello World in Japanese
+    let emoji_mix = "Test 🎨 Art 🎭 Drama 🎪 Circus";
+    let cjk_mix = "ABC中文DEF日本語GHI한글JKL";
 }
 
 // Test very long line for text wrapping - this line intentionally exceeds the typical editor width to verify that text wrapping works correctly when lines are extremely long and contain lots of text that should wrap to multiple visual lines in the editor

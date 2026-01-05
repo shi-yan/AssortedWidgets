@@ -639,6 +639,185 @@ impl CodeEditor {
 3. **Post-process**: Call `enforce_advances()` to fix glyph widths
 4. Result: All glyphs align to grid (1x or 2x base width)
 
+#### 2.8.1. How Monospace Font Fallback Works (Step-by-Step)
+
+**The Challenge:**
+In a code editor, we need perfect vertical alignment across all lines, even when mixing ASCII, CJK characters, and emoji. Traditional font rendering breaks this alignment because:
+- CJK characters are wider than ASCII
+- Emoji have inconsistent widths across fonts
+- Font fallback chains can return glyphs with different metrics
+
+**Our Solution: Width Enforcement Grid**
+
+We enforce a strict monospace grid where:
+- **ASCII/Latin characters**: Occupy exactly 1× base_advance width
+- **CJK characters**: Occupy exactly 2× base_advance width
+- **Emoji**: Occupy exactly 2× base_advance width
+
+**Implementation Flow:**
+
+```mermaid
+graph TD
+    A[Editor Initialization] --> B[Measure base_advance]
+    B --> C[base_advance = width of '0' in primary font]
+    C --> D[Store in config.monospace_config.base_advance]
+
+    E[Text Input: 'H中🚀e'] --> F[Character Classification]
+    F --> G{For each char}
+    G --> H{Char Type?}
+    H -->|ASCII 'H'| I[Multiplier = 1.0]
+    H -->|CJK '中'| J[Multiplier = 2.0]
+    H -->|Emoji '🚀'| K[Multiplier = 2.0]
+    H -->|ASCII 'e'| L[Multiplier = 1.0]
+
+    I --> M[Width += base_advance × 1.0]
+    J --> N[Width += base_advance × 2.0]
+    K --> O[Width += base_advance × 2.0]
+    L --> P[Width += base_advance × 1.0]
+
+    M --> Q[Total Width = 6.0 × base_advance]
+    N --> Q
+    O --> Q
+    P --> Q
+```
+
+**Concrete Example:**
+
+Let's say `base_advance = 8.4px` (measured from "0" in Menlo 14pt):
+
+```rust
+// Text: "H中🚀e"
+//       H     中      🚀      e
+//       ↓     ↓      ↓      ↓
+//      1x    2x     2x     1x
+//     8.4   16.8   16.8   8.4  = 50.4px total
+
+let text = "H中🚀e";
+let base_advance = 8.4;
+let mut width = 0.0;
+
+// 'H' - ASCII
+if MonospaceFontConfig::is_cjk('H') { /* false */ }
+if MonospaceFontConfig::is_emoji('H') { /* false */ }
+width += base_advance * 1.0;  // = 8.4px
+
+// '中' - CJK
+if MonospaceFontConfig::is_cjk('中') { /* TRUE */ }
+width += base_advance * 2.0;  // = 16.8px
+
+// '🚀' - Emoji
+if MonospaceFontConfig::is_emoji('🚀') { /* TRUE */ }
+width += base_advance * 2.0;  // = 16.8px
+
+// 'e' - ASCII
+width += base_advance * 1.0;  // = 8.4px
+
+// Total: 50.4px (exactly 6 × base_advance)
+```
+
+**Character Classification Details:**
+
+```rust
+// CJK Detection (Chinese, Japanese, Korean)
+pub fn is_cjk(ch: char) -> bool {
+    matches!(ch as u32,
+        0x4E00..=0x9FFF |  // CJK Unified Ideographs (e.g., 中文)
+        0x3400..=0x4DBF |  // CJK Extension A
+        0x3040..=0x309F |  // Hiragana (e.g., ひらがな)
+        0x30A0..=0x30FF    // Katakana (e.g., カタカナ)
+    )
+}
+
+// Emoji Detection
+pub fn is_emoji(ch: char) -> bool {
+    matches!(ch as u32,
+        0x1F600..=0x1F64F |  // Emoticons (😀-🙏)
+        0x1F300..=0x1F5FF |  // Misc Symbols (🌀-🗿)
+        0x1F680..=0x1F6FF |  // Transport (🚀-🛿)
+        0x2600..=0x26FF   |  // Misc Symbols (☀-⛿)
+        0x2700..=0x27BF      // Dingbats (✀-➿)
+    )
+}
+```
+
+**Usage in Code Editor:**
+
+1. **Initialization** (in `CodeEditor::new()`):
+```rust
+// Measure base_advance once at startup
+let mut text_engine = TextEngine::new();
+let style = TextStyle::new()
+    .size(14.0)
+    .family("Menlo");
+let layout = text_engine.create_layout("0", &style, None, Truncate::None);
+config.monospace_config.base_advance = Some(layout.width() as f32);
+```
+
+2. **Text Width Measurement** (in `measure_text_width()`):
+```rust
+fn measure_text_width(&self, text: &str) -> f32 {
+    let base_advance = self.get_char_width();
+    let mut total_width = 0.0;
+
+    for ch in text.chars() {
+        let multiplier = MonospaceFontConfig::get_width_multiplier(ch);
+        total_width += base_advance * multiplier;
+    }
+
+    total_width
+}
+```
+
+3. **Cursor Positioning** (in `paint()`):
+```rust
+// Get text before cursor
+let text_before_cursor = &line_text[..cursor_byte_offset];
+
+// Calculate cursor X using monospace grid
+let cursor_x = gutter_width + measure_text_width(text_before_cursor);
+```
+
+**Visual Alignment Example:**
+
+```text
+Line 1: "Hello 世界"
+         H e l l o   世 界
+         1 1 1 1 1 1 2 2     (width multipliers)
+         | | | | | | |  |
+         0 8 16 24 32 40 56 72  (pixel positions, base=8px)
+
+Line 2: "Test 🚀"
+         T e s t   🚀
+         1 1 1 1 1 2         (width multipliers)
+         | | | | | |
+         0 8 16 24 32 40 56    (pixel positions, base=8px)
+
+Cursor after '世': x = 56px  (7 × 8px)
+Cursor after '🚀': x = 56px  (7 × 8px)
+```
+
+**Benefits:**
+
+1. **Perfect Alignment**: Characters always snap to grid positions
+2. **Predictable Cursor**: Cursor position calculated purely from character count and types
+3. **No Font Metrics Query**: Don't need to ask fonts for glyph widths during cursor movement
+4. **Multi-DPI Consistent**: Grid scales uniformly with DPI
+5. **Minimap Accuracy**: 1×2 and 2×2 pixel micro-glyphs align perfectly
+
+**Trade-offs:**
+
+- ⚠ **Visual Spacing**: Some CJK fonts may appear slightly loose or tight (we override their natural metrics)
+- ✅ **Grid Alignment**: Worth it for perfect vertical alignment and cursor accuracy
+- ✅ **Performance**: Width calculation is O(n) character classification, no font queries
+
+**Debugging Tips:**
+
+If cursor positioning is off:
+1. Verify `base_advance` is calculated correctly (should be ~8-10px for 14pt font)
+2. Check character classification (print multipliers for each char)
+3. Ensure text rendering uses the same font as measurement
+4. Verify no tabs (they need special handling: `\t` = `tab_size × base_advance`)
+
 ---
 
 ## 3. Implementation Plan

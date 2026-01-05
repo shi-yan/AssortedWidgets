@@ -8,7 +8,7 @@ use taffy::Style;
 use crate::paint::primitives::Color;
 use crate::paint::types::{Border, ShapeStyle};
 use crate::paint::PaintContext;
-use crate::text::TextStyle;
+use crate::text::{TextStyle, TextEngine, Truncate};
 use crate::types::{DirtyLevel, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
 use crate::WidgetState;
@@ -32,6 +32,26 @@ pub use syntax::SyntaxHighlighter;
 pub use folding::{FoldManager, FoldableRegion, FoldKind};
 use layout_cache::LayoutCache;
 use gutter::Gutter;
+
+/// Information about a wrapped line segment
+#[derive(Debug, Clone)]
+struct WrappedSegment {
+    /// Start character index within the logical line (byte offset)
+    start: usize,
+    /// End character index within the logical line (byte offset)
+    end: usize,
+    /// Visual width in pixels
+    width: f32,
+}
+
+/// Information about how a logical line is wrapped into visual lines
+#[derive(Debug, Clone)]
+struct WrappedLine {
+    /// Logical line index
+    line_idx: usize,
+    /// Segments (visual lines) for this logical line
+    segments: Vec<WrappedSegment>,
+}
 
 /// Code editor widget with virtualized rendering for large files
 ///
@@ -80,12 +100,39 @@ pub struct CodeEditor {
     /// Horizontal scroll offset in pixels (for no-wrap mode)
     scroll_offset_x: f32,
 
+    /// Maximum line width (for horizontal scrollbar in NoWrap mode)
+    max_line_width: f32,
+
+    // === Text Wrapping ===
+    /// Cached wrapped line information (only used in SoftWrap mode)
+    wrapped_lines: RefCell<Vec<WrappedLine>>,
+
+    /// Whether wrapped lines cache is valid
+    wrap_cache_valid: RefCell<bool>,
+
+    // === Scrollbar State ===
+    /// Whether the user is dragging the horizontal scrollbar
+    dragging_h_scrollbar: bool,
+
+    /// Mouse drag start position (for scrollbar dragging)
+    drag_start_x: f32,
+
+    /// Scroll offset when drag started
+    drag_start_scroll: f32,
+
     // === Viewport ===
     /// Cached viewport size (updated in layout())
     viewport_size: Size,
 
     /// Line height in pixels (calculated from font metrics)
     line_height: f32,
+
+    // === Text Measurement ===
+    /// Text engine for measuring text width (not used for rendering)
+    text_engine: RefCell<TextEngine>,
+
+    /// Cached monospace character width (calculated once)
+    char_width: RefCell<Option<f32>>,
 
     // === State ===
     is_focused: bool,
@@ -102,11 +149,22 @@ impl CodeEditor {
         let minimap = MinimapManager::new(100); // 100 pixels wide
         // TODO: Set minimap palette once the API supports it
 
+        // Initialize config and calculate base_advance
+        let mut config = EditorConfig::default();
+
+        // Calculate base advance width for monospace grid
+        let mut text_engine = TextEngine::new();
+        let style = TextStyle::new()
+            .size(config.font_size)
+            .family(&config.font_family);
+        let layout = text_engine.create_layout("0", &style, None, Truncate::None);
+        config.monospace_config.base_advance = Some(layout.width() as f32);
+
         Self {
             state: WidgetState::new(),
             layout_style: Style::default(),
             model: EditorModel::new(),
-            config: EditorConfig::default(),
+            config,
             layout_cache: LayoutCache::new(),
             minimap: Some(RefCell::new(minimap)),
             theme,
@@ -116,8 +174,16 @@ impl CodeEditor {
             scroll_line: 0,
             scroll_offset_y: 0.0,
             scroll_offset_x: 0.0,
+            max_line_width: 0.0,
+            wrapped_lines: RefCell::new(Vec::new()),
+            wrap_cache_valid: RefCell::new(false),
+            dragging_h_scrollbar: false,
+            drag_start_x: 0.0,
+            drag_start_scroll: 0.0,
             viewport_size: Size::new(800.0, 600.0),
             line_height: 20.0, // Will be updated from font metrics
+            text_engine: RefCell::new(text_engine),
+            char_width: RefCell::new(None),
             is_focused: false,
             is_hovered: false,
         }
@@ -147,6 +213,7 @@ impl CodeEditor {
         self.layout_cache.clear();
         self.scroll_line = 0;
         self.scroll_offset_y = 0.0;
+        *self.wrap_cache_valid.borrow_mut() = false;
         self.state.dirty = DirtyLevel::Visual;
     }
 
@@ -162,6 +229,122 @@ impl CodeEditor {
     // Internal Helpers
     // ========================================================================
 
+    /// Calculate wrapped segments for a single line
+    fn calculate_wrapped_segments(&self, line_text: &str, max_width: f32) -> Vec<WrappedSegment> {
+        let mut segments = Vec::new();
+
+        if line_text.is_empty() {
+            // Empty line has one empty segment
+            segments.push(WrappedSegment {
+                start: 0,
+                end: 0,
+                width: 0.0,
+            });
+            return segments;
+        }
+
+        let line_without_newline = line_text.trim_end_matches('\n');
+        let char_width = self.get_char_width();
+
+        let mut current_start = 0;
+        let mut current_width = 0.0;
+        let mut last_space_byte = None;
+        let mut last_space_width = 0.0;
+
+        for (byte_idx, ch) in line_without_newline.char_indices() {
+            use crate::widgets::code_editor::config::MonospaceFontConfig;
+            let ch_width = char_width * MonospaceFontConfig::get_width_multiplier(ch);
+
+            // Check if adding this character would exceed max width
+            if current_width + ch_width > max_width && current_start < byte_idx {
+                // We need to wrap here
+                let wrap_at = if let Some(space_byte) = last_space_byte {
+                    // Wrap at last space
+                    let end = space_byte;
+                    let width = last_space_width;
+                    last_space_byte = None;
+                    (end, width)
+                } else {
+                    // No space found, force wrap at current position
+                    (byte_idx, current_width)
+                };
+
+                segments.push(WrappedSegment {
+                    start: current_start,
+                    end: wrap_at.0,
+                    width: wrap_at.1,
+                });
+
+                current_start = wrap_at.0;
+                current_width = ch_width;
+
+                // Skip leading spaces on new line
+                if ch.is_whitespace() {
+                    current_start = byte_idx + ch.len_utf8();
+                    current_width = 0.0;
+                }
+            } else {
+                current_width += ch_width;
+            }
+
+            // Track last space for word wrapping
+            if ch.is_whitespace() {
+                last_space_byte = Some(byte_idx);
+                last_space_width = current_width;
+            }
+        }
+
+        // Add final segment
+        if current_start < line_without_newline.len() || segments.is_empty() {
+            segments.push(WrappedSegment {
+                start: current_start,
+                end: line_without_newline.len(),
+                width: current_width,
+            });
+        }
+
+        segments
+    }
+
+    /// Calculate wrapped lines for all visible lines
+    fn update_wrapped_lines(&self) {
+        let text_area_width = self.viewport_size.width as f32
+            - self.gutter.width
+            - 20.0; // Subtract padding
+
+        let mut wrapped = Vec::new();
+
+        for line_idx in 0..self.model.len_lines() {
+            if let Some(line_text) = self.model.line(line_idx) {
+                let segments = self.calculate_wrapped_segments(&line_text, text_area_width);
+                wrapped.push(WrappedLine {
+                    line_idx,
+                    segments,
+                });
+            }
+        }
+
+        *self.wrapped_lines.borrow_mut() = wrapped;
+        *self.wrap_cache_valid.borrow_mut() = true;
+    }
+
+    /// Get the number of visual lines (accounting for wrapping)
+    fn visual_line_count(&self) -> usize {
+        match self.config.wrap_mode {
+            WrapMode::NoWrap => self.model.len_lines(),
+            WrapMode::SoftWrap => {
+                if !*self.wrap_cache_valid.borrow() {
+                    self.update_wrapped_lines();
+                }
+
+                self.wrapped_lines.borrow()
+                    .iter()
+                    .map(|w| w.segments.len())
+                    .sum()
+            }
+        }
+    }
+
     /// Calculate the range of visible lines based on viewport and scroll position
     fn visible_line_range(&self) -> std::ops::Range<usize> {
         let total_lines = self.model.len_lines();
@@ -176,6 +359,131 @@ impl CodeEditor {
         let end = (start + lines_in_viewport + 1).min(total_lines); // +1 for partial line at bottom
 
         start..end
+    }
+
+    /// Get the monospace character width (cached)
+    fn get_char_width(&self) -> f32 {
+        // Use the pre-calculated base_advance from config
+        if let Some(width) = self.config.monospace_config.base_advance {
+            return width;
+        }
+
+        // Fallback: measure on-the-fly (shouldn't happen normally)
+        let style = TextStyle::new()
+            .size(self.config.font_size)
+            .family(&self.config.font_family);
+
+        let layout = self.text_engine.borrow_mut().create_layout(
+            "0", // Use "0" as reference character for monospace fonts
+            &style,
+            None,
+            Truncate::None,
+        );
+
+        layout.width() as f32
+    }
+
+    /// Calculate the maximum line width (for horizontal scrollbar)
+    fn calculate_max_line_width(&self) -> f32 {
+        let mut max_width = 0.0;
+
+        for line_idx in 0..self.model.len_lines() {
+            if let Some(line_text) = self.model.line(line_idx) {
+                let line_without_newline = line_text.trim_end_matches('\n');
+                let width = self.measure_text_width(line_without_newline);
+                max_width = max_width.max(width);
+            }
+        }
+
+        max_width
+    }
+
+    /// Render horizontal scrollbar (for NoWrap mode)
+    fn paint_h_scrollbar(&self, ctx: &mut PaintContext, bounds: Rect) {
+        const SCROLLBAR_HEIGHT: f64 = 12.0;
+        const SCROLLBAR_MARGIN: f64 = 2.0;
+
+        let text_area_width = bounds.size.width - self.gutter.width as f64;
+
+        // Only show scrollbar if content is wider than viewport
+        if self.max_line_width <= text_area_width as f32 {
+            return;
+        }
+
+        // Scrollbar background
+        let scrollbar_rect = Rect::new(
+            Point::new(
+                bounds.origin.x + self.gutter.width as f64,
+                bounds.origin.y + bounds.size.height - SCROLLBAR_HEIGHT - SCROLLBAR_MARGIN,
+            ),
+            Size::new(text_area_width, SCROLLBAR_HEIGHT),
+        );
+
+        ctx.draw_styled_rect(
+            scrollbar_rect,
+            ShapeStyle::solid(Color::rgba(0.2, 0.2, 0.2, 0.5)),
+        );
+
+        // Scrollbar thumb
+        let content_width = self.max_line_width as f64;
+        let thumb_width = (text_area_width / content_width * text_area_width).max(30.0);
+        let max_scroll = (content_width - text_area_width).max(0.0);
+        let scroll_ratio = if max_scroll > 0.0 {
+            (self.scroll_offset_x as f64 / max_scroll).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let thumb_x = scroll_ratio * (text_area_width - thumb_width);
+
+        let thumb_rect = Rect::new(
+            Point::new(
+                scrollbar_rect.origin.x + thumb_x,
+                scrollbar_rect.origin.y + 2.0,
+            ),
+            Size::new(thumb_width, SCROLLBAR_HEIGHT - 4.0),
+        );
+
+        ctx.draw_styled_rect(
+            thumb_rect,
+            ShapeStyle::solid(Color::rgba(0.5, 0.5, 0.5, 0.8))
+                .with_corner_radius(4.0),
+        );
+    }
+
+    /// Measure the width of text using monospace grid rules
+    fn measure_text_width(&self, text: &str) -> f32 {
+        use crate::widgets::code_editor::config::MonospaceFontConfig;
+
+        let base_advance = self.get_char_width();
+        let mut total_width = 0.0;
+
+        // Debug: log character widths for mixed content
+        let has_special = text.chars().any(|ch| {
+            MonospaceFontConfig::is_cjk(ch) || MonospaceFontConfig::is_emoji(ch)
+        });
+
+        if has_special && text.len() < 50 {
+            eprint!("[measure_text_width] '{}' => ", text.escape_debug());
+            for ch in text.chars() {
+                let multiplier = MonospaceFontConfig::get_width_multiplier(ch);
+                total_width += base_advance * multiplier;
+                if MonospaceFontConfig::is_cjk(ch) {
+                    eprint!("[{}:CJK:2x]", ch);
+                } else if MonospaceFontConfig::is_emoji(ch) {
+                    eprint!("[{}:Emoji:2x]", ch);
+                } else {
+                    eprint!("[{}:1x]", ch);
+                }
+            }
+            eprintln!(" = {:.2}px", total_width);
+        } else {
+            for ch in text.chars() {
+                let multiplier = MonospaceFontConfig::get_width_multiplier(ch);
+                total_width += base_advance * multiplier;
+            }
+        }
+
+        total_width
     }
 
     /// Handle text insertion at cursor
@@ -242,6 +550,243 @@ impl CodeEditor {
         self.model.cursor_mut().move_to_end(max_chars);
         self.model.update_cursor_caches();
         self.state.dirty = DirtyLevel::Visual;
+    }
+
+    /// Paint in NoWrap mode (with horizontal scrolling)
+    fn paint_nowrap(&self, ctx: &mut PaintContext, bounds: Rect, text_area_x: f32) {
+        // Calculate visible line range
+        let visible_lines = self.visible_line_range();
+
+        // Draw gutter (line numbers)
+        self.gutter.paint(
+            ctx,
+            bounds,
+            &self.theme,
+            visible_lines.clone(),
+            self.scroll_offset_y,
+            self.line_height,
+            Some(self.current_line),
+        );
+
+        // Draw current line highlight (in text area)
+        let current_line_y = bounds.origin.y as f32
+            + (self.current_line as f32 * self.line_height)
+            - (self.scroll_line as f32 * self.line_height)
+            - self.scroll_offset_y;
+
+        if self.current_line >= visible_lines.start && self.current_line < visible_lines.end {
+            let highlight_rect = Rect::new(
+                Point::new(text_area_x as f64, current_line_y as f64),
+                Size::new(
+                    (bounds.size.width - self.gutter.width as f64).max(0.0),
+                    self.line_height as f64,
+                ),
+            );
+            ctx.draw_styled_rect(
+                highlight_rect,
+                ShapeStyle::solid(self.theme.current_line_background),
+            );
+        }
+
+        // Draw visible lines
+        let mut y = bounds.origin.y as f32 - self.scroll_offset_y;
+        let x = text_area_x - self.scroll_offset_x + 10.0; // 10px padding
+
+        for line_idx in visible_lines.clone() {
+            if let Some(line_text) = self.model.line(line_idx) {
+                let text_pos = Point::new(x as f64, y as f64 + 4.0);
+
+                let text_style = TextStyle::new()
+                    .size(self.config.font_size)
+                    .family(&self.config.font_family)
+                    .color(self.theme.default_text);
+
+                ctx.draw_text(
+                    &line_text.trim_end_matches('\n'),
+                    &text_style,
+                    text_pos,
+                    None,
+                );
+            }
+
+            y += self.line_height;
+
+            if y > (bounds.origin.y + bounds.size.height) as f32 {
+                break;
+            }
+        }
+
+        // Draw cursor (if focused)
+        if self.is_focused {
+            if let Some((line_idx, byte_offset)) = self.model.cursor().line_info() {
+                if line_idx >= visible_lines.start && line_idx < visible_lines.end {
+                    let mut cursor_x = x;
+
+                    if let Some(line_text) = self.model.line(line_idx) {
+                        let text_before_cursor = &line_text[..byte_offset.min(line_text.len())];
+                        let text_width = self.measure_text_width(text_before_cursor);
+                        cursor_x = x + text_width;
+                    }
+
+                    let cursor_y = bounds.origin.y as f32 + (line_idx - self.scroll_line) as f32 * self.line_height - self.scroll_offset_y;
+
+                    let cursor_rect = Rect::new(
+                        Point::new(cursor_x as f64, cursor_y as f64 + 4.0),
+                        Size::new(2.0, self.line_height as f64 - 4.0),
+                    );
+
+                    ctx.draw_styled_rect(cursor_rect, ShapeStyle::solid(self.theme.cursor));
+                }
+            }
+        }
+
+        // Draw horizontal scrollbar
+        self.paint_h_scrollbar(ctx, bounds);
+    }
+
+    /// Paint in SoftWrap mode (with line wrapping)
+    fn paint_wrapped(&self, ctx: &mut PaintContext, bounds: Rect, text_area_x: f32) {
+        // Update wrapped lines cache if needed
+        if !*self.wrap_cache_valid.borrow() {
+            self.update_wrapped_lines();
+        }
+
+        let visible_lines = self.visible_line_range();
+
+        // Draw gutter (line numbers)
+        self.gutter.paint(
+            ctx,
+            bounds,
+            &self.theme,
+            visible_lines.clone(),
+            self.scroll_offset_y,
+            self.line_height,
+            Some(self.current_line),
+        );
+
+        // Draw current line highlight
+        let current_line_y = bounds.origin.y as f32
+            + (self.current_line as f32 * self.line_height)
+            - (self.scroll_line as f32 * self.line_height)
+            - self.scroll_offset_y;
+
+        if self.current_line >= visible_lines.start && self.current_line < visible_lines.end {
+            // In wrapped mode, we need to highlight all visual lines for the current logical line
+            let wrapped = self.wrapped_lines.borrow();
+            if let Some(wrapped_line) = wrapped.get(self.current_line) {
+                for seg_idx in 0..wrapped_line.segments.len() {
+                    let seg_y = current_line_y + (seg_idx as f32 * self.line_height);
+                    let highlight_rect = Rect::new(
+                        Point::new(text_area_x as f64, seg_y as f64),
+                        Size::new(
+                            (bounds.size.width - self.gutter.width as f64).max(0.0),
+                            self.line_height as f64,
+                        ),
+                    );
+                    ctx.draw_styled_rect(
+                        highlight_rect,
+                        ShapeStyle::solid(self.theme.current_line_background),
+                    );
+                }
+            }
+        }
+
+        // Draw wrapped line segments
+        let mut y = bounds.origin.y as f32 - self.scroll_offset_y;
+        let x = text_area_x + 10.0; // 10px padding (no horizontal scroll in wrap mode)
+
+        let wrapped = self.wrapped_lines.borrow();
+        for line_idx in visible_lines.clone() {
+            if let Some(wrapped_line) = wrapped.get(line_idx) {
+                if let Some(line_text) = self.model.line(line_idx) {
+                    let line_without_newline = line_text.trim_end_matches('\n');
+
+                    for segment in &wrapped_line.segments {
+                        let segment_text = &line_without_newline[segment.start..segment.end];
+                        let text_pos = Point::new(x as f64, y as f64 + 4.0);
+
+                        let text_style = TextStyle::new()
+                            .size(self.config.font_size)
+                            .family(&self.config.font_family)
+                            .color(self.theme.default_text);
+
+                        ctx.draw_text(
+                            segment_text,
+                            &text_style,
+                            text_pos,
+                            None,
+                        );
+
+                        y += self.line_height;
+
+                        if y > (bounds.origin.y + bounds.size.height) as f32 {
+                            return;
+                        }
+                    }
+                }
+            } else {
+                // No wrapped info for this line, skip it
+                y += self.line_height;
+            }
+        }
+
+        // Draw cursor (if focused)
+        if self.is_focused {
+            if let Some((line_idx, byte_offset)) = self.model.cursor().line_info() {
+                if line_idx >= visible_lines.start && line_idx < visible_lines.end {
+                    // Find which segment contains the cursor
+                    if let Some(wrapped_line) = wrapped.get(line_idx) {
+                        if let Some(line_text) = self.model.line(line_idx) {
+                            let mut seg_y_offset = 0.0;
+                            let mut found = false;
+
+                            for segment in &wrapped_line.segments {
+                                if byte_offset >= segment.start && byte_offset <= segment.end {
+                                    // Cursor is in this segment
+                                    let text_before_cursor = &line_text[segment.start..byte_offset.min(segment.end)];
+                                    let text_width = self.measure_text_width(text_before_cursor);
+                                    let cursor_x = x + text_width;
+
+                                    let cursor_y = bounds.origin.y as f32
+                                        + (line_idx - self.scroll_line) as f32 * self.line_height
+                                        - self.scroll_offset_y
+                                        + seg_y_offset;
+
+                                    let cursor_rect = Rect::new(
+                                        Point::new(cursor_x as f64, cursor_y as f64 + 4.0),
+                                        Size::new(2.0, self.line_height as f64 - 4.0),
+                                    );
+
+                                    ctx.draw_styled_rect(cursor_rect, ShapeStyle::solid(self.theme.cursor));
+                                    found = true;
+                                    break;
+                                }
+                                seg_y_offset += self.line_height;
+                            }
+
+                            if !found {
+                                // Fallback: cursor at end of last segment
+                                if let Some(last_seg) = wrapped_line.segments.last() {
+                                    let cursor_x = x + last_seg.width;
+                                    let seg_y_offset = (wrapped_line.segments.len() - 1) as f32 * self.line_height;
+                                    let cursor_y = bounds.origin.y as f32
+                                        + (line_idx - self.scroll_line) as f32 * self.line_height
+                                        - self.scroll_offset_y
+                                        + seg_y_offset;
+
+                                    let cursor_rect = Rect::new(
+                                        Point::new(cursor_x as f64, cursor_y as f64 + 4.0),
+                                        Size::new(2.0, self.line_height as f64 - 4.0),
+                                    );
+
+                                    ctx.draw_styled_rect(cursor_rect, ShapeStyle::solid(self.theme.cursor));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Paint the minimap on the right side of the editor (helper function)
@@ -347,11 +892,12 @@ impl Widget for CodeEditor {
         let old_size = self.viewport_size;
         self.viewport_size = Size::new(bounds.width(), bounds.height());
 
-        // If size changed, invalidate all layouts
+        // If size changed, invalidate all layouts and wrap cache
         if (old_size.width - self.viewport_size.width).abs() > 1.0
             || (old_size.height - self.viewport_size.height).abs() > 1.0
         {
             self.layout_cache.clear();
+            *self.wrap_cache_valid.borrow_mut() = false;
         }
 
         self.state.bounds = bounds;
@@ -394,6 +940,27 @@ impl Widget for CodeEditor {
             minimap.borrow_mut().update(&self.model, center_line);
         }
 
+        // Text area starts after the gutter
+        let text_area_x = bounds.origin.x as f32 + self.gutter.width;
+
+        // Handle different wrap modes
+        match self.config.wrap_mode {
+            WrapMode::NoWrap => {
+                self.paint_nowrap(ctx, bounds, text_area_x);
+            }
+            WrapMode::SoftWrap => {
+                self.paint_wrapped(ctx, bounds, text_area_x);
+            }
+        }
+
+        // Draw minimap (Phase 2)
+        if let Some(ref minimap) = self.minimap {
+            Self::paint_minimap_impl(ctx, bounds, &minimap.borrow(), &self.theme);
+        }
+    }
+
+    /// Paint in NoWrap mode (with horizontal scrolling)
+    fn paint_nowrap(&self, ctx: &mut PaintContext, bounds: Rect, text_area_x: f32) {
         // Calculate visible line range
         let visible_lines = self.visible_line_range();
 
@@ -407,9 +974,6 @@ impl Widget for CodeEditor {
             self.line_height,
             Some(self.current_line),
         );
-
-        // Text area starts after the gutter
-        let text_area_x = bounds.origin.x as f32 + self.gutter.width;
 
         // Draw current line highlight (in text area)
         let current_line_y = bounds.origin.y as f32
@@ -431,7 +995,7 @@ impl Widget for CodeEditor {
             );
         }
 
-        // Draw visible lines with syntax highlighting
+        // Draw visible lines
         let mut y = bounds.origin.y as f32 - self.scroll_offset_y;
         let x = text_area_x - self.scroll_offset_x + 10.0; // 10px padding
 
@@ -439,23 +1003,21 @@ impl Widget for CodeEditor {
             if let Some(line_text) = self.model.line(line_idx) {
                 let text_pos = Point::new(x as f64, y as f64 + 4.0);
 
-                // For Phase 3, use default color (syntax highlighting in minimap only for now)
-                // TODO: Apply syntax highlighting to text in Phase 3.5
                 let text_style = TextStyle::new()
                     .size(self.config.font_size)
+                    .family(&self.config.font_family)
                     .color(self.theme.default_text);
 
                 ctx.draw_text(
                     &line_text.trim_end_matches('\n'),
                     &text_style,
                     text_pos,
-                    None, // No max width
+                    None,
                 );
             }
 
             y += self.line_height;
 
-            // Stop if we're below the viewport
             if y > (bounds.origin.y + bounds.size.height) as f32 {
                 break;
             }
@@ -465,18 +1027,11 @@ impl Widget for CodeEditor {
         if self.is_focused {
             if let Some((line_idx, byte_offset)) = self.model.cursor().line_info() {
                 if line_idx >= visible_lines.start && line_idx < visible_lines.end {
-                    // Calculate cursor X position based on text layout
                     let mut cursor_x = x;
 
                     if let Some(line_text) = self.model.line(line_idx) {
-                        // Get text before cursor on this line
                         let text_before_cursor = &line_text[..byte_offset.min(line_text.len())];
-
-                        // Calculate width using approximate character width
-                        // TODO: Use proper text measurement for accurate positioning
-                        let char_width = self.config.font_size * 0.6;
-                        let text_width = text_before_cursor.chars().count() as f32 * char_width;
-
+                        let text_width = self.measure_text_width(text_before_cursor);
                         cursor_x = x + text_width;
                     }
 
@@ -492,9 +1047,153 @@ impl Widget for CodeEditor {
             }
         }
 
-        // Draw minimap (Phase 2)
-        if let Some(ref minimap) = self.minimap {
-            Self::paint_minimap_impl(ctx, bounds, &minimap.borrow(), &self.theme);
+        // Draw horizontal scrollbar
+        self.paint_h_scrollbar(ctx, bounds);
+    }
+
+    /// Paint in SoftWrap mode (with line wrapping)
+    fn paint_wrapped(&self, ctx: &mut PaintContext, bounds: Rect, text_area_x: f32) {
+        // Update wrapped lines cache if needed
+        if !*self.wrap_cache_valid.borrow() {
+            self.update_wrapped_lines();
+        }
+
+        let visible_lines = self.visible_line_range();
+
+        // Draw gutter (line numbers)
+        self.gutter.paint(
+            ctx,
+            bounds,
+            &self.theme,
+            visible_lines.clone(),
+            self.scroll_offset_y,
+            self.line_height,
+            Some(self.current_line),
+        );
+
+        // Draw current line highlight
+        let current_line_y = bounds.origin.y as f32
+            + (self.current_line as f32 * self.line_height)
+            - (self.scroll_line as f32 * self.line_height)
+            - self.scroll_offset_y;
+
+        if self.current_line >= visible_lines.start && self.current_line < visible_lines.end {
+            // In wrapped mode, we need to highlight all visual lines for the current logical line
+            let wrapped = self.wrapped_lines.borrow();
+            if let Some(wrapped_line) = wrapped.get(self.current_line) {
+                for seg_idx in 0..wrapped_line.segments.len() {
+                    let seg_y = current_line_y + (seg_idx as f32 * self.line_height);
+                    let highlight_rect = Rect::new(
+                        Point::new(text_area_x as f64, seg_y as f64),
+                        Size::new(
+                            (bounds.size.width - self.gutter.width as f64).max(0.0),
+                            self.line_height as f64,
+                        ),
+                    );
+                    ctx.draw_styled_rect(
+                        highlight_rect,
+                        ShapeStyle::solid(self.theme.current_line_background),
+                    );
+                }
+            }
+        }
+
+        // Draw wrapped line segments
+        let mut y = bounds.origin.y as f32 - self.scroll_offset_y;
+        let x = text_area_x + 10.0; // 10px padding (no horizontal scroll in wrap mode)
+
+        let wrapped = self.wrapped_lines.borrow();
+        for line_idx in visible_lines.clone() {
+            if let Some(wrapped_line) = wrapped.get(line_idx) {
+                if let Some(line_text) = self.model.line(line_idx) {
+                    let line_without_newline = line_text.trim_end_matches('\n');
+
+                    for segment in &wrapped_line.segments {
+                        let segment_text = &line_without_newline[segment.start..segment.end];
+                        let text_pos = Point::new(x as f64, y as f64 + 4.0);
+
+                        let text_style = TextStyle::new()
+                            .size(self.config.font_size)
+                            .family(&self.config.font_family)
+                            .color(self.theme.default_text);
+
+                        ctx.draw_text(
+                            segment_text,
+                            &text_style,
+                            text_pos,
+                            None,
+                        );
+
+                        y += self.line_height;
+
+                        if y > (bounds.origin.y + bounds.size.height) as f32 {
+                            return;
+                        }
+                    }
+                }
+            } else {
+                // No wrapped info for this line, skip it
+                y += self.line_height;
+            }
+        }
+
+        // Draw cursor (if focused)
+        // TODO: Update cursor rendering for wrapped mode
+        if self.is_focused {
+            if let Some((line_idx, byte_offset)) = self.model.cursor().line_info() {
+                if line_idx >= visible_lines.start && line_idx < visible_lines.end {
+                    // Find which segment contains the cursor
+                    if let Some(wrapped_line) = wrapped.get(line_idx) {
+                        if let Some(line_text) = self.model.line(line_idx) {
+                            let mut seg_y_offset = 0.0;
+                            let mut found = false;
+
+                            for segment in &wrapped_line.segments {
+                                if byte_offset >= segment.start && byte_offset <= segment.end {
+                                    // Cursor is in this segment
+                                    let text_before_cursor = &line_text[segment.start..byte_offset.min(segment.end)];
+                                    let text_width = self.measure_text_width(text_before_cursor);
+                                    let cursor_x = x + text_width;
+
+                                    let cursor_y = bounds.origin.y as f32
+                                        + (line_idx - self.scroll_line) as f32 * self.line_height
+                                        - self.scroll_offset_y
+                                        + seg_y_offset;
+
+                                    let cursor_rect = Rect::new(
+                                        Point::new(cursor_x as f64, cursor_y as f64 + 4.0),
+                                        Size::new(2.0, self.line_height as f64 - 4.0),
+                                    );
+
+                                    ctx.draw_styled_rect(cursor_rect, ShapeStyle::solid(self.theme.cursor));
+                                    found = true;
+                                    break;
+                                }
+                                seg_y_offset += self.line_height;
+                            }
+
+                            if !found {
+                                // Fallback: cursor at end of last segment
+                                if let Some(last_seg) = wrapped_line.segments.last() {
+                                    let cursor_x = x + last_seg.width;
+                                    let seg_y_offset = (wrapped_line.segments.len() - 1) as f32 * self.line_height;
+                                    let cursor_y = bounds.origin.y as f32
+                                        + (line_idx - self.scroll_line) as f32 * self.line_height
+                                        - self.scroll_offset_y
+                                        + seg_y_offset;
+
+                                    let cursor_rect = Rect::new(
+                                        Point::new(cursor_x as f64, cursor_y as f64 + 4.0),
+                                        Size::new(2.0, self.line_height as f64 - 4.0),
+                                    );
+
+                                    ctx.draw_styled_rect(cursor_rect, ShapeStyle::solid(self.theme.cursor));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -578,16 +1277,33 @@ impl MouseHandler for CodeEditor {
             // Calculate relative X from text area start
             let relative_x = event.position.x as f32 - text_area_x - 10.0 + self.scroll_offset_x; // 10px is the padding
 
-            // Use text engine to find character position at click X
-            // For now, use simple character width approximation (will refine later)
-            let char_width = self.config.font_size * 0.6; // Approximate monospace char width
-            let clicked_col = (relative_x / char_width).max(0.0) as usize;
+            // Find character position at click X by measuring text width
+            let line_without_newline = line_text.trim_end_matches('\n');
 
-            // Clamp to line length
-            let line_len = line_text.trim_end_matches('\n').chars().count();
-            let target_col = clicked_col.min(line_len);
+            // Use monospace character width for efficient binary search-like approach
+            let char_width = self.get_char_width();
+            let estimated_col = (relative_x / char_width).max(0.0) as usize;
 
-            target_char_pos = line_start_char + target_col;
+            // Measure actual width to find exact position
+            let mut best_col = 0;
+            let mut best_distance = f32::MAX;
+
+            // Check a range around the estimated position for accuracy
+            let start_col = estimated_col.saturating_sub(2);
+            let end_col = (estimated_col + 3).min(line_without_newline.chars().count());
+
+            for col in start_col..=end_col {
+                let text_before = &line_without_newline[..line_without_newline.char_indices().nth(col).map(|(i, _)| i).unwrap_or(line_without_newline.len())];
+                let width = self.measure_text_width(text_before);
+                let distance = (width - relative_x).abs();
+
+                if distance < best_distance {
+                    best_distance = distance;
+                    best_col = col;
+                }
+            }
+
+            target_char_pos = line_start_char + best_col;
         }
 
         // Always move cursor when clicking (don't check if line changed)

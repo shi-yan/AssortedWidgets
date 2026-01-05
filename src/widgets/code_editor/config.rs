@@ -50,6 +50,81 @@ pub struct EditorConfig {
 
     /// Font family name
     pub font_family: String,
+
+    /// Monospace font configuration
+    pub monospace_config: MonospaceFontConfig,
+}
+
+/// Monospace font configuration for mixed-width character support
+///
+/// Handles ASCII (1x width), CJK (2x width), and emoji (2x width)
+/// to maintain grid alignment in the code editor.
+#[derive(Debug, Clone)]
+pub struct MonospaceFontConfig {
+    /// Font fallback chain for narrow characters (ASCII, Latin, symbols)
+    pub narrow_fonts: Vec<String>,
+
+    /// Font fallback chain for wide characters (CJK)
+    pub wide_fonts: Vec<String>,
+
+    /// Emoji font
+    pub emoji_font: String,
+
+    /// Base advance width (calculated from narrow font)
+    pub base_advance: Option<f32>,
+}
+
+impl Default for MonospaceFontConfig {
+    fn default() -> Self {
+        Self {
+            // macOS monospace fonts
+            narrow_fonts: vec![
+                "Menlo".to_string(),
+                "Monaco".to_string(),
+                "Courier New".to_string(),
+            ],
+            wide_fonts: vec![
+                "Hiragino Sans GB".to_string(),
+                "PingFang SC".to_string(),
+                "Microsoft YaHei".to_string(),
+            ],
+            emoji_font: "Apple Color Emoji".to_string(),
+            base_advance: None, // Calculated at runtime
+        }
+    }
+}
+
+impl MonospaceFontConfig {
+    /// Detect if a character is CJK (Chinese, Japanese, Korean)
+    pub fn is_cjk(ch: char) -> bool {
+        matches!(ch as u32,
+            0x4E00..=0x9FFF |  // CJK Unified Ideographs
+            0x3400..=0x4DBF |  // CJK Extension A
+            0x3040..=0x309F |  // Hiragana
+            0x30A0..=0x30FF    // Katakana
+        )
+    }
+
+    /// Detect if a character is emoji
+    pub fn is_emoji(ch: char) -> bool {
+        matches!(ch as u32,
+            0x1F600..=0x1F64F |  // Emoticons
+            0x1F300..=0x1F5FF |  // Misc Symbols and Pictographs
+            0x1F680..=0x1F6FF |  // Transport and Map Symbols
+            0x2600..=0x26FF   |  // Misc Symbols
+            0x2700..=0x27BF      // Dingbats
+        )
+    }
+
+    /// Get the expected width multiplier for a character
+    /// Returns 1.0 for ASCII/Latin, 2.0 for CJK/emoji
+    pub fn get_width_multiplier(ch: char) -> f32 {
+        if Self::is_cjk(ch) || Self::is_emoji(ch) {
+            2.0
+        } else {
+            1.0
+        }
+    }
 }
 
 impl Default for EditorConfig {
@@ -61,6 +136,7 @@ impl Default for EditorConfig {
             highlight_current_line: true,
             font_size: 14.0,
             font_family: "Menlo".to_string(),
+            monospace_config: MonospaceFontConfig::default(),
         }
     }
 }
