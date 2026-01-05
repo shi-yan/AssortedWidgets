@@ -8,10 +8,12 @@
 mod color;
 mod page;
 mod range_set;
+mod raster_job;
 
 pub use color::{encode_rgb565, decode_rgb565};
 pub use page::{TerminalMinimapPage, PageStatus};
 pub use range_set::RangeSet;
+pub use raster_job::{CellSnapshot, GridLine, RasterJob, RasterResult};
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
