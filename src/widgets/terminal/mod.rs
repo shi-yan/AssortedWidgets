@@ -23,6 +23,7 @@ use alacritty_terminal::term::cell::{Cell, Flags};
 use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor};
 
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 pub use config::*;
 use minimap::TerminalMinimapManager;
@@ -61,6 +62,15 @@ pub struct TerminalEmulator {
 
     /// Whether the terminal needs redraw
     dirty: bool,
+
+    /// Resize debouncing: Last resize time (Phase 4)
+    last_resize_time: Option<Instant>,
+
+    /// Resize debouncing: Minimum time between resizes (milliseconds)
+    resize_debounce_ms: u64,
+
+    /// Pending resize dimensions (cols, rows)
+    pending_resize: Option<(usize, usize)>,
 }
 
 /// Event listener for terminal events
@@ -191,6 +201,9 @@ impl TerminalEmulator {
             scale_factor: 1.0,
             minimap_manager,
             dirty: true,
+            last_resize_time: None,
+            resize_debounce_ms: 150,  // 150ms debounce for resize
+            pending_resize: None,
         }
     }
 
@@ -236,12 +249,73 @@ impl TerminalEmulator {
         self.dirty = true;
     }
 
+    /// Check and handle pending resize (Phase 4)
+    ///
+    /// Called during paint() to apply debounced resizes.
+    fn check_pending_resize(&mut self) {
+        if let Some((new_cols, new_rows)) = self.pending_resize {
+            let should_resize = if let Some(last_time) = self.last_resize_time {
+                let elapsed = last_time.elapsed();
+                elapsed >= Duration::from_millis(self.resize_debounce_ms)
+            } else {
+                true  // First resize, always proceed
+            };
+
+            if should_resize {
+                self.apply_resize(new_cols, new_rows);
+                self.pending_resize = None;
+            }
+        }
+    }
+
+    /// Apply terminal resize (Phase 4)
+    ///
+    /// Resizes the terminal grid and invalidates all minimap pages.
+    fn apply_resize(&mut self, new_cols: usize, new_rows: usize) {
+        if new_cols == self.cols && new_rows == self.rows {
+            return;  // No change
+        }
+
+        // Resize the terminal grid
+        self.term.resize(alacritty_terminal::grid::Dimensions {
+            columns: new_cols,
+            lines: new_rows,
+        });
+
+        self.cols = new_cols;
+        self.rows = new_rows;
+
+        // Update cell dimensions
+        self.update_cell_dimensions();
+
+        // Invalidate all minimap pages (reflow occurred)
+        if let Some(ref mut minimap) = self.minimap_manager {
+            minimap.invalidate_all();
+        }
+
+        self.last_resize_time = Some(Instant::now());
+        self.dirty = true;
+    }
+
     /// Calculate cell dimensions based on current bounds
     fn update_cell_dimensions(&mut self) {
         if self.cols > 0 && self.rows > 0 {
             self.cell_width = self.bounds.width() / self.cols as f32;
             self.cell_height = self.config.font_size * DEFAULT_LINE_HEIGHT * self.scale_factor;
         }
+    }
+
+    /// Calculate terminal dimensions from pixel bounds (Phase 4)
+    ///
+    /// Returns (cols, rows) that would fit in the given bounds.
+    fn calculate_dimensions_from_bounds(&self) -> (usize, usize) {
+        let cell_height = self.config.font_size * DEFAULT_LINE_HEIGHT * self.scale_factor;
+        let assumed_cell_width = cell_height * 0.6;  // Approximate monospace ratio
+
+        let cols = ((self.bounds.width() - MINIMAP_WIDTH_PIXELS as f32 - 20.0) / assumed_cell_width).max(1.0) as usize;
+        let rows = (self.bounds.height() / cell_height).max(1.0) as usize;
+
+        (cols.max(10), rows.max(3))  // Minimum viable dimensions
     }
 
     /// Process keyboard input
@@ -412,6 +486,14 @@ impl TerminalEmulator {
 impl Widget for TerminalEmulator {
     fn set_bounds(&mut self, bounds: Rect) {
         self.bounds = bounds;
+
+        // Phase 4: Detect if resize is needed
+        let (new_cols, new_rows) = self.calculate_dimensions_from_bounds();
+        if new_cols != self.cols || new_rows != self.rows {
+            // Dimension change detected, schedule debounced resize
+            self.pending_resize = Some((new_cols, new_rows));
+        }
+
         self.update_cell_dimensions();
         self.dirty = true;
     }
@@ -421,10 +503,13 @@ impl Widget for TerminalEmulator {
     }
 
     fn paint(&mut self, ctx: &mut PaintContext) {
+        // Phase 4: Check for pending resize
+        self.check_pending_resize();
+
         // Draw background
         ctx.draw_rect(self.bounds, Color::rgb(15, 15, 20));
 
-        // Update minimap (Phase 2)
+        // Update minimap (Phase 2+)
         if let Some(ref mut minimap) = self.minimap_manager {
             let visible_line = self.scroll_offset;
             minimap.update(&self.term, visible_line);
@@ -433,7 +518,7 @@ impl Widget for TerminalEmulator {
         // Render grid
         self.render_grid(ctx);
 
-        // Render minimap (Phase 2 - placeholder for GPU texture upload)
+        // Render minimap (Phase 2+ - placeholder for GPU texture upload)
         if let Some(ref minimap) = self.minimap_manager {
             self.render_minimap(ctx, minimap);
         }
