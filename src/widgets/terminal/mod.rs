@@ -217,6 +217,15 @@ impl TerminalEmulator {
         self.term.grid().history_size() + self.rows
     }
 
+    /// Check if terminal is in alternate screen mode (Phase 6)
+    ///
+    /// Alternate screen is used by full-screen applications like vim, less, htop.
+    /// Returns true if in alternate screen mode.
+    pub fn is_alternate_screen(&self) -> bool {
+        // alacritty_terminal provides mode() method
+        self.term.mode().contains(alacritty_terminal::term::TermMode::ALT_SCREEN)
+    }
+
     /// Set scroll offset (lines from bottom)
     pub fn set_scroll_offset(&mut self, offset: usize) {
         let max_offset = self.term.grid().history_size();
@@ -534,18 +543,27 @@ impl Widget for TerminalEmulator {
         // Draw background
         ctx.draw_rect(self.bounds, Color::rgb(15, 15, 20));
 
+        // Phase 6: Check if in alternate screen mode
+        let is_alt_screen = self.is_alternate_screen();
+
         // Update minimap (Phase 2+)
-        if let Some(ref mut minimap) = self.minimap_manager {
-            let visible_line = self.scroll_offset;
-            minimap.update(&self.term, visible_line);
+        // Phase 6: Skip minimap in alternate screen mode (vim, less, htop, etc.)
+        if !is_alt_screen {
+            if let Some(ref mut minimap) = self.minimap_manager {
+                let visible_line = self.scroll_offset;
+                minimap.update(&self.term, visible_line);
+            }
         }
 
         // Render grid
         self.render_grid(ctx);
 
         // Render minimap (Phase 2+ - placeholder for GPU texture upload)
-        if let Some(ref minimap) = self.minimap_manager {
-            self.render_minimap(ctx, minimap);
+        // Phase 6: Hide minimap completely in alternate screen mode
+        if !is_alt_screen {
+            if let Some(ref minimap) = self.minimap_manager {
+                self.render_minimap(ctx, minimap);
+            }
         }
 
         self.dirty = false;
