@@ -15,6 +15,7 @@ pub use range_set::RangeSet;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use super::config::MINIMAP_PAGE_SIZE;
 use crate::widgets::code_editor::CharSheet;
@@ -52,6 +53,15 @@ pub struct TerminalMinimapManager {
 
     /// Last update total lines count (for detecting scrollback changes)
     last_total_lines: usize,
+
+    /// Debouncing: Last rasterization time
+    last_rasterize_time: Option<Instant>,
+
+    /// Debouncing: Minimum time between rasterizations (milliseconds)
+    debounce_interval_ms: u64,
+
+    /// Flag indicating pending updates (for deferred rasterization)
+    has_pending_updates: bool,
 }
 
 impl TerminalMinimapManager {
@@ -69,6 +79,34 @@ impl TerminalMinimapManager {
             visible_page: None,
             dirty_lines: RangeSet::new(),
             last_total_lines: 0,
+            last_rasterize_time: None,
+            debounce_interval_ms: 100,  // 100ms debounce (adjustable)
+            has_pending_updates: false,
+        }
+    }
+
+    /// Set debounce interval
+    ///
+    /// # Arguments
+    /// * `interval_ms` - Minimum milliseconds between rasterizations
+    pub fn set_debounce_interval(&mut self, interval_ms: u64) {
+        self.debounce_interval_ms = interval_ms;
+    }
+
+    /// Check if there are pending updates that need rasterization
+    pub fn has_pending_updates(&self) -> bool {
+        self.has_pending_updates
+    }
+
+    /// Force immediate rasterization of all pending updates
+    ///
+    /// Bypasses debouncing to ensure minimap is fully up-to-date.
+    /// Useful for idle periods or when user requests manual refresh.
+    pub fn force_update<L: EventListener>(&mut self, term: &Term<L>) {
+        if self.has_pending_updates || !self.dirty_lines.is_empty() {
+            self.rasterize_dirty_pages(term);
+            self.last_rasterize_time = Some(Instant::now());
+            self.has_pending_updates = false;
         }
     }
 
@@ -153,7 +191,7 @@ impl TerminalMinimapManager {
     /// Update minimap for the current terminal state
     ///
     /// Creates pages as needed and rasterizes dirty pages.
-    /// Phase 3: Uses dirty line tracking for efficient incremental updates.
+    /// Phase 3: Uses dirty line tracking, debouncing, and visible-first strategy.
     ///
     /// # Arguments
     /// * `term` - Terminal state
@@ -171,9 +209,11 @@ impl TerminalMinimapManager {
             if total_lines > self.last_total_lines {
                 // New lines added, mark them as dirty
                 self.dirty_lines.add_range(self.last_total_lines..total_lines);
+                self.has_pending_updates = true;
             } else {
                 // Lines removed (rare, but possible) - invalidate all
                 self.invalidate_all();
+                self.has_pending_updates = true;
             }
             self.last_total_lines = total_lines;
         }
@@ -191,12 +231,37 @@ impl TerminalMinimapManager {
                 );
                 // New pages are automatically dirty (they need initial rasterization)
                 self.dirty_lines.add_range(start_line..start_line + line_count);
+                self.has_pending_updates = true;
                 self.pages.insert(page_num, page);
             }
         }
 
-        // Phase 3: Rasterize only dirty pages with visible-first strategy
-        self.rasterize_dirty_pages(term);
+        // Phase 3: Debounced rasterization with visible-first strategy
+        // Check if enough time has passed since last rasterization
+        let should_rasterize = if let Some(last_time) = self.last_rasterize_time {
+            let elapsed = last_time.elapsed();
+            elapsed >= Duration::from_millis(self.debounce_interval_ms)
+        } else {
+            true  // First rasterization, always proceed
+        };
+
+        // Always rasterize if visible page is dirty (prioritize user experience)
+        let visible_page_dirty = if let Some(visible_page) = self.visible_page {
+            let start_line = visible_page * MINIMAP_PAGE_SIZE;
+            let end_line = start_line + MINIMAP_PAGE_SIZE;
+            self.dirty_lines.intersects(&(start_line..end_line))
+        } else {
+            false
+        };
+
+        if should_rasterize || visible_page_dirty || !self.has_pending_updates {
+            if self.has_pending_updates || !self.dirty_lines.is_empty() {
+                self.rasterize_dirty_pages(term);
+                self.last_rasterize_time = Some(Instant::now());
+                self.has_pending_updates = false;
+            }
+        }
+        // Otherwise, defer rasterization (updates are batched)
     }
 
     /// Rasterize dirty pages (Phase 3: visible-first, incremental)
