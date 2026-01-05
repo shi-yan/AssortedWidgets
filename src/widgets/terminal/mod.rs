@@ -224,6 +224,18 @@ impl TerminalEmulator {
         }
     }
 
+    /// Write bytes to the terminal (processes VT sequences)
+    ///
+    /// For Phase 2 demo purposes. In Phase 8, this would come from PTY.
+    pub fn write(&mut self, data: &[u8]) {
+        // Process bytes through VTE parser
+        // This updates the terminal grid with the parsed content
+        for byte in data {
+            self.term.advance(*byte);
+        }
+        self.dirty = true;
+    }
+
     /// Calculate cell dimensions based on current bounds
     fn update_cell_dimensions(&mut self) {
         if self.cols > 0 && self.rows > 0 {
