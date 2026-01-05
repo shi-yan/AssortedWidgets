@@ -251,6 +251,67 @@ impl TerminalEmulator {
         self.dirty = true;
     }
 
+    /// Render minimap (Phase 2 placeholder - GPU texture upload to come)
+    ///
+    /// For now, this draws a simple visual representation of minimap pages.
+    /// Full GPU texture implementation would upload page.intensity and page.color_rgb565.
+    fn render_minimap(&self, ctx: &mut PaintContext, minimap: &TerminalMinimapManager) {
+        // Calculate minimap position (right side of terminal)
+        let minimap_x = self.bounds.max.x - MINIMAP_WIDTH_PIXELS as f32 - 10.0;
+        let minimap_y = self.bounds.min.y + 10.0;
+        let minimap_width = MINIMAP_WIDTH_PIXELS as f32;
+        let minimap_height = self.bounds.height() - 20.0;
+
+        // Draw minimap background
+        let minimap_rect = Rect::new(
+            Point::new(minimap_x, minimap_y),
+            Point::new(minimap_x + minimap_width, minimap_y + minimap_height),
+        );
+        ctx.draw_rect(minimap_rect, Color::rgb(25, 25, 30));
+
+        // Draw page indicators (placeholder visualization)
+        let page_count = minimap.page_count();
+        if page_count > 0 {
+            let page_height = minimap_height / page_count.max(1) as f32;
+
+            for page_num in 0..page_count {
+                if let Some(page) = minimap.get_page(page_num) {
+                    let y = minimap_y + (page_num as f32 * page_height);
+
+                    // Color based on page status
+                    let color = match page.status {
+                        minimap::PageStatus::Clean => Color::rgb(50, 100, 50),      // Green
+                        minimap::PageStatus::Dirty => Color::rgb(100, 100, 50),     // Yellow
+                        minimap::PageStatus::Rasterizing => Color::rgb(50, 50, 100), // Blue
+                        minimap::PageStatus::Stale => Color::rgb(100, 50, 50),      // Red
+                    };
+
+                    let page_rect = Rect::new(
+                        Point::new(minimap_x + 2.0, y + 1.0),
+                        Point::new(minimap_x + minimap_width - 2.0, y + page_height - 1.0),
+                    );
+                    ctx.draw_rect(page_rect, color);
+                }
+            }
+        }
+
+        // Draw viewport indicator (where user is currently viewing)
+        let total_lines = self.term.grid().history_size() + self.rows;
+        if total_lines > 0 {
+            let viewport_start = self.scroll_offset as f32 / total_lines as f32;
+            let viewport_height = self.rows as f32 / total_lines as f32;
+
+            let indicator_y = minimap_y + (viewport_start * minimap_height);
+            let indicator_height = (viewport_height * minimap_height).max(4.0);
+
+            let indicator_rect = Rect::new(
+                Point::new(minimap_x, indicator_y),
+                Point::new(minimap_x + minimap_width, indicator_y + indicator_height),
+            );
+            ctx.draw_rect(indicator_rect, Color::rgba(255, 255, 255, 128));
+        }
+    }
+
     /// Render the terminal grid
     fn render_grid(&self, ctx: &mut PaintContext) {
         // Get grid reference
@@ -349,10 +410,21 @@ impl Widget for TerminalEmulator {
 
     fn paint(&mut self, ctx: &mut PaintContext) {
         // Draw background
-        ctx.draw_rect(self.bounds, crate::paint::Color::rgb(15, 15, 20));
+        ctx.draw_rect(self.bounds, Color::rgb(15, 15, 20));
+
+        // Update minimap (Phase 2)
+        if let Some(ref mut minimap) = self.minimap_manager {
+            let visible_line = self.scroll_offset;
+            minimap.update(&self.term, visible_line);
+        }
 
         // Render grid
         self.render_grid(ctx);
+
+        // Render minimap (Phase 2 - placeholder for GPU texture upload)
+        if let Some(ref minimap) = self.minimap_manager {
+            self.render_minimap(ctx, minimap);
+        }
 
         self.dirty = false;
     }
