@@ -44,8 +44,8 @@ pub struct TerminalEmulator {
     /// Current scroll offset (lines from bottom)
     scroll_offset: usize,
 
-    /// Font size
-    font_size: f32,
+    /// Terminal configuration (fonts, etc.)
+    config: TerminalConfig,
 
     /// DPI scale factor
     scale_factor: f32,
@@ -171,7 +171,7 @@ impl TerminalEmulator {
             cell_width: 0.0,
             cell_height: 0.0,
             scroll_offset: 0,
-            font_size: DEFAULT_FONT_SIZE,
+            config: TerminalConfig::default(),
             scale_factor: 1.0,
             dirty: true,
         }
@@ -211,7 +211,7 @@ impl TerminalEmulator {
     fn update_cell_dimensions(&mut self) {
         if self.cols > 0 && self.rows > 0 {
             self.cell_width = self.bounds.width() / self.cols as f32;
-            self.cell_height = self.font_size * DEFAULT_LINE_HEIGHT * self.scale_factor;
+            self.cell_height = self.config.font_size * DEFAULT_LINE_HEIGHT * self.scale_factor;
         }
     }
 
@@ -242,9 +242,9 @@ impl TerminalEmulator {
 
         // Create default text style for terminal
         let mut text_style = TextStyle::default();
-        text_style.font_size = self.font_size * self.scale_factor;
+        text_style.font_size = self.config.font_size * self.scale_factor;
         text_style.line_height = DEFAULT_LINE_HEIGHT;
-        text_style.font_family = "monospace".to_string();
+        text_style.font_family = self.config.font_family.clone();
 
         // Calculate visible range (in terms of grid lines)
         // display_offset is the number of lines scrolled back
