@@ -80,13 +80,13 @@ impl Gutter {
         );
 
         // Draw line numbers
-        for line_idx in visible_lines {
-            let y = editor_bounds.origin.y as f32
-                + (line_idx as f32 * line_height)
-                - scroll_offset_y;
+        // Start at the top of the viewport and increment for each line
+        let mut y = editor_bounds.origin.y as f32 - scroll_offset_y;
 
+        for line_idx in visible_lines {
             // Skip if line is outside viewport
             if y + line_height < editor_bounds.origin.y as f32 {
+                y += line_height;
                 continue;
             }
             if y > (editor_bounds.origin.y + editor_bounds.size.height) as f32 {
@@ -128,6 +128,8 @@ impl Gutter {
                 Point::new(x as f64, y as f64 + 4.0),
                 None,
             );
+
+            y += line_height;
         }
     }
 }

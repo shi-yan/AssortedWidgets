@@ -2,6 +2,7 @@
 
 use std::any::Any;
 use std::sync::Arc;
+use std::cell::RefCell;
 use taffy::Style;
 
 use crate::paint::primitives::Color;
@@ -53,7 +54,8 @@ pub struct CodeEditor {
     layout_cache: LayoutCache,
 
     // === Minimap (Phase 2) ===
-    minimap: Option<MinimapManager>,
+    /// Minimap manager (uses RefCell for interior mutability in paint())
+    minimap: Option<RefCell<MinimapManager>>,
 
     // === Phase 3: UI Elements ===
     /// Color theme
@@ -97,7 +99,7 @@ impl CodeEditor {
 
         // Create minimap with theme-based palette
         let palette = theme.to_minimap_palette();
-        let mut minimap = MinimapManager::new(100); // 100 pixels wide
+        let minimap = MinimapManager::new(100); // 100 pixels wide
         // TODO: Set minimap palette once the API supports it
 
         Self {
@@ -106,7 +108,7 @@ impl CodeEditor {
             model: EditorModel::new(),
             config: EditorConfig::default(),
             layout_cache: LayoutCache::new(),
-            minimap: Some(minimap),
+            minimap: Some(RefCell::new(minimap)),
             theme,
             gutter: Gutter::new(),
             highlighter: Box::new(syntax::RegexHighlighter::rust()),
@@ -285,14 +287,14 @@ impl CodeEditor {
                             }
 
                             // Get color from palette
-                            let color = palette_data.get_entry(color_idx)
+                            let color = palette_data.get(color_idx)
                                 .map(|entry| {
                                     // Blend foreground color with intensity
                                     let alpha = intensity as f32 / 255.0;
                                     Color::rgba(
-                                        entry.foreground.r * alpha,
-                                        entry.foreground.g * alpha,
-                                        entry.foreground.b * alpha,
+                                        entry.fg.r * alpha,
+                                        entry.fg.g * alpha,
+                                        entry.fg.b * alpha,
                                         1.0,
                                     )
                                 })
@@ -386,15 +388,10 @@ impl Widget for CodeEditor {
         );
 
         // Update minimap before rendering (Phase 2)
-        // SAFETY: We're in paint() which is read-only, but MinimapManager needs to update pages.
-        // This is safe because minimap updates don't affect widget state, only internal caches.
+        // Minimap uses RefCell for interior mutability since it's just a rendering cache
         if let Some(ref minimap) = self.minimap {
-            let minimap_mut = unsafe {
-                let ptr = minimap as *const _ as *mut minimap::MinimapManager;
-                &mut *ptr
-            };
             let center_line = self.scroll_line + (self.viewport_size.height / self.line_height as f64 / 2.0) as usize;
-            minimap_mut.update(&self.model, center_line);
+            minimap.borrow_mut().update(&self.model, center_line);
         }
 
         // Calculate visible line range
@@ -466,11 +463,23 @@ impl Widget for CodeEditor {
 
         // Draw cursor (if focused)
         if self.is_focused {
-            if let Some((line_idx, _)) = self.model.cursor().line_info() {
+            if let Some((line_idx, byte_offset)) = self.model.cursor().line_info() {
                 if line_idx >= visible_lines.start && line_idx < visible_lines.end {
-                    // Simple cursor rendering (vertical line)
-                    // TODO: Calculate actual X position from text layout based on cursor column
-                    let cursor_x = x;
+                    // Calculate cursor X position based on text layout
+                    let mut cursor_x = x;
+
+                    if let Some(line_text) = self.model.line(line_idx) {
+                        // Get text before cursor on this line
+                        let text_before_cursor = &line_text[..byte_offset.min(line_text.len())];
+
+                        // Calculate width using approximate character width
+                        // TODO: Use proper text measurement for accurate positioning
+                        let char_width = self.config.font_size * 0.6;
+                        let text_width = text_before_cursor.chars().count() as f32 * char_width;
+
+                        cursor_x = x + text_width;
+                    }
+
                     let cursor_y = bounds.origin.y as f32 + (line_idx - self.scroll_line) as f32 * self.line_height - self.scroll_offset_y;
 
                     let cursor_rect = Rect::new(
@@ -485,7 +494,7 @@ impl Widget for CodeEditor {
 
         // Draw minimap (Phase 2)
         if let Some(ref minimap) = self.minimap {
-            Self::paint_minimap_impl(ctx, bounds, minimap, &self.theme);
+            Self::paint_minimap_impl(ctx, bounds, &minimap.borrow(), &self.theme);
         }
     }
 
@@ -540,7 +549,10 @@ impl Widget for CodeEditor {
 impl MouseHandler for CodeEditor {
     fn on_mouse_down(&mut self, event: &mut MouseEvent) -> EventResponse {
         // Focus the editor on click
-        // (The focus manager will call on_focus_gained automatically)
+        // For now, explicitly set focus state (the focus manager should handle this, but we'll do it manually for testing)
+        if !self.is_focused {
+            self.is_focused = true;
+        }
 
         // Calculate which line was clicked
         let bounds = self.state.bounds;
@@ -558,16 +570,29 @@ impl MouseHandler for CodeEditor {
         // Update current line
         self.current_line = target_line;
 
-        // TODO: Calculate exact column position from click X coordinate
-        // For now, move cursor to start of clicked line
-        if let Some((line_idx, _)) = self.model.cursor().line_info() {
-            if line_idx != target_line {
-                // Move cursor to start of target line
-                let line_start_char = self.model.rope().line_to_char(target_line);
-                self.model.cursor_mut().set_char_pos(line_start_char);
-                self.model.update_cursor_caches();
-            }
+        // Calculate column position from click X coordinate
+        let line_start_char = self.model.rope().line_to_char(target_line);
+        let mut target_char_pos = line_start_char;
+
+        if let Some(line_text) = self.model.line(target_line) {
+            // Calculate relative X from text area start
+            let relative_x = event.position.x as f32 - text_area_x - 10.0 + self.scroll_offset_x; // 10px is the padding
+
+            // Use text engine to find character position at click X
+            // For now, use simple character width approximation (will refine later)
+            let char_width = self.config.font_size * 0.6; // Approximate monospace char width
+            let clicked_col = (relative_x / char_width).max(0.0) as usize;
+
+            // Clamp to line length
+            let line_len = line_text.trim_end_matches('\n').chars().count();
+            let target_col = clicked_col.min(line_len);
+
+            target_char_pos = line_start_char + target_col;
         }
+
+        // Always move cursor when clicking (don't check if line changed)
+        self.model.cursor_mut().set_char_pos(target_char_pos);
+        self.model.update_cursor_caches();
 
         self.state.dirty = DirtyLevel::Visual;
         EventResponse::Handled
