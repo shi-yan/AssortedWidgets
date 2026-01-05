@@ -22,7 +22,11 @@ use alacritty_terminal::index::{Point as TermPoint, Line, Column};
 use alacritty_terminal::term::cell::{Cell, Flags};
 use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor};
 
+use std::sync::Arc;
+
 pub use config::*;
+use minimap::TerminalMinimapManager;
+use crate::widgets::code_editor::CharSheet;
 
 /// Terminal emulator widget
 ///
@@ -51,6 +55,9 @@ pub struct TerminalEmulator {
 
     /// DPI scale factor
     scale_factor: f32,
+
+    /// Minimap manager (Phase 2+)
+    minimap_manager: Option<TerminalMinimapManager>,
 
     /// Whether the terminal needs redraw
     dirty: bool,
@@ -165,6 +172,13 @@ impl TerminalEmulator {
             event_listener,
         );
 
+        // Create minimap manager with shared CharSheet
+        let char_sheet = Arc::new(CharSheet::with_defaults());
+        let minimap_manager = Some(TerminalMinimapManager::new(
+            MINIMAP_WIDTH_PIXELS,
+            char_sheet,
+        ));
+
         Self {
             bounds: Rect::zero(),
             term,
@@ -175,6 +189,7 @@ impl TerminalEmulator {
             scroll_offset: 0,
             config: TerminalConfig::default(),
             scale_factor: 1.0,
+            minimap_manager,
             dirty: true,
         }
     }
