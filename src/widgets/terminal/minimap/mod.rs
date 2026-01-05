@@ -67,6 +67,10 @@ pub struct TerminalMinimapManager {
 
     /// Flag indicating pending updates (for deferred rasterization)
     has_pending_updates: bool,
+
+    /// Worker pool for background rasterization (Phase 5)
+    /// None = synchronous rasterization only
+    worker_pool: Option<WorkerPool>,
 }
 
 impl TerminalMinimapManager {
@@ -87,6 +91,31 @@ impl TerminalMinimapManager {
             last_rasterize_time: None,
             debounce_interval_ms: 100,  // 100ms debounce (adjustable)
             has_pending_updates: false,
+            worker_pool: None,  // Start without background threads
+        }
+    }
+
+    /// Enable background rasterization (Phase 5)
+    ///
+    /// Creates a worker pool with the specified number of threads.
+    /// Call this to enable multi-threaded rasterization.
+    ///
+    /// # Arguments
+    /// * `num_workers` - Number of background threads (recommended: 2-4)
+    pub fn enable_background_rasterization(&mut self, num_workers: usize) {
+        if self.worker_pool.is_none() {
+            let mut pool = WorkerPool::new(num_workers);
+            pool.set_generation(self.grid_generation);
+            self.worker_pool = Some(pool);
+        }
+    }
+
+    /// Disable background rasterization (Phase 5)
+    ///
+    /// Shuts down the worker pool and reverts to synchronous rasterization.
+    pub fn disable_background_rasterization(&mut self) {
+        if let Some(pool) = self.worker_pool.take() {
+            pool.shutdown();
         }
     }
 
@@ -143,6 +172,11 @@ impl TerminalMinimapManager {
         if self.last_total_lines > 0 {
             self.dirty_lines.add_range(0..self.last_total_lines);
         }
+
+        // Phase 5: Update worker pool generation (cancels pending jobs)
+        if let Some(ref mut pool) = self.worker_pool {
+            pool.set_generation(self.grid_generation);
+        }
     }
 
     /// Mark a single line as dirty
@@ -193,6 +227,30 @@ impl TerminalMinimapManager {
         self.pages.values().map(|p| p.byte_size()).sum()
     }
 
+    /// Apply completed rasterization results from background threads (Phase 5)
+    ///
+    /// Retrieves results from the worker pool and updates pages.
+    /// Call this frequently (e.g., every frame) to apply completed work.
+    fn apply_background_results(&mut self) {
+        if let Some(ref pool) = self.worker_pool {
+            let results = pool.try_recv_results();
+
+            for result in results {
+                // Validate result is still relevant
+                if result.grid_generation != self.grid_generation {
+                    continue; // Stale result from old generation
+                }
+
+                // Apply result to page
+                if let Some(page) = self.pages.get_mut(&result.page_num) {
+                    page.intensity = result.intensity;
+                    page.color_rgb565 = result.color_rgb565;
+                    page.status = PageStatus::Clean;
+                }
+            }
+        }
+    }
+
     /// Update minimap for the current terminal state
     ///
     /// Creates pages as needed and rasterizes dirty pages.
@@ -202,6 +260,9 @@ impl TerminalMinimapManager {
     /// * `term` - Terminal state
     /// * `visible_line` - Currently visible line (for prioritization)
     pub fn update<L: EventListener>(&mut self, term: &Term<L>, visible_line: usize) {
+        // Phase 5: Apply completed background rasterization results
+        self.apply_background_results();
+
         // Determine which page is currently visible
         self.visible_page = Some(visible_line / MINIMAP_PAGE_SIZE);
 
@@ -270,10 +331,11 @@ impl TerminalMinimapManager {
     }
 
     /// Rasterize dirty pages (Phase 3: visible-first, incremental)
+    /// Phase 5: Background rasterization for off-screen pages
     ///
     /// Strategy:
-    /// 1. Rasterize visible page first (if dirty)
-    /// 2. Rasterize other dirty pages
+    /// 1. Rasterize visible page first (synchronous, if dirty)
+    /// 2. Phase 5: Submit off-screen dirty pages to background workers
     /// 3. Only process pages that have dirty lines or are marked stale
     fn rasterize_dirty_pages<L: EventListener>(&mut self, term: &Term<L>) {
         // Get pages that need rasterization
@@ -304,12 +366,32 @@ impl TerminalMinimapManager {
             });
         }
 
-        // Rasterize pages
+        // Phase 5: Split into visible (synchronous) and off-screen (background)
+        let use_background = self.worker_pool.is_some();
+        let visible_page_num = self.visible_page;
+
         let char_sheet = self.char_sheet.clone();
+
         for page_num in pages_to_update {
-            if let Some(page) = self.pages.get_mut(&page_num) {
-                Self::rasterize_page(page_num, page, term, &char_sheet);
-                page.status = PageStatus::Clean;
+            let is_visible = visible_page_num == Some(page_num);
+
+            if is_visible || !use_background {
+                // Rasterize synchronously (visible page or no worker pool)
+                if let Some(page) = self.pages.get_mut(&page_num) {
+                    Self::rasterize_page(page_num, page, term, &char_sheet);
+                    page.status = PageStatus::Clean;
+                }
+            } else {
+                // Phase 5: Submit to background worker
+                if let Some(job) = self.create_raster_job(term, page_num, false) {
+                    if let Some(ref pool) = self.worker_pool {
+                        pool.submit_job(job);
+                        // Mark page as Rasterizing (will be Clean when result applied)
+                        if let Some(page) = self.pages.get_mut(&page_num) {
+                            page.status = PageStatus::Rasterizing;
+                        }
+                    }
+                }
             }
         }
 
