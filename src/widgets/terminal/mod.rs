@@ -8,7 +8,8 @@ mod config;
 use crate::types::{Rect, Point};
 use crate::widget::{Widget, EventResult};
 use crate::event::GuiEvent;
-use crate::paint::PaintContext;
+use crate::paint::{PaintContext, Color};
+use crate::text::TextStyle;
 
 use alacritty_terminal::term::Term;
 use alacritty_terminal::event::{Event as TermEvent, EventListener};
@@ -16,7 +17,8 @@ use alacritty_terminal::tty::Pty;
 use alacritty_terminal::event_loop::Notifier;
 use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::index::{Point as TermPoint, Line, Column};
-use alacritty_terminal::term::cell::Cell;
+use alacritty_terminal::term::cell::{Cell, Flags};
+use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor};
 
 pub use config::*;
 
@@ -80,6 +82,64 @@ impl EventListener for EventListenerImpl {
                 // Bell/beep
             }
             _ => {}
+        }
+    }
+}
+
+/// Convert ANSI color to our Color type
+fn ansi_to_color(ansi_color: &AnsiColor) -> Color {
+    match ansi_color {
+        AnsiColor::Named(named) => match named {
+            NamedColor::Black => Color::rgb(0, 0, 0),
+            NamedColor::Red => Color::rgb(205, 49, 49),
+            NamedColor::Green => Color::rgb(13, 188, 121),
+            NamedColor::Yellow => Color::rgb(229, 229, 16),
+            NamedColor::Blue => Color::rgb(36, 114, 200),
+            NamedColor::Magenta => Color::rgb(188, 63, 188),
+            NamedColor::Cyan => Color::rgb(17, 168, 205),
+            NamedColor::White => Color::rgb(229, 229, 229),
+            NamedColor::BrightBlack => Color::rgb(102, 102, 102),
+            NamedColor::BrightRed => Color::rgb(241, 76, 76),
+            NamedColor::BrightGreen => Color::rgb(35, 209, 139),
+            NamedColor::BrightYellow => Color::rgb(245, 245, 67),
+            NamedColor::BrightBlue => Color::rgb(59, 142, 234),
+            NamedColor::BrightMagenta => Color::rgb(214, 112, 214),
+            NamedColor::BrightCyan => Color::rgb(41, 184, 219),
+            NamedColor::BrightWhite => Color::rgb(255, 255, 255),
+            NamedColor::Foreground => Color::rgb(229, 229, 229),
+            NamedColor::Background => Color::rgb(15, 15, 20),
+            _ => Color::rgb(229, 229, 229),
+        },
+        AnsiColor::Spec(rgb) => Color::rgb(rgb.r, rgb.g, rgb.b),
+        AnsiColor::Indexed(idx) => {
+            // 256 color palette (simplified)
+            // Full implementation would have complete 256 color table
+            if *idx < 16 {
+                // Use named colors for 0-15
+                let named = match idx {
+                    0 => NamedColor::Black,
+                    1 => NamedColor::Red,
+                    2 => NamedColor::Green,
+                    3 => NamedColor::Yellow,
+                    4 => NamedColor::Blue,
+                    5 => NamedColor::Magenta,
+                    6 => NamedColor::Cyan,
+                    7 => NamedColor::White,
+                    8 => NamedColor::BrightBlack,
+                    9 => NamedColor::BrightRed,
+                    10 => NamedColor::BrightGreen,
+                    11 => NamedColor::BrightYellow,
+                    12 => NamedColor::BrightBlue,
+                    13 => NamedColor::BrightMagenta,
+                    14 => NamedColor::BrightCyan,
+                    _ => NamedColor::BrightWhite,
+                };
+                ansi_to_color(&AnsiColor::Named(named))
+            } else {
+                // Grayscale or 256 color (placeholder)
+                let gray = ((idx - 16) * 10).min(255) as u8;
+                Color::rgb(gray, gray, gray)
+            }
         }
     }
 }
@@ -178,52 +238,82 @@ impl TerminalEmulator {
     fn render_grid(&self, ctx: &mut PaintContext) {
         // Get grid reference
         let grid = self.term.grid();
-        let display_offset = self.term.grid().display_offset();
+        let display_offset = grid.display_offset();
 
-        // Calculate visible range
-        let start_line = display_offset + self.scroll_offset;
-        let end_line = (start_line + self.rows).min(self.total_lines());
+        // Create default text style for terminal
+        let mut text_style = TextStyle::default();
+        text_style.font_size = self.font_size * self.scale_factor;
+        text_style.line_height = DEFAULT_LINE_HEIGHT;
+        text_style.font_family = "monospace".to_string();
 
-        // Render each visible line
+        // Calculate visible range (in terms of grid lines)
+        // display_offset is the number of lines scrolled back
+        let visible_top_line = Line(-(display_offset as i32));
+
+        // Render each visible row
         for row_idx in 0..self.rows {
-            let grid_line = start_line + row_idx;
-            if grid_line >= end_line {
-                break;
-            }
+            let line = Line(visible_top_line.0 + row_idx as i32);
 
-            // Calculate Y position
+            // Calculate Y position for this row
             let y = self.bounds.min.y + (row_idx as f32 * self.cell_height);
 
-            // Get line from grid
-            // Note: This is simplified - actual implementation needs proper Line/Column indexing
-            let line = Line(grid_line as i32);
-
-            // Render cells in this line
+            // Render each column in this row
             for col_idx in 0..self.cols {
                 let column = Column(col_idx);
                 let point = TermPoint::new(line, column);
 
-                // Get cell (this will need proper bounds checking)
-                // let cell = &grid[point];
+                // Try to get cell - skip if out of bounds
+                let cell = match grid.get(line, column) {
+                    Some(cell) => cell,
+                    None => continue,
+                };
 
-                // Calculate X position
+                // Calculate X position for this column
                 let x = self.bounds.min.x + (col_idx as f32 * self.cell_width);
 
-                // Render cell (Phase 1: placeholder)
-                // In full implementation:
-                // 1. Extract character, colors, and flags from cell
-                // 2. Render background color
-                // 3. Render character with foreground color
-                // 4. Handle bold, italic, underline flags
-
-                // For now, just draw a placeholder
+                // Create cell rect
                 let cell_rect = Rect::new(
                     Point::new(x, y),
                     Point::new(x + self.cell_width, y + self.cell_height),
                 );
 
-                // Placeholder: Draw cell background
-                ctx.draw_rect(cell_rect, crate::paint::Color::rgb(20, 20, 25));
+                // Render background color (if not default)
+                let bg_color = ansi_to_color(&cell.bg);
+                if bg_color != Color::rgb(15, 15, 20) {
+                    ctx.draw_rect(cell_rect, bg_color);
+                }
+
+                // Get character to render
+                let c = cell.c;
+                if c != ' ' && c != '\0' {
+                    // Get foreground color
+                    let fg_color = ansi_to_color(&cell.fg);
+
+                    // Update text style with cell's foreground color
+                    text_style.text_color = fg_color;
+
+                    // Handle bold/italic flags
+                    if cell.flags.contains(Flags::BOLD) {
+                        text_style.font_weight = cosmic_text::Weight::BOLD;
+                    } else {
+                        text_style.font_weight = cosmic_text::Weight::NORMAL;
+                    }
+
+                    if cell.flags.contains(Flags::ITALIC) {
+                        text_style.font_style = cosmic_text::Style::Italic;
+                    } else {
+                        text_style.font_style = cosmic_text::Style::Normal;
+                    }
+
+                    // Render the character
+                    let char_str = c.to_string();
+                    ctx.draw_text(
+                        &char_str,
+                        &text_style,
+                        Point::new(x, y),
+                        Some(self.cell_width),
+                    );
+                }
             }
         }
     }
