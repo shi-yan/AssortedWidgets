@@ -396,6 +396,31 @@ impl TerminalEmulator {
             );
             ctx.draw_rect(indicator_rect, Color::rgba(255, 255, 255, 128));
         }
+
+        // Phase 4: Visual feedback for pending resize
+        if self.pending_resize.is_some() {
+            // Draw a subtle overlay to indicate pending resize
+            let overlay_rect = Rect::new(
+                Point::new(minimap_x, minimap_y),
+                Point::new(minimap_x + minimap_width, minimap_y + 20.0),
+            );
+            ctx.draw_rect(overlay_rect, Color::rgba(255, 200, 100, 180));
+        }
+
+        // Phase 4: Count and show stale pages (regenerating after reflow)
+        let stale_count = (0..page_count)
+            .filter_map(|i| minimap.get_page(i))
+            .filter(|p| p.status == minimap::PageStatus::Stale)
+            .count();
+
+        if stale_count > 0 {
+            // Draw regeneration indicator
+            let regen_rect = Rect::new(
+                Point::new(minimap_x, minimap_y + minimap_height - 20.0),
+                Point::new(minimap_x + minimap_width, minimap_y + minimap_height),
+            );
+            ctx.draw_rect(regen_rect, Color::rgba(200, 100, 100, 180));
+        }
     }
 
     /// Render the terminal grid
