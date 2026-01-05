@@ -19,6 +19,10 @@ path = "examples/rounded_rects.rs"
 name = "icons_and_images"
 path = "examples/icons_and_images.rs"
 
+[[example]]
+name = "code_editor_demo"
+path = "examples/code_editor_demo.rs"
+
 [dependencies]
 euclid = { version = "0.22", features = ["serde"] }
 wgpu = "28.0"
@@ -36,6 +40,7 @@ serde_json = "1.0"
 lru = "0.16"
 pulldown-cmark = "0.13"
 ropey = "1.6"
+regex = "1.11"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

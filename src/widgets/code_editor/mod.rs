@@ -5,20 +5,32 @@ use std::sync::Arc;
 use taffy::Style;
 
 use crate::paint::primitives::Color;
-use crate::paint::types::ShapeStyle;
+use crate::paint::types::{Border, ShapeStyle};
 use crate::paint::PaintContext;
 use crate::text::TextStyle;
 use crate::types::{DirtyLevel, Point, Rect, Size, WidgetId};
 use crate::widget::Widget;
 use crate::WidgetState;
+use crate::event::{EventResponse, InputEventEnum, KeyEvent, MouseEvent, WheelEvent};
+use crate::event::handlers::{KeyboardHandler, MouseHandler, WheelHandler};
 
 mod config;
 mod model;
 mod layout_cache;
+mod minimap;
+mod theme;
+mod syntax;
+mod gutter;
+mod folding;
 
 pub use config::{EditorConfig, WrapMode};
 pub use model::EditorModel;
+pub use minimap::{MinimapManager, CharSheet, MinimapPalette};
+pub use theme::EditorTheme;
+pub use syntax::SyntaxHighlighter;
+pub use folding::{FoldManager, FoldableRegion, FoldKind};
 use layout_cache::LayoutCache;
+use gutter::Gutter;
 
 /// Code editor widget with virtualized rendering for large files
 ///
@@ -39,6 +51,22 @@ pub struct CodeEditor {
 
     // === Layout Cache ===
     layout_cache: LayoutCache,
+
+    // === Minimap (Phase 2) ===
+    minimap: Option<MinimapManager>,
+
+    // === Phase 3: UI Elements ===
+    /// Color theme
+    theme: EditorTheme,
+
+    /// Gutter (line numbers)
+    gutter: Gutter,
+
+    /// Syntax highlighter
+    highlighter: Box<dyn SyntaxHighlighter>,
+
+    /// Current active line (where cursor is)
+    current_line: usize,
 
     // === Scrolling State ===
     /// First visible line (0-indexed logical line)
@@ -65,12 +93,24 @@ pub struct CodeEditor {
 impl CodeEditor {
     /// Create a new empty code editor
     pub fn new() -> Self {
+        let theme = EditorTheme::dark();
+
+        // Create minimap with theme-based palette
+        let palette = theme.to_minimap_palette();
+        let mut minimap = MinimapManager::new(100); // 100 pixels wide
+        // TODO: Set minimap palette once the API supports it
+
         Self {
             state: WidgetState::new(),
             layout_style: Style::default(),
             model: EditorModel::new(),
             config: EditorConfig::default(),
             layout_cache: LayoutCache::new(),
+            minimap: Some(minimap),
+            theme,
+            gutter: Gutter::new(),
+            highlighter: Box::new(syntax::RegexHighlighter::rust()),
+            current_line: 0,
             scroll_line: 0,
             scroll_offset_y: 0.0,
             scroll_offset_x: 0.0,
@@ -201,6 +241,85 @@ impl CodeEditor {
         self.model.update_cursor_caches();
         self.state.dirty = DirtyLevel::Visual;
     }
+
+    /// Paint the minimap on the right side of the editor (helper function)
+    fn paint_minimap_impl(ctx: &mut PaintContext, bounds: Rect, minimap: &MinimapManager, theme: &EditorTheme) {
+        let minimap_width = 100.0; // pixels
+        let minimap_x = bounds.origin.x + bounds.size.width - minimap_width;
+        let minimap_y = bounds.origin.y;
+
+        // Draw minimap background
+        let minimap_rect = Rect::new(
+            Point::new(minimap_x, minimap_y),
+            Size::new(minimap_width, bounds.size.height),
+        );
+        ctx.draw_styled_rect(
+            minimap_rect,
+            ShapeStyle::solid(Color::rgb(0.08, 0.09, 0.10)), // Slightly darker than editor
+        );
+
+        // Get minimap palette
+        let palette_data = theme.to_minimap_palette();
+
+        // Render minimap pages
+        // For simplicity, we draw each pixel as a small rectangle
+        // (This is not the most efficient approach, but works for Phase 2)
+        let pixel_size = 1.0; // Each pixel is 1x1 screen pixels
+
+        for page_num in 0..minimap.page_count() {
+            if let Some(page) = minimap.get_page(page_num) {
+                let page_y_offset = (page.start_line * 2) as f64; // 2 pixels per line
+
+                // Only render pages that are visible
+                if page_y_offset > bounds.size.height {
+                    break; // Page is below viewport
+                }
+
+                // Draw pixels
+                for y in 0..page.height_pixels.min((bounds.size.height as usize).saturating_sub(page_y_offset as usize)) {
+                    for x in 0..page.width_pixels.min(minimap_width as usize) {
+                        if let Some((intensity, color_idx)) = page.get_pixel(x, y) {
+                            // Skip fully transparent pixels
+                            if intensity == 0 {
+                                continue;
+                            }
+
+                            // Get color from palette
+                            let color = palette_data.get_entry(color_idx)
+                                .map(|entry| {
+                                    // Blend foreground color with intensity
+                                    let alpha = intensity as f32 / 255.0;
+                                    Color::rgba(
+                                        entry.foreground.r * alpha,
+                                        entry.foreground.g * alpha,
+                                        entry.foreground.b * alpha,
+                                        1.0,
+                                    )
+                                })
+                                .unwrap_or(Color::WHITE);
+
+                            let pixel_rect = Rect::new(
+                                Point::new(
+                                    minimap_x + x as f64 * pixel_size,
+                                    minimap_y + page_y_offset + y as f64 * pixel_size,
+                                ),
+                                Size::new(pixel_size, pixel_size),
+                            );
+
+                            ctx.draw_rect(pixel_rect, color);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Draw border
+        ctx.draw_styled_rect(
+            minimap_rect,
+            ShapeStyle::solid(Color::TRANSPARENT)
+                .with_border(Border::new(Color::rgb(0.3, 0.3, 0.3), 1.0)),
+        );
+    }
 }
 
 impl Default for CodeEditor {
@@ -263,27 +382,71 @@ impl Widget for CodeEditor {
         // Draw background
         ctx.draw_styled_rect(
             bounds,
-            ShapeStyle::solid(Color::rgb(0.11, 0.12, 0.13)), // Dark background
+            ShapeStyle::solid(self.theme.background),
         );
+
+        // Update minimap before rendering (Phase 2)
+        // SAFETY: We're in paint() which is read-only, but MinimapManager needs to update pages.
+        // This is safe because minimap updates don't affect widget state, only internal caches.
+        if let Some(ref minimap) = self.minimap {
+            let minimap_mut = unsafe {
+                let ptr = minimap as *const _ as *mut minimap::MinimapManager;
+                &mut *ptr
+            };
+            let center_line = self.scroll_line + (self.viewport_size.height / self.line_height as f64 / 2.0) as usize;
+            minimap_mut.update(&self.model, center_line);
+        }
 
         // Calculate visible line range
         let visible_lines = self.visible_line_range();
 
-        // Draw visible lines
+        // Draw gutter (line numbers)
+        self.gutter.paint(
+            ctx,
+            bounds,
+            &self.theme,
+            visible_lines.clone(),
+            self.scroll_offset_y,
+            self.line_height,
+            Some(self.current_line),
+        );
+
+        // Text area starts after the gutter
+        let text_area_x = bounds.origin.x as f32 + self.gutter.width;
+
+        // Draw current line highlight (in text area)
+        let current_line_y = bounds.origin.y as f32
+            + (self.current_line as f32 * self.line_height)
+            - (self.scroll_line as f32 * self.line_height)
+            - self.scroll_offset_y;
+
+        if self.current_line >= visible_lines.start && self.current_line < visible_lines.end {
+            let highlight_rect = Rect::new(
+                Point::new(text_area_x as f64, current_line_y as f64),
+                Size::new(
+                    (bounds.size.width - self.gutter.width as f64).max(0.0),
+                    self.line_height as f64,
+                ),
+            );
+            ctx.draw_styled_rect(
+                highlight_rect,
+                ShapeStyle::solid(self.theme.current_line_background),
+            );
+        }
+
+        // Draw visible lines with syntax highlighting
         let mut y = bounds.origin.y as f32 - self.scroll_offset_y;
-        let x = bounds.origin.x as f32 - self.scroll_offset_x;
+        let x = text_area_x - self.scroll_offset_x + 10.0; // 10px padding
 
         for line_idx in visible_lines.clone() {
             if let Some(line_text) = self.model.line(line_idx) {
-                // For Phase 1, use simple text rendering without layout cache
-                // (Will be optimized with layout cache in later iterations)
+                let text_pos = Point::new(x as f64, y as f64 + 4.0);
 
-                let text_pos = Point::new(x as f64 + 10.0, y as f64 + 4.0);
-
-                // Draw line text
+                // For Phase 3, use default color (syntax highlighting in minimap only for now)
+                // TODO: Apply syntax highlighting to text in Phase 3.5
                 let text_style = TextStyle::new()
                     .size(self.config.font_size)
-                    .color(Color::rgb(0.85, 0.85, 0.85));
+                    .color(self.theme.default_text);
 
                 ctx.draw_text(
                     &line_text.trim_end_matches('\n'),
@@ -306,7 +469,8 @@ impl Widget for CodeEditor {
             if let Some((line_idx, _)) = self.model.cursor().line_info() {
                 if line_idx >= visible_lines.start && line_idx < visible_lines.end {
                     // Simple cursor rendering (vertical line)
-                    let cursor_x = x + 10.0; // TODO: Calculate actual X position from text layout
+                    // TODO: Calculate actual X position from text layout based on cursor column
+                    let cursor_x = x;
                     let cursor_y = bounds.origin.y as f32 + (line_idx - self.scroll_line) as f32 * self.line_height - self.scroll_offset_y;
 
                     let cursor_rect = Rect::new(
@@ -314,12 +478,249 @@ impl Widget for CodeEditor {
                         Size::new(2.0, self.line_height as f64 - 4.0),
                     );
 
-                    ctx.draw_styled_rect(cursor_rect, ShapeStyle::solid(Color::WHITE));
+                    ctx.draw_styled_rect(cursor_rect, ShapeStyle::solid(self.theme.cursor));
                 }
             }
         }
+
+        // Draw minimap (Phase 2)
+        if let Some(ref minimap) = self.minimap {
+            Self::paint_minimap_impl(ctx, bounds, minimap, &self.theme);
+        }
     }
 
+    // ========================================================================
+    // Event Handling (makes editor interactive)
+    // ========================================================================
+
+    fn is_interactive(&self) -> bool {
+        true // Editor accepts mouse and keyboard input
+    }
+
+    fn is_focusable(&self) -> bool {
+        true // Editor can be focused
+    }
+
+    fn on_focus_gained(&mut self) {
+        self.is_focused = true;
+        self.state.dirty = DirtyLevel::Visual; // Redraw to show cursor
+    }
+
+    fn on_focus_lost(&mut self) {
+        self.is_focused = false;
+        self.state.dirty = DirtyLevel::Visual; // Redraw to hide cursor
+    }
+
+    fn dispatch_mouse_event(&mut self, event: &mut InputEventEnum) -> EventResponse {
+        match event {
+            InputEventEnum::MouseDown(e) => self.on_mouse_down(e),
+            InputEventEnum::MouseUp(e) => self.on_mouse_up(e),
+            InputEventEnum::MouseMove(e) => self.on_mouse_move(e),
+            _ => EventResponse::Ignored,
+        }
+    }
+
+    fn dispatch_key_event(&mut self, event: &mut InputEventEnum) -> EventResponse {
+        match event {
+            InputEventEnum::KeyDown(e) => self.on_key_down(e),
+            InputEventEnum::KeyUp(e) => self.on_key_up(e),
+            _ => EventResponse::Ignored,
+        }
+    }
+
+    fn on_wheel(&mut self, event: &mut WheelEvent) -> EventResponse {
+        WheelHandler::on_wheel(self, event)
+    }
+}
+
+// ============================================================================
+// Mouse Handler Implementation
+// ============================================================================
+
+impl MouseHandler for CodeEditor {
+    fn on_mouse_down(&mut self, event: &mut MouseEvent) -> EventResponse {
+        // Focus the editor on click
+        // (The focus manager will call on_focus_gained automatically)
+
+        // Calculate which line was clicked
+        let bounds = self.state.bounds;
+        let text_area_x = bounds.origin.x as f32 + self.gutter.width;
+
+        // Convert click position to line index
+        let relative_y = event.position.y as f32 - bounds.origin.y as f32 + self.scroll_offset_y;
+        let clicked_line = (relative_y / self.line_height) as usize;
+        let line_in_doc = self.scroll_line + clicked_line;
+
+        // Clamp to valid line range
+        let max_line = self.model.len_lines().saturating_sub(1);
+        let target_line = line_in_doc.min(max_line);
+
+        // Update current line
+        self.current_line = target_line;
+
+        // TODO: Calculate exact column position from click X coordinate
+        // For now, move cursor to start of clicked line
+        if let Some((line_idx, _)) = self.model.cursor().line_info() {
+            if line_idx != target_line {
+                // Move cursor to start of target line
+                let line_start_char = self.model.rope().line_to_char(target_line);
+                self.model.cursor_mut().set_char_pos(line_start_char);
+                self.model.update_cursor_caches();
+            }
+        }
+
+        self.state.dirty = DirtyLevel::Visual;
+        EventResponse::Handled
+    }
+
+    fn on_mouse_enter(&mut self, _event: &mut MouseEvent) -> EventResponse {
+        self.is_hovered = true;
+        EventResponse::PassThrough
+    }
+
+    fn on_mouse_leave(&mut self, _event: &mut MouseEvent) -> EventResponse {
+        self.is_hovered = false;
+        EventResponse::PassThrough
+    }
+}
+
+// ============================================================================
+// Keyboard Handler Implementation
+// ============================================================================
+
+impl KeyboardHandler for CodeEditor {
+    fn on_key_down(&mut self, event: &mut KeyEvent) -> EventResponse {
+        use crate::event::input::{Key, NamedKey};
+
+        match &event.key {
+            // Character input
+            Key::Character(ch) => {
+                let text = ch.to_string();
+                self.insert_text(&text);
+
+                // Update current line based on cursor position
+                if let Some((line_idx, _)) = self.model.cursor().line_info() {
+                    self.current_line = line_idx;
+                }
+
+                EventResponse::Handled
+            }
+
+            // Named keys
+            Key::Named(named) => match named {
+                NamedKey::Backspace => {
+                    self.handle_backspace();
+
+                    // Update current line
+                    if let Some((line_idx, _)) = self.model.cursor().line_info() {
+                        self.current_line = line_idx;
+                    }
+
+                    EventResponse::Handled
+                }
+
+                NamedKey::Delete => {
+                    self.handle_delete();
+
+                    // Update current line
+                    if let Some((line_idx, _)) = self.model.cursor().line_info() {
+                        self.current_line = line_idx;
+                    }
+
+                    EventResponse::Handled
+                }
+
+                NamedKey::Enter => {
+                    self.insert_text("\n");
+
+                    // Update current line
+                    if let Some((line_idx, _)) = self.model.cursor().line_info() {
+                        self.current_line = line_idx;
+                    }
+
+                    EventResponse::Handled
+                }
+
+                NamedKey::ArrowLeft => {
+                    self.move_cursor_left();
+
+                    // Update current line
+                    if let Some((line_idx, _)) = self.model.cursor().line_info() {
+                        self.current_line = line_idx;
+                    }
+
+                    EventResponse::Handled
+                }
+
+                NamedKey::ArrowRight => {
+                    self.move_cursor_right();
+
+                    // Update current line
+                    if let Some((line_idx, _)) = self.model.cursor().line_info() {
+                        self.current_line = line_idx;
+                    }
+
+                    EventResponse::Handled
+                }
+
+                NamedKey::Home => {
+                    self.move_cursor_to_start();
+
+                    // Update current line
+                    if let Some((line_idx, _)) = self.model.cursor().line_info() {
+                        self.current_line = line_idx;
+                    }
+
+                    EventResponse::Handled
+                }
+
+                NamedKey::End => {
+                    self.move_cursor_to_end();
+
+                    // Update current line
+                    if let Some((line_idx, _)) = self.model.cursor().line_info() {
+                        self.current_line = line_idx;
+                    }
+
+                    EventResponse::Handled
+                }
+
+                _ => EventResponse::Ignored,
+            },
+        }
+    }
+}
+
+// ============================================================================
+// Wheel Handler Implementation
+// ============================================================================
+
+impl WheelHandler for CodeEditor {
+    fn on_wheel(&mut self, event: &mut WheelEvent) -> EventResponse {
+        // Vertical scrolling
+        let delta_y = event.delta.y as f32;
+
+        // Update scroll offset
+        self.scroll_offset_y -= delta_y;
+
+        // Adjust scroll_line if we've scrolled past a line boundary
+        while self.scroll_offset_y < 0.0 && self.scroll_line > 0 {
+            self.scroll_line -= 1;
+            self.scroll_offset_y += self.line_height;
+        }
+
+        let max_line = self.model.len_lines().saturating_sub(1);
+        while self.scroll_offset_y >= self.line_height && self.scroll_line < max_line {
+            self.scroll_line += 1;
+            self.scroll_offset_y -= self.line_height;
+        }
+
+        // Clamp scroll offset
+        self.scroll_offset_y = self.scroll_offset_y.max(0.0);
+
+        self.state.dirty = DirtyLevel::Visual;
+        EventResponse::Handled
+    }
 }
 
 // ============================================================================
