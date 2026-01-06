@@ -528,6 +528,7 @@ impl CodeEditor {
     /// Handle cursor movement
     fn move_cursor_left(&mut self) {
         self.model.cursor_mut().move_left();
+        self.model.cursor_mut().clear_preferred_x(); // Clear vertical navigation preference
         self.model.update_cursor_caches();
         self.state.dirty = DirtyLevel::Visual;
     }
@@ -535,12 +536,14 @@ impl CodeEditor {
     fn move_cursor_right(&mut self) {
         let max_chars = self.model.len_chars();
         self.model.cursor_mut().move_right(max_chars);
+        self.model.cursor_mut().clear_preferred_x(); // Clear vertical navigation preference
         self.model.update_cursor_caches();
         self.state.dirty = DirtyLevel::Visual;
     }
 
     fn move_cursor_to_start(&mut self) {
         self.model.cursor_mut().move_to_start();
+        self.model.cursor_mut().clear_preferred_x(); // Clear vertical navigation preference
         self.model.update_cursor_caches();
         self.state.dirty = DirtyLevel::Visual;
     }
@@ -548,8 +551,331 @@ impl CodeEditor {
     fn move_cursor_to_end(&mut self) {
         let max_chars = self.model.len_chars();
         self.model.cursor_mut().move_to_end(max_chars);
+        self.model.cursor_mut().clear_preferred_x(); // Clear vertical navigation preference
         self.model.update_cursor_caches();
         self.state.dirty = DirtyLevel::Visual;
+    }
+
+    /// Move cursor up by one visual line (handles both NoWrap and SoftWrap modes)
+    fn move_cursor_up(&mut self) {
+        // Get current cursor position
+        let cursor = self.model.cursor();
+        let current_char_pos = cursor.char_pos();
+
+        // Get current line info
+        let Some((current_line, byte_offset_in_line)) = cursor.line_info() else {
+            return;
+        };
+
+        // Get or calculate preferred X position
+        let preferred_x = if let Some(x) = cursor.preferred_x {
+            x
+        } else {
+            // Calculate X from current position
+            if let Some(line_text) = self.model.line(current_line) {
+                let text_before_cursor = &line_text[..byte_offset_in_line.min(line_text.len())];
+                self.measure_text_width(text_before_cursor)
+            } else {
+                0.0
+            }
+        };
+
+        match self.config.wrap_mode {
+            WrapMode::NoWrap => {
+                // Simple case: move to previous logical line
+                if current_line == 0 {
+                    return; // Already at first line
+                }
+
+                let target_line = current_line - 1;
+                self.move_cursor_to_line_x(target_line, preferred_x);
+            }
+            WrapMode::SoftWrap => {
+                // Complex case: move to previous visual line
+                if !*self.wrap_cache_valid.borrow() {
+                    self.update_wrapped_lines();
+                }
+
+                let wrapped = self.wrapped_lines.borrow();
+                if let Some(wrapped_line) = wrapped.get(current_line) {
+                    // Find which segment contains the cursor
+                    let mut current_segment_idx = 0;
+                    for (idx, segment) in wrapped_line.segments.iter().enumerate() {
+                        if byte_offset_in_line >= segment.start && byte_offset_in_line <= segment.end {
+                            current_segment_idx = idx;
+                            break;
+                        }
+                    }
+
+                    if current_segment_idx > 0 {
+                        // Move to previous segment in same logical line
+                        let target_segment = &wrapped_line.segments[current_segment_idx - 1];
+                        let target_char_pos = self.find_char_at_x_in_segment(current_line, target_segment, preferred_x);
+                        self.model.cursor_mut().set_char_pos(target_char_pos);
+                    } else if current_line > 0 {
+                        // Move to last segment of previous logical line
+                        let target_line = current_line - 1;
+                        if let Some(prev_wrapped_line) = wrapped.get(target_line) {
+                            if let Some(last_segment) = prev_wrapped_line.segments.last() {
+                                let target_char_pos = self.find_char_at_x_in_segment(target_line, last_segment, preferred_x);
+                                self.model.cursor_mut().set_char_pos(target_char_pos);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Store preferred X for next up/down movement
+        self.model.cursor_mut().preferred_x = Some(preferred_x);
+        self.model.update_cursor_caches();
+
+        // Update current line
+        if let Some((line_idx, _)) = self.model.cursor().line_info() {
+            self.current_line = line_idx;
+        }
+
+        self.state.dirty = DirtyLevel::Visual;
+    }
+
+    /// Move cursor down by one visual line (handles both NoWrap and SoftWrap modes)
+    fn move_cursor_down(&mut self) {
+        // Get current cursor position
+        let cursor = self.model.cursor();
+        let current_char_pos = cursor.char_pos();
+
+        // Get current line info
+        let Some((current_line, byte_offset_in_line)) = cursor.line_info() else {
+            return;
+        };
+
+        // Get or calculate preferred X position
+        let preferred_x = if let Some(x) = cursor.preferred_x {
+            x
+        } else {
+            // Calculate X from current position
+            if let Some(line_text) = self.model.line(current_line) {
+                let text_before_cursor = &line_text[..byte_offset_in_line.min(line_text.len())];
+                self.measure_text_width(text_before_cursor)
+            } else {
+                0.0
+            }
+        };
+
+        match self.config.wrap_mode {
+            WrapMode::NoWrap => {
+                // Simple case: move to next logical line
+                if current_line >= self.model.len_lines().saturating_sub(1) {
+                    return; // Already at last line
+                }
+
+                let target_line = current_line + 1;
+                self.move_cursor_to_line_x(target_line, preferred_x);
+            }
+            WrapMode::SoftWrap => {
+                // Complex case: move to next visual line
+                if !*self.wrap_cache_valid.borrow() {
+                    self.update_wrapped_lines();
+                }
+
+                let wrapped = self.wrapped_lines.borrow();
+                if let Some(wrapped_line) = wrapped.get(current_line) {
+                    // Find which segment contains the cursor
+                    let mut current_segment_idx = 0;
+                    for (idx, segment) in wrapped_line.segments.iter().enumerate() {
+                        if byte_offset_in_line >= segment.start && byte_offset_in_line <= segment.end {
+                            current_segment_idx = idx;
+                            break;
+                        }
+                    }
+
+                    if current_segment_idx < wrapped_line.segments.len() - 1 {
+                        // Move to next segment in same logical line
+                        let target_segment = &wrapped_line.segments[current_segment_idx + 1];
+                        let target_char_pos = self.find_char_at_x_in_segment(current_line, target_segment, preferred_x);
+                        self.model.cursor_mut().set_char_pos(target_char_pos);
+                    } else if current_line < self.model.len_lines() - 1 {
+                        // Move to first segment of next logical line
+                        let target_line = current_line + 1;
+                        if let Some(next_wrapped_line) = wrapped.get(target_line) {
+                            if let Some(first_segment) = next_wrapped_line.segments.first() {
+                                let target_char_pos = self.find_char_at_x_in_segment(target_line, first_segment, preferred_x);
+                                self.model.cursor_mut().set_char_pos(target_char_pos);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Store preferred X for next up/down movement
+        self.model.cursor_mut().preferred_x = Some(preferred_x);
+        self.model.update_cursor_caches();
+
+        // Update current line
+        if let Some((line_idx, _)) = self.model.cursor().line_info() {
+            self.current_line = line_idx;
+        }
+
+        self.state.dirty = DirtyLevel::Visual;
+    }
+
+    /// Helper: Move cursor to a specific line at a given X position
+    fn move_cursor_to_line_x(&mut self, target_line: usize, x: f32) {
+        if target_line >= self.model.len_lines() {
+            return;
+        }
+
+        if let Some(line_text) = self.model.line(target_line) {
+            let line_without_newline = line_text.trim_end_matches('\n');
+            let char_width = self.get_char_width();
+
+            // Estimate column from X position
+            let estimated_col = (x / char_width).max(0.0) as usize;
+
+            // Find exact character position at X
+            let line_start_char = self.model.rope().line_to_char(target_line);
+            let mut best_col = 0;
+            let mut best_distance = f32::MAX;
+
+            // Search around estimated position
+            let start_col = estimated_col.saturating_sub(2);
+            let end_col = (estimated_col + 3).min(line_without_newline.chars().count());
+
+            for col in start_col..=end_col {
+                let byte_idx = line_without_newline
+                    .char_indices()
+                    .nth(col)
+                    .map(|(i, _)| i)
+                    .unwrap_or(line_without_newline.len());
+                let text_before = &line_without_newline[..byte_idx];
+                let width = self.measure_text_width(text_before);
+                let distance = (width - x).abs();
+
+                if distance < best_distance {
+                    best_distance = distance;
+                    best_col = col;
+                }
+            }
+
+            let target_char_pos = line_start_char + best_col;
+            self.model.cursor_mut().set_char_pos(target_char_pos);
+        }
+    }
+
+    /// Helper: Find character position at X within a wrapped segment
+    fn find_char_at_x_in_segment(&self, line_idx: usize, segment: &WrappedSegment, x: f32) -> usize {
+        if let Some(line_text) = self.model.line(line_idx) {
+            let segment_text = &line_text[segment.start..segment.end];
+            let char_width = self.get_char_width();
+
+            // Estimate position
+            let estimated_offset = (x / char_width).max(0.0) as usize;
+
+            // Find exact position
+            let mut best_offset = 0;
+            let mut best_distance = f32::MAX;
+
+            let start = estimated_offset.saturating_sub(2);
+            let end = (estimated_offset + 3).min(segment_text.chars().count());
+
+            for offset in start..=end {
+                let byte_idx = segment_text
+                    .char_indices()
+                    .nth(offset)
+                    .map(|(i, _)| i)
+                    .unwrap_or(segment_text.len());
+                let text_before = &segment_text[..byte_idx];
+                let width = self.measure_text_width(text_before);
+                let distance = (width - x).abs();
+
+                if distance < best_distance {
+                    best_distance = distance;
+                    best_offset = offset;
+                }
+            }
+
+            // Convert segment-relative character offset to absolute character position
+            let line_start_char = self.model.rope().line_to_char(line_idx);
+            let segment_start_chars = line_text[..segment.start].chars().count();
+            line_start_char + segment_start_chars + best_offset
+        } else {
+            0
+        }
+    }
+
+    /// Helper: Find character position at X within a full line (NoWrap mode)
+    fn find_char_at_x_in_line(&self, line_idx: usize, x: f32) -> usize {
+        let line_start_char = self.model.rope().line_to_char(line_idx);
+
+        if let Some(line_text) = self.model.line(line_idx) {
+            let line_without_newline = line_text.trim_end_matches('\n');
+            let char_width = self.get_char_width();
+
+            // Estimate column from X position
+            let estimated_col = (x / char_width).max(0.0) as usize;
+
+            // Find exact position
+            let mut best_col = 0;
+            let mut best_distance = f32::MAX;
+
+            // Search around estimated position
+            let start_col = estimated_col.saturating_sub(2);
+            let end_col = (estimated_col + 3).min(line_without_newline.chars().count());
+
+            for col in start_col..=end_col {
+                let byte_idx = line_without_newline
+                    .char_indices()
+                    .nth(col)
+                    .map(|(i, _)| i)
+                    .unwrap_or(line_without_newline.len());
+                let text_before = &line_without_newline[..byte_idx];
+                let width = self.measure_text_width(text_before);
+                let distance = (width - x).abs();
+
+                if distance < best_distance {
+                    best_distance = distance;
+                    best_col = col;
+                }
+            }
+
+            line_start_char + best_col
+        } else {
+            line_start_char
+        }
+    }
+
+    /// Helper: Convert visual line offset from start_line to (logical line, segment index)
+    ///
+    /// Given a starting logical line and a visual line offset, finds which logical line
+    /// and segment contains that visual line.
+    fn visual_line_to_logical(&self, start_line: usize, visual_offset: usize) -> (usize, usize) {
+        let wrapped = self.wrapped_lines.borrow();
+        let mut current_visual = 0;
+
+        for line_idx in start_line..self.model.len_lines() {
+            if let Some(wrapped_line) = wrapped.get(line_idx) {
+                let segments_in_line = wrapped_line.segments.len();
+
+                if current_visual + segments_in_line > visual_offset {
+                    // Found the target line
+                    let segment_idx = visual_offset - current_visual;
+                    return (line_idx, segment_idx);
+                }
+
+                current_visual += segments_in_line;
+            } else {
+                // No wrapped info, treat as single line
+                if current_visual == visual_offset {
+                    return (line_idx, 0);
+                }
+                current_visual += 1;
+            }
+        }
+
+        // Fallback: last line
+        let last_line = self.model.len_lines().saturating_sub(1);
+        (last_line, 0)
     }
 
     /// Paint in NoWrap mode (with horizontal scrolling)
@@ -1064,58 +1390,59 @@ impl MouseHandler for CodeEditor {
         }
 
         // Calculate which line was clicked
+        let target_char_pos = match self.config.wrap_mode {
+            WrapMode::NoWrap => {
+                // Simple case: click Y → logical line
+                let relative_y = event.position.y as f32 - bounds.origin.y as f32 + self.scroll_offset_y;
+                let clicked_line = (relative_y / self.line_height) as usize;
+                let line_in_doc = self.scroll_line + clicked_line;
 
-        // Convert click position to line index
-        let relative_y = event.position.y as f32 - bounds.origin.y as f32 + self.scroll_offset_y;
-        let clicked_line = (relative_y / self.line_height) as usize;
-        let line_in_doc = self.scroll_line + clicked_line;
+                // Clamp to valid line range
+                let max_line = self.model.len_lines().saturating_sub(1);
+                let target_line = line_in_doc.min(max_line);
+                self.current_line = target_line;
 
-        // Clamp to valid line range
-        let max_line = self.model.len_lines().saturating_sub(1);
-        let target_line = line_in_doc.min(max_line);
+                // Calculate relative X from text area start (with horizontal scroll)
+                let relative_x = event.position.x as f32 - text_area_x - 10.0 + self.scroll_offset_x; // 10px padding
 
-        // Update current line
-        self.current_line = target_line;
+                // Find character position at click X
+                self.find_char_at_x_in_line(target_line, relative_x)
+            }
+            WrapMode::SoftWrap => {
+                // Complex case: click Y → visual line → (logical line, segment)
+                if !*self.wrap_cache_valid.borrow() {
+                    self.update_wrapped_lines();
+                }
 
-        // Calculate column position from click X coordinate
-        let line_start_char = self.model.rope().line_to_char(target_line);
-        let mut target_char_pos = line_start_char;
+                let relative_y = event.position.y as f32 - bounds.origin.y as f32 + self.scroll_offset_y;
+                let visual_line_offset = (relative_y / self.line_height) as usize;
 
-        if let Some(line_text) = self.model.line(target_line) {
-            // Calculate relative X from text area start
-            let relative_x = event.position.x as f32 - text_area_x - 10.0 + self.scroll_offset_x; // 10px is the padding
+                // Convert visual line offset to (logical line, segment index)
+                let (target_line, segment_idx) = self.visual_line_to_logical(self.scroll_line, visual_line_offset);
+                self.current_line = target_line;
 
-            // Find character position at click X by measuring text width
-            let line_without_newline = line_text.trim_end_matches('\n');
+                // Calculate relative X from text area start (no horizontal scroll in wrap mode)
+                let relative_x = event.position.x as f32 - text_area_x - 10.0; // 10px padding
 
-            // Use monospace character width for efficient binary search-like approach
-            let char_width = self.get_char_width();
-            let estimated_col = (relative_x / char_width).max(0.0) as usize;
-
-            // Measure actual width to find exact position
-            let mut best_col = 0;
-            let mut best_distance = f32::MAX;
-
-            // Check a range around the estimated position for accuracy
-            let start_col = estimated_col.saturating_sub(2);
-            let end_col = (estimated_col + 3).min(line_without_newline.chars().count());
-
-            for col in start_col..=end_col {
-                let text_before = &line_without_newline[..line_without_newline.char_indices().nth(col).map(|(i, _)| i).unwrap_or(line_without_newline.len())];
-                let width = self.measure_text_width(text_before);
-                let distance = (width - relative_x).abs();
-
-                if distance < best_distance {
-                    best_distance = distance;
-                    best_col = col;
+                // Find character position within the segment
+                let wrapped = self.wrapped_lines.borrow();
+                if let Some(wrapped_line) = wrapped.get(target_line) {
+                    if let Some(segment) = wrapped_line.segments.get(segment_idx) {
+                        self.find_char_at_x_in_segment(target_line, segment, relative_x)
+                    } else {
+                        // Fallback: start of line
+                        self.model.rope().line_to_char(target_line)
+                    }
+                } else {
+                    // Fallback: start of line
+                    self.model.rope().line_to_char(target_line)
                 }
             }
+        };
 
-            target_char_pos = line_start_char + best_col;
-        }
-
-        // Always move cursor when clicking (don't check if line changed)
+        // Move cursor to clicked position
         self.model.cursor_mut().set_char_pos(target_char_pos);
+        self.model.cursor_mut().clear_preferred_x(); // Clear vertical navigation preference
         self.model.update_cursor_caches();
 
         self.state.dirty = DirtyLevel::Visual;
@@ -1263,6 +1590,16 @@ impl KeyboardHandler for CodeEditor {
                         self.current_line = line_idx;
                     }
 
+                    EventResponse::Handled
+                }
+
+                NamedKey::ArrowUp => {
+                    self.move_cursor_up();
+                    EventResponse::Handled
+                }
+
+                NamedKey::ArrowDown => {
+                    self.move_cursor_down();
                     EventResponse::Handled
                 }
 
