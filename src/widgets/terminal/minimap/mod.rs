@@ -45,6 +45,10 @@ pub struct TerminalMinimapManager {
     /// Minimap width in pixels
     width_pixels: usize,
 
+    /// DPI scale factor (for high-DPI displays)
+    /// 1.0 = normal, 2.0 = Retina/2x, etc.
+    scale_factor: f32,
+
     /// Grid generation counter (incremented on reflow)
     grid_generation: usize,
 
@@ -76,13 +80,15 @@ impl TerminalMinimapManager {
     /// Create a new minimap manager
     ///
     /// # Arguments
-    /// * `width_pixels` - Width of the minimap in pixels
+    /// * `width_pixels` - Width of the minimap in pixels (logical pixels, will be scaled by DPI)
     /// * `char_sheet` - Shared character sheet for micro-glyph rendering
-    pub fn new(width_pixels: usize, char_sheet: Arc<CharSheet>) -> Self {
+    /// * `scale_factor` - DPI scale factor (1.0 = normal, 2.0 = Retina)
+    pub fn new(width_pixels: usize, char_sheet: Arc<CharSheet>, scale_factor: f32) -> Self {
         Self {
             pages: BTreeMap::new(),
             char_sheet,
             width_pixels,
+            scale_factor,
             grid_generation: 0,
             visible_page: None,
             dirty_lines: RangeSet::new(),
@@ -126,6 +132,27 @@ impl TerminalMinimapManager {
         self.debounce_interval_ms = interval_ms;
     }
 
+    /// Update DPI scale factor and invalidate all pages
+    ///
+    /// Called when the window moves to a different display with different DPI,
+    /// or when system DPI settings change. Invalidates all minimap pages so they
+    /// will be re-rasterized at the new scale factor.
+    ///
+    /// # Arguments
+    /// * `new_scale_factor` - New DPI scale factor (1.0 = normal, 2.0 = Retina)
+    pub fn set_scale_factor(&mut self, new_scale_factor: f32) {
+        if (self.scale_factor - new_scale_factor).abs() > 0.01 {
+            eprintln!("🔍 Minimap DPI changed: {}x → {}x, deleting all pages to recreate at new scale",
+                     self.scale_factor, new_scale_factor);
+            self.scale_factor = new_scale_factor;
+            // Delete all pages since they were created with the wrong scale factor
+            // (page height depends on scale factor, so we can't just rasterize into old pages)
+            self.pages.clear();
+            self.grid_generation += 1;
+            self.has_pending_updates = true;
+        }
+    }
+
     /// Check if there are pending updates that need rasterization
     pub fn has_pending_updates(&self) -> bool {
         self.has_pending_updates
@@ -158,6 +185,17 @@ impl TerminalMinimapManager {
         self.pages.get_mut(&page_num)
     }
 
+    /// Clear GPU dirty flags for specified pages (Phase 2.1)
+    ///
+    /// Called after GPU texture upload to mark pages as synced with GPU.
+    pub fn clear_gpu_dirty_flags(&mut self, page_nums: &[usize]) {
+        for &page_num in page_nums {
+            if let Some(page) = self.pages.get_mut(&page_num) {
+                page.gpu_dirty = false;
+            }
+        }
+    }
+
     /// Invalidate all pages (called on grid reflow)
     pub fn invalidate_all(&mut self) {
         self.grid_generation += 1;
@@ -165,6 +203,7 @@ impl TerminalMinimapManager {
         for page in self.pages.values_mut() {
             page.status = PageStatus::Stale;
             page.grid_generation = self.grid_generation;
+            page.gpu_dirty = false; // Will be set to true after rasterization
         }
 
         // Mark all lines as dirty (Phase 3)
@@ -245,6 +284,7 @@ impl TerminalMinimapManager {
                     page.intensity = result.intensity;
                     page.color_rgb565 = result.color_rgb565;
                     page.status = PageStatus::Clean;
+                    page.gpu_dirty = true; // CPU data updated, needs GPU upload
                 }
             }
         }
@@ -288,11 +328,14 @@ impl TerminalMinimapManager {
             if !self.pages.contains_key(&page_num) {
                 let start_line = page_num * MINIMAP_PAGE_SIZE;
                 let line_count = (MINIMAP_PAGE_SIZE).min(total_lines - start_line);
+                // Scale width and height by DPI for high-resolution displays
+                let physical_width = (self.width_pixels as f32 * self.scale_factor) as usize;
                 let page = TerminalMinimapPage::new(
                     start_line,
                     line_count,
-                    self.width_pixels,
+                    physical_width,
                     self.grid_generation,
+                    self.scale_factor,  // Pass scale factor for height calculation
                 );
                 // New pages are automatically dirty (they need initial rasterization)
                 self.dirty_lines.add_range(start_line..start_line + line_count);
@@ -301,32 +344,11 @@ impl TerminalMinimapManager {
             }
         }
 
-        // Phase 3: Debounced rasterization with visible-first strategy
-        // Check if enough time has passed since last rasterization
-        let should_rasterize = if let Some(last_time) = self.last_rasterize_time {
-            let elapsed = last_time.elapsed();
-            elapsed >= Duration::from_millis(self.debounce_interval_ms)
-        } else {
-            true  // First rasterization, always proceed
-        };
-
-        // Always rasterize if visible page is dirty (prioritize user experience)
-        let visible_page_dirty = if let Some(visible_page) = self.visible_page {
-            let start_line = visible_page * MINIMAP_PAGE_SIZE;
-            let end_line = start_line + MINIMAP_PAGE_SIZE;
-            self.dirty_lines.intersects(&(start_line..end_line))
-        } else {
-            false
-        };
-
-        if should_rasterize || visible_page_dirty || !self.has_pending_updates {
-            if self.has_pending_updates || !self.dirty_lines.is_empty() {
-                self.rasterize_dirty_pages(term);
-                self.last_rasterize_time = Some(Instant::now());
-                self.has_pending_updates = false;
-            }
-        }
-        // Otherwise, defer rasterization (updates are batched)
+        // Simplified: Rasterize all dirty/stale pages immediately (like code editor)
+        // The complex debouncing logic from Phase 3-5 can be re-enabled later
+        self.rasterize_dirty_pages(term);
+        self.dirty_lines.clear();
+        self.has_pending_updates = false;
     }
 
     /// Rasterize dirty pages (Phase 3: visible-first, incremental)
@@ -344,9 +366,20 @@ impl TerminalMinimapManager {
             .map(|(num, _)| *num)
             .collect();
 
-        // Combine dirty and stale pages
+        // Also include pages with Dirty status (not just those in dirty_lines)
+        let dirty_status_pages: Vec<usize> = self.pages.iter()
+            .filter(|(_, p)| p.status == PageStatus::Dirty)
+            .map(|(num, _)| *num)
+            .collect();
+
+        // Combine dirty, stale, and dirty-status pages
         let mut pages_to_update: Vec<usize> = dirty_pages.clone();
         for page_num in stale_pages {
+            if !pages_to_update.contains(&page_num) {
+                pages_to_update.push(page_num);
+            }
+        }
+        for page_num in dirty_status_pages {
             if !pages_to_update.contains(&page_num) {
                 pages_to_update.push(page_num);
             }
@@ -377,8 +410,9 @@ impl TerminalMinimapManager {
             if is_visible || !use_background {
                 // Rasterize synchronously (visible page or no worker pool)
                 if let Some(page) = self.pages.get_mut(&page_num) {
-                    Self::rasterize_page(page_num, page, term, &char_sheet);
+                    Self::rasterize_page(page_num, page, term, &char_sheet, self.scale_factor);
                     page.status = PageStatus::Clean;
+                    page.gpu_dirty = true; // CPU data updated, needs GPU upload
                 }
             } else {
                 // Phase 5: Submit to background worker
@@ -415,6 +449,7 @@ impl TerminalMinimapManager {
         page: &mut TerminalMinimapPage,
         term: &Term<L>,
         char_sheet: &CharSheet,
+        scale_factor: f32,
     ) {
         page.clear();
 
@@ -426,15 +461,19 @@ impl TerminalMinimapManager {
         // Lines are indexed from top of scrollback (negative indices)
         let display_offset = grid.display_offset();
 
+        // Scale factor determines pixels per line: base 2 pixels * scale_factor
+        let pixels_per_line = (2.0 * scale_factor) as usize;
+        let pixels_per_row = (scale_factor as usize).max(1); // How many pixel rows per glyph row
+
         for line_idx in start_line..end_line {
             // Calculate grid line index
             // Scrollback lines are negative, active screen lines are positive
             let grid_line_offset = line_idx as i32 - grid.history_size() as i32;
             let line = Line(grid_line_offset);
 
-            // Calculate Y position in minimap page (2 pixels per line)
+            // Calculate Y position in minimap page (scaled by DPI)
             let page_line = line_idx - start_line;
-            let y_base = page_line * 2;
+            let y_base = page_line * pixels_per_line;
 
             // Track X position in minimap
             let mut x = 0;
@@ -453,8 +492,8 @@ impl TerminalMinimapManager {
                 // Get character and render as micro-glyph
                 let c = cell.c;
                 if c == ' ' || c == '\0' {
-                    // Skip empty cells
-                    x += 1; // Still advance position
+                    // Skip empty cells, advance by scaled width
+                    x += pixels_per_row;
                     continue;
                 }
 
@@ -464,21 +503,40 @@ impl TerminalMinimapManager {
                 let (fg_r, fg_g, fg_b) = ansi_color_to_rgb(&cell.fg);
 
                 if width == 1 {
-                    // Narrow glyph (1x2 pixels)
-                    if x < page.width_pixels {
-                        page.set_pixel_rgb(x, y_base, glyph_pixels[0], fg_r, fg_g, fg_b);
-                        page.set_pixel_rgb(x, y_base + 1, glyph_pixels[1], fg_r, fg_g, fg_b);
-                        x += 1;
+                    // Narrow glyph (base 1x2 pixels, scaled by DPI)
+                    // Scale glyph by replicating pixels
+                    for dy in 0..pixels_per_row {
+                        for dx in 0..pixels_per_row {
+                            if x + dx < page.width_pixels {
+                                // Top half of glyph
+                                if y_base + dy < page.height_pixels {
+                                    page.set_pixel_rgb(x + dx, y_base + dy, glyph_pixels[0], fg_r, fg_g, fg_b);
+                                }
+                                // Bottom half of glyph
+                                if y_base + pixels_per_row + dy < page.height_pixels {
+                                    page.set_pixel_rgb(x + dx, y_base + pixels_per_row + dy, glyph_pixels[1], fg_r, fg_g, fg_b);
+                                }
+                            }
+                        }
                     }
+                    x += pixels_per_row;
                 } else {
-                    // Wide glyph (2x2 pixels)
-                    if x + 1 < page.width_pixels {
-                        page.set_pixel_rgb(x, y_base, glyph_pixels[0], fg_r, fg_g, fg_b);
-                        page.set_pixel_rgb(x + 1, y_base, glyph_pixels[1], fg_r, fg_g, fg_b);
-                        page.set_pixel_rgb(x, y_base + 1, glyph_pixels[2], fg_r, fg_g, fg_b);
-                        page.set_pixel_rgb(x + 1, y_base + 1, glyph_pixels[3], fg_r, fg_g, fg_b);
-                        x += 2;
+                    // Wide glyph (base 2x2 pixels, scaled by DPI)
+                    for dy in 0..pixels_per_row {
+                        for dx in 0..(pixels_per_row * 2) {
+                            if x + dx < page.width_pixels {
+                                let glyph_idx = if dx < pixels_per_row {
+                                    if dy < pixels_per_row { 0 } else { 2 } // Left column
+                                } else {
+                                    if dy < pixels_per_row { 1 } else { 3 } // Right column
+                                };
+                                if y_base + dy < page.height_pixels {
+                                    page.set_pixel_rgb(x + dx, y_base + dy, glyph_pixels[glyph_idx], fg_r, fg_g, fg_b);
+                                }
+                            }
+                        }
                     }
+                    x += pixels_per_row * 2;
                 }
             }
         }
@@ -567,6 +625,23 @@ impl TerminalMinimapManager {
             high_priority,
         })
     }
+
+    /// Debug: Dump all minimap pages to PNG files
+    ///
+    /// Saves each page to minimap_page_{num}.png for inspection.
+    pub fn dump_pages_to_png(&self) -> Result<(), Box<dyn std::error::Error>> {
+        println!("🔍 Dumping {} minimap pages to PNG...", self.pages.len());
+
+        for (page_num, page) in &self.pages {
+            let filename = format!("minimap_page_{}.png", page_num);
+            page.save_to_png(&filename)?;
+            println!("  Page {}: {}x{} pixels, status={:?}",
+                page_num, page.width_pixels, page.height_pixels, page.status);
+        }
+
+        println!("✅ All pages dumped successfully!");
+        Ok(())
+    }
 }
 
 /// Convert ANSI color to RGB
@@ -638,7 +713,7 @@ mod tests {
     #[test]
     fn test_create_manager() {
         let char_sheet = Arc::new(CharSheet::with_defaults());
-        let manager = TerminalMinimapManager::new(100, char_sheet);
+        let manager = TerminalMinimapManager::new(100, char_sheet, 1.0);
         assert_eq!(manager.page_count(), 0);
         assert_eq!(manager.width_pixels, 100);
     }
@@ -646,10 +721,10 @@ mod tests {
     #[test]
     fn test_invalidate_all() {
         let char_sheet = Arc::new(CharSheet::with_defaults());
-        let mut manager = TerminalMinimapManager::new(100, char_sheet);
+        let mut manager = TerminalMinimapManager::new(100, char_sheet, 1.0);
 
         // Create a page
-        let page = TerminalMinimapPage::new(0, 512, 100, 0);
+        let page = TerminalMinimapPage::new(0, 512, 100, 0, 1.0);
         manager.pages.insert(0, page);
 
         let initial_gen = manager.grid_generation;
@@ -662,9 +737,9 @@ mod tests {
     #[test]
     fn test_memory_usage() {
         let char_sheet = Arc::new(CharSheet::with_defaults());
-        let mut manager = TerminalMinimapManager::new(100, char_sheet);
+        let mut manager = TerminalMinimapManager::new(100, char_sheet, 1.0);
 
-        let page = TerminalMinimapPage::new(0, 512, 100, 0);
+        let page = TerminalMinimapPage::new(0, 512, 100, 0, 1.0);
         manager.pages.insert(0, page);
 
         let usage = manager.memory_usage();

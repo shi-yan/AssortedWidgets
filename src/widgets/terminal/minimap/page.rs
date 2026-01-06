@@ -52,6 +52,9 @@ pub struct TerminalMinimapPage {
 
     /// Grid generation counter (for cache invalidation)
     pub grid_generation: usize,
+
+    /// GPU dirty flag - true if CPU data changed and needs upload to GPU
+    pub gpu_dirty: bool,
 }
 
 impl TerminalMinimapPage {
@@ -60,15 +63,18 @@ impl TerminalMinimapPage {
     /// # Arguments
     /// * `start_line` - First grid line number in this page
     /// * `line_count` - Number of grid lines in this page
-    /// * `width_pixels` - Width in pixels
+    /// * `width_pixels` - Width in pixels (already scaled by DPI)
     /// * `grid_generation` - Current grid generation counter
+    /// * `scale_factor` - DPI scale factor for height calculation
     pub fn new(
         start_line: usize,
         line_count: usize,
         width_pixels: usize,
         grid_generation: usize,
+        scale_factor: f32,
     ) -> Self {
-        let height_pixels = line_count * 2; // 2 pixels per grid line
+        // Height scales with DPI: base is 2 pixels per line, multiply by scale_factor
+        let height_pixels = (line_count as f32 * 2.0 * scale_factor) as usize;
         let pixel_count = width_pixels * height_pixels;
 
         Self {
@@ -80,6 +86,7 @@ impl TerminalMinimapPage {
             color_rgb565: vec![0; pixel_count],
             status: PageStatus::Dirty,
             grid_generation,
+            gpu_dirty: false, // Will be set to true after rasterization
         }
     }
 
@@ -166,6 +173,58 @@ impl TerminalMinimapPage {
     pub fn mark_stale(&mut self) {
         self.status = PageStatus::Stale;
     }
+
+    /// Convert page data to RGBA8 format for GPU texture upload
+    ///
+    /// Creates a byte buffer in RGBA8 format where:
+    /// - RGB: Decoded from RGB565 color data
+    /// - A: Intensity value (used for anti-aliasing)
+    ///
+    /// # Returns
+    /// Vec<u8> with 4 bytes per pixel (RGBA), suitable for wgpu texture upload
+    pub fn to_rgba8(&self) -> Vec<u8> {
+        let pixel_count = self.pixel_count();
+        let mut rgba = Vec::with_capacity(pixel_count * 4);
+
+        for i in 0..pixel_count {
+            let intensity = self.intensity[i];
+            let color565 = self.color_rgb565[i];
+
+            // Decode RGB565 → RGB888
+            let (r, g, b) = decode_rgb565(color565);
+
+            // Push RGBA bytes
+            rgba.push(r);
+            rgba.push(g);
+            rgba.push(b);
+            rgba.push(intensity); // Use intensity as alpha channel
+        }
+
+        rgba
+    }
+
+    /// Save page to PNG file for debugging
+    ///
+    /// # Arguments
+    /// * `path` - Output file path (e.g., "minimap_page_0.png")
+    ///
+    /// # Returns
+    /// Result indicating success or error
+    pub fn save_to_png(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        use image::{RgbaImage, ImageBuffer};
+
+        let rgba_data = self.to_rgba8();
+
+        let img: RgbaImage = ImageBuffer::from_raw(
+            self.width_pixels as u32,
+            self.height_pixels as u32,
+            rgba_data,
+        ).ok_or("Failed to create image buffer")?;
+
+        img.save(path)?;
+        println!("✅ Saved minimap page to: {}", path);
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -178,12 +237,12 @@ mod tests {
 
     #[test]
     fn test_create_page() {
-        let page = TerminalMinimapPage::new(0, 512, 100, 0);
+        let page = TerminalMinimapPage::new(0, 512, 100, 0, 1.0);
 
         assert_eq!(page.start_line, 0);
         assert_eq!(page.line_count, 512);
         assert_eq!(page.width_pixels, 100);
-        assert_eq!(page.height_pixels, 1024); // 512 lines * 2 pixels
+        assert_eq!(page.height_pixels, 1024); // 512 lines * 2 pixels * 1.0 scale
         assert_eq!(page.pixel_count(), 102400); // 100 * 1024
         assert_eq!(page.status, PageStatus::Dirty);
         assert_eq!(page.grid_generation, 0);
@@ -191,14 +250,14 @@ mod tests {
 
     #[test]
     fn test_byte_size() {
-        let page = TerminalMinimapPage::new(0, 512, 100, 0);
+        let page = TerminalMinimapPage::new(0, 512, 100, 0, 1.0);
         // 102400 pixels * 3 bytes (1 intensity + 2 RGB565)
         assert_eq!(page.byte_size(), 307200);
     }
 
     #[test]
     fn test_set_get_pixel() {
-        let mut page = TerminalMinimapPage::new(0, 10, 50, 0);
+        let mut page = TerminalMinimapPage::new(0, 10, 50, 0, 1.0);
 
         page.set_pixel(10, 5, 200, 0xF800); // Red
 
@@ -209,7 +268,7 @@ mod tests {
 
     #[test]
     fn test_set_get_pixel_rgb() {
-        let mut page = TerminalMinimapPage::new(0, 10, 50, 0);
+        let mut page = TerminalMinimapPage::new(0, 10, 50, 0, 1.0);
 
         page.set_pixel_rgb(10, 5, 200, 255, 0, 0); // Red
 
@@ -223,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_clear_page() {
-        let mut page = TerminalMinimapPage::new(0, 10, 50, 0);
+        let mut page = TerminalMinimapPage::new(0, 10, 50, 0, 1.0);
 
         page.set_pixel(10, 5, 200, 0xFFFF);
         page.clear();
@@ -236,7 +295,7 @@ mod tests {
 
     #[test]
     fn test_out_of_bounds() {
-        let page = TerminalMinimapPage::new(0, 10, 50, 0);
+        let page = TerminalMinimapPage::new(0, 10, 50, 0, 1.0);
 
         assert!(page.get_pixel(100, 5).is_none());
         assert!(page.get_pixel(10, 100).is_none());
@@ -244,7 +303,7 @@ mod tests {
 
     #[test]
     fn test_status_transitions() {
-        let mut page = TerminalMinimapPage::new(0, 10, 50, 0);
+        let mut page = TerminalMinimapPage::new(0, 10, 50, 0, 1.0);
 
         assert_eq!(page.status, PageStatus::Dirty);
 
@@ -260,8 +319,8 @@ mod tests {
 
     #[test]
     fn test_grid_generation() {
-        let page1 = TerminalMinimapPage::new(0, 512, 100, 0);
-        let page2 = TerminalMinimapPage::new(0, 512, 100, 5);
+        let page1 = TerminalMinimapPage::new(0, 512, 100, 0, 1.0);
+        let page2 = TerminalMinimapPage::new(0, 512, 100, 5, 1.0);
 
         assert_eq!(page1.grid_generation, 0);
         assert_eq!(page2.grid_generation, 5);

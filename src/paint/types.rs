@@ -207,6 +207,14 @@ pub enum DrawCommand {
         tint: Option<Color>,
         z_index: i32,
     },
+    /// Draw a custom texture (for minimap, charts, etc.)
+    CustomTexture {
+        texture: std::sync::Arc<wgpu::Texture>,
+        texture_view: std::sync::Arc<wgpu::TextureView>,
+        rect: Rect,
+        tint: Option<Color>,
+        z_index: i32,
+    },
     /// Push a clipping region (rounded rectangle)
     PushClip {
         rect: Rect,
@@ -225,6 +233,7 @@ impl DrawCommand {
             DrawCommand::Path { z_index, .. } => *z_index,
             DrawCommand::Icon { z_index, .. } => *z_index,
             DrawCommand::Image { z_index, .. } => *z_index,
+            DrawCommand::CustomTexture { z_index, .. } => *z_index,
             DrawCommand::PushClip { .. } | DrawCommand::PopClip => 0,
         }
     }
@@ -237,6 +246,7 @@ impl DrawCommand {
             DrawCommand::Path { .. } => 2,
             DrawCommand::Icon { .. } => 3,
             DrawCommand::Image { .. } => 4,
+            DrawCommand::CustomTexture { .. } => 5,
             DrawCommand::PushClip { .. } => u32::MAX - 1,
             DrawCommand::PopClip => u32::MAX,
         }
@@ -294,6 +304,11 @@ impl DrawCommand {
 
             DrawCommand::Image { tint, .. } => {
                 // Images are opaque if no tint, or tint is fully opaque
+                tint.map(|c| c.a >= 1.0).unwrap_or(true)
+            }
+
+            DrawCommand::CustomTexture { tint, .. } => {
+                // Custom textures are opaque if no tint, or tint is fully opaque
                 tint.map(|c| c.a >= 1.0).unwrap_or(true)
             }
 

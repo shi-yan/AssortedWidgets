@@ -1879,42 +1879,72 @@ impl Window {
                 let mut image_cache = render_context.image_cache.lock().unwrap();
 
                 for cmd in &image_commands {
-                    if let crate::paint::DrawCommand::Image { ref image_id, ref rect, ref tint, z_index } = *cmd {
-                        // Load image from cache (or disk if not cached)
-                        match image_cache.get_or_load(image_id) {
-                            Ok(cached_image) => {
-                                // Assign depth from LayeredBoundsTree (one depth per image)
-                                let depth = self.layered_bounds_tree.insert(*rect, z_index);
+                    match cmd {
+                        crate::paint::DrawCommand::Image { image_id, rect, tint, z_index } => {
+                            // Load image from cache (or disk if not cached)
+                            match image_cache.get_or_load(image_id) {
+                                Ok(cached_image) => {
+                                    // Assign depth from LayeredBoundsTree (one depth per image)
+                                    let depth = self.layered_bounds_tree.insert(*rect, *z_index);
 
-                                // Create image instance with position, size, tint, clipping, and depth
-                                let default_tint = crate::paint::Color::rgba(1.0, 1.0, 1.0, 1.0);
-                                let tint_color = tint.unwrap_or(default_tint);
+                                    // Create image instance with position, size, tint, clipping, and depth
+                                    let default_tint = crate::paint::Color::rgba(1.0, 1.0, 1.0, 1.0);
+                                    let tint_color = tint.unwrap_or(default_tint);
 
-                                // Use full window as default clip region
-                                let clip_rect = [0.0, 0.0, self.window_size.width as f32, self.window_size.height as f32];
+                                    // Use full window as default clip region
+                                    let clip_rect = [0.0, 0.0, self.window_size.width as f32, self.window_size.height as f32];
 
-                                let instance = crate::render::ImageInstance {
-                                    position: [rect.origin.x as f32, rect.origin.y as f32],
-                                    size: [rect.size.width as f32, rect.size.height as f32],
-                                    tint: [tint_color.r, tint_color.g, tint_color.b, tint_color.a],
-                                    clip_rect,
-                                    depth,
-                                    _padding: [0.0; 3],
-                                };
+                                    let instance = crate::render::ImageInstance {
+                                        position: [rect.origin.x as f32, rect.origin.y as f32],
+                                        size: [rect.size.width as f32, rect.size.height as f32],
+                                        tint: [tint_color.r, tint_color.g, tint_color.b, tint_color.a],
+                                        clip_rect,
+                                        depth,
+                                        _padding: [0.0; 3],
+                                    };
 
-                                // Render the image using WindowRenderer
-                                self.window_renderer.render_image(
-                                    &mut render_pass,
-                                    &instance,
-                                    &cached_image.texture,
-                                    &cached_image.view,
-                                    &render_context.image_pipeline,
-                                );
-                            }
-                            Err(e) => {
-                                eprintln!("Failed to load image {:?}: {}", image_id, e);
+                                    // Render the image using WindowRenderer
+                                    self.window_renderer.render_image(
+                                        &mut render_pass,
+                                        &instance,
+                                        &cached_image.texture,
+                                        &cached_image.view,
+                                        &render_context.image_pipeline,
+                                    );
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to load image {:?}: {}", image_id, e);
+                                }
                             }
                         }
+                        crate::paint::DrawCommand::CustomTexture { texture, texture_view, rect, tint, z_index } => {
+                            // Render custom texture (minimap, charts, etc.)
+                            let depth = self.layered_bounds_tree.insert(*rect, *z_index);
+
+                            let default_tint = crate::paint::Color::rgba(1.0, 1.0, 1.0, 1.0);
+                            let tint_color = tint.unwrap_or(default_tint);
+
+                            let clip_rect = [0.0, 0.0, self.window_size.width as f32, self.window_size.height as f32];
+
+                            let instance = crate::render::ImageInstance {
+                                position: [rect.origin.x as f32, rect.origin.y as f32],
+                                size: [rect.size.width as f32, rect.size.height as f32],
+                                tint: [tint_color.r, tint_color.g, tint_color.b, tint_color.a],
+                                clip_rect,
+                                depth,
+                                _padding: [0.0; 3],
+                            };
+
+                            // Render using the provided texture
+                            self.window_renderer.render_image(
+                                &mut render_pass,
+                                &instance,
+                                texture,
+                                texture_view,
+                                &render_context.image_pipeline,
+                            );
+                        }
+                        _ => {}
                     }
                 }
 

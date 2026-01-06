@@ -7,7 +7,7 @@
 mod config;
 mod minimap;
 
-use crate::types::{Rect, Point, DirtyLevel, WidgetId};
+use crate::types::{Rect, Point, DirtyLevel, WidgetId, FrameInfo};
 use crate::widget::Widget;
 use crate::event::GuiEvent;
 use crate::paint::{PaintContext, Color};
@@ -27,6 +27,8 @@ use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor, Processor};
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::collections::HashMap;
+use std::cell::RefCell;
 
 pub use config::*;
 use minimap::TerminalMinimapManager;
@@ -63,11 +65,23 @@ pub struct TerminalEmulator {
     /// Terminal configuration (fonts, etc.)
     config: TerminalConfig,
 
-    /// DPI scale factor
+    /// DPI scale factor (for terminal text rendering)
     scale_factor: f32,
 
+    /// Minimap DPI scale factor (separate from terminal text)
+    /// 1.0 = normal, 2.0 = Retina/2x for sharper minimap
+    minimap_scale_factor: f32,
+
     /// Minimap manager (Phase 2+)
-    minimap_manager: Option<TerminalMinimapManager>,
+    /// Uses RefCell for interior mutability to allow updates during paint
+    minimap_manager: Option<RefCell<TerminalMinimapManager>>,
+
+    /// Persistent GPU textures for minimap pages (Phase 2.1)
+    /// Maps page_index -> (Arc<texture>, Arc<texture_view>)
+    /// Textures are Arc-wrapped for thread-safe sharing with rendering commands
+    /// Textures are created once and reused, only uploaded when page.gpu_dirty is true
+    /// Uses RefCell for interior mutability since paint() requires &self
+    minimap_textures: RefCell<HashMap<usize, (Arc<wgpu::Texture>, Arc<wgpu::TextureView>)>>,
 
     /// Whether the terminal needs redraw
     dirty: bool,
@@ -210,11 +224,13 @@ impl TerminalEmulator {
         );
 
         // Create minimap manager with shared CharSheet
+        // Start with 1.0 scale factor, will be updated in set_bounds when actual DPI is known
         let char_sheet = Arc::new(CharSheet::with_defaults());
-        let minimap_manager = Some(TerminalMinimapManager::new(
+        let minimap_manager = Some(RefCell::new(TerminalMinimapManager::new(
             MINIMAP_WIDTH_PIXELS,
             char_sheet,
-        ));
+            1.0,  // Initial scale factor, updated later
+        )));
 
         Self {
             state: WidgetState::new(),
@@ -228,7 +244,9 @@ impl TerminalEmulator {
             scroll_offset: 0,
             config: TerminalConfig::default(),
             scale_factor: 1.0,
+            minimap_scale_factor: 1.0,  // Separate DPI for minimap
             minimap_manager,
+            minimap_textures: RefCell::new(HashMap::new()),
             dirty: true,
             last_resize_time: None,
             resize_debounce_ms: 150,  // 150ms debounce for resize
@@ -239,6 +257,29 @@ impl TerminalEmulator {
     /// Create with default dimensions
     pub fn with_defaults() -> Self {
         Self::new(DEFAULT_COLS, DEFAULT_ROWS)
+    }
+
+    /// Update minimap DPI scale factor (does NOT affect terminal text rendering)
+    ///
+    /// Called to render minimap at higher DPI for sharper display on Retina/high-DPI monitors.
+    /// Terminal text rendering uses the system's scale factor automatically.
+    ///
+    /// # Arguments
+    /// * `new_scale_factor` - DPI multiplier (1.0 = normal, 2.0 = Retina/2x)
+    pub fn set_minimap_scale_factor(&mut self, new_scale_factor: f32) {
+        if (self.minimap_scale_factor - new_scale_factor).abs() > 0.01 {
+            self.minimap_scale_factor = new_scale_factor;
+
+            // Update minimap manager scale factor (invalidates all pages)
+            if let Some(ref minimap_cell) = self.minimap_manager {
+                minimap_cell.borrow_mut().set_scale_factor(new_scale_factor);
+                // Re-rasterize immediately to update minimap at new DPI
+                let visible_line = self.scroll_offset;
+                minimap_cell.borrow_mut().update(&self.term, visible_line);
+            }
+
+            self.dirty = true;
+        }
     }
 
     /// Get total lines (scrollback + visible)
@@ -282,6 +323,13 @@ impl TerminalEmulator {
         // Process bytes through VTE parser
         // This updates the terminal grid with the parsed content
         self.parser.advance(&mut self.term, data);
+
+        // Update minimap with new content
+        if let Some(ref minimap_cell) = self.minimap_manager {
+            let visible_line = self.scroll_offset;
+            minimap_cell.borrow_mut().update(&self.term, visible_line);
+        }
+
         self.dirty = true;
     }
 
@@ -322,9 +370,12 @@ impl TerminalEmulator {
         // Update cell dimensions
         self.update_cell_dimensions();
 
-        // Invalidate all minimap pages (reflow occurred)
-        if let Some(ref mut minimap) = self.minimap_manager {
-            minimap.invalidate_all();
+        // Invalidate all minimap pages (reflow occurred) and re-rasterize immediately
+        if let Some(ref minimap_cell) = self.minimap_manager {
+            minimap_cell.borrow_mut().invalidate_all();
+            // Re-rasterize immediately so pages are Clean by the time paint() is called
+            let visible_line = self.scroll_offset;
+            minimap_cell.borrow_mut().update(&self.term, visible_line);
         }
 
         self.last_resize_time = Some(Instant::now());
@@ -332,10 +383,17 @@ impl TerminalEmulator {
     }
 
     /// Calculate cell dimensions based on current bounds
+    ///
+    /// Uses a fixed cell width based on font metrics rather than dividing available space.
+    /// This ensures proper monospace character spacing.
     fn update_cell_dimensions(&mut self) {
-        if self.cols > 0 && self.rows > 0 {
-            self.cell_width = self.bounds.width() as f32 / self.cols as f32;
+        if self.rows > 0 {
+            // Calculate cell height from font size
             self.cell_height = self.config.font_size * DEFAULT_LINE_HEIGHT * self.scale_factor;
+
+            // For monospace fonts, width is typically 0.5-0.6 of height
+            // Menlo (default font) has ratio of ~0.5
+            self.cell_width = self.cell_height * 0.5;
         }
     }
 
@@ -344,9 +402,10 @@ impl TerminalEmulator {
     /// Returns (cols, rows) that would fit in the given bounds.
     fn calculate_dimensions_from_bounds(&self) -> (usize, usize) {
         let cell_height = self.config.font_size * DEFAULT_LINE_HEIGHT * self.scale_factor;
-        let assumed_cell_width = cell_height * 0.6;  // Approximate monospace ratio
+        let cell_width = cell_height * 0.5;  // Monospace ratio (matches update_cell_dimensions)
 
-        let cols = ((self.bounds.width() as f32 - MINIMAP_WIDTH_PIXELS as f32 - 20.0) / assumed_cell_width).max(1.0) as usize;
+        let terminal_width = self.bounds.width() as f32 - MINIMAP_WIDTH_PIXELS as f32 - 20.0;
+        let cols = (terminal_width / cell_width).max(1.0) as usize;
         let rows = (self.bounds.height() as f32 / cell_height).max(1.0) as usize;
 
         (cols.max(10), rows.max(3))  // Minimum viable dimensions
@@ -371,11 +430,15 @@ impl TerminalEmulator {
         self.dirty = true;
     }
 
-    /// Render minimap (Phase 2 placeholder - GPU texture upload to come)
+    /// Render minimap with GPU textures (Phase 2.1)
     ///
-    /// For now, this draws a simple visual representation of minimap pages.
-    /// Full GPU texture implementation would upload page.intensity and page.color_rgb565.
-    fn render_minimap(&self, ctx: &mut PaintContext, minimap: &TerminalMinimapManager) {
+    /// Uses persistent texture cache with VSCode-style dirty tracking:
+    /// - Textures created once and reused across frames
+    /// - Only uploads to GPU when page.gpu_dirty is true
+    /// - No texture creation/upload for unchanged pages
+    ///
+    /// Returns a list of page numbers that were uploaded to GPU (need gpu_dirty flag cleared)
+    fn render_minimap(&self, ctx: &mut PaintContext, minimap: &TerminalMinimapManager) -> Vec<usize> {
         // Calculate minimap position (right side of terminal)
         let minimap_x = self.bounds.max().x as f32 - MINIMAP_WIDTH_PIXELS as f32 - 10.0;
         let minimap_y = self.bounds.min().y as f32 + 10.0;
@@ -387,36 +450,119 @@ impl TerminalEmulator {
             Point::new(minimap_x as f64, minimap_y as f64),
             crate::types::Size::new(minimap_width as f64, minimap_height as f64),
         );
-        ctx.draw_rect(minimap_rect, Color::rgb(25.0 / 255.0, 25.0 / 255.0, 30.0 / 255.0));
+        ctx.draw_rect(minimap_rect, Color::rgb(15.0 / 255.0, 15.0 / 255.0, 20.0 / 255.0));
 
-        // Draw page indicators (placeholder visualization)
-        let page_count = minimap.page_count();
-        if page_count > 0 {
-            let page_height = minimap_height / page_count.max(1) as f32;
+        // Render minimap content from pages
+        let total_lines = self.term.grid().history_size() + self.rows;
+        let mut uploaded_pages = Vec::new(); // Track pages that were uploaded
+
+        if total_lines > 0 {
+            let page_count = minimap.page_count();
 
             for page_num in 0..page_count {
                 if let Some(page) = minimap.get_page(page_num) {
-                    let y = minimap_y + (page_num as f32 * page_height);
+                    // Only render clean pages (skip dirty/stale pages)
+                    if page.status != minimap::PageStatus::Clean {
+                        eprintln!("⚠️  Minimap page {} not rendered: status={:?}", page_num, page.status);
+                        continue;
+                    }
 
-                    // Color based on page status
-                    let color = match page.status {
-                        minimap::PageStatus::Clean => Color::rgb(50.0 / 255.0, 100.0 / 255.0, 50.0 / 255.0),      // Green
-                        minimap::PageStatus::Dirty => Color::rgb(100.0 / 255.0, 100.0 / 255.0, 50.0 / 255.0),     // Yellow
-                        minimap::PageStatus::Rasterizing => Color::rgb(50.0 / 255.0, 50.0 / 255.0, 100.0 / 255.0), // Blue
-                        minimap::PageStatus::Stale => Color::rgb(100.0 / 255.0, 50.0 / 255.0, 50.0 / 255.0),      // Red
-                    };
+                    // Phase 2.1: Persistent GPU Texture with Dirty Tracking
+                    // Only create/upload texture when page.gpu_dirty is true
+                    // Use page's actual pixel dimensions (already calculated at correct proportions)
+                    let width = page.width_pixels as u32;
+                    let height = page.height_pixels as u32;
 
-                    let page_rect = Rect::new(
-                        Point::new((minimap_x + 2.0) as f64, (y + 1.0) as f64),
-                        crate::types::Size::new((minimap_width - 4.0) as f64, (page_height - 2.0) as f64),
-                    );
-                    ctx.draw_rect(page_rect, color);
+                    // Calculate page position in minimap
+                    // Y position based on line position in total scrollback
+                    let page_start_line = page.start_line;
+                    let y_start = minimap_y + (page_start_line as f32 / total_lines as f32) * minimap_height;
+
+                    // Check if we need to create or update the texture
+                    if page.gpu_dirty {
+                        let device = ctx.device();
+                        let queue = ctx.queue();
+                        let mut textures = self.minimap_textures.borrow_mut();
+
+                        // Create texture if it doesn't exist
+                        if !textures.contains_key(&page_num) {
+                            let texture = Arc::new(device.create_texture(&wgpu::TextureDescriptor {
+                                label: Some(&format!("Terminal Minimap Page {}", page_num)),
+                                size: wgpu::Extent3d {
+                                    width,
+                                    height,
+                                    depth_or_array_layers: 1,
+                                },
+                                mip_level_count: 1,
+                                sample_count: 1,
+                                dimension: wgpu::TextureDimension::D2,
+                                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                                view_formats: &[],
+                            }));
+
+                            let texture_view = Arc::new(texture.create_view(&wgpu::TextureViewDescriptor::default()));
+                            textures.insert(page_num, (texture, texture_view));
+                        }
+
+                        // Upload pixel data (always if dirty, whether texture is new or existing)
+                        if let Some((texture, _view)) = textures.get(&page_num) {
+                            let rgba_data = page.to_rgba8();
+                            queue.write_texture(
+                                wgpu::TexelCopyTextureInfo {
+                                    texture,
+                                    mip_level: 0,
+                                    origin: wgpu::Origin3d::ZERO,
+                                    aspect: wgpu::TextureAspect::All,
+                                },
+                                &rgba_data,
+                                wgpu::TexelCopyBufferLayout {
+                                    offset: 0,
+                                    bytes_per_row: Some(4 * width),
+                                    rows_per_image: Some(height),
+                                },
+                                wgpu::Extent3d {
+                                    width,
+                                    height,
+                                    depth_or_array_layers: 1,
+                                },
+                            );
+
+                            // Mark page for gpu_dirty flag clearing
+                            uploaded_pages.push(page_num);
+                        }
+                    }
+
+                    // Phase 2.2: Render textured quad using custom texture API
+                    // Access the texture for rendering
+                    let textures = self.minimap_textures.borrow();
+                    if let Some((texture, texture_view)) = textures.get(&page_num) {
+                        // Texture is in physical pixels, but we need to render at logical pixels
+                        // Divide by minimap_scale_factor to get correct on-screen size
+                        let logical_width = width as f64 / self.minimap_scale_factor as f64;
+                        let logical_height = height as f64 / self.minimap_scale_factor as f64;
+
+                        eprintln!("📏 Page {}: texture={}×{} physical, render={}×{} logical (minimap_scale={})",
+                                 page_num, width, height, logical_width, logical_height, self.minimap_scale_factor);
+
+                        let page_rect = Rect::new(
+                            Point::new(minimap_x as f64, y_start as f64),
+                            crate::types::Size::new(logical_width, logical_height),
+                        );
+
+                        // Draw the custom texture
+                        ctx.draw_custom_texture(
+                            texture.clone(),
+                            texture_view.clone(),
+                            page_rect,
+                            None, // No tint
+                        );
+                    }
                 }
             }
         }
 
         // Draw viewport indicator (where user is currently viewing)
-        let total_lines = self.term.grid().history_size() + self.rows;
         if total_lines > 0 {
             let viewport_start = self.scroll_offset as f32 / total_lines as f32;
             let viewport_height = self.rows as f32 / total_lines as f32;
@@ -428,33 +574,12 @@ impl TerminalEmulator {
                 Point::new(minimap_x as f64, indicator_y as f64),
                 crate::types::Size::new(minimap_width as f64, indicator_height as f64),
             );
-            ctx.draw_rect(indicator_rect, Color::rgba(255.0 / 255.0, 255.0 / 255.0, 255.0 / 255.0, 128.0 / 255.0));
+            ctx.draw_rect(indicator_rect, Color::rgba(255.0 / 255.0, 255.0 / 255.0, 255.0 / 255.0, 0.3));
         }
 
-        // Phase 4: Visual feedback for pending resize
-        if self.pending_resize.is_some() {
-            // Draw a subtle overlay to indicate pending resize
-            let overlay_rect = Rect::new(
-                Point::new(minimap_x as f64, minimap_y as f64),
-                crate::types::Size::new(minimap_width as f64, 20.0),
-            );
-            ctx.draw_rect(overlay_rect, Color::rgba(255.0 / 255.0, 200.0 / 255.0, 100.0 / 255.0, 180.0 / 255.0));
-        }
-
-        // Phase 4: Count and show stale pages (regenerating after reflow)
-        let stale_count = (0..page_count)
-            .filter_map(|i| minimap.get_page(i))
-            .filter(|p| p.status == minimap::PageStatus::Stale)
-            .count();
-
-        if stale_count > 0 {
-            // Draw regeneration indicator
-            let regen_rect = Rect::new(
-                Point::new(minimap_x as f64, (minimap_y + minimap_height - 20.0) as f64),
-                crate::types::Size::new(minimap_width as f64, 20.0),
-            );
-            ctx.draw_rect(regen_rect, Color::rgba(200.0 / 255.0, 100.0 / 255.0, 100.0 / 255.0, 180.0 / 255.0));
-        }
+        // Return list of uploaded pages so caller can clear gpu_dirty flags
+        // (can't do it here due to RefCell borrow rules)
+        uploaded_pages
     }
 
     /// Render the terminal grid
@@ -531,6 +656,20 @@ impl TerminalEmulator {
             }
         }
     }
+
+    /// Debug: Dump minimap pages to PNG files
+    ///
+    /// Saves all rasterized minimap pages as PNG images for debugging.
+    /// Files are saved as minimap_page_0.png, minimap_page_1.png, etc.
+    pub fn dump_minimap_to_png(&self) -> Result<(), String> {
+        if let Some(ref minimap_cell) = self.minimap_manager {
+            let minimap = minimap_cell.borrow();
+            minimap.dump_pages_to_png()
+                .map_err(|e| format!("Failed to dump minimap: {}", e))
+        } else {
+            Err("No minimap manager".to_string())
+        }
+    }
 }
 
 impl Widget for TerminalEmulator {
@@ -553,8 +692,14 @@ impl Widget for TerminalEmulator {
         // Phase 4: Detect if resize is needed
         let (new_cols, new_rows) = self.calculate_dimensions_from_bounds();
         if new_cols != self.cols || new_rows != self.rows {
-            // Dimension change detected, schedule debounced resize
-            self.pending_resize = Some((new_cols, new_rows));
+            // Apply resize immediately if this is the first time (no previous resize)
+            // Otherwise use debouncing to avoid excessive reflows
+            if self.last_resize_time.is_none() {
+                self.apply_resize(new_cols, new_rows);
+            } else {
+                // Dimension change detected, schedule debounced resize
+                self.pending_resize = Some((new_cols, new_rows));
+            }
         }
 
         self.update_cell_dimensions();
@@ -578,6 +723,16 @@ impl Widget for TerminalEmulator {
         self
     }
 
+    fn update(&mut self, _frame: &FrameInfo) {
+        // Check if we have a pending resize to apply (Phase 4: debounced reflow)
+        self.check_pending_resize();
+    }
+
+    fn needs_continuous_updates(&self) -> bool {
+        // Request continuous updates if we have a pending resize
+        self.pending_resize.is_some()
+    }
+
     fn paint(&self, ctx: &mut PaintContext) {
         // Draw background
         ctx.draw_rect(self.bounds, Color::rgb(15.0 / 255.0, 15.0 / 255.0, 20.0 / 255.0));
@@ -591,8 +746,17 @@ impl Widget for TerminalEmulator {
         // Render minimap (Phase 2+ - placeholder for GPU texture upload)
         // Phase 6: Hide minimap completely in alternate screen mode
         if !is_alt_screen {
-            if let Some(ref minimap) = self.minimap_manager {
-                self.render_minimap(ctx, minimap);
+            if let Some(ref minimap_cell) = self.minimap_manager {
+                // Borrow immutably to render
+                let uploaded_pages = {
+                    let minimap = minimap_cell.borrow();
+                    self.render_minimap(ctx, &*minimap)
+                }; // Immutable borrow dropped here
+
+                // Now we can borrow mutably to clear flags
+                if !uploaded_pages.is_empty() {
+                    minimap_cell.borrow_mut().clear_gpu_dirty_flags(&uploaded_pages);
+                }
             }
         }
     }

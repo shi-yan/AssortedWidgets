@@ -386,6 +386,7 @@ impl RectSdfPipeline {
                 | DrawCommand::Path { .. }
                 | DrawCommand::Icon { .. }
                 | DrawCommand::Image { .. }
+                | DrawCommand::CustomTexture { .. }
                 | DrawCommand::PushClip { .. }
                 | DrawCommand::PopClip => None,
             })

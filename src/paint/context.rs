@@ -599,6 +599,31 @@ impl<'a> PaintContext<'a> {
         self.z_order += 1;
     }
 
+    /// Draw a custom texture (for minimap, charts, etc.)
+    ///
+    /// This is for rendering arbitrary GPU textures that aren't managed by the image atlas.
+    /// The texture and texture_view must be Arc-wrapped for thread-safe sharing.
+    pub fn draw_custom_texture(
+        &mut self,
+        texture: std::sync::Arc<wgpu::Texture>,
+        texture_view: std::sync::Arc<wgpu::TextureView>,
+        rect: Rect,
+        tint: Option<Color>,
+    ) {
+        // Apply current offset
+        let offset = self.current_offset();
+        let rect = rect.translate(euclid::Vector2D::new(offset.x, offset.y));
+
+        self.image_commands.push(DrawCommand::CustomTexture {
+            texture,
+            texture_view,
+            rect,
+            tint,
+            z_index: self.z_order as i32,
+        });
+        self.z_order += 1;
+    }
+
     /// Draw a single text glyph
     ///
     /// For Phase 3.1, this is used to draw individual characters manually positioned.
