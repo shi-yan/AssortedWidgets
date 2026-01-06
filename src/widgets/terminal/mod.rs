@@ -7,11 +7,13 @@
 mod config;
 mod minimap;
 
-use crate::types::{Rect, Point};
-use crate::widget::{Widget, EventResult};
+use crate::types::{Rect, Point, DirtyLevel, WidgetId};
+use crate::widget::Widget;
 use crate::event::GuiEvent;
 use crate::paint::{PaintContext, Color};
 use crate::text::TextStyle;
+use crate::WidgetState;
+use std::any::Any;
 
 use alacritty_terminal::term::Term;
 use alacritty_terminal::event::{Event as TermEvent, EventListener};
@@ -20,7 +22,8 @@ use alacritty_terminal::event_loop::Notifier;
 use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::index::{Point as TermPoint, Line, Column};
 use alacritty_terminal::term::cell::{Cell, Flags};
-use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor};
+use alacritty_terminal::term::RenderableContent;
+use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor, Processor};
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -34,11 +37,17 @@ use crate::widgets::code_editor::CharSheet;
 /// Phase 1: Basic terminal with text rendering, keyboard/mouse input, and scrollback.
 /// Phase 2+: Minimap integration.
 pub struct TerminalEmulator {
+    /// Widget state (ID, dirty tracking)
+    state: WidgetState,
+
     /// Widget bounds
     bounds: Rect,
 
     /// Terminal state (managed by alacritty_terminal)
     term: Term<EventListenerImpl>,
+
+    /// VTE parser (processes input bytes)
+    parser: Processor,
 
     /// Terminal dimensions
     cols: usize,
@@ -80,6 +89,26 @@ struct EventListenerImpl {
     dirty: bool,
 }
 
+/// Simple size implementation for Dimensions trait
+struct SimpleSize {
+    cols: usize,
+    rows: usize,
+}
+
+impl Dimensions for SimpleSize {
+    fn total_lines(&self) -> usize {
+        self.rows
+    }
+
+    fn screen_lines(&self) -> usize {
+        self.rows
+    }
+
+    fn columns(&self) -> usize {
+        self.cols
+    }
+}
+
 impl EventListener for EventListenerImpl {
     fn send_event(&self, event: TermEvent) {
         // For Phase 1, we'll just mark dirty on any event
@@ -109,27 +138,27 @@ impl EventListener for EventListenerImpl {
 fn ansi_to_color(ansi_color: &AnsiColor) -> Color {
     match ansi_color {
         AnsiColor::Named(named) => match named {
-            NamedColor::Black => Color::rgb(0, 0, 0),
-            NamedColor::Red => Color::rgb(205, 49, 49),
-            NamedColor::Green => Color::rgb(13, 188, 121),
-            NamedColor::Yellow => Color::rgb(229, 229, 16),
-            NamedColor::Blue => Color::rgb(36, 114, 200),
-            NamedColor::Magenta => Color::rgb(188, 63, 188),
-            NamedColor::Cyan => Color::rgb(17, 168, 205),
-            NamedColor::White => Color::rgb(229, 229, 229),
-            NamedColor::BrightBlack => Color::rgb(102, 102, 102),
-            NamedColor::BrightRed => Color::rgb(241, 76, 76),
-            NamedColor::BrightGreen => Color::rgb(35, 209, 139),
-            NamedColor::BrightYellow => Color::rgb(245, 245, 67),
-            NamedColor::BrightBlue => Color::rgb(59, 142, 234),
-            NamedColor::BrightMagenta => Color::rgb(214, 112, 214),
-            NamedColor::BrightCyan => Color::rgb(41, 184, 219),
-            NamedColor::BrightWhite => Color::rgb(255, 255, 255),
-            NamedColor::Foreground => Color::rgb(229, 229, 229),
-            NamedColor::Background => Color::rgb(15, 15, 20),
-            _ => Color::rgb(229, 229, 229),
+            NamedColor::Black => Color::rgb(0.0 / 255.0, 0.0 / 255.0, 0.0 / 255.0),
+            NamedColor::Red => Color::rgb(205.0 / 255.0, 49.0 / 255.0, 49.0 / 255.0),
+            NamedColor::Green => Color::rgb(13.0 / 255.0, 188.0 / 255.0, 121.0 / 255.0),
+            NamedColor::Yellow => Color::rgb(229.0 / 255.0, 229.0 / 255.0, 16.0 / 255.0),
+            NamedColor::Blue => Color::rgb(36.0 / 255.0, 114.0 / 255.0, 200.0 / 255.0),
+            NamedColor::Magenta => Color::rgb(188.0 / 255.0, 63.0 / 255.0, 188.0 / 255.0),
+            NamedColor::Cyan => Color::rgb(17.0 / 255.0, 168.0 / 255.0, 205.0 / 255.0),
+            NamedColor::White => Color::rgb(229.0 / 255.0, 229.0 / 255.0, 229.0 / 255.0),
+            NamedColor::BrightBlack => Color::rgb(102.0 / 255.0, 102.0 / 255.0, 102.0 / 255.0),
+            NamedColor::BrightRed => Color::rgb(241.0 / 255.0, 76.0 / 255.0, 76.0 / 255.0),
+            NamedColor::BrightGreen => Color::rgb(35.0 / 255.0, 209.0 / 255.0, 139.0 / 255.0),
+            NamedColor::BrightYellow => Color::rgb(245.0 / 255.0, 245.0 / 255.0, 67.0 / 255.0),
+            NamedColor::BrightBlue => Color::rgb(59.0 / 255.0, 142.0 / 255.0, 234.0 / 255.0),
+            NamedColor::BrightMagenta => Color::rgb(214.0 / 255.0, 112.0 / 255.0, 214.0 / 255.0),
+            NamedColor::BrightCyan => Color::rgb(41.0 / 255.0, 184.0 / 255.0, 219.0 / 255.0),
+            NamedColor::BrightWhite => Color::rgb(255.0 / 255.0, 255.0 / 255.0, 255.0 / 255.0),
+            NamedColor::Foreground => Color::rgb(229.0 / 255.0, 229.0 / 255.0, 229.0 / 255.0),
+            NamedColor::Background => Color::rgb(15.0 / 255.0, 15.0 / 255.0, 20.0 / 255.0),
+            _ => Color::rgb(229.0 / 255.0, 229.0 / 255.0, 229.0 / 255.0),
         },
-        AnsiColor::Spec(rgb) => Color::rgb(rgb.r, rgb.g, rgb.b),
+        AnsiColor::Spec(rgb) => Color::rgb(rgb.r as f32 / 255.0, rgb.g as f32 / 255.0, rgb.b as f32 / 255.0),
         AnsiColor::Indexed(idx) => {
             // 256 color palette (simplified)
             // Full implementation would have complete 256 color table
@@ -156,7 +185,7 @@ fn ansi_to_color(ansi_color: &AnsiColor) -> Color {
                 ansi_to_color(&AnsiColor::Named(named))
             } else {
                 // Grayscale or 256 color (placeholder)
-                let gray = ((idx - 16) * 10).min(255) as u8;
+                let gray = ((idx - 16) * 10).min(255) as f32 / 255.0;
                 Color::rgb(gray, gray, gray)
             }
         }
@@ -173,12 +202,10 @@ impl TerminalEmulator {
         let event_listener = EventListenerImpl { dirty: false };
 
         // Create terminal with configuration
+        let dims = SimpleSize { cols, rows };
         let term = Term::new(
             alacritty_terminal::term::Config::default(),
-            &alacritty_terminal::grid::Dimensions {
-                columns: cols,
-                lines: rows,
-            },
+            &dims,
             event_listener,
         );
 
@@ -190,8 +217,10 @@ impl TerminalEmulator {
         ));
 
         Self {
+            state: WidgetState::new(),
             bounds: Rect::zero(),
             term,
+            parser: Processor::new(),
             cols,
             rows,
             cell_width: 0.0,
@@ -252,9 +281,7 @@ impl TerminalEmulator {
     pub fn write(&mut self, data: &[u8]) {
         // Process bytes through VTE parser
         // This updates the terminal grid with the parsed content
-        for byte in data {
-            self.term.advance(*byte);
-        }
+        self.parser.advance(&mut self.term, data);
         self.dirty = true;
     }
 
@@ -286,10 +313,8 @@ impl TerminalEmulator {
         }
 
         // Resize the terminal grid
-        self.term.resize(alacritty_terminal::grid::Dimensions {
-            columns: new_cols,
-            lines: new_rows,
-        });
+        let dims = SimpleSize { cols: new_cols, rows: new_rows };
+        self.term.resize(dims);
 
         self.cols = new_cols;
         self.rows = new_rows;
@@ -309,7 +334,7 @@ impl TerminalEmulator {
     /// Calculate cell dimensions based on current bounds
     fn update_cell_dimensions(&mut self) {
         if self.cols > 0 && self.rows > 0 {
-            self.cell_width = self.bounds.width() / self.cols as f32;
+            self.cell_width = self.bounds.width() as f32 / self.cols as f32;
             self.cell_height = self.config.font_size * DEFAULT_LINE_HEIGHT * self.scale_factor;
         }
     }
@@ -321,8 +346,8 @@ impl TerminalEmulator {
         let cell_height = self.config.font_size * DEFAULT_LINE_HEIGHT * self.scale_factor;
         let assumed_cell_width = cell_height * 0.6;  // Approximate monospace ratio
 
-        let cols = ((self.bounds.width() - MINIMAP_WIDTH_PIXELS as f32 - 20.0) / assumed_cell_width).max(1.0) as usize;
-        let rows = (self.bounds.height() / cell_height).max(1.0) as usize;
+        let cols = ((self.bounds.width() as f32 - MINIMAP_WIDTH_PIXELS as f32 - 20.0) / assumed_cell_width).max(1.0) as usize;
+        let rows = (self.bounds.height() as f32 / cell_height).max(1.0) as usize;
 
         (cols.max(10), rows.max(3))  // Minimum viable dimensions
     }
@@ -352,17 +377,17 @@ impl TerminalEmulator {
     /// Full GPU texture implementation would upload page.intensity and page.color_rgb565.
     fn render_minimap(&self, ctx: &mut PaintContext, minimap: &TerminalMinimapManager) {
         // Calculate minimap position (right side of terminal)
-        let minimap_x = self.bounds.max.x - MINIMAP_WIDTH_PIXELS as f32 - 10.0;
-        let minimap_y = self.bounds.min.y + 10.0;
+        let minimap_x = self.bounds.max().x as f32 - MINIMAP_WIDTH_PIXELS as f32 - 10.0;
+        let minimap_y = self.bounds.min().y as f32 + 10.0;
         let minimap_width = MINIMAP_WIDTH_PIXELS as f32;
-        let minimap_height = self.bounds.height() - 20.0;
+        let minimap_height = self.bounds.height() as f32 - 20.0;
 
         // Draw minimap background
         let minimap_rect = Rect::new(
-            Point::new(minimap_x, minimap_y),
-            Point::new(minimap_x + minimap_width, minimap_y + minimap_height),
+            Point::new(minimap_x as f64, minimap_y as f64),
+            crate::types::Size::new(minimap_width as f64, minimap_height as f64),
         );
-        ctx.draw_rect(minimap_rect, Color::rgb(25, 25, 30));
+        ctx.draw_rect(minimap_rect, Color::rgb(25.0 / 255.0, 25.0 / 255.0, 30.0 / 255.0));
 
         // Draw page indicators (placeholder visualization)
         let page_count = minimap.page_count();
@@ -375,15 +400,15 @@ impl TerminalEmulator {
 
                     // Color based on page status
                     let color = match page.status {
-                        minimap::PageStatus::Clean => Color::rgb(50, 100, 50),      // Green
-                        minimap::PageStatus::Dirty => Color::rgb(100, 100, 50),     // Yellow
-                        minimap::PageStatus::Rasterizing => Color::rgb(50, 50, 100), // Blue
-                        minimap::PageStatus::Stale => Color::rgb(100, 50, 50),      // Red
+                        minimap::PageStatus::Clean => Color::rgb(50.0 / 255.0, 100.0 / 255.0, 50.0 / 255.0),      // Green
+                        minimap::PageStatus::Dirty => Color::rgb(100.0 / 255.0, 100.0 / 255.0, 50.0 / 255.0),     // Yellow
+                        minimap::PageStatus::Rasterizing => Color::rgb(50.0 / 255.0, 50.0 / 255.0, 100.0 / 255.0), // Blue
+                        minimap::PageStatus::Stale => Color::rgb(100.0 / 255.0, 50.0 / 255.0, 50.0 / 255.0),      // Red
                     };
 
                     let page_rect = Rect::new(
-                        Point::new(minimap_x + 2.0, y + 1.0),
-                        Point::new(minimap_x + minimap_width - 2.0, y + page_height - 1.0),
+                        Point::new((minimap_x + 2.0) as f64, (y + 1.0) as f64),
+                        crate::types::Size::new((minimap_width - 4.0) as f64, (page_height - 2.0) as f64),
                     );
                     ctx.draw_rect(page_rect, color);
                 }
@@ -400,20 +425,20 @@ impl TerminalEmulator {
             let indicator_height = (viewport_height * minimap_height).max(4.0);
 
             let indicator_rect = Rect::new(
-                Point::new(minimap_x, indicator_y),
-                Point::new(minimap_x + minimap_width, indicator_y + indicator_height),
+                Point::new(minimap_x as f64, indicator_y as f64),
+                crate::types::Size::new(minimap_width as f64, indicator_height as f64),
             );
-            ctx.draw_rect(indicator_rect, Color::rgba(255, 255, 255, 128));
+            ctx.draw_rect(indicator_rect, Color::rgba(255.0 / 255.0, 255.0 / 255.0, 255.0 / 255.0, 128.0 / 255.0));
         }
 
         // Phase 4: Visual feedback for pending resize
         if self.pending_resize.is_some() {
             // Draw a subtle overlay to indicate pending resize
             let overlay_rect = Rect::new(
-                Point::new(minimap_x, minimap_y),
-                Point::new(minimap_x + minimap_width, minimap_y + 20.0),
+                Point::new(minimap_x as f64, minimap_y as f64),
+                crate::types::Size::new(minimap_width as f64, 20.0),
             );
-            ctx.draw_rect(overlay_rect, Color::rgba(255, 200, 100, 180));
+            ctx.draw_rect(overlay_rect, Color::rgba(255.0 / 255.0, 200.0 / 255.0, 100.0 / 255.0, 180.0 / 255.0));
         }
 
         // Phase 4: Count and show stale pages (regenerating after reflow)
@@ -425,18 +450,17 @@ impl TerminalEmulator {
         if stale_count > 0 {
             // Draw regeneration indicator
             let regen_rect = Rect::new(
-                Point::new(minimap_x, minimap_y + minimap_height - 20.0),
-                Point::new(minimap_x + minimap_width, minimap_y + minimap_height),
+                Point::new(minimap_x as f64, (minimap_y + minimap_height - 20.0) as f64),
+                crate::types::Size::new(minimap_width as f64, 20.0),
             );
-            ctx.draw_rect(regen_rect, Color::rgba(200, 100, 100, 180));
+            ctx.draw_rect(regen_rect, Color::rgba(200.0 / 255.0, 100.0 / 255.0, 100.0 / 255.0, 180.0 / 255.0));
         }
     }
 
     /// Render the terminal grid
     fn render_grid(&self, ctx: &mut PaintContext) {
-        // Get grid reference
-        let grid = self.term.grid();
-        let display_offset = grid.display_offset();
+        // Get renderable content from terminal
+        let content = self.term.renderable_content();
 
         // Create default text style for terminal
         let mut text_style = TextStyle::default();
@@ -444,82 +468,87 @@ impl TerminalEmulator {
         text_style.line_height = DEFAULT_LINE_HEIGHT;
         text_style.font_family = self.config.font_family.clone();
 
-        // Calculate visible range (in terms of grid lines)
-        // display_offset is the number of lines scrolled back
-        let visible_top_line = Line(-(display_offset as i32));
+        // Iterate over all renderable cells
+        for indexed in content.display_iter {
+            let pos = indexed.point;
+            let cell = indexed.cell;
 
-        // Render each visible row
-        for row_idx in 0..self.rows {
-            let line = Line(visible_top_line.0 + row_idx as i32);
+            // Get row and column indices
+            let row_idx = pos.line.0 as usize;
+            let col_idx = pos.column.0;
 
-            // Calculate Y position for this row
-            let y = self.bounds.min.y + (row_idx as f32 * self.cell_height);
+            // Skip if out of visible bounds
+            if row_idx >= self.rows || col_idx >= self.cols {
+                continue;
+            }
 
-            // Render each column in this row
-            for col_idx in 0..self.cols {
-                let column = Column(col_idx);
-                let point = TermPoint::new(line, column);
+            // Calculate pixel position
+            let x = self.bounds.min().x as f32 + (col_idx as f32 * self.cell_width);
+            let y = self.bounds.min().y as f32 + (row_idx as f32 * self.cell_height);
 
-                // Try to get cell - skip if out of bounds
-                let cell = match grid.get(line, column) {
-                    Some(cell) => cell,
-                    None => continue,
-                };
+            // Create cell rect
+            let cell_rect = Rect::new(
+                Point::new(x as f64, y as f64),
+                crate::types::Size::new(self.cell_width as f64, self.cell_height as f64),
+            );
 
-                // Calculate X position for this column
-                let x = self.bounds.min.x + (col_idx as f32 * self.cell_width);
+            // Render background color (if not default)
+            let bg_color = ansi_to_color(&cell.bg);
+            if bg_color != Color::rgb(15.0 / 255.0, 15.0 / 255.0, 20.0 / 255.0) {
+                ctx.draw_rect(cell_rect, bg_color);
+            }
 
-                // Create cell rect
-                let cell_rect = Rect::new(
-                    Point::new(x, y),
-                    Point::new(x + self.cell_width, y + self.cell_height),
+            // Get character to render
+            let c = cell.c;
+            if c != ' ' && c != '\0' {
+                // Get foreground color
+                let fg_color = ansi_to_color(&cell.fg);
+
+                // Update text style with cell's foreground color
+                text_style.text_color = fg_color;
+
+                // Handle bold/italic flags
+                if cell.flags.contains(Flags::BOLD) {
+                    text_style.font_weight = cosmic_text::Weight::BOLD;
+                } else {
+                    text_style.font_weight = cosmic_text::Weight::NORMAL;
+                }
+
+                if cell.flags.contains(Flags::ITALIC) {
+                    text_style.font_style = cosmic_text::Style::Italic;
+                } else {
+                    text_style.font_style = cosmic_text::Style::Normal;
+                }
+
+                // Render the character
+                let char_str = c.to_string();
+                ctx.draw_text(
+                    &char_str,
+                    &text_style,
+                    Point::new(x as f64, y as f64),
+                    Some(self.cell_width),
                 );
-
-                // Render background color (if not default)
-                let bg_color = ansi_to_color(&cell.bg);
-                if bg_color != Color::rgb(15, 15, 20) {
-                    ctx.draw_rect(cell_rect, bg_color);
-                }
-
-                // Get character to render
-                let c = cell.c;
-                if c != ' ' && c != '\0' {
-                    // Get foreground color
-                    let fg_color = ansi_to_color(&cell.fg);
-
-                    // Update text style with cell's foreground color
-                    text_style.text_color = fg_color;
-
-                    // Handle bold/italic flags
-                    if cell.flags.contains(Flags::BOLD) {
-                        text_style.font_weight = cosmic_text::Weight::BOLD;
-                    } else {
-                        text_style.font_weight = cosmic_text::Weight::NORMAL;
-                    }
-
-                    if cell.flags.contains(Flags::ITALIC) {
-                        text_style.font_style = cosmic_text::Style::Italic;
-                    } else {
-                        text_style.font_style = cosmic_text::Style::Normal;
-                    }
-
-                    // Render the character
-                    let char_str = c.to_string();
-                    ctx.draw_text(
-                        &char_str,
-                        &text_style,
-                        Point::new(x, y),
-                        Some(self.cell_width),
-                    );
-                }
             }
         }
     }
 }
 
 impl Widget for TerminalEmulator {
+    fn id(&self) -> WidgetId {
+        self.state.id
+    }
+
+    fn set_id(&mut self, id: WidgetId) {
+        self.state.id = id;
+    }
+
+    fn bounds(&self) -> Rect {
+        self.state.bounds
+    }
+
     fn set_bounds(&mut self, bounds: Rect) {
         self.bounds = bounds;
+        self.state.bounds = bounds;
 
         // Phase 4: Detect if resize is needed
         let (new_cols, new_rows) = self.calculate_dimensions_from_bounds();
@@ -530,30 +559,31 @@ impl Widget for TerminalEmulator {
 
         self.update_cell_dimensions();
         self.dirty = true;
+        self.state.dirty = DirtyLevel::Visual;
     }
 
-    fn bounds(&self) -> Rect {
-        self.bounds
+    fn dirty_level(&self) -> DirtyLevel {
+        self.state.dirty
     }
 
-    fn paint(&mut self, ctx: &mut PaintContext) {
-        // Phase 4: Check for pending resize
-        self.check_pending_resize();
+    fn set_dirty_level(&mut self, level: DirtyLevel) {
+        self.state.dirty = level;
+    }
 
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn paint(&self, ctx: &mut PaintContext) {
         // Draw background
-        ctx.draw_rect(self.bounds, Color::rgb(15, 15, 20));
+        ctx.draw_rect(self.bounds, Color::rgb(15.0 / 255.0, 15.0 / 255.0, 20.0 / 255.0));
 
         // Phase 6: Check if in alternate screen mode
         let is_alt_screen = self.is_alternate_screen();
-
-        // Update minimap (Phase 2+)
-        // Phase 6: Skip minimap in alternate screen mode (vim, less, htop, etc.)
-        if !is_alt_screen {
-            if let Some(ref mut minimap) = self.minimap_manager {
-                let visible_line = self.scroll_offset;
-                minimap.update(&self.term, visible_line);
-            }
-        }
 
         // Render grid
         self.render_grid(ctx);
@@ -565,41 +595,13 @@ impl Widget for TerminalEmulator {
                 self.render_minimap(ctx, minimap);
             }
         }
-
-        self.dirty = false;
     }
 
-    fn handle_event(&mut self, event: &GuiEvent) -> EventResult {
-        match event {
-            GuiEvent::MouseDown { x, y, .. } => {
-                if self.bounds.contains(Point::new(*x, *y)) {
-                    self.handle_mouse_click(*x, *y);
-                    return EventResult::Consumed;
-                }
-            }
-            GuiEvent::Scroll { delta_y, .. } => {
-                // Convert scroll delta to lines
-                let lines = (*delta_y / self.cell_height) as i32;
-                self.scroll(lines);
-                return EventResult::Consumed;
-            }
-            GuiEvent::KeyPress { key, modifiers } => {
-                self.handle_keyboard(key, *modifiers);
-                return EventResult::Consumed;
-            }
-            _ => {}
-        }
-
-        EventResult::Ignored
-    }
-
-    fn wants_focus(&self) -> bool {
+    fn is_focusable(&self) -> bool {
         true
     }
 
-    fn set_scale_factor(&mut self, scale: f32) {
-        self.scale_factor = scale;
-        self.update_cell_dimensions();
-        self.dirty = true;
+    fn is_interactive(&self) -> bool {
+        true
     }
 }

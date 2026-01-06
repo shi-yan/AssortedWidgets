@@ -23,7 +23,6 @@ use std::time::{Duration, Instant};
 
 use super::config::MINIMAP_PAGE_SIZE;
 use crate::widgets::code_editor::CharSheet;
-use raster_job::{CellSnapshot, GridLine};
 
 use alacritty_terminal::term::Term;
 use alacritty_terminal::event::EventListener;
@@ -448,11 +447,8 @@ impl TerminalMinimapManager {
 
                 let column = Column(col_idx);
 
-                // Try to get cell - skip if out of bounds
-                let cell = match grid.get(line, column) {
-                    Some(cell) => cell,
-                    None => continue,
-                };
+                // Access cell via indexing
+                let cell = &grid[line][column];
 
                 // Get character and render as micro-glyph
                 let c = cell.c;
@@ -523,17 +519,14 @@ impl TerminalMinimapManager {
             for col_idx in 0..grid.columns() {
                 let column = Column(col_idx);
 
-                let cell_snapshot = match grid.get(line, column) {
-                    Some(cell) => {
-                        let c = cell.c;
-                        let fg = ansi_color_to_rgb(&cell.fg);
-                        let bg = ansi_color_to_rgb(&cell.bg);
-                        let width = if c.width().map(|w| w.get()).unwrap_or(1) > 1 { 2 } else { 1 };
+                let cell = &grid[line][column];
+                let c = cell.c;
+                let fg = ansi_color_to_rgb(&cell.fg);
+                let bg = ansi_color_to_rgb(&cell.bg);
+                // Estimate character width (CJK and emoji are typically wide)
+                let width = if (c as u32) >= 0x1100 && ((c as u32) <= 0x115F || (c as u32) >= 0x2E80) { 2 } else { 1 };
 
-                        CellSnapshot::new(c, fg, bg, width)
-                    }
-                    None => CellSnapshot::empty(),
-                };
+                let cell_snapshot = CellSnapshot::new(c, fg, bg, width);
 
                 cells.push(cell_snapshot);
             }

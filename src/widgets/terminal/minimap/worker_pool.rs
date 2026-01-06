@@ -118,9 +118,7 @@ impl WorkerPool {
         for _ in 0..self.num_workers {
             let _ = self.job_sender.send(WorkerMessage::Shutdown);
         }
-        // Drop channels to unblock workers
-        drop(self.job_sender);
-        drop(self.result_receiver);
+        // Channels will be dropped automatically when self is dropped
     }
 }
 

@@ -1,6 +1,6 @@
 // Terminal configuration constants
 
-use crate::widgets::code_editor::config::MonospaceFontConfig;
+use crate::widgets::code_editor::MonospaceFontConfig;
 
 /// Default terminal width in columns
 pub const DEFAULT_COLS: usize = 80;

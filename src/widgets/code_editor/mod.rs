@@ -24,7 +24,7 @@ mod syntax;
 mod gutter;
 mod folding;
 
-pub use config::{EditorConfig, WrapMode};
+pub use config::{EditorConfig, WrapMode, MonospaceFontConfig};
 pub use model::EditorModel;
 pub use minimap::{MinimapManager, CharSheet, MinimapPalette};
 pub use theme::EditorTheme;
@@ -101,7 +101,7 @@ pub struct CodeEditor {
     scroll_offset_x: f32,
 
     /// Maximum line width (for horizontal scrollbar in NoWrap mode)
-    max_line_width: f32,
+    max_line_width: RefCell<f32>,
 
     // === Text Wrapping ===
     /// Cached wrapped line information (only used in SoftWrap mode)
@@ -174,7 +174,7 @@ impl CodeEditor {
             scroll_line: 0,
             scroll_offset_y: 0.0,
             scroll_offset_x: 0.0,
-            max_line_width: 0.0,
+            max_line_width: RefCell::new(0.0),
             wrapped_lines: RefCell::new(Vec::new()),
             wrap_cache_valid: RefCell::new(false),
             dragging_h_scrollbar: false,
@@ -385,7 +385,7 @@ impl CodeEditor {
 
     /// Calculate the maximum line width (for horizontal scrollbar)
     fn calculate_max_line_width(&self) -> f32 {
-        let mut max_width = 0.0;
+        let mut max_width: f32 = 0.0;
 
         for line_idx in 0..self.model.len_lines() {
             if let Some(line_text) = self.model.line(line_idx) {
@@ -406,7 +406,8 @@ impl CodeEditor {
         let text_area_width = bounds.size.width - self.gutter.width as f64;
 
         // Only show scrollbar if content is wider than viewport
-        if self.max_line_width <= text_area_width as f32 {
+        let max_width = *self.max_line_width.borrow();
+        if max_width <= text_area_width as f32 {
             return;
         }
 
@@ -425,7 +426,7 @@ impl CodeEditor {
         );
 
         // Scrollbar thumb
-        let content_width = self.max_line_width as f64;
+        let content_width = *self.max_line_width.borrow() as f64;
         let thumb_width = (text_area_width / content_width * text_area_width).max(30.0);
         let max_scroll = (content_width - text_area_width).max(0.0);
         let scroll_ratio = if max_scroll > 0.0 {
@@ -445,8 +446,7 @@ impl CodeEditor {
 
         ctx.draw_styled_rect(
             thumb_rect,
-            ShapeStyle::solid(Color::rgba(0.5, 0.5, 0.5, 0.8))
-                .with_corner_radius(4.0),
+            ShapeStyle::rounded(Color::rgba(0.5, 0.5, 0.5, 0.8), 4.0),
         );
     }
 
@@ -554,6 +554,9 @@ impl CodeEditor {
 
     /// Paint in NoWrap mode (with horizontal scrolling)
     fn paint_nowrap(&self, ctx: &mut PaintContext, bounds: Rect, text_area_x: f32) {
+        // Calculate max line width for horizontal scrollbar (using interior mutability)
+        *self.max_line_width.borrow_mut() = self.calculate_max_line_width();
+
         // Calculate visible line range
         let visible_lines = self.visible_line_range();
 
@@ -959,244 +962,6 @@ impl Widget for CodeEditor {
         }
     }
 
-    /// Paint in NoWrap mode (with horizontal scrolling)
-    fn paint_nowrap(&self, ctx: &mut PaintContext, bounds: Rect, text_area_x: f32) {
-        // Calculate visible line range
-        let visible_lines = self.visible_line_range();
-
-        // Draw gutter (line numbers)
-        self.gutter.paint(
-            ctx,
-            bounds,
-            &self.theme,
-            visible_lines.clone(),
-            self.scroll_offset_y,
-            self.line_height,
-            Some(self.current_line),
-        );
-
-        // Draw current line highlight (in text area)
-        let current_line_y = bounds.origin.y as f32
-            + (self.current_line as f32 * self.line_height)
-            - (self.scroll_line as f32 * self.line_height)
-            - self.scroll_offset_y;
-
-        if self.current_line >= visible_lines.start && self.current_line < visible_lines.end {
-            let highlight_rect = Rect::new(
-                Point::new(text_area_x as f64, current_line_y as f64),
-                Size::new(
-                    (bounds.size.width - self.gutter.width as f64).max(0.0),
-                    self.line_height as f64,
-                ),
-            );
-            ctx.draw_styled_rect(
-                highlight_rect,
-                ShapeStyle::solid(self.theme.current_line_background),
-            );
-        }
-
-        // Draw visible lines
-        let mut y = bounds.origin.y as f32 - self.scroll_offset_y;
-        let x = text_area_x - self.scroll_offset_x + 10.0; // 10px padding
-
-        for line_idx in visible_lines.clone() {
-            if let Some(line_text) = self.model.line(line_idx) {
-                let text_pos = Point::new(x as f64, y as f64 + 4.0);
-
-                let text_style = TextStyle::new()
-                    .size(self.config.font_size)
-                    .family(&self.config.font_family)
-                    .color(self.theme.default_text);
-
-                ctx.draw_text(
-                    &line_text.trim_end_matches('\n'),
-                    &text_style,
-                    text_pos,
-                    None,
-                );
-            }
-
-            y += self.line_height;
-
-            if y > (bounds.origin.y + bounds.size.height) as f32 {
-                break;
-            }
-        }
-
-        // Draw cursor (if focused)
-        if self.is_focused {
-            if let Some((line_idx, byte_offset)) = self.model.cursor().line_info() {
-                if line_idx >= visible_lines.start && line_idx < visible_lines.end {
-                    let mut cursor_x = x;
-
-                    if let Some(line_text) = self.model.line(line_idx) {
-                        let text_before_cursor = &line_text[..byte_offset.min(line_text.len())];
-                        let text_width = self.measure_text_width(text_before_cursor);
-                        cursor_x = x + text_width;
-                    }
-
-                    let cursor_y = bounds.origin.y as f32 + (line_idx - self.scroll_line) as f32 * self.line_height - self.scroll_offset_y;
-
-                    let cursor_rect = Rect::new(
-                        Point::new(cursor_x as f64, cursor_y as f64 + 4.0),
-                        Size::new(2.0, self.line_height as f64 - 4.0),
-                    );
-
-                    ctx.draw_styled_rect(cursor_rect, ShapeStyle::solid(self.theme.cursor));
-                }
-            }
-        }
-
-        // Draw horizontal scrollbar
-        self.paint_h_scrollbar(ctx, bounds);
-    }
-
-    /// Paint in SoftWrap mode (with line wrapping)
-    fn paint_wrapped(&self, ctx: &mut PaintContext, bounds: Rect, text_area_x: f32) {
-        // Update wrapped lines cache if needed
-        if !*self.wrap_cache_valid.borrow() {
-            self.update_wrapped_lines();
-        }
-
-        let visible_lines = self.visible_line_range();
-
-        // Draw gutter (line numbers)
-        self.gutter.paint(
-            ctx,
-            bounds,
-            &self.theme,
-            visible_lines.clone(),
-            self.scroll_offset_y,
-            self.line_height,
-            Some(self.current_line),
-        );
-
-        // Draw current line highlight
-        let current_line_y = bounds.origin.y as f32
-            + (self.current_line as f32 * self.line_height)
-            - (self.scroll_line as f32 * self.line_height)
-            - self.scroll_offset_y;
-
-        if self.current_line >= visible_lines.start && self.current_line < visible_lines.end {
-            // In wrapped mode, we need to highlight all visual lines for the current logical line
-            let wrapped = self.wrapped_lines.borrow();
-            if let Some(wrapped_line) = wrapped.get(self.current_line) {
-                for seg_idx in 0..wrapped_line.segments.len() {
-                    let seg_y = current_line_y + (seg_idx as f32 * self.line_height);
-                    let highlight_rect = Rect::new(
-                        Point::new(text_area_x as f64, seg_y as f64),
-                        Size::new(
-                            (bounds.size.width - self.gutter.width as f64).max(0.0),
-                            self.line_height as f64,
-                        ),
-                    );
-                    ctx.draw_styled_rect(
-                        highlight_rect,
-                        ShapeStyle::solid(self.theme.current_line_background),
-                    );
-                }
-            }
-        }
-
-        // Draw wrapped line segments
-        let mut y = bounds.origin.y as f32 - self.scroll_offset_y;
-        let x = text_area_x + 10.0; // 10px padding (no horizontal scroll in wrap mode)
-
-        let wrapped = self.wrapped_lines.borrow();
-        for line_idx in visible_lines.clone() {
-            if let Some(wrapped_line) = wrapped.get(line_idx) {
-                if let Some(line_text) = self.model.line(line_idx) {
-                    let line_without_newline = line_text.trim_end_matches('\n');
-
-                    for segment in &wrapped_line.segments {
-                        let segment_text = &line_without_newline[segment.start..segment.end];
-                        let text_pos = Point::new(x as f64, y as f64 + 4.0);
-
-                        let text_style = TextStyle::new()
-                            .size(self.config.font_size)
-                            .family(&self.config.font_family)
-                            .color(self.theme.default_text);
-
-                        ctx.draw_text(
-                            segment_text,
-                            &text_style,
-                            text_pos,
-                            None,
-                        );
-
-                        y += self.line_height;
-
-                        if y > (bounds.origin.y + bounds.size.height) as f32 {
-                            return;
-                        }
-                    }
-                }
-            } else {
-                // No wrapped info for this line, skip it
-                y += self.line_height;
-            }
-        }
-
-        // Draw cursor (if focused)
-        // TODO: Update cursor rendering for wrapped mode
-        if self.is_focused {
-            if let Some((line_idx, byte_offset)) = self.model.cursor().line_info() {
-                if line_idx >= visible_lines.start && line_idx < visible_lines.end {
-                    // Find which segment contains the cursor
-                    if let Some(wrapped_line) = wrapped.get(line_idx) {
-                        if let Some(line_text) = self.model.line(line_idx) {
-                            let mut seg_y_offset = 0.0;
-                            let mut found = false;
-
-                            for segment in &wrapped_line.segments {
-                                if byte_offset >= segment.start && byte_offset <= segment.end {
-                                    // Cursor is in this segment
-                                    let text_before_cursor = &line_text[segment.start..byte_offset.min(segment.end)];
-                                    let text_width = self.measure_text_width(text_before_cursor);
-                                    let cursor_x = x + text_width;
-
-                                    let cursor_y = bounds.origin.y as f32
-                                        + (line_idx - self.scroll_line) as f32 * self.line_height
-                                        - self.scroll_offset_y
-                                        + seg_y_offset;
-
-                                    let cursor_rect = Rect::new(
-                                        Point::new(cursor_x as f64, cursor_y as f64 + 4.0),
-                                        Size::new(2.0, self.line_height as f64 - 4.0),
-                                    );
-
-                                    ctx.draw_styled_rect(cursor_rect, ShapeStyle::solid(self.theme.cursor));
-                                    found = true;
-                                    break;
-                                }
-                                seg_y_offset += self.line_height;
-                            }
-
-                            if !found {
-                                // Fallback: cursor at end of last segment
-                                if let Some(last_seg) = wrapped_line.segments.last() {
-                                    let cursor_x = x + last_seg.width;
-                                    let seg_y_offset = (wrapped_line.segments.len() - 1) as f32 * self.line_height;
-                                    let cursor_y = bounds.origin.y as f32
-                                        + (line_idx - self.scroll_line) as f32 * self.line_height
-                                        - self.scroll_offset_y
-                                        + seg_y_offset;
-
-                                    let cursor_rect = Rect::new(
-                                        Point::new(cursor_x as f64, cursor_y as f64 + 4.0),
-                                        Size::new(2.0, self.line_height as f64 - 4.0),
-                                    );
-
-                                    ctx.draw_styled_rect(cursor_rect, ShapeStyle::solid(self.theme.cursor));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     // ========================================================================
     // Event Handling (makes editor interactive)
     // ========================================================================
@@ -1248,14 +1013,57 @@ impl Widget for CodeEditor {
 impl MouseHandler for CodeEditor {
     fn on_mouse_down(&mut self, event: &mut MouseEvent) -> EventResponse {
         // Focus the editor on click
-        // For now, explicitly set focus state (the focus manager should handle this, but we'll do it manually for testing)
         if !self.is_focused {
             self.is_focused = true;
         }
 
-        // Calculate which line was clicked
         let bounds = self.state.bounds;
         let text_area_x = bounds.origin.x as f32 + self.gutter.width;
+
+        // Check if clicking on horizontal scrollbar (NoWrap mode only)
+        if self.config.wrap_mode == WrapMode::NoWrap {
+            const SCROLLBAR_HEIGHT: f64 = 12.0;
+            const SCROLLBAR_MARGIN: f64 = 2.0;
+
+            let scrollbar_y = bounds.origin.y + bounds.size.height - SCROLLBAR_HEIGHT - SCROLLBAR_MARGIN;
+            let scrollbar_x = bounds.origin.x + self.gutter.width as f64;
+            let text_area_width = bounds.size.width - self.gutter.width as f64;
+
+            // Check if click is in scrollbar area
+            let max_width = *self.max_line_width.borrow();
+            if event.position.y >= scrollbar_y && event.position.y <= scrollbar_y + SCROLLBAR_HEIGHT
+                && event.position.x >= scrollbar_x && event.position.x <= scrollbar_x + text_area_width
+                && max_width > text_area_width as f32
+            {
+                // Clicked on scrollbar - start dragging
+                self.dragging_h_scrollbar = true;
+                self.drag_start_x = event.position.x as f32;
+                self.drag_start_scroll = self.scroll_offset_x;
+
+                // Calculate thumb position and check if clicked on thumb
+                let content_width = max_width as f64;
+                let thumb_width = (text_area_width / content_width * text_area_width).max(30.0);
+                let max_scroll = (content_width - text_area_width).max(0.0);
+                let scroll_ratio = if max_scroll > 0.0 {
+                    (self.scroll_offset_x as f64 / max_scroll).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                let thumb_x = scrollbar_x + scroll_ratio * (text_area_width - thumb_width);
+
+                // If clicked outside thumb, jump to that position
+                if event.position.x < thumb_x || event.position.x > thumb_x + thumb_width {
+                    let click_ratio = ((event.position.x - scrollbar_x) / text_area_width).clamp(0.0, 1.0);
+                    self.scroll_offset_x = (click_ratio * max_scroll) as f32;
+                    self.scroll_offset_x = self.scroll_offset_x.clamp(0.0, max_scroll as f32);
+                }
+
+                self.state.dirty = DirtyLevel::Visual;
+                return EventResponse::Handled;
+            }
+        }
+
+        // Calculate which line was clicked
 
         // Convert click position to line index
         let relative_y = event.position.y as f32 - bounds.origin.y as f32 + self.scroll_offset_y;
@@ -1314,6 +1122,37 @@ impl MouseHandler for CodeEditor {
         EventResponse::Handled
     }
 
+    fn on_mouse_move(&mut self, event: &mut MouseEvent) -> EventResponse {
+        if self.dragging_h_scrollbar {
+            let bounds = self.state.bounds;
+            let text_area_width = bounds.size.width - self.gutter.width as f64;
+            let content_width = *self.max_line_width.borrow() as f64;
+            let max_scroll = (content_width - text_area_width).max(0.0);
+
+            if max_scroll > 0.0 {
+                // Calculate scroll based on drag delta
+                let drag_delta = event.position.x as f32 - self.drag_start_x;
+                let scroll_delta = drag_delta * (content_width / text_area_width) as f32;
+
+                self.scroll_offset_x = (self.drag_start_scroll + scroll_delta).clamp(0.0, max_scroll as f32);
+                self.state.dirty = DirtyLevel::Visual;
+            }
+
+            return EventResponse::Handled;
+        }
+
+        EventResponse::PassThrough
+    }
+
+    fn on_mouse_up(&mut self, _event: &mut MouseEvent) -> EventResponse {
+        if self.dragging_h_scrollbar {
+            self.dragging_h_scrollbar = false;
+            return EventResponse::Handled;
+        }
+
+        EventResponse::PassThrough
+    }
+
     fn on_mouse_enter(&mut self, _event: &mut MouseEvent) -> EventResponse {
         self.is_hovered = true;
         EventResponse::PassThrough
@@ -1321,6 +1160,7 @@ impl MouseHandler for CodeEditor {
 
     fn on_mouse_leave(&mut self, _event: &mut MouseEvent) -> EventResponse {
         self.is_hovered = false;
+        self.dragging_h_scrollbar = false; // Stop dragging if mouse leaves
         EventResponse::PassThrough
     }
 }
@@ -1714,6 +1554,7 @@ mod tests {
             highlight_current_line: false,
             font_size: 12.0,
             font_family: "Courier".to_string(),
+            monospace_config: Default::default(),
         };
 
         let editor = CodeEditor::new().with_config(config.clone());
